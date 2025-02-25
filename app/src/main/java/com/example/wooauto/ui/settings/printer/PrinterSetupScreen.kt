@@ -1,4 +1,4 @@
-package com.example.wooauto.ui.screens.settings.printer
+package com.example.wooauto.ui.settings.printer
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -55,6 +55,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.wooauto.R
 import com.example.wooauto.ui.components.EmptyState
 import com.example.wooauto.ui.settings.viewmodel.PrinterSetupViewModel
+import com.example.wooauto.ui.settings.viewmodel.PrinterTestingState
+import com.example.wooauto.ui.settings.viewmodel.ScanningState
 import com.example.wooauto.utils.PrintService
 import kotlinx.coroutines.launch
 

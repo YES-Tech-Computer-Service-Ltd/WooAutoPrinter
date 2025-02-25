@@ -1,4 +1,4 @@
-package com.wooauto
+package com.example.wooauto
 
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
@@ -8,7 +8,7 @@ import androidx.navigation.ui.setupActionBarWithNavController
 import androidx.navigation.ui.setupWithNavController
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.example.wooauto.databinding.ActivityMainBinding
-import com.example.wooauto.utils.SharedPreferencesManager
+import com.example.utils.SharedPreferencesManager
 
 class MainActivity : AppCompatActivity() {
 

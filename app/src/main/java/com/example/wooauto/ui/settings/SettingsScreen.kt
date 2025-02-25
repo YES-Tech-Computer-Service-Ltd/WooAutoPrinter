@@ -32,7 +32,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.wooauto.R
-import com.example.wooauto.ui.settings.viewmodel.SettingsViewModel
+import com.example.wooauto.ui.screens.settings.viewmodel.SettingsViewModel
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

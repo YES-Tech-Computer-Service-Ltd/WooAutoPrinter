@@ -109,7 +109,7 @@ class PrintService(private val context: Context) {
                 203, // 203 DPI is standard
                 printerInfo.paperSize.width.toFloat() / 203f, // Width in inches
                 32, // Max paper feed
-                EscPosCharsetEncoding("UTF-8", 0)
+                charset("UTF-8")
             )
 
             // Print content
@@ -135,7 +135,7 @@ class PrintService(private val context: Context) {
                 203, // 203 DPI is standard
                 printerInfo.paperSize.width.toFloat() / 203f, // Width in inches
                 32, // Max paper feed
-                EscPosCharsetEncoding("UTF-8", 0))
+                charset("UTF-8"))
 
             // Print content
             escPosPrinter.printFormattedText(content)

@@ -10,7 +10,6 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.example.wooauto.service.OrderPollingWorker
 import com.example.wooauto.utils.LanguageHelper
-import com.example.wooauto.utils.NotificationHelper
 import com.example.wooauto.utils.SharedPreferencesManager
 import java.util.concurrent.TimeUnit
 
@@ -22,9 +21,6 @@ abstract class WooAutoApplication : Application(), Configuration.Provider {
 
     override fun onCreate() {
         super.onCreate()
-
-        // Initialize notification channels
-        NotificationHelper.createNotificationChannel(this)
 
         // Initialize language based on preferences
         val prefsManager = SharedPreferencesManager(this)
@@ -67,7 +63,7 @@ abstract class WooAutoApplication : Application(), Configuration.Provider {
         }
     }
 
-    fun getWorkManagerConfiguration(): Configuration {
+    override fun getWorkManagerConfiguration(): Configuration {
         return Configuration.Builder()
             .setMinimumLoggingLevel(android.util.Log.INFO)
             .build()

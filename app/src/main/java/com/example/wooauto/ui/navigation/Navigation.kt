@@ -20,7 +20,7 @@ import com.example.wooauto.ui.orders.OrdersScreen
 import com.example.wooauto.ui.products.ProductDetailsScreen
 import com.example.wooauto.ui.products.ProductsScreen
 import com.example.wooauto.ui.settings.SettingsScreen
-import com.example.wooauto.ui.screens.settings.printer.PrinterSetupScreen
+import com.example.wooauto.ui.settings.printer.PrinterSetupScreen
 import com.example.wooauto.ui.screens.settings.sound.SoundSetupScreen
 import com.example.wooauto.ui.settings.website.WebsiteSetupScreen
 

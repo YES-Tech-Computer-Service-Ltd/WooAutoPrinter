@@ -1,6 +1,7 @@
-package com.wooauto
+package com.example.wooauto
 
 import android.os.Bundle
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.navigation.findNavController
 import androidx.navigation.ui.AppBarConfiguration
@@ -8,7 +9,7 @@ import androidx.navigation.ui.setupActionBarWithNavController
 import androidx.navigation.ui.setupWithNavController
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.example.wooauto.databinding.ActivityMainBinding
-import com.example.wooauto.utils.SharedPreferencesManager
+import com.example.utils.SharedPreferencesManager
 
 class MainActivity : AppCompatActivity() {
 
@@ -25,6 +26,11 @@ class MainActivity : AppCompatActivity() {
             // TODO: Launch setup wizard Activity
             // For now, just mark as not first launch
             prefsManager.setFirstLaunch(false)
+        }
+
+        // 检查API凭证
+        if (prefsManager.getApiKey().isEmpty() || prefsManager.getApiSecret().isEmpty()) {
+            Toast.makeText(this, "请先设置WooCommerce API凭证", Toast.LENGTH_LONG).show()
         }
 
         binding = ActivityMainBinding.inflate(layoutInflater)

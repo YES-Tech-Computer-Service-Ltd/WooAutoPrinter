@@ -2,166 +2,209 @@ package com.example.wooauto.data.repositories
 
 import android.util.Log
 import com.example.wooauto.data.api.WooCommerceApiService
-import com.example.wooauto.data.api.models.Order
-import com.example.wooauto.data.api.requests.OrderUpdateRequest
-import com.example.wooauto.data.database.dao.OrderDao
-import com.example.wooauto.data.database.entities.OrderEntity
-import com.google.gson.Gson
+import com.example.wooauto.data.api.models.Product
+import com.example.wooauto.data.database.dao.ProductDao
+import com.example.wooauto.data.database.entities.ProductEntity
 import kotlinx.coroutines.flow.Flow
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-import java.util.TimeZone
 
-class OrderRepository(
-    private val orderDao: OrderDao,
+class ProductRepository(
+    private val productDao: ProductDao,
     private val apiService: WooCommerceApiService,
     private val apiKey: String,
     private val apiSecret: String
 ) {
-    private val TAG = "OrderRepository"
-    private val gson = Gson()
+    private val TAG = "ProductRepository"
 
     // Local data access
-    fun getAllOrdersFlow(): Flow<List<OrderEntity>> {
-        return orderDao.getAllOrdersFlow()
+    fun getAllProductsFlow(): Flow<List<ProductEntity>> {
+        return productDao.getAllProductsFlow()
     }
 
-    fun getOrdersByStatusFlow(status: String): Flow<List<OrderEntity>> {
-        return orderDao.getOrdersByStatusFlow(status)
+    fun getProductsByCategoryFlow(categoryId: Long): Flow<List<ProductEntity>> {
+        return productDao.getProductsByCategoryFlow(categoryId)
     }
 
-    fun searchOrdersFlow(query: String): Flow<List<OrderEntity>> {
-        return orderDao.searchOrdersFlow(query)
+    fun searchProductsFlow(query: String): Flow<List<ProductEntity>> {
+        return productDao.searchProductsFlow(query)
     }
 
-    suspend fun getOrderById(orderId: Long): OrderEntity? {
-        return orderDao.getOrderById(orderId)
+    suspend fun getProductById(productId: Long): ProductEntity? {
+        return productDao.getProductById(productId)
     }
 
-    suspend fun getUnprintedOrders(): List<OrderEntity> {
-        return orderDao.getUnprintedOrders()
-    }
+    suspend fun getAllCategories(): List<Pair<Long, String>> {
+        val categoryResults = productDao.getAllCategories()
+        val result = mutableListOf<Pair<Long, String>>()
 
-    suspend fun markOrderAsPrinted(orderId: Long) {
-        orderDao.markOrderAsPrinted(orderId)
-    }
+        categoryResults.forEach { categoryResult ->
+            val ids = categoryResult.category_ids
+            val names = categoryResult.category_names
 
-    suspend fun markOrderNotificationShown(orderId: Long) {
-        orderDao.markOrderNotificationShown(orderId)
+            for (i in ids.indices) {
+                if (i < names.size) {
+                    result.add(Pair(ids[i], names[i]))
+                }
+            }
+        }
+
+        return result.distinctBy { it.first }
     }
 
     // Network operations
-    suspend fun refreshOrders(
-        status: String? = null,
-        afterDate: Date? = null
-    ): Result<List<Order>> {
+    suspend fun refreshProducts(categoryId: Long? = null): Result<List<Product>> {
         return try {
-            val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US).apply {
-                timeZone = TimeZone.getTimeZone("UTC")
-            }
-
-            val afterDateString = afterDate?.let { dateFormat.format(it) }
-
-            val response = apiService.getOrders(
+            val response = apiService.getProducts(
                 consumerKey = apiKey,
                 consumerSecret = apiSecret,
-                status = status,
-                after = afterDateString,
-                perPage = 50
+                categoryId = categoryId,
+                perPage = 100
             )
 
             if (response.isSuccessful) {
-                val orders = response.body() ?: emptyList()
+                val products = response.body() ?: emptyList()
 
                 // Save to database
-                val orderEntities = orders.map { it.toOrderEntity() }
-                orderDao.insertOrders(orderEntities)
+                val productEntities = products.map { it.toProductEntity() }
+                productDao.insertProducts(productEntities)
 
-                Result.success(orders)
+                Result.success(products)
             } else {
                 Result.failure(Exception("API Error: ${response.code()} - ${response.message()}"))
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error refreshing orders", e)
+            Log.e(TAG, "Error refreshing products", e)
             Result.failure(e)
         }
     }
 
-    suspend fun fetchNewOrders(lastCheckedDate: Date): Result<List<Order>> {
-        return refreshOrders(afterDate = lastCheckedDate)
-    }
-
-    suspend fun getOrder(orderId: Long): Result<Order> {
+    suspend fun getProduct(productId: Long): Result<Product> {
         return try {
-            val response = apiService.getOrder(
-                orderId = orderId,
+            val response = apiService.getProduct(
+                productId = productId,
                 consumerKey = apiKey,
                 consumerSecret = apiSecret
             )
 
             if (response.isSuccessful) {
-                val order = response.body()
-                    ?: return Result.failure(Exception("Order not found"))
+                val product = response.body()
+                    ?: return Result.failure(Exception("Product not found"))
 
                 // Update local database
-                orderDao.insertOrder(order.toOrderEntity())
+                productDao.insertProduct(product.toProductEntity())
 
-                Result.success(order)
+                Result.success(product)
             } else {
                 Result.failure(Exception("API Error: ${response.code()} - ${response.message()}"))
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error fetching order", e)
+            Log.e(TAG, "Error fetching product", e)
             Result.failure(e)
         }
     }
 
-    suspend fun updateOrderStatus(orderId: Long, newStatus: String): Result<Order> {
+    suspend fun updateProduct(product: Product): Result<Product> {
         return try {
-            val request = OrderUpdateRequest(status = newStatus)
-
-            val response = apiService.updateOrder(
-                orderId = orderId,
-                orderUpdateRequest = request,
+            val response = apiService.updateProduct(
+                productId = product.id,
+                product = product,
                 consumerKey = apiKey,
                 consumerSecret = apiSecret
             )
 
             if (response.isSuccessful) {
-                val updatedOrder = response.body()
-                    ?: return Result.failure(Exception("Failed to update order"))
+                val updatedProduct = response.body()
+                    ?: return Result.failure(Exception("Failed to update product"))
 
                 // Update local database
-                orderDao.updateOrderStatus(orderId, newStatus)
+                productDao.insertProduct(updatedProduct.toProductEntity())
 
-                Result.success(updatedOrder)
+                Result.success(updatedProduct)
             } else {
                 Result.failure(Exception("API Error: ${response.code()} - ${response.message()}"))
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error updating order status", e)
+            Log.e(TAG, "Error updating product", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun updateProductStock(productId: Long, newStockQuantity: Int?): Result<Unit> {
+        return try {
+            val currentProduct = getProduct(productId).getOrNull()
+                ?: return Result.failure(Exception("Product not found"))
+
+            // Update locally first
+            productDao.updateProductStock(productId, newStockQuantity)
+
+            // Create updated product object
+            val updatedProduct = currentProduct.copy(
+                stockQuantity = newStockQuantity
+            )
+
+            // Send to API
+            val updateResult = updateProduct(updatedProduct)
+
+            if (updateResult.isSuccess) {
+                Result.success(Unit)
+            } else {
+                Result.failure(updateResult.exceptionOrNull() ?: Exception("Unknown error"))
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error updating product stock", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun updateProductPrices(
+        productId: Long,
+        regularPrice: String,
+        salePrice: String
+    ): Result<Unit> {
+        return try {
+            val currentProduct = getProduct(productId).getOrNull()
+                ?: return Result.failure(Exception("Product not found"))
+
+            // Update locally first
+            productDao.updateProductPrices(productId, regularPrice, salePrice)
+
+            // Create updated product object
+            val updatedProduct = currentProduct.copy(
+                regularPrice = regularPrice,
+                salePrice = salePrice
+            )
+
+            // Send to API
+            val updateResult = updateProduct(updatedProduct)
+
+            if (updateResult.isSuccess) {
+                Result.success(Unit)
+            } else {
+                Result.failure(updateResult.exceptionOrNull() ?: Exception("Unknown error"))
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error updating product prices", e)
             Result.failure(e)
         }
     }
 
     // Helper methods
-    private fun Order.toOrderEntity(): OrderEntity {
-        return OrderEntity(
+    private fun Product.toProductEntity(): ProductEntity {
+        return ProductEntity(
             id = id,
-            number = number,
+            name = name,
             status = status,
-            dateCreated = dateCreated,
-            total = total,
-            customerId = customerId,
-            customerName = billing.getFullName(),
-            billingAddress = "${billing.address_1}, ${billing.city}, ${billing.state}",
-            shippingAddress = "${shipping.address_1}, ${shipping.city}, ${shipping.state}",
-            paymentMethod = paymentMethod,
-            paymentMethodTitle = paymentMethodTitle,
-            lineItemsJson = gson.toJson(lineItems),
-            isPrinted = this.isPrinted,
-            notificationShown = this.notificationShown
+            description = description,
+            shortDescription = shortDescription,
+            sku = sku,
+            price = price,
+            regularPrice = regularPrice,
+            salePrice = salePrice,
+            onSale = onSale,
+            stockQuantity = stockQuantity,
+            stockStatus = stockStatus,
+            categoryIds = categories.map { it.id },
+            categoryNames = categories.map { it.name },
+            imageUrl = images.firstOrNull()?.src
         )
     }
 }

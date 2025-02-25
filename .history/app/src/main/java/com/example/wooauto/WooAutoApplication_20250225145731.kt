@@ -67,7 +67,7 @@ abstract class WooAutoApplication : Application(), Configuration.Provider {
         }
     }
 
-    fun getWorkManagerConfiguration(): Configuration {
+    override fun getWorkManagerConfiguration(): Configuration {
         return Configuration.Builder()
             .setMinimumLoggingLevel(android.util.Log.INFO)
             .build()
