@@ -16,8 +16,7 @@ object LanguageHelper {
      * Set application locale using the new AppCompatDelegate API (Android 13+ compatible)
      */
     fun setLocale(context: Context, languageCode: String) {
-        val localeList = LocaleListCompat.forLanguageTags(languageCode)
-        AppCompatDelegate.setApplicationLocales(localeList)
+        updateResources(context, languageCode)
     }
 
     /**
@@ -28,32 +27,19 @@ object LanguageHelper {
         val locale = Locale(languageCode)
         Locale.setDefault(locale)
 
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            updateResourcesLocale(context, locale)
-        } else {
-            updateResourcesLegacy(context, locale)
-        }
+        val config = Configuration(context.resources.configuration)
+        config.setLocale(locale)
+        return context.createConfigurationContext(config)
     }
 
-    /**
-     * Update resources configuration for Android N and above
-     */
-    private fun updateResourcesLocale(context: Context, locale: Locale): Context {
-        val configuration = Configuration(context.resources.configuration)
-        configuration.setLocale(locale)
-        return context.createConfigurationContext(configuration)
-    }
+    private fun updateResources(context: Context, languageCode: String) {
+        val locale = Locale(languageCode)
+        Locale.setDefault(locale)
 
-    /**
-     * Update resources configuration for Android versions below N
-     */
-    @Suppress("DEPRECATION")
-    private fun updateResourcesLegacy(context: Context, locale: Locale): Context {
         val resources = context.resources
-        val configuration = resources.configuration
-        configuration.locale = locale
-        resources.updateConfiguration(configuration, resources.displayMetrics)
-        return context
+        val config = Configuration(resources.configuration)
+        config.setLocale(locale)
+        resources.updateConfiguration(config, resources.displayMetrics)
     }
 
     /**
