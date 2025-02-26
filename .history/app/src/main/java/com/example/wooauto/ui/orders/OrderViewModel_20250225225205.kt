@@ -124,25 +124,15 @@ class OrderViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             try {
                 if (!::orderRepository.isInitialized) {
-                    Log.d("OrderViewModel", "订单仓库尚未初始化")
                     _uiState.value = OrdersUiState.Error("正在初始化，请稍后再试")
                     return@launch
                 }
 
                 _isRefreshing.value = true
-                Log.d("OrderViewModel", "开始刷新订单...")
                 val result = orderRepository.refreshOrders()
-                
-                when {
-                    result.isSuccess -> {
-                        val orders = result.getOrNull()
-                        Log.d("OrderViewModel", "成功获取订单：${orders?.size ?: 0} 个")
-                    }
-                    result.isFailure -> {
-                        val exception = result.exceptionOrNull()
-                        Log.e("OrderViewModel", "刷新订单失败", exception)
-                        _uiState.value = OrdersUiState.Error(exception?.message ?: "刷新订单失败")
-                    }
+                result.onFailure { exception ->
+                    Log.e("OrderViewModel", "刷新订单失败", exception)
+                    _uiState.value = OrdersUiState.Error(exception.message ?: "刷新订单失败")
                 }
             } catch (e: Exception) {
                 Log.e("OrderViewModel", "刷新订单时发生错误", e)

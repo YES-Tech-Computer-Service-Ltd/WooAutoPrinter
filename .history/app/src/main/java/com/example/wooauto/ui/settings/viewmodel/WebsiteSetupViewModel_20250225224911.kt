@@ -122,7 +122,19 @@ class WebsiteSetupViewModel(application: Application) : AndroidViewModel(applica
 
                 // Validate input
                 if (url.isBlank() || key.isBlank() || secret.isBlank()) {
-                    _apiTestState.value = ApiTestState.Error("All fields are required")
+                    _apiTestState.value = ApiTestState.Error("所有字段都必须填写")
+                    return@launch
+                }
+
+                // Validate API key format
+                if (!key.startsWith("ck_")) {
+                    _apiTestState.value = ApiTestState.Error("API密钥必须以 'ck_' 开头")
+                    return@launch
+                }
+
+                // Validate API secret format
+                if (!secret.startsWith("cs_")) {
+                    _apiTestState.value = ApiTestState.Error("API密钥必须以 'cs_' 开头")
                     return@launch
                 }
 
@@ -132,23 +144,49 @@ class WebsiteSetupViewModel(application: Application) : AndroidViewModel(applica
                 // Create API service
                 val apiService = RetrofitClient.getWooCommerceApiService(validUrl)
 
-                // Test connection by retrieving a small number of products
-                val response = apiService.getProducts(
+                // Test products API
+                val productsResponse = apiService.getProducts(
                     consumerKey = key,
                     consumerSecret = secret,
                     perPage = 1
                 )
 
-                // Check if response is successful
-                if (response.isSuccessful) {
-                    _apiTestState.value = ApiTestState.Success
-                } else {
-                    _apiTestState.value =
-                        ApiTestState.Error("API Error: ${response.code()} - ${response.message()}")
+                // Test orders API
+                val ordersResponse = apiService.getOrders(
+                    consumerKey = key,
+                    consumerSecret = secret,
+                    perPage = 1
+                )
+
+                when {
+                    productsResponse.isSuccessful && ordersResponse.isSuccessful -> {
+                        _apiTestState.value = ApiTestState.Success
+                    }
+                    !productsResponse.isSuccessful && !ordersResponse.isSuccessful -> {
+                        _apiTestState.value = ApiTestState.Error("API认证失败：请检查API密钥和密钥是否正确")
+                    }
+                    !ordersResponse.isSuccessful -> {
+                        val errorMessage = when (ordersResponse.code()) {
+                            401 -> "订单API访问被拒绝：请检查API密钥权限，确保包含'读取订单'权限"
+                            403 -> "没有访问订单的权限：请在WooCommerce后台为该API密钥授予'读取订单'权限"
+                            404 -> "无法访问订单API：请确保WooCommerce REST API已启用"
+                            else -> "订单API错误：${ordersResponse.code()} - ${ordersResponse.message()}"
+                        }
+                        _apiTestState.value = ApiTestState.Error(errorMessage)
+                    }
+                    !productsResponse.isSuccessful -> {
+                        val errorMessage = when (productsResponse.code()) {
+                            401 -> "产品API访问被拒绝：请检查API密钥权限，确保包含'读取产品'权限"
+                            403 -> "没有访问产品的权限：请在WooCommerce后台为该API密钥授予'读取产品'权限"
+                            404 -> "无法访问产品API：请确保WooCommerce REST API已启用"
+                            else -> "产品API错误：${productsResponse.code()} - ${productsResponse.message()}"
+                        }
+                        _apiTestState.value = ApiTestState.Error(errorMessage)
+                    }
                 }
             } catch (e: Exception) {
                 Log.e("WebsiteSetupViewModel", "Error testing API connection", e)
-                _apiTestState.value = ApiTestState.Error(e.message ?: "Unknown error")
+                _apiTestState.value = ApiTestState.Error("连接错误：${e.message ?: "未知错误"}")
             }
         }
     }

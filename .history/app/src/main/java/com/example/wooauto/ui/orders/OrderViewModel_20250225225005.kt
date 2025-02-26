@@ -48,10 +48,6 @@ class OrderViewModel(application: Application) : AndroidViewModel(application) {
     val printAllState: StateFlow<PrintAllState> = _printAllState.asStateFlow()
 
     init {
-        initializeRepository()
-    }
-
-    private fun initializeRepository() {
         viewModelScope.launch {
             try {
                 // Initialize repository with API credentials
@@ -73,7 +69,7 @@ class OrderViewModel(application: Application) : AndroidViewModel(application) {
                     combine(
                         _searchQuery,
                         _selectedStatusFilter,
-                        orderRepository.getAllOrdersFlow()
+                        getOrdersFlow()
                     ) { query, statusFilter, orders ->
                         val filteredOrders = orders.filter { order ->
                             val matchesQuery = if (query.isBlank()) {
@@ -92,15 +88,14 @@ class OrderViewModel(application: Application) : AndroidViewModel(application) {
                             matchesQuery && matchesStatus
                         }
                         
-                        // 修改判断逻辑，只在非刷新状态且列表为空时显示 Empty
-                        when {
-                            filteredOrders.isNotEmpty() -> OrdersUiState.Success(filteredOrders)
-                            _isRefreshing.value -> OrdersUiState.Loading
-                            else -> OrdersUiState.Empty
+                        if (filteredOrders.isEmpty() && !_isRefreshing.value) {
+                            OrdersUiState.Empty
+                        } else {
+                            OrdersUiState.Success(filteredOrders)
                         }
                     }.catch { e ->
-                        Log.e("OrderViewModel", "获取订单时发生错误", e)
-                        emit(OrdersUiState.Error(e.message ?: "未知错误"))
+                        Log.e("OrderViewModel", "Error observing orders", e)
+                        emit(OrdersUiState.Error(e.message ?: "Unknown error"))
                     }.collect { state ->
                         _uiState.value = state
                     }
@@ -108,49 +103,19 @@ class OrderViewModel(application: Application) : AndroidViewModel(application) {
                     // Initial data load
                     refreshOrders()
                 } else {
-                    _uiState.value = OrdersUiState.Error("API配置缺失，请在设置中配置API信息")
+                    _uiState.value =
+                        OrdersUiState.Error("API configuration missing. Please configure in settings.")
                 }
             } catch (e: Exception) {
-                Log.e("OrderViewModel", "初始化 OrderViewModel 时发生错误", e)
-                _uiState.value = OrdersUiState.Error(e.message ?: "未知错误")
+                Log.e("OrderViewModel", "Error initializing OrderViewModel", e)
+                _uiState.value = OrdersUiState.Error(e.message ?: "Unknown error")
             }
         }
     }
 
-    /**
-     * Refresh orders from the API
-     */
-    fun refreshOrders() {
-        viewModelScope.launch {
-            try {
-                if (!::orderRepository.isInitialized) {
-                    Log.d("OrderViewModel", "订单仓库尚未初始化")
-                    _uiState.value = OrdersUiState.Error("正在初始化，请稍后再试")
-                    return@launch
-                }
-
-                _isRefreshing.value = true
-                Log.d("OrderViewModel", "开始刷新订单...")
-                val result = orderRepository.refreshOrders()
-                
-                when {
-                    result.isSuccess -> {
-                        val orders = result.getOrNull()
-                        Log.d("OrderViewModel", "成功获取订单：${orders?.size ?: 0} 个")
-                    }
-                    result.isFailure -> {
-                        val exception = result.exceptionOrNull()
-                        Log.e("OrderViewModel", "刷新订单失败", exception)
-                        _uiState.value = OrdersUiState.Error(exception?.message ?: "刷新订单失败")
-                    }
-                }
-            } catch (e: Exception) {
-                Log.e("OrderViewModel", "刷新订单时发生错误", e)
-                _uiState.value = OrdersUiState.Error(e.message ?: "刷新订单时发生错误")
-            } finally {
-                _isRefreshing.value = false
-            }
-        }
+    private fun getOrdersFlow() = when (selectedStatusFilter.value) {
+        null -> orderRepository.getAllOrdersFlow()
+        else -> orderRepository.getOrdersByStatusFlow(selectedStatusFilter.value!!)
     }
 
     /**
@@ -165,6 +130,27 @@ class OrderViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun updateStatusFilter(status: String?) {
         _selectedStatusFilter.value = status
+    }
+
+    /**
+     * Refresh orders from the API
+     */
+    fun refreshOrders() {
+        viewModelScope.launch {
+            try {
+                _isRefreshing.value = true
+                val result = orderRepository.refreshOrders()
+                result.onFailure { exception ->
+                    Log.e("OrderViewModel", "刷新订单失败", exception)
+                    _uiState.value = OrdersUiState.Error(exception.message ?: "刷新订单失败")
+                }
+            } catch (e: Exception) {
+                Log.e("OrderViewModel", "刷新订单时发生错误", e)
+                _uiState.value = OrdersUiState.Error(e.message ?: "刷新订单时发生错误")
+            } finally {
+                _isRefreshing.value = false
+            }
+        }
     }
 
     /**

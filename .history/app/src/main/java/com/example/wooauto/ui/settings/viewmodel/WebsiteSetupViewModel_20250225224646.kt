@@ -122,7 +122,19 @@ class WebsiteSetupViewModel(application: Application) : AndroidViewModel(applica
 
                 // Validate input
                 if (url.isBlank() || key.isBlank() || secret.isBlank()) {
-                    _apiTestState.value = ApiTestState.Error("All fields are required")
+                    _apiTestState.value = ApiTestState.Error("所有字段都必须填写")
+                    return@launch
+                }
+
+                // Validate API key format
+                if (!key.startsWith("ck_")) {
+                    _apiTestState.value = ApiTestState.Error("API密钥必须以 'ck_' 开头")
+                    return@launch
+                }
+
+                // Validate API secret format
+                if (!secret.startsWith("cs_")) {
+                    _apiTestState.value = ApiTestState.Error("API密钥必须以 'cs_' 开头")
                     return@launch
                 }
 
@@ -143,12 +155,16 @@ class WebsiteSetupViewModel(application: Application) : AndroidViewModel(applica
                 if (response.isSuccessful) {
                     _apiTestState.value = ApiTestState.Success
                 } else {
-                    _apiTestState.value =
-                        ApiTestState.Error("API Error: ${response.code()} - ${response.message()}")
+                    val errorMessage = when (response.code()) {
+                        401 -> "API认证失败：请检查API密钥和密钥是否正确"
+                        404 -> "无法连接到WooCommerce API：请确保网站URL正确，并且WooCommerce REST API已启用"
+                        else -> "API错误：${response.code()} - ${response.message()}"
+                    }
+                    _apiTestState.value = ApiTestState.Error(errorMessage)
                 }
             } catch (e: Exception) {
                 Log.e("WebsiteSetupViewModel", "Error testing API connection", e)
-                _apiTestState.value = ApiTestState.Error(e.message ?: "Unknown error")
+                _apiTestState.value = ApiTestState.Error("连接错误：${e.message ?: "未知错误"}")
             }
         }
     }

@@ -58,16 +58,14 @@ class OrderRepository(
     ): Result<List<Order>> {
         return try {
             Log.d(TAG, "开始刷新订单，状态：$status，日期：$afterDate")
-            Log.d(TAG, "使用的API凭证 - Key: $apiKey")
             
             val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US).apply {
                 timeZone = TimeZone.getTimeZone("UTC")
             }
 
             val afterDateString = afterDate?.let { dateFormat.format(it) }
-            Log.d(TAG, "格式化后的日期参数: $afterDateString")
+            Log.d(TAG, "请求参数 - API Key: $apiKey, After Date: $afterDateString")
 
-            Log.d(TAG, "准备调用订单API...")
             val response = apiService.getOrders(
                 consumerKey = apiKey,
                 consumerSecret = apiSecret,
@@ -75,8 +73,8 @@ class OrderRepository(
                 after = afterDateString,
                 perPage = 100
             )
-            Log.d(TAG, "API响应码：${response.code()}")
 
+            Log.d(TAG, "API响应码：${response.code()}")
             if (response.isSuccessful) {
                 val orders = response.body() ?: emptyList()
                 Log.d(TAG, "成功获取 ${orders.size} 个订单")
