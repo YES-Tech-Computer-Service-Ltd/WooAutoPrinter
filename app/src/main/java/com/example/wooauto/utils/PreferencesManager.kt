@@ -56,6 +56,8 @@ class PreferencesManager(private val context: Context) {
         const val DEFAULT_AUTO_CLOSE_SECONDS = 15
         const val DEFAULT_LANGUAGE = "en" // English
 
+        private val LAST_CHECKED_DATE = longPreferencesKey("last_checked_date")
+
         // 获取系统默认语言的静态方法
         @JvmStatic
         fun getSystemDefaultLanguage(): String {
@@ -266,4 +268,16 @@ class PreferencesManager(private val context: Context) {
             }
         }
     }
+
+    val lastCheckedDate: Flow<Long> = context.dataStore.data.map { preferences ->
+        preferences[LAST_CHECKED_DATE] ?: 0L
+    }
+
+    suspend fun setLastCheckedDate(timestamp: Long) {
+        context.dataStore.edit { preferences ->
+            preferences[LAST_CHECKED_DATE] = timestamp
+        }
+    }
+
+
 }

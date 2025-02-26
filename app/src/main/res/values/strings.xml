@@ -3,10 +3,10 @@
     <string name="app_name">WooAuto</string>
 
     <!-- Navigation -->
-    <string name="orders">订单</string>
-    <string name="products">商品</string>
-    <string name="settings">设置</string>
-    <string name="back">返回</string>
+    <string name="orders">Orders</string>
+    <string name="products">Products</string>
+    <string name="settings">Settings</string>
+    <string name="back">Back</string>
 
     <!-- Bottom Navigation -->
     <string name="nav_orders">Orders</string>
@@ -43,22 +43,22 @@
     <string name="no_products_found">No products found</string>
 
     <!-- Settings -->
-    <string name="website_setup">网站设置</string>
-    <string name="printer_setup">打印机设置</string>
+    <string name="website_setup">Website Setup</string>
+    <string name="printer_setup">Printer Setup</string>
     <string name="sound_setup">Sound Setup</string>
     <string name="app_settings">App Settings</string>
 
     <!-- Website Setup -->
-    <string name="website_url">网站地址</string>
-    <string name="api_key">API密钥</string>
-    <string name="api_secret">API密钥</string>
-    <string name="polling_interval">轮询间隔（秒）</string>
-    <string name="test_connection">测试连接</string>
+    <string name="website_url">Website URL</string>
+    <string name="api_key">API Key</string>
+    <string name="api_secret">API Secret</string>
+    <string name="polling_interval">Polling Interval (seconds)</string>
+    <string name="test_connection">Test Connection</string>
     <string name="connection_successful">Connection Successful</string>
     <string name="connection_failed">Connection Failed</string>
     <string name="plugin_selection">Order Plugin Selection</string>
     <string name="plugin_woocommerce_food">WooCommerce Food</string>
-    <string name="api_test_success">API连接成功！</string>
+    <string name="api_test_success" translatable="false">API connected！</string>
 
     <!-- Printer Setup -->
     <string name="add_printer">Add Printer</string>
@@ -79,8 +79,8 @@
     <string name="size_letter">Letter</string>
     <string name="default_printer">Default Printer</string>
     <string name="backup_printer">Backup Printer</string>
-    <string name="printer_status">打印机状态</string>
-    <string name="test_print">测试打印</string>
+    <string name="printer_status">printer status</string>
+    <string name="test_print">test print</string>
 
     <!-- Sound Setup -->
     <string name="sound_type">Sound Type</string>
@@ -115,17 +115,18 @@
     <string name="error_general">Something went wrong</string>
 
     <!-- Order Status -->
-    <string name="order_status_pending">待处理</string>
-    <string name="order_status_processing">处理中</string>
-    <string name="order_status_completed">已完成</string>
-    <string name="order_status_cancelled">已取消</string>
+    <string name="order_status_pending">Pending</string>
+    <string name="order_status_processing">Processing</string>
+    <string name="order_status_completed">Completed</string>
+    <string name="order_status_cancelled">Cancelled</string>
 
     <!-- Common -->
-    <string name="save">保存</string>
-    <string name="cancel">取消</string>
-    <string name="confirm">确认</string>
-    <string name="loading">加载中…</string>
-    <string name="error">错误</string>
-    <string name="success">成功</string>
-    <string name="retry">重试</string>
+    <string name="save">Save</string>
+    <string name="cancel">Cancel</string>
+    <string name="confirm">Confirm</string>
+    <string name="loading">Loading…</string>
+    <string name="error">Error</string>
+    <string name="success">Success</string>
+    <string name="retry">Retry</string>
+
 </resources>

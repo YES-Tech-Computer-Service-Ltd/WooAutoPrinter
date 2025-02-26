@@ -36,11 +36,26 @@ class OrderPollingWorker(
             val orderDao = AppDatabase.getInstance(applicationContext).orderDao()
             val repository = OrderRepository(orderDao, apiService, apiKey, apiSecret)
 
+            // 获取上次检查时间，如果不存在则使用24小时前的时间
+            val lastCheckedTime = preferencesManager.lastCheckedDate.first()
+            val checkFrom = if (lastCheckedTime == 0L) {
+                // 首次运行，使用24小时前的时间
+                System.currentTimeMillis() - 24 * 60 * 60 * 1000
+            } else {
+                lastCheckedTime
+            }
+
             // 获取新订单
-            val result = repository.fetchNewOrders(Date())
+            val checkFromDate = Date(checkFrom)
+            Log.d(TAG, "检查从 ${checkFromDate} 开始的新订单")
+            val result = repository.fetchNewOrders(checkFromDate)
+
+            // 更新上次检查时间为当前时间
+            preferencesManager.setLastCheckedDate(System.currentTimeMillis())
 
             if (result.isSuccess) {
                 val orders = result.getOrNull() ?: emptyList()
+                Log.d(TAG, "获取到 ${orders.size} 个新订单")
                 if (orders.isNotEmpty()) {
                     // 显示通知
                     orders.forEach { order ->
@@ -62,4 +77,4 @@ class OrderPollingWorker(
     companion object {
         private const val TAG = "OrderPollingWorker"
     }
-} 
+}
