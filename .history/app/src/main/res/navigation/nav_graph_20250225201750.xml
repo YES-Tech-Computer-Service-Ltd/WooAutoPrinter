@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/nav_graph"
+    app:startDestination="@id/ordersFragment">
+
+    <composable
+        android:id="@+id/ordersFragment"
+        android:name="com.example.wooauto.ui.orders.OrderScreen"
+        android:label="订单列表">
+        <action
+            android:id="@+id/action_ordersFragment_to_orderDetailFragment"
+            app:destination="@id/orderDetailFragment" />
+    </composable>
+
+    <composable
+        android:id="@+id/orderDetailFragment"
+        android:name="com.example.wooauto.ui.orders.OrderDetailsScreen"
+        android:label="订单详情">
+        <argument
+            android:name="orderId"
+            app:argType="long" />
+    </composable>
+
+    <composable
+        android:id="@+id/productsFragment"
+        android:name="com.example.wooauto.ui.products.ProductsScreen"
+        android:label="商品列表">
+        <action
+            android:id="@+id/action_productsFragment_to_productDetailsFragment"
+            app:destination="@id/productDetailsFragment" />
+    </composable>
+
+    <composable
+        android:id="@+id/productDetailsFragment"
+        android:name="com.example.wooauto.ui.products.ProductDetailsScreen"
+        android:label="商品详情">
+        <argument
+            android:name="productId"
+            app:argType="long" />
+    </composable>
+
+    <composable
+        android:id="@+id/settingsFragment"
+        android:name="com.example.wooauto.ui.settings.SettingsScreen"
+        android:label="设置">
+        <action
+            android:id="@+id/action_settingsFragment_to_printerSetupFragment"
+            app:destination="@id/printerSetupFragment" />
+        <action
+            android:id="@+id/action_settingsFragment_to_websiteSetupFragment"
+            app:destination="@id/websiteSetupFragment" />
+    </composable>
+
+    <composable
+        android:id="@+id/printerSetupFragment"
+        android:name="com.example.wooauto.ui.settings.printer.PrinterSetupScreen"
+        android:label="@string/printer_setup" />
+
+    <composable
+        android:id="@+id/websiteSetupFragment"
+        android:name="com.example.wooauto.ui.settings.website.WebsiteSetupScreen"
+        android:label="@string/website_setup" />
+
+</navigation>

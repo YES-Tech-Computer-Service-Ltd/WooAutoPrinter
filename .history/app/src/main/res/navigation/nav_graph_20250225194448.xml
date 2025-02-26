@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/nav_graph"
+    app:startDestination="@id/ordersFragment">
+
+    <fragment
+        android:id="@+id/ordersFragment"
+        android:name="com.example.wooauto.ui.orders.OrdersFragment"
+        android:label="订单列表"
+        tools:layout="@layout/fragment_orders">
+        <action
+            android:id="@+id/action_ordersFragment_to_orderDetailFragment"
+            app:destination="@id/orderDetailFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/orderDetailFragment"
+        android:name="com.example.wooauto.ui.orders.OrderDetailFragment"
+        android:label="订单详情"
+        tools:layout="@layout/fragment_order_details">
+        <argument
+            android:name="orderId"
+            app:argType="long" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/productsFragment"
+        android:name="com.example.wooauto.ui.products.ProductsFragment"
+        android:label="商品列表"
+        tools:layout="@layout/fragment_products">
+        <action
+            android:id="@+id/action_productsFragment_to_productDetailsFragment"
+            app:destination="@id/productDetailsFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/productDetailsFragment"
+        android:name="com.wooauto.ui.products.ProductDetailsFragment"
+        android:label="@string/product_details"
+        tools:layout="@layout/fragment_product_details">
+        <argument
+            android:name="productId"
+            app:argType="long" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/settingsFragment"
+        android:name="com.example.wooauto.ui.settings.SettingsFragment"
+        android:label="设置"
+        tools:layout="@layout/fragment_settings">
+        <action
+            android:id="@+id/action_settingsFragment_to_printerSetupFragment"
+            app:destination="@id/printerSetupFragment" />
+        <action
+            android:id="@+id/action_settingsFragment_to_websiteSetupFragment"
+            app:destination="@id/websiteSetupFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/printerSetupFragment"
+        android:name="com.wooauto.ui.settings.PrinterSetupFragment"
+        android:label="@string/printer_setup"
+        tools:layout="@layout/fragment_printer_setup" />
+
+    <fragment
+        android:id="@+id/websiteSetupFragment"
+        android:name="com.wooauto.ui.settings.WebsiteSetupFragment"
+        android:label="@string/website_setup"
+        tools:layout="@layout/fragment_website_setup" />
+
+</navigation>

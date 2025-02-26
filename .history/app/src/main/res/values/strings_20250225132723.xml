@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">WooAuto</string>
+
+    <!-- Navigation -->
+    <string name="orders">Orders</string>
+    <string name="products">Products</string>
+    <string name="settings">Settings</string>
+
+    <!-- Orders -->
+    <string name="order_details">Order Details</string>
+    <string name="search_orders">Search Orders</string>
+    <string name="order_number">Order #%1$s</string>
+    <string name="order_date">Date: %1$s</string>
+    <string name="customer_name">Customer: %1$s</string>
+    <string name="order_amount">Amount: %1$s</string>
+    <string name="order_status">Status: %1$s</string>
+    <string name="mark_as_complete">Mark as Complete</string>
+    <string name="print_order">Print Order</string>
+    <string name="close">Close</string>
+    <string name="print_all_unprinted">Print All Unprinted</string>
+    <string name="no_orders_found">No orders found</string>
+    <string name="new_order_received">New Order Received</string>
+
+    <!-- Products -->
+    <string name="product_details">Product Details</string>
+    <string name="search_products">Search Products</string>
+    <string name="categories">Categories</string>
+    <string name="all_categories">All Categories</string>
+    <string name="product_name">Name: %1$s</string>
+    <string name="regular_price">Regular Price: %1$s</string>
+    <string name="sale_price">Sale Price: %1$s</string>
+    <string name="stock_quantity">Stock: %1$d</string>
+    <string name="product_status">Status: %1$s</string>
+    <string name="product_category">Category: %1$s</string>
+    <string name="save_changes">Save Changes</string>
+    <string name="no_products_found">No products found</string>
+
+    <!-- Settings -->
+    <string name="website_setup">Website Connection</string>
+    <string name="printer_setup">Printer Setup</string>
+    <string name="sound_setup">Sound Setup</string>
+    <string name="app_settings">App Settings</string>
+
+    <!-- Website Setup -->
+    <string name="website_url">Website URL</string>
+    <string name="api_key">API Key</string>
+    <string name="api_secret">API Secret</string>
+    <string name="polling_interval">Polling Interval (seconds)</string>
+    <string name="test_connection">Test Connection</string>
+    <string name="connection_successful">Connection Successful</string>
+    <string name="connection_failed">Connection Failed</string>
+    <string name="plugin_selection">Order Plugin Selection</string>
+    <string name="plugin_woocommerce_food">WooCommerce Food</string>
+
+    <!-- Printer Setup -->
+    <string name="add_printer">Add Printer</string>
+    <string name="bluetooth_printer">Bluetooth Printer</string>
+    <string name="network_printer">Network Printer</string>
+    <string name="printer_name">Printer Name</string>
+    <string name="printer_address">Printer Address</string>
+    <string name="printer_port">Printer Port</string>
+    <string name="printer_model">Printer Model</string>
+    <string name="scan_printers">Scan for Printers</string>
+    <string name="auto_print">Auto Print</string>
+    <string name="copies">Copies</string>
+    <string name="print_template">Print Template</string>
+    <string name="preview_template">Preview Template</string>
+    <string name="paper_size">Paper Size</string>
+    <string name="size_57mm">57mm</string>
+    <string name="size_80mm">80mm</string>
+    <string name="size_letter">Letter</string>
+    <string name="default_printer">Default Printer</string>
+    <string name="backup_printer">Backup Printer</string>
+
+    <!-- Sound Setup -->
+    <string name="sound_type">Sound Type</string>
+    <string name="system_sound">System Sound</string>
+    <string name="custom_sound">Custom Sound</string>
+    <string name="custom_text">Custom Text</string>
+    <string name="select_sound_file">Select Sound File</string>
+    <string name="volume">Volume</string>
+    <string name="play_count">Play Count</string>
+    <string name="test_sound">Test Sound</string>
+    <string name="male_voice">Male Voice</string>
+    <string name="female_voice">Female Voice</string>
+
+    <!-- App Settings -->
+    <string name="language">Language</string>
+    <string name="english">English</string>
+    <string name="chinese">Chinese</string>
+    <string name="auto_close_notification">Auto Close Notification (seconds)</string>
+
+    <!-- Setup Wizard -->
+    <string name="setup_wizard">Setup Wizard</string>
+    <string name="welcome">Welcome to WooAuto</string>
+    <string name="setup_intro">Let\'s set up your application</string>
+    <string name="next">Next</string>
+    <string name="back">Back</string>
+    <string name="finish">Finish</string>
+    <string name="skip">Skip</string>
+
+    <!-- Error Messages -->
+    <string name="error_connection">Connection error</string>
+    <string name="error_printer">Printer error</string>
+    <string name="error_permission">Permission denied</string>
+    <string name="error_general">Something went wrong</string>
+</resources>
