@@ -7,6 +7,31 @@
     android:padding="16dp"
     tools:context=".MainActivity">
 
+    <com.google.android.material.appbar.AppBarLayout
+        android:id="@+id/appBarLayout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <androidx.appcompat.widget.Toolbar
+            android:id="@+id/toolbar"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            android:background="?attr/colorPrimary"
+            android:theme="@style/ThemeOverlay.MaterialComponents.Dark.ActionBar" />
+
+    </com.google.android.material.appbar.AppBarLayout>
+
+    <androidx.compose.ui.platform.ComposeView
+        android:id="@+id/compose_view"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintRight_toRightOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/appBarLayout" />
+
+    <!-- 以下是设置相关的输入控件，暂时注释掉，供将来使用
     <com.google.android.material.textfield.TextInputLayout
         android:id="@+id/apiKeyLayout"
         android:layout_width="match_parent"
@@ -62,5 +87,6 @@
         android:layout_marginTop="24dp"
         android:text="保存设置"
         app:layout_constraintTop_toBottomOf="@id/pollingIntervalLayout" />
+    -->
 
 </androidx.constraintlayout.widget.ConstraintLayout>

@@ -59,6 +59,16 @@ import com.example.wooauto.ui.settings.viewmodel.PrinterTestingState
 import com.example.wooauto.ui.settings.viewmodel.ScanningState
 import com.example.wooauto.utils.PrintService
 import kotlinx.coroutines.launch
+import java.util.*
+
+data class PrinterFormState(
+    val name: String = "",
+    val type: PrintService.PrinterType = PrintService.PrinterType.NETWORK,
+    val address: String = "",
+    val port: Int = 9100,
+    val model: String = "",
+    val paperSize: PrintService.PaperSize = PrintService.PaperSize.SIZE_80MM
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -161,7 +171,9 @@ fun PrinterSetupScreen(
                                     showEditPrinterDialog = true
                                 },
                                 onDeleteClick = {
-                                    viewModel.deletePrinter(printer.id)
+                                    scope.launch {
+                                        viewModel.deletePrinter(printer.id)
+                                    }
                                 },
                                 onSetAsDefaultClick = {
                                     viewModel.setDefaultPrinter(printer.id)
@@ -209,7 +221,19 @@ fun PrinterSetupScreen(
         AddPrinterDialog(
             onDismiss = { showAddPrinterDialog = false },
             onAddPrinter = { name, type, address, port, model, paperSize ->
-                viewModel.addPrinter(name, type, address, port, model, paperSize)
+                val printerInfo = PrintService.PrinterInfo(
+                    id = UUID.randomUUID().toString(),
+                    name = name,
+                    type = type,
+                    address = address,
+                    port = port.toInt(),
+                    model = model,
+                    paperSize = paperSize,
+                    autoPrint = false,
+                    isDefault = false,
+                    isBackup = false
+                )
+                viewModel.addPrinter(printerInfo)
                 showAddPrinterDialog = false
             },
             onScanPrinters = {
@@ -230,7 +254,14 @@ fun PrinterSetupScreen(
                 selectedPrinterForEdit = null
             },
             onUpdatePrinter = { id, name, address, port, model, paperSize ->
-                viewModel.updatePrinter(id, name, address, port, model, paperSize)
+                viewModel.updatePrinter(
+                    id = id,
+                    name = name,
+                    address = address,
+                    port = port.toInt(),
+                    model = model,
+                    paperSize = paperSize
+                )
                 showEditPrinterDialog = false
                 selectedPrinterForEdit = null
             }
@@ -720,7 +751,7 @@ fun AddPrinterDialog(
                         printerName,
                         printerType,
                         printerAddress,
-                        printerPort.toIntOrNull() ?: 9100,
+                        if (printerType == PrintService.PrinterType.NETWORK) printerPort.toIntOrNull() ?: 9100 else 0,
                         printerModel,
                         paperSize
                     )
@@ -749,11 +780,16 @@ fun EditPrinterDialog(
     onDismiss: () -> Unit,
     onUpdatePrinter: (id: String, name: String, address: String, port: Int, model: String, paperSize: PrintService.PaperSize) -> Unit
 ) {
-    var printerName by remember { mutableStateOf(printer.name) }
-    var printerAddress by remember { mutableStateOf(printer.address) }
-    var printerPort by remember { mutableStateOf(printer.port.toString()) }
-    var printerModel by remember { mutableStateOf(printer.model) }
-    var paperSize by remember { mutableStateOf(printer.paperSize) }
+    var formState by remember { mutableStateOf(
+        PrinterFormState(
+            name = printer.name,
+            type = printer.type,
+            address = printer.address,
+            port = printer.port,
+            model = printer.model,
+            paperSize = printer.paperSize
+        )
+    ) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -776,8 +812,8 @@ fun EditPrinterDialog(
 
                 // Printer Name
                 OutlinedTextField(
-                    value = printerName,
-                    onValueChange = { printerName = it },
+                    value = formState.name,
+                    onValueChange = { formState = formState.copy(name = it) },
                     label = { Text(stringResource(R.string.printer_name)) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
@@ -787,8 +823,8 @@ fun EditPrinterDialog(
 
                 // Printer Address
                 OutlinedTextField(
-                    value = printerAddress,
-                    onValueChange = { printerAddress = it },
+                    value = formState.address,
+                    onValueChange = { formState = formState.copy(address = it) },
                     label = { Text(stringResource(R.string.printer_address)) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
@@ -799,8 +835,8 @@ fun EditPrinterDialog(
                     Spacer(modifier = Modifier.height(8.dp))
 
                     OutlinedTextField(
-                        value = printerPort,
-                        onValueChange = { printerPort = it },
+                        value = formState.port.toString(),
+                        onValueChange = { formState = formState.copy(port = it.toIntOrNull() ?: 9100) },
                         label = { Text(stringResource(R.string.printer_port)) },
                         placeholder = { Text("9100") },
                         modifier = Modifier.fillMaxWidth(),
@@ -813,8 +849,8 @@ fun EditPrinterDialog(
 
                 // Printer Model
                 OutlinedTextField(
-                    value = printerModel,
-                    onValueChange = { printerModel = it },
+                    value = formState.model,
+                    onValueChange = { formState = formState.copy(model = it) },
                     label = { Text(stringResource(R.string.printer_model)) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
@@ -839,14 +875,14 @@ fun EditPrinterDialog(
                         modifier = Modifier
                             .weight(1f)
                             .selectable(
-                                selected = paperSize == PrintService.PaperSize.SIZE_57MM,
-                                onClick = { paperSize = PrintService.PaperSize.SIZE_57MM }
+                                selected = formState.paperSize == PrintService.PaperSize.SIZE_57MM,
+                                onClick = { formState = formState.copy(paperSize = PrintService.PaperSize.SIZE_57MM) }
                             ),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         RadioButton(
-                            selected = paperSize == PrintService.PaperSize.SIZE_57MM,
-                            onClick = { paperSize = PrintService.PaperSize.SIZE_57MM }
+                            selected = formState.paperSize == PrintService.PaperSize.SIZE_57MM,
+                            onClick = { formState = formState.copy(paperSize = PrintService.PaperSize.SIZE_57MM) }
                         )
                         Text(
                             text = stringResource(R.string.size_57mm),
@@ -858,14 +894,14 @@ fun EditPrinterDialog(
                         modifier = Modifier
                             .weight(1f)
                             .selectable(
-                                selected = paperSize == PrintService.PaperSize.SIZE_80MM,
-                                onClick = { paperSize = PrintService.PaperSize.SIZE_80MM }
+                                selected = formState.paperSize == PrintService.PaperSize.SIZE_80MM,
+                                onClick = { formState = formState.copy(paperSize = PrintService.PaperSize.SIZE_80MM) }
                             ),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         RadioButton(
-                            selected = paperSize == PrintService.PaperSize.SIZE_80MM,
-                            onClick = { paperSize = PrintService.PaperSize.SIZE_80MM }
+                            selected = formState.paperSize == PrintService.PaperSize.SIZE_80MM,
+                            onClick = { formState = formState.copy(paperSize = PrintService.PaperSize.SIZE_80MM) }
                         )
                         Text(
                             text = stringResource(R.string.size_80mm),
@@ -877,14 +913,14 @@ fun EditPrinterDialog(
                         modifier = Modifier
                             .weight(1f)
                             .selectable(
-                                selected = paperSize == PrintService.PaperSize.SIZE_LETTER,
-                                onClick = { paperSize = PrintService.PaperSize.SIZE_LETTER }
+                                selected = formState.paperSize == PrintService.PaperSize.SIZE_LETTER,
+                                onClick = { formState = formState.copy(paperSize = PrintService.PaperSize.SIZE_LETTER) }
                             ),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         RadioButton(
-                            selected = paperSize == PrintService.PaperSize.SIZE_LETTER,
-                            onClick = { paperSize = PrintService.PaperSize.SIZE_LETTER }
+                            selected = formState.paperSize == PrintService.PaperSize.SIZE_LETTER,
+                            onClick = { formState = formState.copy(paperSize = PrintService.PaperSize.SIZE_LETTER) }
                         )
                         Text(
                             text = stringResource(R.string.size_letter),
@@ -899,14 +935,14 @@ fun EditPrinterDialog(
                 onClick = {
                     onUpdatePrinter(
                         printer.id,
-                        printerName,
-                        printerAddress,
-                        printerPort.toIntOrNull() ?: 9100,
-                        printerModel,
-                        paperSize
+                        formState.name,
+                        formState.address,
+                        formState.port,
+                        formState.model,
+                        formState.paperSize
                     )
                 },
-                enabled = printerName.isNotBlank() && printerAddress.isNotBlank() && printerModel.isNotBlank()
+                enabled = formState.name.isNotBlank() && formState.address.isNotBlank() && formState.model.isNotBlank()
             ) {
                 Text("Update")
             }

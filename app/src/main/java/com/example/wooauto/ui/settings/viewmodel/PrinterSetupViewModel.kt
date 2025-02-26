@@ -10,6 +10,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.wooauto.utils.PreferencesManager
 import com.example.wooauto.utils.PrintService
+import com.example.wooauto.utils.PrintService.PrinterInfo
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -19,12 +20,12 @@ import java.util.UUID
 class PrinterSetupViewModel(application: Application) : AndroidViewModel(application) {
 
     private val TAG = "PrinterSetupViewModel"
-    private val printService = PrintService(application)
-    private val preferencesManager = PreferencesManager(application)
+    private val printService = PrintService(getApplication())
+    private val preferencesManager = PreferencesManager(getApplication())
 
     // Printers state
-    private val _printers = MutableStateFlow<List<PrintService.PrinterInfo>>(emptyList())
-    val printers: StateFlow<List<PrintService.PrinterInfo>> = _printers.asStateFlow()
+    private val _printers = MutableStateFlow<List<PrinterInfo>>(emptyList())
+    val printers: StateFlow<List<PrinterInfo>> = _printers.asStateFlow()
 
     // Default printer ID
     private val _defaultPrinterId = MutableStateFlow<String?>(null)
@@ -42,6 +43,10 @@ class PrinterSetupViewModel(application: Application) : AndroidViewModel(applica
     private val _testingState = MutableStateFlow<PrinterTestingState>(PrinterTestingState.Idle)
     val testingState: StateFlow<PrinterTestingState> = _testingState.asStateFlow()
 
+    // UI State
+    private val _uiState = MutableStateFlow<PrinterSetupUiState>(PrinterSetupUiState.Loading)
+    val uiState: StateFlow<PrinterSetupUiState> = _uiState.asStateFlow()
+
     init {
         viewModelScope.launch {
             loadPrinters()
@@ -53,6 +58,7 @@ class PrinterSetupViewModel(application: Application) : AndroidViewModel(applica
      */
     private suspend fun loadPrinters() {
         try {
+            _uiState.value = PrinterSetupUiState.Loading
             val printersList = printService.getAllPrinters()
             _printers.value = printersList
 
@@ -62,49 +68,24 @@ class PrinterSetupViewModel(application: Application) : AndroidViewModel(applica
 
             val backupPrinter = printersList.find { it.isBackup }
             _backupPrinterId.value = backupPrinter?.id
+
+            _uiState.value = PrinterSetupUiState.Success(printersList)
         } catch (e: Exception) {
             Log.e(TAG, "Error loading printers", e)
+            _uiState.value = PrinterSetupUiState.Error(e.message ?: "Unknown error")
         }
     }
 
     /**
      * Add a new printer
      */
-    fun addPrinter(
-        name: String,
-        type: PrintService.PrinterType,
-        address: String,
-        port: Int,
-        model: String,
-        paperSize: PrintService.PaperSize
-    ) {
+    fun addPrinter(printerInfo: PrinterInfo) {
         viewModelScope.launch {
             try {
-                // Generate a unique ID
-                val id = UUID.randomUUID().toString()
-
-                // Create printer info
-                val printerInfo = PrintService.PrinterInfo(
-                    id = id,
-                    name = name,
-                    type = type,
-                    address = address,
-                    port = port,
-                    model = model,
-                    paperSize = paperSize,
-                    isDefault = _printers.value.isEmpty(), // Set as default if it's the first printer
-                    isBackup = false,
-                    autoPrint = true, // Enable auto-print by default
-                    copies = 1
-                )
-
-                // Add printer
                 printService.addPrinter(printerInfo)
-
-                // Reload printers
                 loadPrinters()
             } catch (e: Exception) {
-                Log.e(TAG, "Error adding printer", e)
+                _uiState.value = PrinterSetupUiState.Error(e.message ?: "Failed to add printer")
             }
         }
     }
@@ -122,22 +103,19 @@ class PrinterSetupViewModel(application: Application) : AndroidViewModel(applica
     ) {
         viewModelScope.launch {
             try {
-                // Find the existing printer
-                val existingPrinter = _printers.value.find { it.id == id } ?: return@launch
-
-                // Create updated printer info
-                val updatedPrinter = existingPrinter.copy(
+                val printer = PrintService.PrinterInfo(
+                    id = id,
                     name = name,
+                    type = PrintService.PrinterType.NETWORK, // 默认使用网络打印机
                     address = address,
                     port = port,
                     model = model,
-                    paperSize = paperSize
+                    paperSize = paperSize,
+                    isDefault = false,
+                    isBackup = false,
+                    autoPrint = false
                 )
-
-                // Update printer
-                printService.addPrinter(updatedPrinter) // Uses the same ID, so it will update
-
-                // Reload printers
+                printService.addPrinter(printer)
                 loadPrinters()
             } catch (e: Exception) {
                 Log.e(TAG, "Error updating printer", e)
@@ -148,47 +126,28 @@ class PrinterSetupViewModel(application: Application) : AndroidViewModel(applica
     /**
      * Delete a printer
      */
-    fun deletePrinter(id: String) {
-        viewModelScope.launch {
-            try {
-                // Get the printer
-                val printer = _printers.value.find { it.id == id } ?: return@launch
-
-                // If this is the default printer, need to find a new default if possible
-                if (printer.isDefault) {
-                    // Find another printer that could be the default
-                    val newDefault = _printers.value.find { it.id != id && !it.isBackup }
-                    if (newDefault != null) {
-                        printService.setDefaultPrinter(newDefault.id)
-                    }
-                }
-
-                // If this is the backup printer, just clear the backup flag
-                if (printer.isBackup) {
-                    // No need to set a new backup
-                }
-
-                // Delete the printer
-                printService.deletePrinter(id)
-
-                // Reload printers
-                loadPrinters()
-            } catch (e: Exception) {
-                Log.e(TAG, "Error deleting printer", e)
-            }
+    suspend fun deletePrinter(id: String) {
+        try {
+            _uiState.value = PrinterSetupUiState.Loading
+            val printers = _printers.value.toMutableList()
+            printers.removeAll { it.id == id }
+            _printers.value = printers
+            _uiState.value = PrinterSetupUiState.Success(printers)
+        } catch (e: Exception) {
+            _uiState.value = PrinterSetupUiState.Error("Failed to delete printer")
         }
     }
 
     /**
      * Set a printer as the default
      */
-    fun setDefaultPrinter(id: String) {
+    fun setDefaultPrinter(printerId: String) {
         viewModelScope.launch {
             try {
-                printService.setDefaultPrinter(id)
+                printService.setDefaultPrinter(printerId)
                 loadPrinters()
             } catch (e: Exception) {
-                Log.e(TAG, "Error setting default printer", e)
+                _uiState.value = PrinterSetupUiState.Error(e.message ?: "Failed to set default printer")
             }
         }
     }
@@ -196,13 +155,13 @@ class PrinterSetupViewModel(application: Application) : AndroidViewModel(applica
     /**
      * Set a printer as the backup
      */
-    fun setBackupPrinter(id: String) {
+    fun setBackupPrinter(printerId: String) {
         viewModelScope.launch {
             try {
-                printService.setBackupPrinter(id)
+                printService.setBackupPrinter(printerId)
                 loadPrinters()
             } catch (e: Exception) {
-                Log.e(TAG, "Error setting backup printer", e)
+                _uiState.value = PrinterSetupUiState.Error(e.message ?: "Failed to set backup printer")
             }
         }
     }
@@ -235,25 +194,21 @@ class PrinterSetupViewModel(application: Application) : AndroidViewModel(applica
     /**
      * Test a printer
      */
-    fun testPrinter(id: String) {
+    fun testPrinter(printerId: String) {
         viewModelScope.launch {
-            _testingState.value = PrinterTestingState.Testing
-
             try {
-                // Find the printer
-                val printer = _printers.value.find { it.id == id } ?: throw Exception("Printer not found")
-
-                // Test the printer
+                // 从当前打印机列表中找到对应的打印机
+                val printer = _printers.value.find { it.id == printerId }
+                    ?: throw Exception("Printer not found")
+                
                 val success = printService.testPrinterConnection(printer)
-
                 if (success) {
                     _testingState.value = PrinterTestingState.Success
                 } else {
-                    _testingState.value = PrinterTestingState.Error("Failed to connect to printer")
+                    _testingState.value = PrinterTestingState.Error("Printer test failed")
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Error testing printer", e)
-                _testingState.value = PrinterTestingState.Error(e.message ?: "Unknown error")
+                _testingState.value = PrinterTestingState.Error(e.message ?: "Failed to test printer")
             }
         }
     }
@@ -306,7 +261,7 @@ class PrinterSetupViewModel(application: Application) : AndroidViewModel(applica
             val printerAddresses = pairedDevices
                 .filter { device ->
                     if (ActivityCompat.checkSelfPermission(
-                            this,
+                            getApplication(),
                             Manifest.permission.BLUETOOTH_CONNECT
                         ) != PackageManager.PERMISSION_GRANTED
                     ) {
@@ -317,7 +272,7 @@ class PrinterSetupViewModel(application: Application) : AndroidViewModel(applica
                         //                                          int[] grantResults)
                         // to handle the case where the user grants the permission. See the documentation
                         // for ActivityCompat#requestPermissions for more details.
-                        return
+                        return@filter false
                     }
                     device.name.contains("print", ignoreCase = true) ||
                             device.name.contains("pos", ignoreCase = true) ||
@@ -330,8 +285,7 @@ class PrinterSetupViewModel(application: Application) : AndroidViewModel(applica
 
             // Update scanning state
             if (printerAddresses.isEmpty()) {
-                _scanningState.value =
-                    ScanningState.Error("No printer-like Bluetooth devices found")
+                _scanningState.value = ScanningState.Error("No printer-like Bluetooth devices found")
             } else {
                 _scanningState.value = ScanningState.Found(printerAddresses)
             }
@@ -371,4 +325,10 @@ sealed class PrinterTestingState {
     data object Testing : PrinterTestingState()
     data object Success : PrinterTestingState()
     data class Error(val message: String) : PrinterTestingState()
+}
+
+sealed class PrinterSetupUiState {
+    object Loading : PrinterSetupUiState()
+    data class Success(val printers: List<PrinterInfo>) : PrinterSetupUiState()
+    data class Error(val message: String) : PrinterSetupUiState()
 }

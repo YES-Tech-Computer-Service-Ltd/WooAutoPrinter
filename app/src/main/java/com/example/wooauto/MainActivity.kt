@@ -2,13 +2,16 @@ package com.example.wooauto
 
 import android.os.Bundle
 import android.widget.Toast
+import androidx.activity.compose.setContent
 import androidx.appcompat.app.AppCompatActivity
-import androidx.navigation.findNavController
-import androidx.navigation.ui.AppBarConfiguration
-import androidx.navigation.ui.setupActionBarWithNavController
-import androidx.navigation.ui.setupWithNavController
-import com.google.android.material.bottomnavigation.BottomNavigationView
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Scaffold
+import androidx.compose.ui.Modifier
+import androidx.navigation.compose.rememberNavController
 import com.example.wooauto.databinding.ActivityMainBinding
+import com.example.wooauto.ui.navigation.BottomNavBar
+import com.example.wooauto.ui.navigation.WooAutoNavHost
 import com.example.wooauto.utils.SharedPreferencesManager
 
 class MainActivity : AppCompatActivity() {
@@ -36,22 +39,20 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        val navView: BottomNavigationView = binding.bottomNavigation
-        val navController = findNavController(R.id.nav_host_fragment)
+        // 设置 Toolbar
+        setSupportActionBar(binding.toolbar)
 
-        // Set up the top-level destinations for the ActionBar
-        val appBarConfiguration = AppBarConfiguration(
-            setOf(
-                R.id.ordersFragment, R.id.productsFragment, R.id.settingsFragment
-            )
-        )
+        // 设置 Compose 内容
+        binding.composeView.setContent {
+            val navController = rememberNavController()
 
-        setupActionBarWithNavController(navController, appBarConfiguration)
-        navView.setupWithNavController(navController)
-    }
-
-    override fun onSupportNavigateUp(): Boolean {
-        val navController = findNavController(R.id.nav_host_fragment)
-        return navController.navigateUp() || super.onSupportNavigateUp()
+            Scaffold(
+                bottomBar = { BottomNavBar(navController) }
+            ) { paddingValues ->
+                Box(modifier = Modifier.padding(paddingValues)) {
+                    WooAutoNavHost(navController)
+                }
+            }
+        }
     }
 }

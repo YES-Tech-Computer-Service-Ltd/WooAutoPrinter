@@ -25,7 +25,7 @@ class OrderPollingWorker(
     // 初始化订单仓库
     private val orderRepository = OrderRepository(
         AppDatabase.getInstance(context).orderDao(),
-        RetrofitClient.wooCommerceApiService,
+        RetrofitClient.getWooCommerceApiService(prefsManager.getWebsiteUrl()),
         prefsManager.getApiKey(),
         prefsManager.getApiSecret()
     )

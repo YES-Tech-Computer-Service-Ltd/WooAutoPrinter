@@ -2,7 +2,6 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("com.google.devtools.ksp") version "1.9.22-1.0.17"
-    id("androidx.navigation.safeargs.kotlin")
 }
 
 android {
@@ -64,13 +63,19 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
     implementation("androidx.activity:activity-compose:1.8.2")
     implementation("androidx.constraintlayout:constraintlayout:2.1.4")
-    implementation("androidx.fragment:fragment-ktx:1.6.2")
     implementation("com.google.android.material:material:1.11.0")
-    implementation(libs.androidx.navigation.ui.ktx)
-    implementation(libs.androidx.navigation.fragment.ktx)
+    implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
+
+    // 排除重复的 XML 解析器依赖
+    configurations.all {
+        resolutionStrategy {
+            exclude(group = "xmlpull", module = "xmlpull")
+            exclude(group = "xpp3", module = "xpp3")
+        }
+    }
 
     // Compose
-    val composeBomVersion = "2023.10.01"
+    val composeBomVersion = "2024.02.00"
     implementation(platform("androidx.compose:compose-bom:$composeBomVersion"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
@@ -110,8 +115,8 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
-    androidTestImplementation(libs.androidx.compose.bom)
-    androidTestImplementation(libs.androidx.compose.ui.ui.test.junit4)
-    debugImplementation(libs.androidx.compose.ui.ui.tooling)
-    debugImplementation(libs.androidx.compose.ui.ui.test.manifest)
+    androidTestImplementation(platform("androidx.compose:compose-bom:$composeBomVersion"))
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+    debugImplementation("androidx.compose.ui:ui-tooling")
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
 }

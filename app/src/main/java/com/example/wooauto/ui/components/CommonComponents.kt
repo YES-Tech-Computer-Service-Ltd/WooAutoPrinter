@@ -1,5 +1,6 @@
 package com.example.wooauto.ui.components
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -64,44 +66,41 @@ fun LoadingIndicator(
  * Error message to be shown when an operation fails
  */
 @Composable
-fun ErrorMessage(
+fun ErrorState(
     message: String,
-    onRetry: (() -> Unit)? = null
+    onRetry: () -> Unit = {}
 ) {
-    Box(
-        contentAlignment = Alignment.Center,
+    Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally
+        Icon(
+            painter = painterResource(id = R.drawable.ic_error),
+            contentDescription = null,
+            modifier = Modifier.size(48.dp),
+            tint = MaterialTheme.colorScheme.error
+        )
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        Text(
+            text = message,
+            style = MaterialTheme.typography.bodyLarge,
+            textAlign = TextAlign.Center
+        )
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        Button(
+            onClick = onRetry,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.error
+            )
         ) {
-            Icon(
-                painter = painterResource(id = R.drawable.ic_error),
-                contentDescription = "Error",
-                modifier = Modifier.size(48.dp),
-                tint = MaterialTheme.colorScheme.error
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Text(
-                text = message,
-                style = MaterialTheme.typography.bodyLarge,
-                textAlign = TextAlign.Center,
-                color = MaterialTheme.colorScheme.error
-            )
-
-            if (onRetry != null) {
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Button(
-                    onClick = onRetry
-                ) {
-                    Text(text = stringResource(R.string.retry))
-                }
-            }
+            Text("重试")
         }
     }
 }

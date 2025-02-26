@@ -7,6 +7,11 @@
     <string name="products">产品</string>
     <string name="settings">设置</string>
 
+    <!-- Bottom Navigation -->
+    <string name="nav_orders">订单</string>
+    <string name="nav_products">商品</string>
+    <string name="nav_settings">设置</string>
+
     <!-- Orders -->
     <string name="order_details">订单详情</string>
     <string name="search_orders">搜索订单</string>

@@ -38,7 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.wooauto.R
 import com.example.wooauto.data.database.entities.OrderEntity
-import com.example.wooauto.ui.components.ErrorMessage
+import com.example.wooauto.ui.components.ErrorState
 import com.example.wooauto.ui.components.LoadingIndicator
 import com.example.wooauto.ui.components.StatusBadge
 import com.example.wooauto.ui.components.getOrderStatusColor
@@ -95,7 +95,7 @@ fun OrderDetailsScreen(
                 }
                 is OrderDetailState.Error -> {
                     val message = (orderDetailState as OrderDetailState.Error).message
-                    ErrorMessage(
+                    ErrorState(
                         message = message,
                         onRetry = { viewModel.loadOrderDetails(orderId) }
                     )

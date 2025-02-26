@@ -14,7 +14,7 @@ import com.example.wooauto.utils.NotificationHelper
 import com.example.wooauto.utils.SharedPreferencesManager
 import java.util.concurrent.TimeUnit
 
-abstract class WooAutoApplication : Application(), Configuration.Provider {
+class WooAutoApplication : Application(), Configuration.Provider {
 
     companion object {
         private const val ORDER_POLLING_WORK = "order_polling_work"
@@ -67,9 +67,8 @@ abstract class WooAutoApplication : Application(), Configuration.Provider {
         }
     }
 
-    fun getWorkManagerConfiguration(): Configuration {
-        return Configuration.Builder()
+    override val workManagerConfiguration: Configuration
+        get() = Configuration.Builder()
             .setMinimumLoggingLevel(android.util.Log.INFO)
             .build()
-    }
 }

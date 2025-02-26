@@ -7,6 +7,11 @@
     <string name="products">Products</string>
     <string name="settings">Settings</string>
 
+    <!-- Bottom Navigation -->
+    <string name="nav_orders">Orders</string>
+    <string name="nav_products">Products</string>
+    <string name="nav_settings">Settings</string>
+
     <!-- Orders -->
     <string name="order_details">Order Details</string>
     <string name="search_orders">Search Orders</string>

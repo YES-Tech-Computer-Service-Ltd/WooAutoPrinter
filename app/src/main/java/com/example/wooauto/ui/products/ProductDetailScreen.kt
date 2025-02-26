@@ -52,7 +52,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.example.wooauto.R
 import com.example.wooauto.data.database.entities.ProductEntity
-import com.example.wooauto.ui.components.ErrorMessage
+import com.example.wooauto.ui.components.ErrorState
 import com.example.wooauto.ui.components.LoadingIndicator
 import com.example.wooauto.ui.components.StatusBadge
 import com.example.wooauto.ui.components.getStockStatusColor
@@ -138,7 +138,7 @@ fun ProductDetailsScreen(
                 }
                 is ProductDetailState.Error -> {
                     val message = (productDetailState as ProductDetailState.Error).message
-                    ErrorMessage(
+                    ErrorState(
                         message = message,
                         onRetry = { viewModel.loadProductDetails(productId) }
                     )

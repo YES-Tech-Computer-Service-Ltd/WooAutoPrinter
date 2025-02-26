@@ -60,7 +60,12 @@ class OrderViewModel(application: Application) : AndroidViewModel(application) {
                 if (websiteUrl.isNotEmpty() && apiKey.isNotEmpty() && apiSecret.isNotEmpty()) {
                     val apiService = RetrofitClient.getWooCommerceApiService(websiteUrl)
                     val orderDao = AppDatabase.getInstance(getApplication()).orderDao()
-                    orderRepository = OrderRepository(orderDao, apiService, apiKey, apiSecret)
+                    orderRepository = OrderRepository(
+                        orderDao,
+                        apiService,
+                        apiKey,
+                        apiSecret
+                    )
 
                     // Observe orders from database based on filters
                     combine(

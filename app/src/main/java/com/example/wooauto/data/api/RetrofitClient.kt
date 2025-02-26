@@ -16,37 +16,36 @@ import java.util.concurrent.TimeUnit
 
 object RetrofitClient {
     private const val TIMEOUT = 30L
-
-    fun getClient(baseUrl: String): Retrofit {
-        val logging = HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BODY
-        }
-
-        val httpClient = OkHttpClient.Builder()
-            .connectTimeout(TIMEOUT, TimeUnit.SECONDS)
-            .readTimeout(TIMEOUT, TimeUnit.SECONDS)
-            .addInterceptor(logging)
-            .build()
-
-        val gson = GsonBuilder()
-            .registerTypeAdapter(Date::class.java, DateDeserializer())
-            .create()
-
-        return Retrofit.Builder()
-            .baseUrl(baseUrl)
-            .client(httpClient)
-            .addConverterFactory(GsonConverterFactory.create(gson))
-            .build()
-    }
+    private var retrofit: Retrofit? = null
 
     fun getWooCommerceApiService(baseUrl: String): WooCommerceApiService {
-        val url = if (baseUrl.endsWith("/")) {
-            "${baseUrl}wp-json/wc/v3/"
-        } else {
-            "$baseUrl/wp-json/wc/v3/"
+        if (retrofit == null || retrofit?.baseUrl()?.toString() != baseUrl) {
+            val loggingInterceptor = HttpLoggingInterceptor().apply {
+                level = HttpLoggingInterceptor.Level.BODY
+            }
+
+            val client = OkHttpClient.Builder()
+                .connectTimeout(TIMEOUT, TimeUnit.SECONDS)
+                .readTimeout(TIMEOUT, TimeUnit.SECONDS)
+                .addInterceptor(loggingInterceptor)
+                .build()
+
+            val gson = GsonBuilder()
+                .registerTypeAdapter(Date::class.java, DateDeserializer())
+                .create()
+
+            // 确保 baseUrl 以 /wp-json/wc/v3/ 结尾
+            val apiUrl = if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/"
+            val fullUrl = "${apiUrl}wp-json/wc/v3/"
+
+            retrofit = Retrofit.Builder()
+                .baseUrl(fullUrl)
+                .client(client)
+                .addConverterFactory(GsonConverterFactory.create(gson))
+                .build()
         }
 
-        return getClient(url).create(WooCommerceApiService::class.java)
+        return retrofit!!.create(WooCommerceApiService::class.java)
     }
 
     private class DateDeserializer : JsonDeserializer<Date> {

@@ -61,7 +61,12 @@ class ProductViewModel(application: Application) : AndroidViewModel(application)
                 if (websiteUrl.isNotEmpty() && apiKey.isNotEmpty() && apiSecret.isNotEmpty()) {
                     val apiService = RetrofitClient.getWooCommerceApiService(websiteUrl)
                     val productDao = AppDatabase.getInstance(getApplication()).productDao()
-                    productRepository = ProductRepository(productDao, apiService, apiKey, apiSecret)
+                    productRepository = ProductRepository(
+                        productDao,
+                        apiService,
+                        apiKey,
+                        apiSecret
+                    )
 
                     // Load categories
                     loadCategories()
@@ -146,6 +151,10 @@ class ProductViewModel(application: Application) : AndroidViewModel(application)
     fun refreshProducts() {
         viewModelScope.launch {
             try {
+                if (!::productRepository.isInitialized) {
+                    _uiState.value = ProductsUiState.Error("请先在设置中配置API凭证")
+                    return@launch
+                }
                 _isRefreshing.value = true
                 val result = productRepository.refreshProducts(_selectedCategoryId.value)
                 if (result.isFailure) {

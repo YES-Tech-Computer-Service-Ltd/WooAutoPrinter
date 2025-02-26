@@ -40,7 +40,6 @@ import com.example.wooauto.ui.screens.settings.viewmodel.SettingsViewModel
 fun SettingsScreen(
     onPrinterSetupClick: () -> Unit,
     onWebsiteSetupClick: () -> Unit,
-    onSoundSetupClick: () -> Unit,
     viewModel: SettingsViewModel = viewModel()
 ) {
     val language by viewModel.language.collectAsState()
@@ -74,15 +73,6 @@ fun SettingsScreen(
                 title = stringResource(R.string.printer_setup),
                 onClick = onPrinterSetupClick,
                 iconResId = R.drawable.ic_print
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Sound Settings
-            SettingsSection(
-                title = stringResource(R.string.sound_setup),
-                onClick = onSoundSetupClick,
-                iconResId = R.drawable.ic_sound
             )
 
             Spacer(modifier = Modifier.height(16.dp))

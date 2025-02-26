@@ -21,7 +21,6 @@ import com.example.wooauto.ui.products.ProductDetailsScreen
 import com.example.wooauto.ui.products.ProductsScreen
 import com.example.wooauto.ui.settings.SettingsScreen
 import com.example.wooauto.ui.settings.printer.PrinterSetupScreen
-import com.example.wooauto.ui.screens.settings.sound.SoundSetupScreen
 import com.example.wooauto.ui.settings.website.WebsiteSetupScreen
 
 // Navigation route constants
@@ -39,7 +38,6 @@ sealed class Screen(val route: String) {
     object Settings : Screen("settings")
     object PrinterSetup : Screen("printer_setup")
     object WebsiteSetup : Screen("website_setup")
-    object SoundSetup : Screen("sound_setup")
 }
 
 // Bottom navigation items
@@ -85,8 +83,7 @@ fun BottomNavBar(navController: NavController) {
         currentRoute.startsWith("order_details") ||
         currentRoute.startsWith("product_details") ||
         currentRoute == Screen.PrinterSetup.route ||
-        currentRoute == Screen.WebsiteSetup.route ||
-        currentRoute == Screen.SoundSetup.route) {
+        currentRoute == Screen.WebsiteSetup.route) {
         return
     }
 
@@ -167,8 +164,7 @@ fun WooAutoNavHost(navController: NavHostController) {
         composable(Screen.Settings.route) {
             SettingsScreen(
                 onPrinterSetupClick = { navController.navigate(Screen.PrinterSetup.route) },
-                onWebsiteSetupClick = { navController.navigate(Screen.WebsiteSetup.route) },
-                onSoundSetupClick = { navController.navigate(Screen.SoundSetup.route) }
+                onWebsiteSetupClick = { navController.navigate(Screen.WebsiteSetup.route) }
             )
         }
 
@@ -180,12 +176,6 @@ fun WooAutoNavHost(navController: NavHostController) {
 
         composable(Screen.WebsiteSetup.route) {
             WebsiteSetupScreen(
-                onBackClick = { navController.popBackStack() }
-            )
-        }
-
-        composable(Screen.SoundSetup.route) {
-            SoundSetupScreen(
                 onBackClick = { navController.popBackStack() }
             )
         }

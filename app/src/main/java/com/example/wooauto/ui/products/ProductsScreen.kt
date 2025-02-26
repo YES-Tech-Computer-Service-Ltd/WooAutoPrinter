@@ -45,7 +45,7 @@ import coil.request.ImageRequest
 import com.example.wooauto.R
 import com.example.wooauto.data.database.entities.ProductEntity
 import com.example.wooauto.ui.components.EmptyState
-import com.example.wooauto.ui.components.ErrorMessage
+import com.example.wooauto.ui.components.ErrorState
 import com.example.wooauto.ui.components.LoadingIndicator
 import com.example.wooauto.ui.components.SearchField
 import com.example.wooauto.ui.components.StatusBadge
@@ -139,7 +139,7 @@ fun ProductsScreen(
                         }
                         is ProductsUiState.Error -> {
                             val message = (uiState as ProductsUiState.Error).message
-                            ErrorMessage(
+                            ErrorState(
                                 message = message,
                                 onRetry = { viewModel.refreshProducts() }
                             )
