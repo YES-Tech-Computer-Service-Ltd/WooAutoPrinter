@@ -1,58 +1,85 @@
 package com.example.wooauto
 
+import android.content.Context
+import android.content.res.Configuration
 import android.os.Bundle
-import android.widget.Toast
+import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.compose.rememberNavController
-import com.example.wooauto.databinding.ActivityMainBinding
 import com.example.wooauto.ui.navigation.BottomNavBar
 import com.example.wooauto.ui.navigation.WooAutoNavHost
-import com.example.wooauto.utils.SharedPreferencesManager
+import com.example.wooauto.ui.theme.WooAutoTheme
+import com.example.wooauto.utils.LanguageHelper
+import com.example.wooauto.utils.PreferencesManager
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : ComponentActivity() {
+    private lateinit var preferencesManager: PreferencesManager
 
-    private lateinit var binding: ActivityMainBinding
-    private lateinit var prefsManager: SharedPreferencesManager
+    override fun attachBaseContext(newBase: Context) {
+        val tempPrefsManager = PreferencesManager(newBase)
+        val languageCode = tempPrefsManager.getDefaultLanguage()
+        val context = LanguageHelper.updateBaseContextLocale(newBase, languageCode)
+        super.attachBaseContext(context)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        prefsManager = SharedPreferencesManager(this)
+        preferencesManager = PreferencesManager(this)
 
-        // Check if first launch to show setup wizard
-        if (prefsManager.isFirstLaunch()) {
-            // TODO: Launch setup wizard Activity
-            // For now, just mark as not first launch
-            prefsManager.setFirstLaunch(false)
+        lifecycleScope.launch {
+            val currentLanguage = preferencesManager.language.first()
+            LanguageHelper.setLocale(this@MainActivity, currentLanguage)
         }
 
-        // 检查API凭证
-        if (prefsManager.getApiKey().isEmpty() || prefsManager.getApiSecret().isEmpty()) {
-            Toast.makeText(this, "请先设置WooCommerce API凭证", Toast.LENGTH_LONG).show()
-        }
+        setContent {
+            WooAutoTheme {
+                Surface(
+                    modifier = Modifier,
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    val navController = rememberNavController()
+                    var shouldShowBottomBar by remember { mutableStateOf(true) }
 
-        binding = ActivityMainBinding.inflate(layoutInflater)
-        setContentView(binding.root)
-
-        // 设置 Toolbar
-        setSupportActionBar(binding.toolbar)
-
-        // 设置 Compose 内容
-        binding.composeView.setContent {
-            val navController = rememberNavController()
-
-            Scaffold(
-                bottomBar = { BottomNavBar(navController) }
-            ) { paddingValues ->
-                Box(modifier = Modifier.padding(paddingValues)) {
-                    WooAutoNavHost(navController)
+                    Scaffold(
+                        bottomBar = {
+                            if (shouldShowBottomBar) {
+                                BottomNavBar(navController = navController)
+                            }
+                        }
+                    ) { paddingValues ->
+                        Box(
+                            modifier = Modifier.padding(paddingValues)
+                        ) {
+                            WooAutoNavHost(
+                                navController = navController,
+                                onLanguageChanged = { recreate() }
+                            )
+                        }
+                    }
                 }
             }
+        }
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        lifecycleScope.launch {
+            val languageCode = preferencesManager.language.first()
+            LanguageHelper.setLocale(this@MainActivity, languageCode)
         }
     }
 }

@@ -59,13 +59,18 @@ fun WebsiteSetupScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
-    // Show snackbar for API test result
+    // Show snackbar for API test result and handle navigation
     LaunchedEffect(apiTestState) {
-        if (apiTestState is ApiTestState.Success) {
-            snackbarHostState.showSnackbar("API connection successful!")
-        } else if (apiTestState is ApiTestState.Error) {
-            val error = (apiTestState as ApiTestState.Error).message
-            snackbarHostState.showSnackbar("API connection failed: $error")
+        when (apiTestState) {
+            is ApiTestState.Success -> {
+                snackbarHostState.showSnackbar("API连接成功！")
+                onBackClick()
+            }
+            is ApiTestState.Error -> {
+                val error = (apiTestState as ApiTestState.Error).message
+                snackbarHostState.showSnackbar("API连接失败: $error")
+            }
+            else -> {}
         }
     }
 

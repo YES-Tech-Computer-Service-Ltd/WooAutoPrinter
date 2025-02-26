@@ -53,6 +53,8 @@ class ProductRepository(
     // Network operations
     suspend fun refreshProducts(categoryId: Long? = null): Result<List<Product>> {
         return try {
+            Log.d(TAG, "开始刷新产品，分类ID：$categoryId")
+            
             val response = apiService.getProducts(
                 consumerKey = apiKey,
                 consumerSecret = apiSecret,
@@ -60,19 +62,24 @@ class ProductRepository(
                 perPage = 100
             )
 
+            Log.d(TAG, "API响应码：${response.code()}")
             if (response.isSuccessful) {
                 val products = response.body() ?: emptyList()
+                Log.d(TAG, "成功获取 ${products.size} 个产品")
 
                 // Save to database
                 val productEntities = products.map { it.toProductEntity() }
                 productDao.insertProducts(productEntities)
+                Log.d(TAG, "产品已保存到数据库")
 
                 Result.success(products)
             } else {
+                Log.e(TAG, "API错误：${response.code()} - ${response.message()}")
+                Log.e(TAG, "错误响应体：${response.errorBody()?.string()}")
                 Result.failure(Exception("API Error: ${response.code()} - ${response.message()}"))
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error refreshing products", e)
+            Log.e(TAG, "刷新产品时发生错误", e)
             Result.failure(e)
         }
     }

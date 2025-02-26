@@ -49,11 +49,43 @@ class WebsiteSetupViewModel(application: Application) : AndroidViewModel(applica
     val apiTestState: StateFlow<ApiTestState> = _apiTestState
 
     /**
+     * Validate website URL format
+     */
+    private fun isValidUrl(url: String): Boolean {
+        return try {
+            val validUrl = if (url.endsWith("/")) url else "$url/"
+            android.util.Patterns.WEB_URL.matcher(validUrl).matches()
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /**
+     * Validate API credentials
+     */
+    private fun isValidApiCredentials(key: String, secret: String): Boolean {
+        // API key should start with 'ck_' and secret with 'cs_'
+        return key.startsWith("ck_") && secret.startsWith("cs_")
+    }
+
+    /**
+     * Validate polling interval
+     */
+    private fun isValidPollingInterval(seconds: Int): Boolean {
+        return seconds >= 10 // 最小轮询间隔为10秒
+    }
+
+    /**
      * Update website URL
      */
     fun updateWebsiteUrl(url: String) {
         viewModelScope.launch {
-            preferencesManager.setWebsiteUrl(url)
+            if (isValidUrl(url)) {
+                preferencesManager.setWebsiteUrl(url)
+                _apiTestState.value = ApiTestState.Idle
+            } else {
+                _apiTestState.value = ApiTestState.Error("无效的网站URL格式")
+            }
         }
     }
 
@@ -62,7 +94,12 @@ class WebsiteSetupViewModel(application: Application) : AndroidViewModel(applica
      */
     fun updateApiKey(key: String) {
         viewModelScope.launch {
-            preferencesManager.setApiKey(key)
+            if (key.isEmpty() || isValidApiCredentials(key, apiSecret.value)) {
+                preferencesManager.setApiKey(key)
+                _apiTestState.value = ApiTestState.Idle
+            } else {
+                _apiTestState.value = ApiTestState.Error("无效的API密钥格式")
+            }
         }
     }
 
@@ -71,7 +108,12 @@ class WebsiteSetupViewModel(application: Application) : AndroidViewModel(applica
      */
     fun updateApiSecret(secret: String) {
         viewModelScope.launch {
-            preferencesManager.setApiSecret(secret)
+            if (secret.isEmpty() || isValidApiCredentials(apiKey.value, secret)) {
+                preferencesManager.setApiSecret(secret)
+                _apiTestState.value = ApiTestState.Idle
+            } else {
+                _apiTestState.value = ApiTestState.Error("无效的API密钥格式")
+            }
         }
     }
 
@@ -129,6 +171,15 @@ class WebsiteSetupViewModel(application: Application) : AndroidViewModel(applica
                 Log.e("WebsiteSetupViewModel", "Error testing API connection", e)
                 _apiTestState.value = ApiTestState.Error(e.message ?: "Unknown error")
             }
+        }
+    }
+
+    /**
+     * 设置首次启动完成
+     */
+    fun setFirstLaunchComplete() {
+        viewModelScope.launch {
+            preferencesManager.setFirstLaunch(false)
         }
     }
 }

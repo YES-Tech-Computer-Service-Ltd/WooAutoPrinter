@@ -42,12 +42,31 @@ class PreferencesManager(private val context: Context) {
         // App Settings
         private val LANGUAGE = stringPreferencesKey("language")
 
+        // Migration version
+        private val PREFERENCES_VERSION = intPreferencesKey("preferences_version")
+        private const val CURRENT_VERSION = 1
+
         // Default Values
         const val DEFAULT_POLLING_INTERVAL = 60 // seconds
         const val DEFAULT_SOUND_VOLUME = 80 // percent
         const val DEFAULT_PLAY_COUNT = 3
         const val DEFAULT_AUTO_CLOSE_SECONDS = 15
         const val DEFAULT_LANGUAGE = "en" // English
+
+        // 获取系统默认语言的静态方法
+        @JvmStatic
+        fun getSystemDefaultLanguage(): String {
+            val locale = java.util.Locale.getDefault()
+            return when (locale.language) {
+                "zh" -> "zh"
+                else -> "en"
+            }
+        }
+    }
+
+    // 获取默认语言的同步方法
+    fun getDefaultLanguage(): String {
+        return getSystemDefaultLanguage()
     }
 
     // First Launch
@@ -192,6 +211,35 @@ class PreferencesManager(private val context: Context) {
     suspend fun setLanguage(languageCode: String) {
         context.dataStore.edit { preferences ->
             preferences[LANGUAGE] = languageCode
+        }
+    }
+
+    /**
+     * 执行配置迁移
+     */
+    suspend fun migrateIfNeeded() {
+        context.dataStore.edit { preferences ->
+            val currentVersion = preferences[PREFERENCES_VERSION] ?: 0
+            
+            if (currentVersion < CURRENT_VERSION) {
+                // 从 SharedPreferences 迁移数据
+                val sharedPrefs = context.getSharedPreferences("WooAutoPrefs", Context.MODE_PRIVATE)
+                
+                // 迁移 API 设置
+                sharedPrefs.getString("website_url", null)?.let { preferences[WEBSITE_URL] = it }
+                sharedPrefs.getString("api_key", null)?.let { preferences[API_KEY] = it }
+                sharedPrefs.getString("api_secret", null)?.let { preferences[API_SECRET] = it }
+                
+                // 迁移其他设置
+                preferences[POLLING_INTERVAL] = sharedPrefs.getInt("polling_interval", DEFAULT_POLLING_INTERVAL)
+                preferences[LANGUAGE] = sharedPrefs.getString("language", DEFAULT_LANGUAGE) ?: DEFAULT_LANGUAGE
+                
+                // 更新版本号
+                preferences[PREFERENCES_VERSION] = CURRENT_VERSION
+                
+                // 清除旧的 SharedPreferences
+                sharedPrefs.edit().clear().apply()
+            }
         }
     }
 }

@@ -57,11 +57,14 @@ class OrderRepository(
         afterDate: Date? = null
     ): Result<List<Order>> {
         return try {
+            Log.d(TAG, "开始刷新订单，状态：$status，日期：$afterDate")
+            
             val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US).apply {
                 timeZone = TimeZone.getTimeZone("UTC")
             }
 
             val afterDateString = afterDate?.let { dateFormat.format(it) }
+            Log.d(TAG, "请求参数 - API Key: $apiKey, After Date: $afterDateString")
 
             val response = apiService.getOrders(
                 consumerKey = apiKey,
@@ -71,15 +74,20 @@ class OrderRepository(
                 perPage = 50
             )
 
+            Log.d(TAG, "API响应码：${response.code()}")
             if (response.isSuccessful) {
                 val orders = response.body() ?: emptyList()
+                Log.d(TAG, "成功获取 ${orders.size} 个订单")
 
                 // Save to database
                 val orderEntities = orders.map { it.toOrderEntity() }
                 orderDao.insertOrders(orderEntities)
+                Log.d(TAG, "订单已保存到数据库")
 
                 Result.success(orders)
             } else {
+                Log.e(TAG, "API错误：${response.code()} - ${response.message()}")
+                Log.e(TAG, "错误响应体：${response.errorBody()?.string()}")
                 Result.failure(Exception("API Error: ${response.code()} - ${response.message()}"))
             }
         } catch (e: Exception) {

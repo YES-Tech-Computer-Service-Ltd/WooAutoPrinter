@@ -1,4 +1,4 @@
-package com.example.wooauto.ui.screens.settings.viewmodel
+package com.example.wooauto.ui.settings.viewmodel
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel

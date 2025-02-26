@@ -32,7 +32,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.wooauto.R
-import com.example.wooauto.ui.screens.settings.viewmodel.SettingsViewModel
+import com.example.wooauto.ui.settings.viewmodel.SettingsViewModel
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -40,6 +40,7 @@ import com.example.wooauto.ui.screens.settings.viewmodel.SettingsViewModel
 fun SettingsScreen(
     onPrinterSetupClick: () -> Unit,
     onWebsiteSetupClick: () -> Unit,
+    onLanguageChanged: () -> Unit = {}, // 添加语言变更回调
     viewModel: SettingsViewModel = viewModel()
 ) {
     val language by viewModel.language.collectAsState()
@@ -80,7 +81,10 @@ fun SettingsScreen(
             // Language Selection
             LanguageSelector(
                 currentLanguage = language,
-                onLanguageSelected = { viewModel.updateLanguage(it) }
+                onLanguageSelected = {
+                    viewModel.updateLanguage(it)
+                    onLanguageChanged() // 调用语言变更回调
+                }
             )
 
             Spacer(modifier = Modifier.height(32.dp))

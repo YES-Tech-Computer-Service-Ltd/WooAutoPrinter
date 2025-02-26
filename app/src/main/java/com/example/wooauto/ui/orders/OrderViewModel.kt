@@ -10,15 +10,13 @@ import com.example.wooauto.data.database.entities.OrderEntity
 import com.example.wooauto.data.repositories.OrderRepository
 import com.example.wooauto.utils.PreferencesManager
 import com.example.wooauto.utils.PrintService
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.launch
 
 class OrderViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -73,19 +71,34 @@ class OrderViewModel(application: Application) : AndroidViewModel(application) {
                         _selectedStatusFilter,
                         getOrdersFlow()
                     ) { query, statusFilter, orders ->
-                        if (orders.isEmpty() && !_isRefreshing.value) {
-                            _uiState.value = OrdersUiState.Empty
+                        val filteredOrders = orders.filter { order ->
+                            val matchesQuery = if (query.isBlank()) {
+                                true
+                            } else {
+                                order.number.contains(query, ignoreCase = true) ||
+                                order.customerName.contains(query, ignoreCase = true)
+                            }
+                            
+                            val matchesStatus = if (statusFilter == null) {
+                                true
+                            } else {
+                                order.status == statusFilter
+                            }
+                            
+                            matchesQuery && matchesStatus
+                        }
+                        
+                        if (filteredOrders.isEmpty() && !_isRefreshing.value) {
+                            OrdersUiState.Empty
                         } else {
-                            _uiState.value = OrdersUiState.Success(orders)
+                            OrdersUiState.Success(filteredOrders)
                         }
                     }.catch { e ->
                         Log.e("OrderViewModel", "Error observing orders", e)
-                        _uiState.value = OrdersUiState.Error(e.message ?: "Unknown error")
-                    }.stateIn(
-                        scope = viewModelScope,
-                        started = SharingStarted.WhileSubscribed(5000),
-                        initialValue = OrdersUiState.Loading
-                    )
+                        emit(OrdersUiState.Error(e.message ?: "Unknown error"))
+                    }.collect { state ->
+                        _uiState.value = state
+                    }
 
                     // Initial data load
                     refreshOrders()
@@ -100,10 +113,9 @@ class OrderViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun getOrdersFlow() = when {
-        _searchQuery.value.isNotEmpty() -> orderRepository.searchOrdersFlow(_searchQuery.value)
-        _selectedStatusFilter.value != null -> orderRepository.getOrdersByStatusFlow(_selectedStatusFilter.value!!)
-        else -> orderRepository.getAllOrdersFlow()
+    private fun getOrdersFlow() = when (selectedStatusFilter.value) {
+        null -> orderRepository.getAllOrdersFlow()
+        else -> orderRepository.getOrdersByStatusFlow(selectedStatusFilter.value!!)
     }
 
     /**
@@ -127,13 +139,14 @@ class OrderViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             try {
                 _isRefreshing.value = true
-                val result = orderRepository.refreshOrders(_selectedStatusFilter.value)
-                if (result.isFailure) {
-                    val error = result.exceptionOrNull()
-                    Log.e("OrderViewModel", "Error refreshing orders", error)
+                val result = orderRepository.refreshOrders()
+                result.onFailure { exception ->
+                    Log.e("OrderViewModel", "刷新订单失败", exception)
+                    _uiState.value = OrdersUiState.Error(exception.message ?: "刷新订单失败")
                 }
             } catch (e: Exception) {
-                Log.e("OrderViewModel", "Error refreshing orders", e)
+                Log.e("OrderViewModel", "刷新订单时发生错误", e)
+                _uiState.value = OrdersUiState.Error(e.message ?: "刷新订单时发生错误")
             } finally {
                 _isRefreshing.value = false
             }
@@ -307,22 +320,22 @@ class OrderViewModel(application: Application) : AndroidViewModel(application) {
 
 // UI States
 sealed class OrdersUiState {
-    data object Loading : OrdersUiState()
-    data object Empty : OrdersUiState()
+    object Loading : OrdersUiState()
+    object Empty : OrdersUiState()
     data class Success(val orders: List<OrderEntity>) : OrdersUiState()
     data class Error(val message: String) : OrdersUiState()
 }
 
 sealed class OrderDetailState {
-    data object Loading : OrderDetailState()
+    object Loading : OrderDetailState()
     data class Success(val order: OrderEntity) : OrderDetailState()
     data class Error(val message: String) : OrderDetailState()
 }
 
 sealed class PrintAllState {
-    data object Idle : PrintAllState()
-    data object Printing : PrintAllState()
-    data object NoOrdersToPrint : PrintAllState()
+    object Idle : PrintAllState()
+    object Printing : PrintAllState()
+    object NoOrdersToPrint : PrintAllState()
     data class Completed(val printed: Int, val failed: Int) : PrintAllState()
     data class Error(val message: String) : PrintAllState()
 }

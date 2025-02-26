@@ -19,7 +19,7 @@ interface WooCommerceApiService {
         @Query("consumer_secret") consumerSecret: String,
         @Query("status") status: String? = null,
         @Query("after") after: String? = null,
-        @Query("per_page") perPage: Int = 20,
+        @Query("per_page") perPage: Int = 100,
         @Query("page") page: Int = 1,
         @Query("order") order: String = "desc",
         @Query("orderby") orderBy: String = "date"

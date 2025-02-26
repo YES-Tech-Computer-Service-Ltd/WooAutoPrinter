@@ -21,7 +21,12 @@ object RetrofitClient {
     fun getWooCommerceApiService(baseUrl: String): WooCommerceApiService {
         if (retrofit == null || retrofit?.baseUrl()?.toString() != baseUrl) {
             val loggingInterceptor = HttpLoggingInterceptor().apply {
-                level = HttpLoggingInterceptor.Level.BODY
+                // 只在 DEBUG 模式下显示详细日志
+                level = if (BuildConfig.DEBUG) {
+                    HttpLoggingInterceptor.Level.BASIC
+                } else {
+                    HttpLoggingInterceptor.Level.NONE
+                }
             }
 
             val client = OkHttpClient.Builder()
@@ -34,9 +39,16 @@ object RetrofitClient {
                 .registerTypeAdapter(Date::class.java, DateDeserializer())
                 .create()
 
-            // 确保 baseUrl 以 /wp-json/wc/v3/ 结尾
-            val apiUrl = if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/"
-            val fullUrl = "${apiUrl}wp-json/wc/v3/"
+            // 确保 baseUrl 格式正确
+            val apiUrl = baseUrl.trim()
+                .replace("/$", "") // 移除末尾的斜杠
+                .replace("/wp-json/wc/v3/?$", "") // 移除已存在的API路径
+
+            // 确保 URL 包含 scheme
+            val fullUrl = when {
+                apiUrl.startsWith("http://") || apiUrl.startsWith("https://") -> "$apiUrl/wp-json/wc/v3/"
+                else -> "https://$apiUrl/wp-json/wc/v3/"
+            }
 
             retrofit = Retrofit.Builder()
                 .baseUrl(fullUrl)

@@ -146,10 +146,12 @@ fun ProductsScreen(
                         }
                     }
 
-                    PullToRefreshContainer(
-                        state = pullToRefreshState,
-                        modifier = Modifier.align(Alignment.TopCenter)
-                    )
+                    if (pullToRefreshState.isRefreshing || pullToRefreshState.progress > 0) {
+                        PullToRefreshContainer(
+                            state = pullToRefreshState,
+                            modifier = Modifier.align(Alignment.TopCenter)
+                        )
+                    }
                 }
             }
         }

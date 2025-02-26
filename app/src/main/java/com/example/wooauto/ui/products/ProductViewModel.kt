@@ -9,14 +9,7 @@ import com.example.wooauto.data.database.AppDatabase
 import com.example.wooauto.data.database.entities.ProductEntity
 import com.example.wooauto.data.repositories.ProductRepository
 import com.example.wooauto.utils.PreferencesManager
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
 class ProductViewModel(application: Application) : AndroidViewModel(application) {
@@ -77,19 +70,32 @@ class ProductViewModel(application: Application) : AndroidViewModel(application)
                         _selectedCategoryId,
                         getProductsFlow()
                     ) { query, categoryId, products ->
-                        if (products.isEmpty() && !_isRefreshing.value) {
-                            _uiState.value = ProductsUiState.Empty
-                        } else {
-                            _uiState.value = ProductsUiState.Success(products)
+                        val filteredProducts = products.filter { product ->
+                            val matchesQuery = if (query.isBlank()) true else {
+                                product.name.contains(query, ignoreCase = true) ||
+                                product.sku.contains(query, ignoreCase = true)
+                            }
+                            
+                            val matchesCategory = if (categoryId == null) true else {
+                                product.categoryIds.contains(categoryId)
+                            }
+                            
+                            matchesQuery && matchesCategory
                         }
-                    }.catch { e ->
+                        
+                        when {
+                            filteredProducts.isEmpty() && !_isRefreshing.value -> ProductsUiState.Empty
+                            else -> ProductsUiState.Success(filteredProducts)
+                        }
+                    }
+                    .catch { e ->
                         Log.e("ProductViewModel", "Error observing products", e)
                         _uiState.value = ProductsUiState.Error(e.message ?: "Unknown error")
-                    }.stateIn(
-                        scope = viewModelScope,
-                        started = SharingStarted.WhileSubscribed(5000),
-                        initialValue = ProductsUiState.Loading
-                    )
+                    }
+                    .onEach { state ->
+                        _uiState.value = state
+                    }
+                    .launchIn(viewModelScope)
 
                     // Initial data load
                     refreshProducts()
@@ -157,12 +163,13 @@ class ProductViewModel(application: Application) : AndroidViewModel(application)
                 }
                 _isRefreshing.value = true
                 val result = productRepository.refreshProducts(_selectedCategoryId.value)
-                if (result.isFailure) {
-                    val error = result.exceptionOrNull()
-                    Log.e("ProductViewModel", "Error refreshing products", error)
+                result.onFailure { exception ->
+                    Log.e("ProductViewModel", "刷新产品失败", exception)
+                    _uiState.value = ProductsUiState.Error(exception.message ?: "刷新产品失败")
                 }
             } catch (e: Exception) {
-                Log.e("ProductViewModel", "Error refreshing products", e)
+                Log.e("ProductViewModel", "刷新产品时发生错误", e)
+                _uiState.value = ProductsUiState.Error(e.message ?: "刷新产品时发生错误")
             } finally {
                 _isRefreshing.value = false
             }

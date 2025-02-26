@@ -11,7 +11,13 @@ import androidx.work.WorkManager
 import com.example.wooauto.service.OrderPollingWorker
 import com.example.wooauto.utils.LanguageHelper
 import com.example.wooauto.utils.NotificationHelper
+import com.example.wooauto.utils.PreferencesManager
 import com.example.wooauto.utils.SharedPreferencesManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
 
 class WooAutoApplication : Application(), Configuration.Provider {
@@ -20,24 +26,40 @@ class WooAutoApplication : Application(), Configuration.Provider {
         private const val ORDER_POLLING_WORK = "order_polling_work"
     }
 
+    private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private lateinit var preferencesManager: PreferencesManager
+
     override fun onCreate() {
         super.onCreate()
+
+        // 初始化 PreferencesManager
+        preferencesManager = PreferencesManager(this)
 
         // Initialize notification channels
         NotificationHelper.createNotificationChannel(this)
 
-        // Initialize language based on preferences
-        val prefsManager = SharedPreferencesManager(this)
-        LanguageHelper.setLocale(this, prefsManager.getLanguage())
+        // 初始化语言设置
+        applicationScope.launch {
+            val languageCode = preferencesManager.language.first()
+            LanguageHelper.setLocale(this@WooAutoApplication, languageCode)
+        }
+
+        // 为了向后兼容，同时更新 SharedPreferences
+        val sharedPrefsManager = SharedPreferencesManager(this)
+        applicationScope.launch {
+            val languageCode = preferencesManager.language.first()
+            sharedPrefsManager.setLanguage(languageCode)
+        }
 
         // Schedule background polling for new orders
         scheduleOrderPolling()
     }
 
     override fun attachBaseContext(base: Context) {
-        // Apply selected language to application context
-        val prefsManager = SharedPreferencesManager(base)
-        val languageCode = prefsManager.getLanguage()
+        // 在 attachBaseContext 中只使用 SharedPreferences
+        val sharedPrefsManager = SharedPreferencesManager(base)
+        val languageCode = sharedPrefsManager.getLanguage()
+        
         val context = LanguageHelper.updateBaseContextLocale(base, languageCode)
         super.attachBaseContext(context)
     }
