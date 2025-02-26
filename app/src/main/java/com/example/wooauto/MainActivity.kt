@@ -17,6 +17,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.compose.rememberNavController
+import com.example.wooauto.service.BackgroundPollingService
 import com.example.wooauto.ui.navigation.BottomNavBar
 import com.example.wooauto.ui.navigation.WooAutoNavHost
 import com.example.wooauto.ui.theme.WooAutoTheme
@@ -39,9 +40,14 @@ class MainActivity : ComponentActivity() {
 
         preferencesManager = PreferencesManager(this)
 
+        // 检查并启动轮询服务
         lifecycleScope.launch {
-            val currentLanguage = preferencesManager.language.first()
-            LanguageHelper.setLocale(this@MainActivity, currentLanguage)
+            val apiKey = preferencesManager.apiKey.first()
+            val apiSecret = preferencesManager.apiSecret.first()
+
+            if (apiKey.isNotEmpty() && apiSecret.isNotEmpty()) {
+                BackgroundPollingService.startService(this@MainActivity)
+            }
         }
 
         setContent {
