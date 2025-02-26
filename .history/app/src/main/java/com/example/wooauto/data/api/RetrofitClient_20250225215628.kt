@@ -21,7 +21,12 @@ object RetrofitClient {
     fun getWooCommerceApiService(baseUrl: String): WooCommerceApiService {
         if (retrofit == null || retrofit?.baseUrl()?.toString() != baseUrl) {
             val loggingInterceptor = HttpLoggingInterceptor().apply {
-                level = HttpLoggingInterceptor.Level.BODY
+                // 只在 DEBUG 模式下显示详细日志
+                level = if (BuildConfig.DEBUG) {
+                    HttpLoggingInterceptor.Level.BASIC
+                } else {
+                    HttpLoggingInterceptor.Level.NONE
+                }
             }
 
             val client = OkHttpClient.Builder()
