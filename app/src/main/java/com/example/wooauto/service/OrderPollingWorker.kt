@@ -8,68 +8,58 @@ import com.example.wooauto.data.api.RetrofitClient
 import com.example.wooauto.data.database.AppDatabase
 import com.example.wooauto.data.repositories.OrderRepository
 import com.example.wooauto.utils.NotificationHelper
-import com.example.wooauto.utils.SharedPreferencesManager
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import java.util.*
+import com.example.wooauto.utils.PreferencesManager
+import kotlinx.coroutines.flow.first
+import java.util.Date
 
 class OrderPollingWorker(
     context: Context,
     params: WorkerParameters
 ) : CoroutineWorker(context, params) {
 
-    private val prefsManager = SharedPreferencesManager(context)
-    private val TAG = "OrderPollingWorker"
-    private var lastCheckTime: Date? = null
+    private val preferencesManager = PreferencesManager(context)
 
-    // 初始化订单仓库
-    private val orderRepository = OrderRepository(
-        AppDatabase.getInstance(context).orderDao(),
-        RetrofitClient.getWooCommerceApiService(prefsManager.getWebsiteUrl()),
-        prefsManager.getApiKey(),
-        prefsManager.getApiSecret()
-    )
-
-    override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
+    override suspend fun doWork(): Result {
         try {
-            // 检查API凭证
-            if (prefsManager.getApiKey().isEmpty() || prefsManager.getApiSecret().isEmpty()) {
-                Log.w(TAG, "API credentials not set")
-                return@withContext Result.failure()
+            // 获取API凭证
+            val websiteUrl = preferencesManager.websiteUrl.first()
+            val apiKey = preferencesManager.apiKey.first()
+            val apiSecret = preferencesManager.apiSecret.first()
+
+            if (websiteUrl.isEmpty() || apiKey.isEmpty() || apiSecret.isEmpty()) {
+                Log.w(TAG, "API凭证未配置")
+                return Result.failure()
             }
 
-            // 获取上次检查时间后的新订单
-            val currentTime = Date()
-            val result = orderRepository.fetchNewOrders(lastCheckTime ?: Date(0))
-            lastCheckTime = currentTime
+            // 初始化API服务
+            val apiService = RetrofitClient.getWooCommerceApiService(websiteUrl)
+            val orderDao = AppDatabase.getInstance(applicationContext).orderDao()
+            val repository = OrderRepository(orderDao, apiService, apiKey, apiSecret)
+
+            // 获取新订单
+            val result = repository.fetchNewOrders(Date())
 
             if (result.isSuccess) {
                 val orders = result.getOrNull() ?: emptyList()
-                
-                // 处理新订单
-                orders.forEach { order ->
-                    // 检查订单是否已经显示过通知
-                    if (!order.notificationShown) {
-                        // 发送通知
-                        NotificationHelper.showNewOrderNotification(
-                            applicationContext,
-                            order
-                        )
-                        
-                        // 标记订单通知已显示
-                        orderRepository.markOrderNotificationShown(order.id)
+                if (orders.isNotEmpty()) {
+                    // 显示通知
+                    orders.forEach { order ->
+                        NotificationHelper.showNewOrderNotification(applicationContext, order)
                     }
                 }
-
-                Log.i(TAG, "Order polling completed successfully: ${orders.size} new orders")
-                Result.success()
+                return Result.success()
             } else {
-                Log.e(TAG, "Error fetching orders", result.exceptionOrNull())
-                Result.retry()
+                Log.e(TAG, "获取订单失败", result.exceptionOrNull())
+                return Result.retry()
             }
+
         } catch (e: Exception) {
-            Log.e(TAG, "Error during order polling", e)
-            Result.retry()
+            Log.e(TAG, "轮询订单时发生错误", e)
+            return Result.retry()
         }
+    }
+
+    companion object {
+        private const val TAG = "OrderPollingWorker"
     }
 } 

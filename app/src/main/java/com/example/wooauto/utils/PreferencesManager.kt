@@ -6,10 +6,13 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.runBlocking
 
 // Extension property for Context to create a single instance of DataStore
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "wooauto_preferences")
@@ -25,7 +28,7 @@ class PreferencesManager(private val context: Context) {
         private val WEBSITE_URL = stringPreferencesKey("website_url")
         private val API_KEY = stringPreferencesKey("api_key")
         private val API_SECRET = stringPreferencesKey("api_secret")
-        private val POLLING_INTERVAL = intPreferencesKey("polling_interval")
+        private val POLLING_INTERVAL = longPreferencesKey("polling_interval")
         private val ORDER_PLUGIN = stringPreferencesKey("order_plugin")
 
         // Sound Settings
@@ -47,7 +50,7 @@ class PreferencesManager(private val context: Context) {
         private const val CURRENT_VERSION = 1
 
         // Default Values
-        const val DEFAULT_POLLING_INTERVAL = 60 // seconds
+        const val DEFAULT_POLLING_INTERVAL = 60L // 默认60秒
         const val DEFAULT_SOUND_VOLUME = 80 // percent
         const val DEFAULT_PLAY_COUNT = 3
         const val DEFAULT_AUTO_CLOSE_SECONDS = 15
@@ -60,6 +63,21 @@ class PreferencesManager(private val context: Context) {
             return when (locale.language) {
                 "zh" -> "zh"
                 else -> "en"
+            }
+        }
+
+        /**
+         * 同步获取语言设置
+         * 这个方法专门用于 attachBaseContext 等需要同步获取语言的场景
+         */
+        @JvmStatic
+        fun getStoredLanguage(context: Context): String {
+            return runBlocking {
+                context.dataStore.data
+                    .map { preferences ->
+                        preferences[LANGUAGE] ?: getSystemDefaultLanguage()
+                    }
+                    .first()
             }
         }
     }
@@ -91,9 +109,11 @@ class PreferencesManager(private val context: Context) {
         }
     }
 
-    val apiKey: Flow<String> = context.dataStore.data.map { preferences ->
-        preferences[API_KEY] ?: ""
-    }
+    // API Key
+    val apiKey: Flow<String> = context.dataStore.data
+        .map { preferences ->
+            preferences[API_KEY] ?: ""
+        }
 
     suspend fun setApiKey(key: String) {
         context.dataStore.edit { preferences ->
@@ -101,9 +121,11 @@ class PreferencesManager(private val context: Context) {
         }
     }
 
-    val apiSecret: Flow<String> = context.dataStore.data.map { preferences ->
-        preferences[API_SECRET] ?: ""
-    }
+    // API Secret
+    val apiSecret: Flow<String> = context.dataStore.data
+        .map { preferences ->
+            preferences[API_SECRET] ?: ""
+        }
 
     suspend fun setApiSecret(secret: String) {
         context.dataStore.edit { preferences ->
@@ -111,13 +133,15 @@ class PreferencesManager(private val context: Context) {
         }
     }
 
-    val pollingInterval: Flow<Int> = context.dataStore.data.map { preferences ->
-        preferences[POLLING_INTERVAL] ?: DEFAULT_POLLING_INTERVAL
-    }
+    // Polling Interval
+    val pollingInterval: Flow<Long> = context.dataStore.data
+        .map { preferences ->
+            preferences[POLLING_INTERVAL] ?: DEFAULT_POLLING_INTERVAL
+        }
 
-    suspend fun setPollingInterval(seconds: Int) {
+    suspend fun setPollingInterval(interval: Long) {
         context.dataStore.edit { preferences ->
-            preferences[POLLING_INTERVAL] = seconds
+            preferences[POLLING_INTERVAL] = interval
         }
     }
 
@@ -231,7 +255,7 @@ class PreferencesManager(private val context: Context) {
                 sharedPrefs.getString("api_secret", null)?.let { preferences[API_SECRET] = it }
                 
                 // 迁移其他设置
-                preferences[POLLING_INTERVAL] = sharedPrefs.getInt("polling_interval", DEFAULT_POLLING_INTERVAL)
+                preferences[POLLING_INTERVAL] = sharedPrefs.getLong("polling_interval", DEFAULT_POLLING_INTERVAL)
                 preferences[LANGUAGE] = sharedPrefs.getString("language", DEFAULT_LANGUAGE) ?: DEFAULT_LANGUAGE
                 
                 // 更新版本号

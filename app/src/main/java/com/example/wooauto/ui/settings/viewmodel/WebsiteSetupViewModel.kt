@@ -61,21 +61,6 @@ class WebsiteSetupViewModel(application: Application) : AndroidViewModel(applica
     }
 
     /**
-     * Validate API credentials
-     */
-    private fun isValidApiCredentials(key: String, secret: String): Boolean {
-        // API key should start with 'ck_' and secret with 'cs_'
-        return key.startsWith("ck_") && secret.startsWith("cs_")
-    }
-
-    /**
-     * Validate polling interval
-     */
-    private fun isValidPollingInterval(seconds: Int): Boolean {
-        return seconds >= 10 // 最小轮询间隔为10秒
-    }
-
-    /**
      * Update website URL
      */
     fun updateWebsiteUrl(url: String) {
@@ -94,12 +79,9 @@ class WebsiteSetupViewModel(application: Application) : AndroidViewModel(applica
      */
     fun updateApiKey(key: String) {
         viewModelScope.launch {
-            if (key.isEmpty() || isValidApiCredentials(key, apiSecret.value)) {
-                preferencesManager.setApiKey(key)
-                _apiTestState.value = ApiTestState.Idle
-            } else {
-                _apiTestState.value = ApiTestState.Error("无效的API密钥格式")
-            }
+            // 移除严格的验证，直接保存用户输入
+            preferencesManager.setApiKey(key)
+            _apiTestState.value = ApiTestState.Idle
         }
     }
 
@@ -108,19 +90,16 @@ class WebsiteSetupViewModel(application: Application) : AndroidViewModel(applica
      */
     fun updateApiSecret(secret: String) {
         viewModelScope.launch {
-            if (secret.isEmpty() || isValidApiCredentials(apiKey.value, secret)) {
-                preferencesManager.setApiSecret(secret)
-                _apiTestState.value = ApiTestState.Idle
-            } else {
-                _apiTestState.value = ApiTestState.Error("无效的API密钥格式")
-            }
+            // 移除严格的验证，直接保存用户输入
+            preferencesManager.setApiSecret(secret)
+            _apiTestState.value = ApiTestState.Idle
         }
     }
 
     /**
      * Update polling interval
      */
-    fun updatePollingInterval(seconds: Int) {
+    fun updatePollingInterval(seconds: Long) {
         viewModelScope.launch {
             // Ensure polling interval is at least 10 seconds
             val validSeconds = if (seconds < 10) 10 else seconds

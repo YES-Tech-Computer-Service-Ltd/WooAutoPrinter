@@ -29,8 +29,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var preferencesManager: PreferencesManager
 
     override fun attachBaseContext(newBase: Context) {
-        val tempPrefsManager = PreferencesManager(newBase)
-        val languageCode = tempPrefsManager.getDefaultLanguage()
+        val languageCode = PreferencesManager.getStoredLanguage(newBase)
         val context = LanguageHelper.updateBaseContextLocale(newBase, languageCode)
         super.attachBaseContext(context)
     }

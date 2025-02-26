@@ -28,8 +28,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun updateLanguage(languageCode: String) {
         viewModelScope.launch {
             preferencesManager.setLanguage(languageCode)
-
-            // Apply language change immediately
             LanguageHelper.setLocale(getApplication(), languageCode)
         }
     }

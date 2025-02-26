@@ -12,7 +12,6 @@ import com.example.wooauto.service.OrderPollingWorker
 import com.example.wooauto.utils.LanguageHelper
 import com.example.wooauto.utils.NotificationHelper
 import com.example.wooauto.utils.PreferencesManager
-import com.example.wooauto.utils.SharedPreferencesManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -44,48 +43,42 @@ class WooAutoApplication : Application(), Configuration.Provider {
             LanguageHelper.setLocale(this@WooAutoApplication, languageCode)
         }
 
-        // 为了向后兼容，同时更新 SharedPreferences
-        val sharedPrefsManager = SharedPreferencesManager(this)
-        applicationScope.launch {
-            val languageCode = preferencesManager.language.first()
-            sharedPrefsManager.setLanguage(languageCode)
-        }
-
         // Schedule background polling for new orders
         scheduleOrderPolling()
     }
 
     override fun attachBaseContext(base: Context) {
-        // 在 attachBaseContext 中只使用 SharedPreferences
-        val sharedPrefsManager = SharedPreferencesManager(base)
-        val languageCode = sharedPrefsManager.getLanguage()
-        
-        val context = LanguageHelper.updateBaseContextLocale(base, languageCode)
+        // 使用系统默认语言作为初始语言
+        val defaultLanguage = PreferencesManager.getSystemDefaultLanguage()
+        val context = LanguageHelper.updateBaseContextLocale(base, defaultLanguage)
         super.attachBaseContext(context)
     }
 
     private fun scheduleOrderPolling() {
-        val prefsManager = SharedPreferencesManager(this)
-        // Get polling interval in seconds, default to 60 if not set
-        val pollingIntervalSeconds = prefsManager.getPollingInterval().toLong()
+        applicationScope.launch {
+            // 从 PreferencesManager 获取轮询间隔和API凭证
+            val pollingIntervalSeconds = preferencesManager.pollingInterval.first()
+            val apiKey = preferencesManager.apiKey.first()
+            val apiSecret = preferencesManager.apiSecret.first()
 
-        // Only schedule if we have API credentials
-        if (prefsManager.getApiKey().isNotEmpty() && prefsManager.getApiSecret().isNotEmpty()) {
-            val constraints = Constraints.Builder()
-                .setRequiredNetworkType(NetworkType.CONNECTED)
-                .build()
+            // 只有在有API凭证的情况下才调度
+            if (apiKey.isNotEmpty() && apiSecret.isNotEmpty()) {
+                val constraints = Constraints.Builder()
+                    .setRequiredNetworkType(NetworkType.CONNECTED)
+                    .build()
 
-            val orderPollingRequest = PeriodicWorkRequestBuilder<OrderPollingWorker>(
-                pollingIntervalSeconds, TimeUnit.SECONDS
-            )
-                .setConstraints(constraints)
-                .build()
+                val orderPollingRequest = PeriodicWorkRequestBuilder<OrderPollingWorker>(
+                    pollingIntervalSeconds, TimeUnit.SECONDS
+                )
+                    .setConstraints(constraints)
+                    .build()
 
-            WorkManager.getInstance(this).enqueueUniquePeriodicWork(
-                ORDER_POLLING_WORK,
-                ExistingPeriodicWorkPolicy.UPDATE,
-                orderPollingRequest
-            )
+                WorkManager.getInstance(this@WooAutoApplication).enqueueUniquePeriodicWork(
+                    ORDER_POLLING_WORK,
+                    ExistingPeriodicWorkPolicy.UPDATE,
+                    orderPollingRequest
+                )
+            }
         }
     }
 
