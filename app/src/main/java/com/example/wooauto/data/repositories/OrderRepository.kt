@@ -19,8 +19,10 @@ class OrderRepository(
     private val apiKey: String,
     private val apiSecret: String
 ) {
-    private val TAG = "OrderRepository"
+    private val TAG = "OrderRepo_DEBUG"
     private val gson = Gson()
+
+
 
     // Local data access
     fun getAllOrdersFlow(): Flow<List<OrderEntity>> {
@@ -57,9 +59,10 @@ class OrderRepository(
         afterDate: Date? = null
     ): Result<List<Order>> {
         return try {
-            Log.d(TAG, "开始刷新订单，状态：$status，日期：$afterDate")
-            Log.d(TAG, "使用的API凭证 - Key: $apiKey")
-            
+            Log.d(TAG, "===== 开始刷新订单 =====")
+            Log.d(TAG, "参数 - 状态: $status, 日期: $afterDate")
+            Log.d(TAG, "API凭证 - Key: $apiKey, Secret: ${apiSecret.take(4)}***")
+
             val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US).apply {
                 timeZone = TimeZone.getTimeZone("UTC")
             }
@@ -76,13 +79,18 @@ class OrderRepository(
                 perPage = 100
             )
             Log.d(TAG, "API响应码：${response.code()}")
+            Log.d(TAG, "API响应头：${response.headers()}")
 
             if (response.isSuccessful) {
                 val orders = response.body() ?: emptyList()
-                Log.d(TAG, "成功获取 ${orders.size} 个订单")
+                Log.d(TAG, "成功获取订单数量: ${orders.size}")
+                orders.forEachIndexed { index, order ->
+                    Log.d(TAG, "订单[$index] - ID: ${order.id}, 编号: ${order.number}, 状态: ${order.status}, 日期: ${order.dateCreated}")
+                }
 
                 // Save to database
                 val orderEntities = orders.map { it.toOrderEntity() }
+                Log.d(TAG, "准备保存 ${orderEntities.size} 个订单到数据库")
                 orderDao.insertOrders(orderEntities)
                 Log.d(TAG, "订单已保存到数据库")
 
@@ -91,16 +99,24 @@ class OrderRepository(
                 val errorBody = response.errorBody()?.string()
                 Log.e(TAG, "API错误：${response.code()} - ${response.message()}")
                 Log.e(TAG, "错误响应体：$errorBody")
-                Result.failure(Exception("API错误：${response.code()} - ${response.message()}"))
+                Result.failure(Exception("API错误：${response.code()} - ${response.message()} - $errorBody"))
             }
         } catch (e: Exception) {
-            Log.e(TAG, "刷新订单时发生错误", e)
+            Log.e(TAG, "刷新订单时发生异常", e)
+            e.printStackTrace()
             Result.failure(e)
+        } finally {
+            Log.d(TAG, "===== 刷新订单完成 =====")
         }
     }
 
+
     suspend fun fetchNewOrders(lastCheckedDate: Date): Result<List<Order>> {
-        return refreshOrders(afterDate = lastCheckedDate)
+        Log.d(TAG, "===== 获取新订单 =====")
+        Log.d(TAG, "上次检查时间: $lastCheckedDate")
+        val result = refreshOrders(afterDate = lastCheckedDate)
+        Log.d(TAG, "获取新订单结果: ${if (result.isSuccess) "成功" else "失败"}")
+        return result
     }
 
     suspend fun getOrder(orderId: Long): Result<Order> {

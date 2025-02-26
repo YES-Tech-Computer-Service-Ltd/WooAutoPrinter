@@ -1,5 +1,6 @@
 package com.example.wooauto.data.api
 
+import android.util.Log
 import com.google.gson.GsonBuilder
 import com.google.gson.JsonDeserializationContext
 import com.google.gson.JsonDeserializer
@@ -18,9 +19,14 @@ object RetrofitClient {
     private const val TIMEOUT = 30L
     private var retrofit: Retrofit? = null
 
+    private const val TAG = "RetrofitClient_DEBUG"
+
     fun getWooCommerceApiService(baseUrl: String): WooCommerceApiService {
+        Log.d(TAG, "创建 WooCommerce API 服务: $baseUrl")
         if (retrofit == null || retrofit?.baseUrl()?.toString() != baseUrl) {
-            val loggingInterceptor = HttpLoggingInterceptor().apply {
+            val loggingInterceptor = HttpLoggingInterceptor { message ->
+                Log.d(TAG, "OkHttp: $message")
+            }.apply {
                 level = HttpLoggingInterceptor.Level.BODY
             }
 
@@ -45,6 +51,7 @@ object RetrofitClient {
                 else -> "https://$apiUrl/wp-json/wc/v3/"
             }
 
+            Log.d(TAG, "构建 Retrofit 实例, 最终URL: $fullUrl")
             retrofit = Retrofit.Builder()
                 .baseUrl(fullUrl)
                 .client(client)

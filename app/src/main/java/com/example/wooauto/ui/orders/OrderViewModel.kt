@@ -47,6 +47,8 @@ class OrderViewModel(application: Application) : AndroidViewModel(application) {
     private val _printAllState = MutableStateFlow<PrintAllState>(PrintAllState.Idle)
     val printAllState: StateFlow<PrintAllState> = _printAllState.asStateFlow()
 
+    private val TAG = "OrderVM_DEBUG"
+
     init {
         initializeRepository()
     }
@@ -123,32 +125,45 @@ class OrderViewModel(application: Application) : AndroidViewModel(application) {
     fun refreshOrders() {
         viewModelScope.launch {
             try {
+                Log.d(TAG, "===== 开始刷新订单(ViewModel) =====")
                 if (!::orderRepository.isInitialized) {
-                    Log.d("OrderViewModel", "订单仓库尚未初始化")
-                    _uiState.value = OrdersUiState.Error("正在初始化，请稍后再试")
+                    Log.e(TAG, "订单仓库尚未初始化")
+                    _uiState.value = OrdersUiState.Error("订单仓库尚未初始化")
                     return@launch
                 }
 
                 _isRefreshing.value = true
-                Log.d("OrderViewModel", "开始刷新订单...")
+                Log.d(TAG, "设置刷新状态为true")
+
+                val websiteUrl = preferencesManager.websiteUrl.first()
+                val apiKey = preferencesManager.apiKey.first()
+                val apiSecret = preferencesManager.apiSecret.first()
+                Log.d(TAG, "API配置: URL=${websiteUrl}, Key=${apiKey.take(4)}***, Secret=${apiSecret.take(4)}***")
+
                 val result = orderRepository.refreshOrders()
-                
+
                 when {
                     result.isSuccess -> {
                         val orders = result.getOrNull()
-                        Log.d("OrderViewModel", "成功获取订单：${orders?.size ?: 0} 个")
+                        Log.d(TAG, "刷新订单成功, 获取订单数: ${orders?.size ?: 0}")
+                        orders?.forEach {
+                            Log.d(TAG, "订单: ID=${it.id}, 编号=${it.number}, 状态=${it.status}")
+                        }
                     }
                     result.isFailure -> {
                         val exception = result.exceptionOrNull()
-                        Log.e("OrderViewModel", "刷新订单失败", exception)
+                        Log.e(TAG, "刷新订单失败", exception)
                         _uiState.value = OrdersUiState.Error(exception?.message ?: "刷新订单失败")
                     }
                 }
             } catch (e: Exception) {
-                Log.e("OrderViewModel", "刷新订单时发生错误", e)
-                _uiState.value = OrdersUiState.Error(e.message ?: "刷新订单时发生错误")
+                Log.e(TAG, "刷新订单过程中发生异常", e)
+                e.printStackTrace()
+                _uiState.value = OrdersUiState.Error(e.message ?: "刷新订单时发生未知错误")
             } finally {
+                Log.d(TAG, "设置刷新状态为false")
                 _isRefreshing.value = false
+                Log.d(TAG, "===== 刷新订单(ViewModel)完成 =====")
             }
         }
     }
