@@ -40,13 +40,13 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.wooauto.R
 import com.example.wooauto.data.database.entities.OrderEntity
 import com.example.wooauto.ui.components.EmptyState
-import com.example.wooauto.ui.components.ErrorState
 import com.example.wooauto.ui.components.LoadingIndicator
 import com.example.wooauto.ui.components.SearchField
 import com.example.wooauto.ui.components.StatusBadge
@@ -65,10 +65,11 @@ fun OrdersScreen(
     val selectedStatusFilter by viewModel.selectedStatusFilter.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
     val printAllState by viewModel.printAllState.collectAsState()
+    val apiConfigured by viewModel.apiConfigured.collectAsState()
 
     val pullToRefreshState = rememberPullToRefreshState()
 
-    if (pullToRefreshState.isRefreshing) {
+    if (pullToRefreshState.isRefreshing && apiConfigured) {
         LaunchedEffect(true) {
             viewModel.refreshOrders()
         }
@@ -98,12 +99,14 @@ fun OrdersScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.orders)) },
                 actions = {
-                    // Print all unprinted orders button
-                    IconButton(onClick = { viewModel.printAllUnprintedOrders() }) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_print),
-                            contentDescription = stringResource(R.string.print_all_unprinted)
-                        )
+                    if (apiConfigured) {
+                        // Print all unprinted orders button
+                        IconButton(onClick = { viewModel.printAllUnprintedOrders() }) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.ic_print),
+                                contentDescription = stringResource(R.string.print_all_unprinted)
+                            )
+                        }
                     }
                 }
             )
@@ -118,115 +121,117 @@ fun OrdersScreen(
             Column(
                 modifier = Modifier.fillMaxSize()
             ) {
-                // Search bar
-                SearchField(
-                    value = searchQuery,
-                    onValueChange = { viewModel.updateSearchQuery(it) },
-                    placeholder = stringResource(R.string.search_orders)
-                )
+                if (apiConfigured) {
+                    // Search bar
+                    SearchField(
+                        value = searchQuery,
+                        onValueChange = { viewModel.updateSearchQuery(it) },
+                        placeholder = stringResource(R.string.search_orders)
+                    )
 
-                // Status filters
-                LazyRow(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    // "All" filter option
-                    item {
-                        FilterChip(
-                            selected = selectedStatusFilter == null,
-                            onClick = { viewModel.updateStatusFilter(null) },
-                            label = { Text("All") }
-                        )
-                    }
-
-                    // Status filter options
-                    items(statusFilters) { status ->
-                        FilterChip(
-                            selected = selectedStatusFilter == status,
-                            onClick = { viewModel.updateStatusFilter(status) },
-                            label = { Text(status.replaceFirstChar { it.uppercase() }) }
-                        )
-                    }
-                }
-
-                // Print all unprinted orders status
-                when (printAllState) {
-                    is PrintAllState.Printing -> {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "Printing all unprinted orders...",
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                        }
-                    }
-                    is PrintAllState.Completed -> {
-                        val state = printAllState as PrintAllState.Completed
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "Printed ${state.printed} orders, ${state.failed} failed",
-                                style = MaterialTheme.typography.bodyMedium
+                    // Status filters
+                    LazyRow(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // "All" filter option
+                        item {
+                            FilterChip(
+                                selected = selectedStatusFilter == null,
+                                onClick = { viewModel.updateStatusFilter(null) },
+                                label = { Text("All") }
                             )
                         }
 
-                        // Reset the print all state after showing the result
-                        LaunchedEffect(printAllState) {
-                            kotlinx.coroutines.delay(3000)
-                            viewModel.resetPrintAllState()
-                        }
-                    }
-                    is PrintAllState.NoOrdersToPrint -> {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "No unprinted orders to print",
-                                style = MaterialTheme.typography.bodyMedium
+                        // Status filter options
+                        items(statusFilters) { status ->
+                            FilterChip(
+                                selected = selectedStatusFilter == status,
+                                onClick = { viewModel.updateStatusFilter(status) },
+                                label = { Text(status.replaceFirstChar { it.uppercase() }) }
                             )
                         }
-
-                        // Reset the print all state after showing the result
-                        LaunchedEffect(printAllState) {
-                            kotlinx.coroutines.delay(3000)
-                            viewModel.resetPrintAllState()
-                        }
                     }
-                    is PrintAllState.Error -> {
-                        val state = printAllState as PrintAllState.Error
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "Error: ${state.message}",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.error
-                            )
-                        }
 
-                        // Reset the print all state after showing the error
-                        LaunchedEffect(printAllState) {
-                            kotlinx.coroutines.delay(3000)
-                            viewModel.resetPrintAllState()
+                    // Print all unprinted orders status
+                    when (printAllState) {
+                        is PrintAllState.Printing -> {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "Printing all unprinted orders...",
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            }
                         }
+                        is PrintAllState.Completed -> {
+                            val state = printAllState as PrintAllState.Completed
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "Printed ${state.printed} orders, ${state.failed} failed",
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            }
+
+                            // Reset the print all state after showing the result
+                            LaunchedEffect(printAllState) {
+                                kotlinx.coroutines.delay(3000)
+                                viewModel.resetPrintAllState()
+                            }
+                        }
+                        is PrintAllState.NoOrdersToPrint -> {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "No unprinted orders to print",
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            }
+
+                            // Reset the print all state after showing the result
+                            LaunchedEffect(printAllState) {
+                                kotlinx.coroutines.delay(3000)
+                                viewModel.resetPrintAllState()
+                            }
+                        }
+                        is PrintAllState.Error -> {
+                            val state = printAllState as PrintAllState.Error
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "Error: ${state.message}",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            }
+
+                            // Reset the print all state after showing the error
+                            LaunchedEffect(printAllState) {
+                                kotlinx.coroutines.delay(3000)
+                                viewModel.resetPrintAllState()
+                            }
+                        }
+                        else -> { /* Do nothing for Idle state */ }
                     }
-                    else -> { /* Do nothing for Idle state */ }
                 }
 
                 // Orders content
@@ -253,14 +258,61 @@ fun OrdersScreen(
                         }
                         is OrdersUiState.Error -> {
                             val message = (uiState as OrdersUiState.Error).message
-                            ErrorState(
-                                message = message,
-                                onRetry = { viewModel.refreshOrders() }
-                            )
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(16.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = message,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    textAlign = TextAlign.Center,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
+                        is OrdersUiState.ApiNotConfigured -> {
+                            // API未配置状态，显示友好提示，引导用户去设置
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(16.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Center
+                                ) {
+                                    Icon(
+                                        painter = painterResource(id = R.drawable.ic_web),
+                                        contentDescription = null,
+                                        modifier = Modifier.size(64.dp),
+                                        tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                                    )
+
+                                    Spacer(modifier = Modifier.height(16.dp))
+
+                                    Text(
+                                        text = "请先在设置中配置WooCommerce API",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        textAlign = TextAlign.Center
+                                    )
+
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    Text(
+                                        text = "前往 '设置 > 网站连接'进行配置",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        textAlign = TextAlign.Center,
+                                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+                                    )
+                                }
+                            }
                         }
                     }
 
-                    if (pullToRefreshState.isRefreshing || pullToRefreshState.progress > 0) {
+                    if (apiConfigured && (pullToRefreshState.isRefreshing || pullToRefreshState.progress > 0)) {
                         PullToRefreshContainer(
                             state = pullToRefreshState,
                             modifier = Modifier.align(Alignment.TopCenter)

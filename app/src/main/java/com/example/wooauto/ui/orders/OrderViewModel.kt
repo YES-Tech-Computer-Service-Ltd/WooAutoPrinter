@@ -47,88 +47,120 @@ class OrderViewModel(application: Application) : AndroidViewModel(application) {
     private val _printAllState = MutableStateFlow<PrintAllState>(PrintAllState.Idle)
     val printAllState: StateFlow<PrintAllState> = _printAllState.asStateFlow()
 
+    // API配置状态
+    private val _apiConfigured = MutableStateFlow(false)
+    val apiConfigured: StateFlow<Boolean> = _apiConfigured.asStateFlow()
+
     private val TAG = "OrderVM_DEBUG"
 
     init {
-        initializeRepository()
+        checkApiCredentials()
     }
 
-    private fun initializeRepository() {
+    private fun checkApiCredentials() {
         viewModelScope.launch {
             try {
-                // Initialize repository with API credentials
+                // 检查API凭证是否已配置
                 val websiteUrl = preferencesManager.websiteUrl.first()
                 val apiKey = preferencesManager.apiKey.first()
                 val apiSecret = preferencesManager.apiSecret.first()
 
                 if (websiteUrl.isNotEmpty() && apiKey.isNotEmpty() && apiSecret.isNotEmpty()) {
-                    val apiService = RetrofitClient.getWooCommerceApiService(websiteUrl)
-                    val orderDao = AppDatabase.getInstance(getApplication()).orderDao()
-                    orderRepository = OrderRepository(
-                        orderDao,
-                        apiService,
-                        apiKey,
-                        apiSecret
-                    )
-
-                    // Observe orders from database based on filters
-                    combine(
-                        _searchQuery,
-                        _selectedStatusFilter,
-                        orderRepository.getAllOrdersFlow()
-                    ) { query, statusFilter, orders ->
-                        val filteredOrders = orders.filter { order ->
-                            val matchesQuery = if (query.isBlank()) {
-                                true
-                            } else {
-                                order.number.contains(query, ignoreCase = true) ||
-                                order.customerName.contains(query, ignoreCase = true)
-                            }
-                            
-                            val matchesStatus = if (statusFilter == null) {
-                                true
-                            } else {
-                                order.status == statusFilter
-                            }
-                            
-                            matchesQuery && matchesStatus
-                        }
-                        
-                        // 修改判断逻辑，只在非刷新状态且列表为空时显示 Empty
-                        when {
-                            filteredOrders.isNotEmpty() -> OrdersUiState.Success(filteredOrders)
-                            _isRefreshing.value -> OrdersUiState.Loading
-                            else -> OrdersUiState.Empty
-                        }
-                    }.catch { e ->
-                        Log.e("OrderViewModel", "获取订单时发生错误", e)
-                        emit(OrdersUiState.Error(e.message ?: "未知错误"))
-                    }.collect { state ->
-                        _uiState.value = state
-                    }
-
-                    // Initial data load
-                    refreshOrders()
+                    _apiConfigured.value = true
+                    initializeRepository()
                 } else {
-                    _uiState.value = OrdersUiState.Error("API配置缺失，请在设置中配置API信息")
+                    _apiConfigured.value = false
+                    // 如果API未配置，显示友好的提示，不显示重试按钮
+                    _uiState.value = OrdersUiState.ApiNotConfigured
                 }
             } catch (e: Exception) {
-                Log.e("OrderViewModel", "初始化 OrderViewModel 时发生错误", e)
+                Log.e(TAG, "检查API凭证时出错", e)
+                _uiState.value = OrdersUiState.Error(e.message ?: "未知错误")
+            }
+        }
+    }
+
+    private fun initializeRepository() {
+        viewModelScope.launch {
+            try {
+                Log.d(TAG, "初始化订单仓库")
+                // 初始化仓库
+                val websiteUrl = preferencesManager.websiteUrl.first()
+                val apiKey = preferencesManager.apiKey.first()
+                val apiSecret = preferencesManager.apiSecret.first()
+
+                val apiService = RetrofitClient.getWooCommerceApiService(websiteUrl)
+                val orderDao = AppDatabase.getInstance(getApplication()).orderDao()
+                orderRepository = OrderRepository(
+                    orderDao,
+                    apiService,
+                    apiKey,
+                    apiSecret
+                )
+
+                // 观察基于筛选器的数据库中的订单
+                combine(
+                    _searchQuery,
+                    _selectedStatusFilter,
+                    orderRepository.getAllOrdersFlow()
+                ) { query, statusFilter, orders ->
+                    val filteredOrders = orders.filter { order ->
+                        val matchesQuery = if (query.isBlank()) {
+                            true
+                        } else {
+                            order.number.contains(query, ignoreCase = true) ||
+                                    order.customerName.contains(query, ignoreCase = true)
+                        }
+
+                        val matchesStatus = if (statusFilter == null) {
+                            true
+                        } else {
+                            order.status == statusFilter
+                        }
+
+                        matchesQuery && matchesStatus
+                    }
+
+                    // 修改判断逻辑，只在非刷新状态且列表为空时显示 Empty
+                    when {
+                        filteredOrders.isNotEmpty() -> OrdersUiState.Success(filteredOrders)
+                        _isRefreshing.value -> OrdersUiState.Loading
+                        else -> OrdersUiState.Empty
+                    }
+                }.catch { e ->
+                    Log.e(TAG, "获取订单时发生错误", e)
+                    _uiState.value = OrdersUiState.Error(e.message ?: "未知错误")
+                }.collect { state ->
+                    _uiState.value = state
+                }
+
+                // 立即加载初始数据
+                refreshOrders()
+            } catch (e: Exception) {
+                Log.e(TAG, "初始化 OrderViewModel 时发生错误", e)
                 _uiState.value = OrdersUiState.Error(e.message ?: "未知错误")
             }
         }
     }
 
     /**
-     * Refresh orders from the API
+     * 刷新来自API的订单
      */
     fun refreshOrders() {
         viewModelScope.launch {
             try {
                 Log.d(TAG, "===== 开始刷新订单(ViewModel) =====")
+
+                // 检查API是否已配置
+                if (!_apiConfigured.value) {
+                    checkApiCredentials()
+                    return@launch
+                }
+
+                // 检查仓库是否已初始化
                 if (!::orderRepository.isInitialized) {
                     Log.e(TAG, "订单仓库尚未初始化")
-                    _uiState.value = OrdersUiState.Error("订单仓库尚未初始化")
+                    _uiState.value = OrdersUiState.Error("正在初始化数据，请稍候...")
                     return@launch
                 }
 
@@ -169,41 +201,53 @@ class OrderViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Update search query
+     * 更新搜索查询
      */
     fun updateSearchQuery(query: String) {
         _searchQuery.value = query
     }
 
     /**
-     * Update status filter
+     * 更新状态筛选器
      */
     fun updateStatusFilter(status: String?) {
         _selectedStatusFilter.value = status
     }
 
     /**
-     * Load order details
+     * 加载订单详情
      */
     fun loadOrderDetails(orderId: Long) {
         viewModelScope.launch {
             _orderDetailState.value = OrderDetailState.Loading
 
             try {
-                // Try to get from local database first
+                // 检查API是否已配置
+                if (!_apiConfigured.value) {
+                    _orderDetailState.value = OrderDetailState.Error("请先在设置中配置API")
+                    return@launch
+                }
+
+                // 检查仓库是否已初始化
+                if (!::orderRepository.isInitialized) {
+                    _orderDetailState.value = OrderDetailState.Error("正在初始化数据，请稍候...")
+                    return@launch
+                }
+
+                // 先从本地数据库获取
                 val localOrder = orderRepository.getOrderById(orderId)
 
                 if (localOrder != null) {
                     _orderDetailState.value = OrderDetailState.Success(localOrder)
                 }
 
-                // Then refresh from API to get the latest data
+                // 然后从API刷新以获取最新数据
                 val result = orderRepository.getOrder(orderId)
 
                 if (result.isSuccess) {
                     val order = result.getOrNull()
                     if (order != null) {
-                        // API order available, overwrite local order in the UI
+                        // API订单可用，覆盖本地订单的UI
                         _orderDetailState.value = OrderDetailState.Success(
                             OrderEntity(
                                 id = order.id,
@@ -217,54 +261,64 @@ class OrderViewModel(application: Application) : AndroidViewModel(application) {
                                 shippingAddress = "${order.shipping.address1}, ${order.shipping.city}, ${order.shipping.state}",
                                 paymentMethod = order.paymentMethod,
                                 paymentMethodTitle = order.paymentMethodTitle,
-                                lineItemsJson = "",  // This will be filled by the repository
+                                lineItemsJson = "",  // 这将由仓库填充
                                 isPrinted = order.isPrinted,
                                 notificationShown = order.notificationShown
                             )
                         )
                     }
                 } else {
-                    // If we don't have the order locally either, show error
+                    // 如果我们在本地也没有订单，则显示错误
                     if (localOrder == null) {
                         _orderDetailState.value = OrderDetailState.Error(
-                            result.exceptionOrNull()?.message ?: "Failed to load order"
+                            result.exceptionOrNull()?.message ?: "无法加载订单"
                         )
                     }
-                    // Otherwise keep showing the local order
+                    // 否则继续显示本地订单
                 }
             } catch (e: Exception) {
-                Log.e("OrderViewModel", "Error loading order details", e)
-                _orderDetailState.value = OrderDetailState.Error(e.message ?: "Unknown error")
+                Log.e("OrderViewModel", "加载订单详情时出错", e)
+                _orderDetailState.value = OrderDetailState.Error(e.message ?: "未知错误")
             }
         }
     }
 
     /**
-     * Mark order as complete
+     * 将订单标记为已完成
      */
     fun markOrderAsComplete(orderId: Long) {
         viewModelScope.launch {
             try {
+                // 检查API是否已配置
+                if (!_apiConfigured.value || !::orderRepository.isInitialized) {
+                    return@launch
+                }
+
                 val result = orderRepository.updateOrderStatus(orderId, "completed")
                 if (result.isSuccess) {
-                    // Refresh order details to show updated status
+                    // 刷新订单详情以显示更新的状态
                     loadOrderDetails(orderId)
                 } else {
-                    Log.e("OrderViewModel", "Error marking order as complete", result.exceptionOrNull())
+                    Log.e("OrderViewModel", "将订单标记为已完成时出错", result.exceptionOrNull())
                 }
             } catch (e: Exception) {
-                Log.e("OrderViewModel", "Error marking order as complete", e)
+                Log.e("OrderViewModel", "将订单标记为已完成时出错", e)
             }
         }
     }
 
     /**
-     * Print order
+     * 打印订单
      */
     fun printOrder(orderId: Long) {
         viewModelScope.launch {
             try {
-                // Get order from API to ensure we have the latest data
+                // 检查API是否已配置
+                if (!_apiConfigured.value || !::orderRepository.isInitialized) {
+                    return@launch
+                }
+
+                // 从API获取订单以确保我们拥有最新的数据
                 val result = orderRepository.getOrder(orderId)
 
                 if (result.isSuccess) {
@@ -272,33 +326,39 @@ class OrderViewModel(application: Application) : AndroidViewModel(application) {
                     if (order != null) {
                         val success = printService.printOrder(order)
                         if (success) {
-                            // Mark as printed in local database
+                            // 在本地数据库中标记为已打印
                             orderRepository.markOrderAsPrinted(orderId)
 
-                            // Refresh order details to show printed status
+                            // 刷新订单详情以显示打印状态
                             loadOrderDetails(orderId)
                         } else {
-                            // Handle printing failure
-                            Log.e("OrderViewModel", "Failed to print order")
+                            // 处理打印失败
+                            Log.e("OrderViewModel", "打印订单失败")
                         }
                     }
                 } else {
-                    Log.e("OrderViewModel", "Error getting order for printing", result.exceptionOrNull())
+                    Log.e("OrderViewModel", "获取要打印的订单时出错", result.exceptionOrNull())
                 }
             } catch (e: Exception) {
-                Log.e("OrderViewModel", "Error printing order", e)
+                Log.e("OrderViewModel", "打印订单时出错", e)
             }
         }
     }
 
     /**
-     * Print all unprinted orders
+     * 打印所有未打印的订单
      */
     fun printAllUnprintedOrders() {
         viewModelScope.launch {
             _printAllState.value = PrintAllState.Printing
 
             try {
+                // 检查API是否已配置
+                if (!_apiConfigured.value || !::orderRepository.isInitialized) {
+                    _printAllState.value = PrintAllState.Error("请先在设置中配置API")
+                    return@launch
+                }
+
                 val unprintedOrders = orderRepository.getUnprintedOrders()
 
                 if (unprintedOrders.isEmpty()) {
@@ -310,7 +370,7 @@ class OrderViewModel(application: Application) : AndroidViewModel(application) {
                 var totalFailed = 0
 
                 for (orderEntity in unprintedOrders) {
-                    // Get full order from API
+                    // 从API获取完整订单
                     val result = orderRepository.getOrder(orderEntity.id)
 
                     if (result.isSuccess) {
@@ -333,11 +393,11 @@ class OrderViewModel(application: Application) : AndroidViewModel(application) {
 
                 _printAllState.value = PrintAllState.Completed(totalPrinted, totalFailed)
 
-                // Refresh orders to update UI with printed status
+                // 刷新订单以更新UI中的打印状态
                 refreshOrders()
             } catch (e: Exception) {
-                Log.e("OrderViewModel", "Error printing all unprinted orders", e)
-                _printAllState.value = PrintAllState.Error(e.message ?: "Unknown error")
+                Log.e("OrderViewModel", "打印所有未打印订单时出错", e)
+                _printAllState.value = PrintAllState.Error(e.message ?: "未知错误")
             }
         }
     }
@@ -353,6 +413,7 @@ sealed class OrdersUiState {
     object Empty : OrdersUiState()
     data class Success(val orders: List<OrderEntity>) : OrdersUiState()
     data class Error(val message: String) : OrdersUiState()
+    object ApiNotConfigured : OrdersUiState() // 添加一个新状态，表示API未配置
 }
 
 sealed class OrderDetailState {

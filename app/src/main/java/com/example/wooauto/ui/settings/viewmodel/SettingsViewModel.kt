@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.wooauto.utils.LanguageHelper
 import com.example.wooauto.utils.PreferencesManager
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
@@ -25,8 +26,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     /**
      * Update app language
      */
-    fun updateLanguage(languageCode: String) {
-        viewModelScope.launch {
+    fun updateLanguage(languageCode: String): Job {
+        return viewModelScope.launch {
             preferencesManager.setLanguage(languageCode)
             LanguageHelper.setLocale(getApplication(), languageCode)
         }

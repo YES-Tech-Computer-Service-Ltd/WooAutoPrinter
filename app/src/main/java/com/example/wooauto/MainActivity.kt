@@ -65,7 +65,10 @@ class MainActivity : ComponentActivity() {
                         ) {
                             WooAutoNavHost(
                                 navController = navController,
-                                onLanguageChanged = { recreate() }
+                                onLanguageChanged = { 
+                                    // 重新创建 Activity 以确保语言切换完全生效
+                                    recreate()
+                                }
                             )
                         }
                     }
@@ -79,6 +82,8 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             val languageCode = preferencesManager.language.first()
             LanguageHelper.setLocale(this@MainActivity, languageCode)
+            // 重新创建 Activity 以确保配置更改生效
+            recreate()
         }
     }
 }

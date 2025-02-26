@@ -24,6 +24,15 @@ object LanguageHelper {
             // 对于旧版本，使用传统方法
             updateResources(context, languageCode)
         }
+        
+        // 确保系统默认语言也被更新
+        Locale.setDefault(Locale(languageCode))
+        
+        // 强制更新配置
+        val configuration = context.resources.configuration
+        configuration.setLocale(Locale(languageCode))
+        context.createConfigurationContext(configuration)
+        context.resources.updateConfiguration(configuration, context.resources.displayMetrics)
     }
 
     /**
