@@ -213,6 +213,7 @@ class OrderViewModel(application: Application) : AndroidViewModel(application) {
                         Log.d(TAG, "刷新订单成功, 获取订单数: ${orders?.size ?: 0}")
                         orders?.forEach {
                             Log.d(TAG, "订单: ID=${it.id}, 编号=${it.number}, 状态=${it.status}")
+                            Log.d(TAG, "配送信息: 方式=${it.orderMethod}, 日期=${it.deliveryDate}, 时间=${it.deliveryTime}")
                         }
                     }
                     result.isFailure -> {
@@ -271,6 +272,8 @@ class OrderViewModel(application: Application) : AndroidViewModel(application) {
                 val localOrder = orderRepository.getOrderById(orderId)
 
                 if (localOrder != null) {
+                    Log.d(TAG, "从本地数据库加载订单: ${localOrder.id}, 配送方式: ${localOrder.orderMethod}, 配送日期: ${localOrder.deliveryDate}")
+                    Log.d(TAG, "订单项目JSON长度: ${localOrder.lineItemsJson.length}")
                     _orderDetailState.value = OrderDetailState.Success(localOrder)
                 }
 
@@ -278,27 +281,13 @@ class OrderViewModel(application: Application) : AndroidViewModel(application) {
                 val result = orderRepository.getOrder(orderId)
 
                 if (result.isSuccess) {
-                    val order = result.getOrNull()
-                    if (order != null) {
-                        // API订单可用，覆盖本地订单的UI
-                        _orderDetailState.value = OrderDetailState.Success(
-                            OrderEntity(
-                                id = order.id,
-                                number = order.number,
-                                status = order.status,
-                                dateCreated = order.dateCreated,
-                                total = order.total,
-                                customerId = order.customerId,
-                                customerName = order.billing.getFullName(),
-                                billingAddress = "${order.billing.address1}, ${order.billing.city}, ${order.billing.state}",
-                                shippingAddress = "${order.shipping.address1}, ${order.shipping.city}, ${order.shipping.state}",
-                                paymentMethod = order.paymentMethod,
-                                paymentMethodTitle = order.paymentMethodTitle,
-                                lineItemsJson = "",  // 这将由仓库填充
-                                isPrinted = order.isPrinted,
-                                notificationShown = order.notificationShown
-                            )
-                        )
+                    // API订单可用，重新从数据库加载完整数据
+                    val refreshedOrder = orderRepository.getOrderById(orderId)
+                    if (refreshedOrder != null) {
+                        Log.d(TAG, "刷新后从数据库获取订单: ${refreshedOrder.id}")
+                        Log.d(TAG, "配送信息: 方式=${refreshedOrder.orderMethod}, 日期=${refreshedOrder.deliveryDate}, 时间=${refreshedOrder.deliveryTime}")
+                        Log.d(TAG, "订单项目JSON长度: ${refreshedOrder.lineItemsJson.length}")
+                        _orderDetailState.value = OrderDetailState.Success(refreshedOrder)
                     }
                 } else {
                     // 如果我们在本地也没有订单，则显示错误
@@ -310,7 +299,7 @@ class OrderViewModel(application: Application) : AndroidViewModel(application) {
                     // 否则继续显示本地订单
                 }
             } catch (e: Exception) {
-                Log.e("OrderViewModel", "加载订单详情时出错", e)
+                Log.e(TAG, "加载订单详情时出错", e)
                 _orderDetailState.value = OrderDetailState.Error(e.message ?: "未知错误")
             }
         }
@@ -469,6 +458,32 @@ class OrderViewModel(application: Application) : AndroidViewModel(application) {
             } catch (e: Exception) {
                 Log.e("OrderViewModel", "打印所有未打印订单时出错", e)
                 _printAllState.value = PrintAllState.Error(e.message ?: "未知错误")
+            }
+        }
+    }
+
+    /**
+     * 验证API数据
+     * 用于调试
+     */
+    fun validateOrderData(orderId: Long) {
+        viewModelScope.launch {
+            try {
+                if (!::orderRepository.isInitialized) {
+                    Log.e(TAG, "仓库未初始化，无法验证数据")
+                    return@launch
+                }
+
+                val result = orderRepository.validateOrderData(orderId)
+                if (result.isSuccess) {
+                    val data = result.getOrNull()
+                    Log.d(TAG, "API数据验证结果: $data")
+                    // 可以在这里添加UI提示
+                } else {
+                    Log.e(TAG, "API数据验证失败: ${result.exceptionOrNull()?.message}")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "验证时发生异常", e)
             }
         }
     }

@@ -1,5 +1,8 @@
 package com.example.wooauto.ui.orders
 
+import android.content.Context
+import android.content.res.Resources
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,6 +18,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Divider
@@ -24,21 +28,26 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.wooauto.R
+import com.example.wooauto.data.api.models.LineItem
 import com.example.wooauto.data.database.entities.OrderEntity
 import com.example.wooauto.ui.components.ErrorState
 import com.example.wooauto.ui.components.LoadingIndicator
@@ -92,7 +101,8 @@ fun OrderDetailsScreen(
                     OrderDetailsContent(
                         order = order,
                         onMarkAsCompleteClick = { viewModel.markOrderAsComplete(orderId) },
-                        onPrintOrderClick = { viewModel.printOrder(orderId) }
+                        onPrintOrderClick = { viewModel.printOrder(orderId) },
+                        onValidateClick = { viewModel.validateOrderData(orderId) }
                     )
                 }
                 is OrderDetailState.Error -> {
@@ -112,7 +122,8 @@ fun OrderDetailsContent(
     order: OrderEntity,
     isUpdating: Boolean = false,
     onMarkAsCompleteClick: () -> Unit,
-    onPrintOrderClick: () -> Unit
+    onPrintOrderClick: () -> Unit,
+    onValidateClick: () -> Unit = {}
 ) {
     LazyColumn(
         modifier = Modifier
@@ -169,21 +180,23 @@ fun OrderDetailsContent(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.padding(top = 4.dp)
                         ) {
+                            val iconRes = when (method.lowercase()) {
+                                "delivery" -> R.drawable.ic_delivery
+                                "pickup" -> R.drawable.ic_pickup
+                                else -> R.drawable.ic_order
+                            }
+
                             Icon(
-                                painter = painterResource(
-                                    id = when (method.lowercase()) {
-                                        "delivery" -> R.drawable.ic_delivery
-                                        "pickup" -> R.drawable.ic_pickup
-                                        else -> R.drawable.ic_order
-                                    }
-                                ),
-                                contentDescription = stringResource(R.string.delivery_method),
+                                painter = painterResource(id = iconRes),
+                                contentDescription = "Delivery Method",
                                 modifier = Modifier.size(16.dp),
                                 tint = MaterialTheme.colorScheme.primary
                             )
+
                             Spacer(modifier = Modifier.width(4.dp))
+
                             Text(
-                                text = "${stringResource(R.string.delivery_method)}: ${method.replaceFirstChar { it.uppercase() }}",
+                                text = "Delivery Method: ${method.replaceFirstChar { it.uppercase() }}",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.primary
                             )
@@ -203,7 +216,7 @@ fun OrderDetailsContent(
         }
 
         // Delivery details (if available)
-        if (order.deliveryDate != null || order.deliveryTime != null) {
+        if (order.deliveryDate != null || order.deliveryTime != null || order.orderMethod != null) {
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -212,48 +225,69 @@ fun OrderDetailsContent(
                     Column(
                         modifier = Modifier.padding(16.dp)
                     ) {
+                        // 添加日志以便调试
+                        Log.d("OrderDetails", "显示配送信息: 方式=${order.orderMethod}, 日期=${order.deliveryDate}, 时间=${order.deliveryTime}")
+
                         Text(
-                            text = stringResource(R.string.delivery_details),
+                            text = "Delivery Details",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
 
                         Spacer(modifier = Modifier.height(8.dp))
 
+                        // 配送方式 (已在上面的订单头信息中显示，这里可以省略)
+
+                        // 配送日期
                         order.deliveryDate?.let {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
+                                val context = LocalContext.current
+                                val hasCalendarIcon = hasResource(context, R.drawable.ic_calendar)
+
                                 Icon(
-                                    painter = painterResource(id = R.drawable.ic_calendar), // 需要添加这个图标
+                                    painter = painterResource(
+                                        id = if (hasCalendarIcon) R.drawable.ic_calendar else R.drawable.ic_order
+                                    ),
                                     contentDescription = null,
                                     modifier = Modifier.size(20.dp),
                                     tint = MaterialTheme.colorScheme.primary
                                 )
+
                                 Spacer(modifier = Modifier.width(8.dp))
+
                                 Text(
-                                    text = "${stringResource(R.string.delivery_date)}: $it",
+                                    text = "Delivery Date: $it",
                                     style = MaterialTheme.typography.bodyMedium
                                 )
                             }
                             Spacer(modifier = Modifier.height(4.dp))
                         }
 
+                        // 配送时间
                         order.deliveryTime?.let {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
+                                val context = LocalContext.current
+                                val hasTimeIcon = hasResource(context, R.drawable.ic_time)
+
                                 Icon(
-                                    painter = painterResource(id = R.drawable.ic_time), // 需要添加这个图标
+                                    painter = painterResource(
+                                        id = if (hasTimeIcon) R.drawable.ic_time else R.drawable.ic_order
+                                    ),
                                     contentDescription = null,
                                     modifier = Modifier.size(20.dp),
                                     tint = MaterialTheme.colorScheme.primary
                                 )
+
                                 Spacer(modifier = Modifier.width(8.dp))
+
                                 Text(
-                                    text = "${stringResource(R.string.delivery_time)}: $it",
+                                    text = "Delivery Time: $it",
                                     style = MaterialTheme.typography.bodyMedium
                                 )
                             }
@@ -337,10 +371,14 @@ fun OrderDetailsContent(
 
                     // Parse line items from JSON
                     val gson = Gson()
-                    val itemType = object : TypeToken<List<com.example.wooauto.data.api.models.LineItem>>() {}.type
-                    val lineItems: List<com.example.wooauto.data.api.models.LineItem> = try {
-                        gson.fromJson(order.lineItemsJson, itemType) ?: emptyList()
+                    val itemType = object : TypeToken<List<LineItem>>() {}.type
+                    val lineItems: List<LineItem> = try {
+                        Log.d("OrderDetails", "解析订单项目, JSON长度: ${order.lineItemsJson.length}")
+                        val items = gson.fromJson<List<LineItem>>(order.lineItemsJson, itemType) ?: emptyList()
+                        Log.d("OrderDetails", "解析结果项目数量: ${items.size}")
+                        items
                     } catch (e: Exception) {
+                        Log.e("OrderDetails", "解析订单项目JSON失败", e)
                         emptyList()
                     }
 
@@ -415,7 +453,9 @@ fun OrderDetailsContent(
                                 if (meta.key != "_" && meta.key != "_qty") {
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Row(
-                                        modifier = Modifier.fillMaxWidth().padding(start = 16.dp)
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(start = 16.dp)
                                     ) {
                                         Text(
                                             text = "${meta.key}: ${meta.value}",
@@ -444,7 +484,7 @@ fun OrderDetailsContent(
                     modifier = Modifier.padding(16.dp)
                 ) {
                     Text(
-                        text = stringResource(R.string.order_summary),
+                        text = "Order Summary",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
@@ -458,7 +498,7 @@ fun OrderDetailsContent(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text(
-                                text = stringResource(R.string.delivery_fee),
+                                text = "Delivery Fee",
                                 style = MaterialTheme.typography.bodyMedium
                             )
                             Text(
@@ -477,7 +517,7 @@ fun OrderDetailsContent(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text(
-                                text = stringResource(R.string.tip),
+                                text = "Tip",
                                 style = MaterialTheme.typography.bodyMedium
                             )
                             Text(
@@ -572,5 +612,17 @@ fun OrderDetailsContent(
                 }
             }
         }
+    }
+}
+
+/**
+ * 检查资源是否存在
+ */
+fun hasResource(context: Context, resId: Int): Boolean {
+    return try {
+        context.resources.getResourceName(resId)
+        true
+    } catch (e: Resources.NotFoundException) {
+        false
     }
 }

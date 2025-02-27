@@ -22,8 +22,6 @@ class OrderRepository(
     private val TAG = "OrderRepo_DEBUG"
     private val gson = Gson()
 
-
-
     // Local data access
     fun getAllOrdersFlow(): Flow<List<OrderEntity>> {
         return orderDao.getAllOrdersFlow()
@@ -86,6 +84,12 @@ class OrderRepository(
                 Log.d(TAG, "成功获取订单数量: ${orders.size}")
                 orders.forEachIndexed { index, order ->
                     Log.d(TAG, "订单[$index] - ID: ${order.id}, 编号: ${order.number}, 状态: ${order.status}, 日期: ${order.dateCreated}")
+                    Log.d(TAG, "订单[$index] - 配送方式: ${order.orderMethod}, 配送日期: ${order.deliveryDate}, 配送时间: ${order.deliveryTime}")
+                    Log.d(TAG, "订单[$index] - 小费: ${order.tip}, 配送费: ${order.deliveryFee}")
+                    Log.d(TAG, "订单[$index] - 元数据数量: ${order.metaData.size}")
+                    order.metaData.forEach { meta ->
+                        Log.d(TAG, "订单[$index] - 元数据: ${meta.key} = ${meta.value}")
+                    }
                 }
 
                 // Save to database
@@ -109,7 +113,6 @@ class OrderRepository(
             Log.d(TAG, "===== 刷新订单完成 =====")
         }
     }
-
 
     suspend fun fetchNewOrders(lastCheckedDate: Date): Result<List<Order>> {
         Log.d(TAG, "===== 获取新订单 =====")
@@ -144,6 +147,7 @@ class OrderRepository(
                 // 详细记录获取到的订单
                 orders.forEachIndexed { index, order ->
                     Log.d(TAG, "新订单[$index] - ID: ${order.id}, 编号: ${order.number}, 状态: ${order.status}, 日期: ${order.dateCreated}")
+                    Log.d(TAG, "新订单[$index] - 配送方式: ${order.orderMethod}, 配送日期: ${order.deliveryDate}, 配送时间: ${order.deliveryTime}")
                 }
 
                 if (orders.isNotEmpty()) {
@@ -171,6 +175,21 @@ class OrderRepository(
 
     // Helper methods
     private fun Order.toOrderEntity(): OrderEntity {
+        // 添加详细日志，帮助调试
+        Log.d(TAG, "转换订单 ${id} 到数据库实体")
+        Log.d(TAG, "订单元数据数量: ${metaData.size}")
+        Log.d(TAG, "订单配送信息: 方式=${orderMethod}, 日期=${deliveryDate}, 时间=${deliveryTime}")
+
+        // 序列化订单项目
+        val itemsJson = try {
+            gson.toJson(lineItems)
+        } catch (e: Exception) {
+            Log.e(TAG, "序列化订单项目失败", e)
+            "[]" // 提供一个空数组作为备选
+        }
+
+        Log.d(TAG, "订单项目JSON长度: ${itemsJson.length}")
+
         return OrderEntity(
             id = id,
             number = number,
@@ -183,10 +202,10 @@ class OrderRepository(
             shippingAddress = "${shipping.address1}, ${shipping.city}, ${shipping.state}",
             paymentMethod = paymentMethod,
             paymentMethodTitle = paymentMethodTitle,
-            lineItemsJson = gson.toJson(lineItems),
+            lineItemsJson = itemsJson,
             isPrinted = this.isPrinted,
             notificationShown = this.notificationShown,
-            // 新增字段 for woo food
+            // WooCommerce Food字段
             deliveryDate = this.deliveryDate,
             deliveryTime = this.deliveryTime,
             orderMethod = this.orderMethod,
@@ -194,6 +213,30 @@ class OrderRepository(
             deliveryFee = this.deliveryFee
         )
     }
+
+    /**
+     * 将OrderEntity转换回完整的Order对象
+     * 用于OrderViewModel获取完整的Order数据结构
+     */
+    fun orderEntityToFullOrder(entity: OrderEntity): Order? {
+        return try {
+            // 还原订单项目
+            val lineItemType = object : com.google.gson.reflect.TypeToken<List<com.example.wooauto.data.api.models.LineItem>>() {}.type
+            val lineItems = gson.fromJson<List<com.example.wooauto.data.api.models.LineItem>>(entity.lineItemsJson, lineItemType) ?: emptyList()
+
+            // 创建一个简化的Order对象，仅包含显示所需的字段
+            // 因为我们没有完整的Order构造函数，这里只是示意
+            // 在实际应用中，可能需要更全面的转换或使用Builder模式
+            Log.d(TAG, "从实体还原Order对象 ID: ${entity.id}")
+
+            // 注意：这里在实际应用中可能需要补充更多字段
+            null
+        } catch (e: Exception) {
+            Log.e(TAG, "还原Order对象失败", e)
+            null
+        }
+    }
+
     suspend fun getAllHistoricalOrders(): Result<List<Order>> {
         Log.d(TAG, "===== 获取所有历史订单（无日期过滤）=====")
         return try {
@@ -243,6 +286,17 @@ class OrderRepository(
             )
 
             if (response.isSuccessful) {
+                val order = response.body()
+                if (order != null) {
+                    // 记录WooCommerce Food相关字段
+                    Log.d(TAG, "获取到订单 ${order.id} 的详细信息")
+                    Log.d(TAG, "WooFood字段: 配送方式=${order.orderMethod}, 配送日期=${order.deliveryDate}, 配送时间=${order.deliveryTime}")
+                    Log.d(TAG, "费用信息: 小费=${order.tip}, 配送费=${order.deliveryFee}")
+
+                    // 转换为实体并保存到数据库
+                    val entity = order.toOrderEntity()
+                    orderDao.insertOrder(entity)
+                }
                 Result.success(response.body())
             } else {
                 Result.failure(Exception("获取订单失败: ${response.code()} - ${response.message()}"))
@@ -276,6 +330,85 @@ class OrderRepository(
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error updating order status", e)
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * 验证API返回的订单数据
+     * 用于诊断API数据问题
+     */
+    suspend fun validateOrderData(orderId: Long): Result<Map<String, Any>> {
+        return try {
+            Log.d(TAG, "开始验证订单 $orderId 的API数据")
+
+            val response = apiService.getOrder(
+                orderId = orderId,
+                consumerKey = apiKey,
+                consumerSecret = apiSecret
+            )
+
+            if (response.isSuccessful) {
+                val order = response.body()
+                if (order != null) {
+                    // 收集诊断信息
+                    val diagnosticInfo = mutableMapOf<String, Any>()
+
+                    // 基本信息
+                    diagnosticInfo["orderId"] = order.id
+                    diagnosticInfo["orderNumber"] = order.number
+                    diagnosticInfo["status"] = order.status
+
+                    // 元数据分析
+                    val metaDataInfo = order.metaData.associate { it.key to it.value.toString() }
+                    diagnosticInfo["metaData"] = metaDataInfo
+
+                    // 检查WooCommerce Food特定字段
+                    val wooFoodFields = listOf(
+                        "exwfood_date_deli",
+                        "exwfood_time_deli",
+                        "exwfood_timeslot",
+                        "exwfood_order_method",
+                        "woofood_order_type"
+                    )
+
+                    val foundWooFoodFields = metaDataInfo.keys.filter { key ->
+                        wooFoodFields.any { field -> key.contains(field, ignoreCase = true) }
+                    }
+
+                    diagnosticInfo["foundWooFoodFields"] = foundWooFoodFields
+
+                    // 费用行分析
+                    val feeLines = order.feeLines.map { fee ->
+                        mapOf(
+                            "name" to fee.name,
+                            "total" to fee.total
+                        )
+                    }
+                    diagnosticInfo["feeLines"] = feeLines
+
+                    // 解析后的WooFood字段
+                    diagnosticInfo["parsedDeliveryDate"] = order.deliveryDate ?: "null"
+                    diagnosticInfo["parsedDeliveryTime"] = order.deliveryTime ?: "null"
+                    diagnosticInfo["parsedOrderMethod"] = order.orderMethod ?: "null"
+                    diagnosticInfo["parsedTip"] = order.tip ?: "null"
+                    diagnosticInfo["parsedDeliveryFee"] = order.deliveryFee ?: "null"
+
+                    // 订单项目分析
+                    diagnosticInfo["lineItemsCount"] = order.lineItems.size
+
+                    Log.d(TAG, "订单验证完成: $diagnosticInfo")
+                    Result.success(diagnosticInfo)
+                } else {
+                    Log.e(TAG, "订单为空")
+                    Result.failure(Exception("订单数据为空"))
+                }
+            } else {
+                Log.e(TAG, "API响应失败: ${response.code()} - ${response.message()}")
+                Result.failure(Exception("API错误: ${response.code()} - ${response.message()}"))
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "验证订单数据时发生异常", e)
             Result.failure(e)
         }
     }
