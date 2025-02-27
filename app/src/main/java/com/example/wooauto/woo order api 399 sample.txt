@@ -1,0 +1,482 @@
+{
+    "id": 399,
+    "parent_id": 0,
+    "status": "processing",
+    "currency": "CAD",
+    "version": "9.5.2",
+    "prices_include_tax": false,
+    "date_created": "2025-02-25T22:26:07",
+    "date_modified": "2025-02-25T22:26:07",
+    "discount_total": "0.00",
+    "discount_tax": "0.00",
+    "shipping_total": "0.00",
+    "shipping_tax": "0.00",
+    "cart_tax": "7.04",
+    "total": "84.35",
+    "total_tax": "7.04",
+    "customer_id": 0,
+    "order_key": "wc_order_KoQOsXN2KBDbV",
+    "billing": {
+        "first_name": "yinkai",
+        "last_name": "yest",
+        "company": "",
+        "address_1": "214 haslam crt",
+        "address_2": "",
+        "city": "saskatoon",
+        "state": "SK",
+        "postcode": "S7S 1E3",
+        "country": "CA",
+        "email": "greenqi@gmail.com",
+        "phone": "3067139800"
+    },
+    "shipping": {
+        "first_name": "",
+        "last_name": "",
+        "company": "",
+        "address_1": "",
+        "address_2": "",
+        "city": "",
+        "state": "",
+        "postcode": "",
+        "country": "",
+        "phone": ""
+    },
+    "payment_method": "cod",
+    "payment_method_title": "Cash on delivery",
+    "transaction_id": "",
+    "customer_ip_address": "71.17.28.233",
+    "customer_user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:135.0) Gecko/20100101 Firefox/135.0",
+    "created_via": "checkout",
+    "customer_note": "",
+    "date_completed": null,
+    "date_paid": null,
+    "cart_hash": "d14fc3953d906470aa41813706eb9af5",
+    "number": "399",
+    "meta_data": [
+        {
+            "id": 45,
+            "key": "is_vat_exempt",
+            "value": "no"
+        },
+        {
+            "id": 48,
+            "key": "exwfood_date_deli",
+            "value": "February 26, 2025"
+        },
+        {
+            "id": 49,
+            "key": "exwfood_date_deli_unix",
+            "value": "1740528000"
+        },
+        {
+            "id": 50,
+            "key": "exwfood_datetime_deli_unix",
+            "value": "1740571200"
+        },
+        {
+            "id": 51,
+            "key": "exwfood_timeslot",
+            "value": "12:00|12:30"
+        },
+        {
+            "id": 52,
+            "key": "exwfood_time_deli",
+            "value": "12:00 - 12:30"
+        },
+        {
+            "id": 53,
+            "key": "exwfood_order_method",
+            "value": "delivery"
+        },
+        {
+            "id": 54,
+            "key": "woofood_order_type",
+            "value": "delivery"
+        },
+        {
+            "id": 55,
+            "key": "_wc_order_attribution_source_type",
+            "value": "typein"
+        },
+        {
+            "id": 56,
+            "key": "_wc_order_attribution_utm_source",
+            "value": "(direct)"
+        },
+        {
+            "id": 57,
+            "key": "_wc_order_attribution_session_entry",
+            "value": "https://nisensushisk.com/"
+        },
+        {
+            "id": 58,
+            "key": "_wc_order_attribution_session_start_time",
+            "value": "2025-02-26 04:21:54"
+        },
+        {
+            "id": 59,
+            "key": "_wc_order_attribution_session_pages",
+            "value": "5"
+        },
+        {
+            "id": 60,
+            "key": "_wc_order_attribution_session_count",
+            "value": "1"
+        },
+        {
+            "id": 61,
+            "key": "_wc_order_attribution_user_agent",
+            "value": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:135.0) Gecko/20100101 Firefox/135.0"
+        },
+        {
+            "id": 62,
+            "key": "_wc_order_attribution_device_type",
+            "value": "Desktop"
+        }
+    ],
+    "line_items": [
+        {
+            "id": 22,
+            "name": "Shrimp Tempura (5 pcs) / 炸虾天妇罗",
+            "product_id": 128,
+            "variation_id": 0,
+            "quantity": 1,
+            "tax_class": "",
+            "subtotal": "8.95",
+            "subtotal_tax": "0.99",
+            "total": "8.95",
+            "total_tax": "0.99",
+            "taxes": [
+                {
+                    "id": 11,
+                    "total": "0.4475",
+                    "subtotal": "0.4475"
+                },
+                {
+                    "id": 14,
+                    "total": "0.537",
+                    "subtotal": "0.537"
+                }
+            ],
+            "meta_data": [
+                {
+                    "id": 165,
+                    "key": "woofood_meta",
+                    "value": "{\"original_price\":\"8.95\"}",
+                    "display_key": "woofood_meta",
+                    "display_value": "{\"original_price\":\"8.95\"}"
+                }
+            ],
+            "sku": "",
+            "price": 8.95,
+            "image": {
+                "id": "",
+                "src": ""
+            },
+            "parent_name": null
+        },
+        {
+            "id": 23,
+            "name": "Pork Gyoza (6 pcs) / 日式煎饺",
+            "product_id": 130,
+            "variation_id": 0,
+            "quantity": 1,
+            "tax_class": "",
+            "subtotal": "7.95",
+            "subtotal_tax": "0.88",
+            "total": "7.95",
+            "total_tax": "0.88",
+            "taxes": [
+                {
+                    "id": 11,
+                    "total": "0.3975",
+                    "subtotal": "0.3975"
+                },
+                {
+                    "id": 14,
+                    "total": "0.477",
+                    "subtotal": "0.477"
+                }
+            ],
+            "meta_data": [
+                {
+                    "id": 175,
+                    "key": "woofood_meta",
+                    "value": "{\"original_price\":\"7.95\"}",
+                    "display_key": "woofood_meta",
+                    "display_value": "{\"original_price\":\"7.95\"}"
+                }
+            ],
+            "sku": "",
+            "price": 7.95,
+            "image": {
+                "id": "",
+                "src": ""
+            },
+            "parent_name": null
+        },
+        {
+            "id": 24,
+            "name": "Seafood Salad / 海鲜沙拉",
+            "product_id": 132,
+            "variation_id": 0,
+            "quantity": 1,
+            "tax_class": "",
+            "subtotal": "8.95",
+            "subtotal_tax": "0.99",
+            "total": "8.95",
+            "total_tax": "0.99",
+            "taxes": [
+                {
+                    "id": 11,
+                    "total": "0.4475",
+                    "subtotal": "0.4475"
+                },
+                {
+                    "id": 14,
+                    "total": "0.537",
+                    "subtotal": "0.537"
+                }
+            ],
+            "meta_data": [
+                {
+                    "id": 185,
+                    "key": "woofood_meta",
+                    "value": "{\"original_price\":\"8.95\"}",
+                    "display_key": "woofood_meta",
+                    "display_value": "{\"original_price\":\"8.95\"}"
+                }
+            ],
+            "sku": "",
+            "price": 8.95,
+            "image": {
+                "id": "",
+                "src": ""
+            },
+            "parent_name": null
+        },
+        {
+            "id": 25,
+            "name": "Takowasabi / 芥末章鱼",
+            "product_id": 133,
+            "variation_id": 0,
+            "quantity": 1,
+            "tax_class": "",
+            "subtotal": "7.95",
+            "subtotal_tax": "0.88",
+            "total": "7.95",
+            "total_tax": "0.88",
+            "taxes": [
+                {
+                    "id": 11,
+                    "total": "0.3975",
+                    "subtotal": "0.3975"
+                },
+                {
+                    "id": 14,
+                    "total": "0.477",
+                    "subtotal": "0.477"
+                }
+            ],
+            "meta_data": [
+                {
+                    "id": 195,
+                    "key": "woofood_meta",
+                    "value": "{\"original_price\":\"7.95\"}",
+                    "display_key": "woofood_meta",
+                    "display_value": "{\"original_price\":\"7.95\"}"
+                }
+            ],
+            "sku": "",
+            "price": 7.95,
+            "image": {
+                "id": "",
+                "src": ""
+            },
+            "parent_name": null
+        },
+        {
+            "id": 26,
+            "name": "Seasoned Mini Octopus / 调味小章鱼",
+            "product_id": 134,
+            "variation_id": 0,
+            "quantity": 1,
+            "tax_class": "",
+            "subtotal": "8.95",
+            "subtotal_tax": "0.99",
+            "total": "8.95",
+            "total_tax": "0.99",
+            "taxes": [
+                {
+                    "id": 11,
+                    "total": "0.4475",
+                    "subtotal": "0.4475"
+                },
+                {
+                    "id": 14,
+                    "total": "0.537",
+                    "subtotal": "0.537"
+                }
+            ],
+            "meta_data": [
+                {
+                    "id": 205,
+                    "key": "woofood_meta",
+                    "value": "{\"original_price\":\"8.95\"}",
+                    "display_key": "woofood_meta",
+                    "display_value": "{\"original_price\":\"8.95\"}"
+                }
+            ],
+            "sku": "",
+            "price": 8.95,
+            "image": {
+                "id": "",
+                "src": ""
+            },
+            "parent_name": null
+        },
+        {
+            "id": 27,
+            "name": "Fried Shrimp Cake / 日式煎虾饼",
+            "product_id": 131,
+            "variation_id": 0,
+            "quantity": 1,
+            "tax_class": "",
+            "subtotal": "7.95",
+            "subtotal_tax": "0.88",
+            "total": "7.95",
+            "total_tax": "0.88",
+            "taxes": [
+                {
+                    "id": 11,
+                    "total": "0.3975",
+                    "subtotal": "0.3975"
+                },
+                {
+                    "id": 14,
+                    "total": "0.477",
+                    "subtotal": "0.477"
+                }
+            ],
+            "meta_data": [
+                {
+                    "id": 215,
+                    "key": "woofood_meta",
+                    "value": "{\"original_price\":\"7.95\"}",
+                    "display_key": "woofood_meta",
+                    "display_value": "{\"original_price\":\"7.95\"}"
+                }
+            ],
+            "sku": "",
+            "price": 7.95,
+            "image": {
+                "id": "",
+                "src": ""
+            },
+            "parent_name": null
+        }
+    ],
+    "tax_lines": [
+        {
+            "id": 31,
+            "rate_code": "CA-SK-GST (5%)-1",
+            "rate_id": 11,
+            "label": "GST (5%)",
+            "compound": false,
+            "tax_total": "3.20",
+            "shipping_tax_total": "0.00",
+            "rate_percent": 5,
+            "meta_data": []
+        },
+        {
+            "id": 32,
+            "rate_code": "CA-SK-PST (6%)-2",
+            "rate_id": 14,
+            "label": "PST (6%)",
+            "compound": false,
+            "tax_total": "3.84",
+            "shipping_tax_total": "0.00",
+            "rate_percent": 6,
+            "meta_data": []
+        }
+    ],
+    "shipping_lines": [],
+    "fee_lines": [
+        {
+            "id": 28,
+            "name": "Shipping fee",
+            "tax_class": "",
+            "tax_status": "taxable",
+            "amount": "13",
+            "total": "13.00",
+            "total_tax": "1.43",
+            "taxes": [
+                {
+                    "id": 11,
+                    "total": "0.65",
+                    "subtotal": ""
+                },
+                {
+                    "id": 14,
+                    "total": "0.78",
+                    "subtotal": ""
+                }
+            ],
+            "meta_data": []
+        },
+        {
+            "id": 29,
+            "name": "tip",
+            "tax_class": "0",
+            "tax_status": "taxable",
+            "amount": "7.605",
+            "total": "7.61",
+            "total_tax": "0.00",
+            "taxes": [],
+            "meta_data": []
+        },
+        {
+            "id": 30,
+            "name": "Delivery Fee",
+            "tax_class": "0",
+            "tax_status": "taxable",
+            "amount": "6",
+            "total": "6.00",
+            "total_tax": "0.00",
+            "taxes": [],
+            "meta_data": []
+        }
+    ],
+    "coupon_lines": [],
+    "refunds": [],
+    "payment_url": "https://nisensushisk.com/checkout/order-pay/399/?pay_for_order=true&key=wc_order_KoQOsXN2KBDbV",
+    "is_editable": false,
+    "needs_payment": false,
+    "needs_processing": true,
+    "date_created_gmt": "2025-02-26T04:26:07",
+    "date_modified_gmt": "2025-02-26T04:26:07",
+    "date_completed_gmt": null,
+    "date_paid_gmt": null,
+    "currency_symbol": "$",
+    "_links": {
+        "self": [
+            {
+                "href": "https://nisensushisk.com/wp-json/wc/v3/orders/399",
+                "targetHints": {
+                    "allow": [
+                        "GET",
+                        "POST",
+                        "PUT",
+                        "PATCH",
+                        "DELETE"
+                    ]
+                }
+            }
+        ],
+        "collection": [
+            {
+                "href": "https://nisensushisk.com/wp-json/wc/v3/orders"
+            }
+        ]
+    }
+}

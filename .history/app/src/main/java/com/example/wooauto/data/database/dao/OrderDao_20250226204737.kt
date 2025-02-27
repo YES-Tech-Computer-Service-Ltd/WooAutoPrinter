@@ -39,19 +39,7 @@ interface OrderDao {
     @Query("SELECT * FROM orders WHERE date_created > :date ORDER BY date_created DESC")
     suspend fun getOrdersAfterDate(date: Date): List<OrderEntity>
 
-    @Query("SELECT * FROM orders WHERE order_method = :method ORDER BY date_created DESC")
-    fun getOrdersByMethodFlow(method: String): Flow<List<OrderEntity>>
-
-    @Query("SELECT * FROM orders WHERE delivery_date = :date ORDER BY delivery_time ASC")
-    fun getOrdersByDeliveryDateFlow(date: String): Flow<List<OrderEntity>>
-
-    @Query("SELECT * FROM orders WHERE delivery_date >= :startDate AND delivery_date <= :endDate ORDER BY delivery_time ASC")
-    fun getOrdersByDeliveryDateRangeFlow(startDate: String, endDate: String): Flow<List<OrderEntity>>
-
-    @Query("SELECT DISTINCT delivery_date FROM orders WHERE delivery_date IS NOT NULL ORDER BY delivery_date ASC")
-    fun getDistinctDeliveryDatesFlow(): Flow<List<String>>
-
-    @Query("SELECT * FROM orders WHERE number LIKE '%' || :query || '%' OR customer_name LIKE '%' || :query || '%' OR delivery_date LIKE '%' || :query || '%' ORDER BY date_created DESC")
+    @Query("SELECT * FROM orders WHERE number LIKE '%' || :query || '%' OR customer_name LIKE '%' || :query || '%' ORDER BY date_created DESC")
     fun searchOrdersFlow(query: String): Flow<List<OrderEntity>>
 
     @Query("SELECT * FROM orders WHERE is_printed = 0 ORDER BY date_created DESC")
@@ -74,14 +62,4 @@ interface OrderDao {
 
     @Query("DELETE FROM orders")
     suspend fun deleteAllOrders()
-
-    @Query("UPDATE orders SET delivery_date = :date, delivery_time = :time, order_method = :method, tip = :tip, delivery_fee = :fee WHERE id = :orderId")
-    suspend fun updateOrderDeliveryInfo(
-        orderId: Long,
-        date: String?,
-        time: String?,
-        method: String?,
-        tip: String?,
-        fee: String?
-    )
 }

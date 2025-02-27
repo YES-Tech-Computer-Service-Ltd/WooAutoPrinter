@@ -139,5 +139,10 @@
     <string name="pickup">Pickup</string>
     <string name="delivery_details">Delivery Details</string>
     <string name="fee_details">Fee Details</string>
+    <string name="delivery_method">Delivery Method: %s</string>
+    <string name="delivery_date">Delivery Date: %s</string>
+    <string name="delivery_time">Delivery Time: %s</string>
+    <string name="tip">Tip</string>
+    <string name="delivery_fee">Delivery Fee</string>
 
 </resources>

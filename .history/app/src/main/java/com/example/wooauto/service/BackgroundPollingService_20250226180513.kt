@@ -135,26 +135,16 @@ class BackgroundPollingService : Service() {
 
             // 获取上次检查时间，添加5分钟安全缓冲区
             val lastCheckedTime = preferencesManager.lastCheckedDate.first()
-            val currentTime = System.currentTimeMillis()
-            
             val checkFrom = if (lastCheckedTime == 0L) {
                 // 首次运行，使用24小时前的时间
-                val fromTime = currentTime - 24 * 60 * 60 * 1000L
+                val fromTime = System.currentTimeMillis() - 24 * 60 * 60 * 1000L
                 Log.d(TAG, "首次运行，使用24小时前的时间: ${Date(fromTime)}")
                 fromTime
             } else {
-                // 确保上次检查时间不会超过当前时间
-                val safeLastCheckedTime = minOf(lastCheckedTime, currentTime)
                 // 添加5分钟安全缓冲区
                 val bufferTime = 5 * 60 * 1000L // 5分钟毫秒数
-                val adjustedTime = safeLastCheckedTime - bufferTime
-                Log.d(TAG, """
-                    时间检查:
-                    - 当前时间: ${Date(currentTime)}
-                    - 原始上次检查时间: ${Date(lastCheckedTime)}
-                    - 安全上次检查时间: ${Date(safeLastCheckedTime)}
-                    - 调整后的检查时间: ${Date(adjustedTime)}
-                """.trimIndent())
+                val adjustedTime = lastCheckedTime - bufferTime
+                Log.d(TAG, "使用上次检查时间(含5分钟缓冲): ${Date(adjustedTime)}")
                 adjustedTime
             }
 

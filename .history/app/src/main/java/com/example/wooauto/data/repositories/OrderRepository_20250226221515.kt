@@ -177,40 +177,40 @@ class OrderRepository(
     // Helper methods
     private fun Order.toOrderEntity(): OrderEntity {
         // Add detailed logging for debugging
-        Log.d(TAG, """
-            ===== 开始转换订单 ${id} 到数据库实体 =====
-            基本信息:
-            - 订单编号: $number
-            - 状态: $status
-            - 总金额: $total
-            
-            配送信息:
-            - 配送方式: ${orderMethod ?: "未设置"}
-            - 配送日期: ${deliveryDate ?: "未设置"}
-            - 配送时间: ${deliveryTime ?: "未设置"}
-            
-            费用信息:
-            - 小费: ${tip ?: "未设置"}
-            - 配送费: ${deliveryFee ?: "未设置"}
-            
-            元数据信息:
-            - 元数据数量: ${metaData.size}
-            ${metaData.joinToString("\n") { "- ${it.key}: ${it.value}" }}
-            
-            费用行信息:
-            - 费用行数量: ${feeLines.size}
-            ${feeLines.joinToString("\n") { "- ${it.name}: ${it.total}" }}
-        """.trimIndent())
+        Log.d(TAG, "转换订单 ${id} 到数据库实体")
+        Log.d(TAG, "订单元数据数量: ${metaData.size}")
+        Log.d(TAG, "订单配送信息: 方式=${orderMethod}, 日期=${deliveryDate}, 时间=${deliveryTime}")
 
-        // Convert line items to JSON
-        val itemsJson = try {
-            gson.toJson(lineItems)
-        } catch (e: Exception) {
-            Log.e(TAG, "转换订单项目到JSON时出错", e)
-            "[]"
+        // Process line items to clean up metadata before serialization
+        val processedLineItems = lineItems.map { item ->
+            // Create a copy of the line item with processed metadata
+            // This ensures we store formatted metadata in the database
+            val processedMetadata = item.metaData?.map { meta ->
+                when (meta.key) {
+                    "_exceptions" -> {
+                        // Parse exceptions data for better display
+                        val value = meta.value.toString()
+                        val formattedValue = parseWooFoodOptions(value)
+                        MetaData(meta.id, "options", formattedValue)
+                    }
+                    else -> meta
+                }
+            }
+            // Return modified line item with processed metadata
+            item.copy(metaData = processedMetadata)
         }
 
-        val entity = OrderEntity(
+        // Use the processed line items for serialization
+        val itemsJson = try {
+            gson.toJson(processedLineItems)
+        } catch (e: Exception) {
+            Log.e(TAG, "序列化订单项目失败", e)
+            "[]" // 提供一个空数组作为备选
+        }
+
+        Log.d(TAG, "订单项目JSON长度: ${itemsJson.length}")
+
+        return OrderEntity(
             id = id,
             number = number,
             status = status,
@@ -232,20 +232,6 @@ class OrderRepository(
             tip = this.tip,
             deliveryFee = this.deliveryFee
         )
-
-        Log.d(TAG, """
-            ===== 转换结果 =====
-            - ID: ${entity.id}
-            - 订单编号: ${entity.number}
-            - 配送方式: ${entity.orderMethod ?: "未设置"}
-            - 配送日期: ${entity.deliveryDate ?: "未设置"}
-            - 配送时间: ${entity.deliveryTime ?: "未设置"}
-            - 小费: ${entity.tip ?: "未设置"}
-            - 配送费: ${entity.deliveryFee ?: "未设置"}
-            ==================
-        """.trimIndent())
-
-        return entity
     }
     /**
      * 将OrderEntity转换回完整的Order对象
@@ -348,13 +334,10 @@ class OrderRepository(
                         - ID: ${order.id}
                         - 编号: ${order.number}
                         - 状态: ${order.status}
-                        - 总金额: ${order.total}
+                        - 元数据数量: ${order.metaData.size}
+                        - 元数据内容: ${order.metaData.joinToString("\n") { "  ${it.key}=${it.value}" }}
                         - 费用行数量: ${order.feeLines.size}
-                        费用行详情:
-                        ${order.feeLines.joinToString("\n") { "- ${it.name}: ${it.total}" }}
-                        解析后的费用:
-                        - 小费: ${order.tip ?: "未设置"}
-                        - 配送费: ${order.deliveryFee ?: "未设置"}
+                        - 费用内容: ${order.feeLines.joinToString("\n") { "  ${it.name}=${it.total}" }}
                     """.trimIndent())
 
                     // 转换为实体并保存到数据库
@@ -491,33 +474,5 @@ class OrderRepository(
             Log.e(TAG, "验证订单数据时发生异常", e)
             Result.failure(e)
         }
-    }
-
-    /**
-     * 获取所有不重复的配送日期
-     */
-    fun getDistinctDeliveryDatesFlow(): Flow<List<String>> {
-        return orderDao.getDistinctDeliveryDatesFlow()
-    }
-
-    /**
-     * 根据配送方式获取订单
-     */
-    fun getOrdersByMethodFlow(method: String): Flow<List<OrderEntity>> {
-        return orderDao.getOrdersByMethodFlow(method)
-    }
-
-    /**
-     * 根据配送日期获取订单
-     */
-    fun getOrdersByDeliveryDateFlow(date: String): Flow<List<OrderEntity>> {
-        return orderDao.getOrdersByDeliveryDateFlow(date)
-    }
-
-    /**
-     * 根据配送日期范围获取订单
-     */
-    fun getOrdersByDeliveryDateRangeFlow(startDate: String, endDate: String): Flow<List<OrderEntity>> {
-        return orderDao.getOrdersByDeliveryDateRangeFlow(startDate, endDate)
     }
 }

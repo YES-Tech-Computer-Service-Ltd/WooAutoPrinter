@@ -66,15 +66,9 @@ fun OrderDetailsScreen(
     viewModel: OrderViewModel = viewModel()
 ) {
     val orderDetailState by viewModel.orderDetailState.collectAsState()
-    val TAG = "OrderDetails_DEBUG"
 
     // Load order details
     LaunchedEffect(orderId) {
-        Log.d(TAG, """
-            ===== OrderDetailsScreen LaunchedEffect =====
-            正在加载订单详情，订单ID: $orderId
-            当前状态: $orderDetailState
-        """.trimIndent())
         viewModel.loadOrderDetails(orderId)
     }
 
@@ -100,23 +94,10 @@ fun OrderDetailsScreen(
         ) {
             when (orderDetailState) {
                 is OrderDetailState.Loading -> {
-                    Log.d(TAG, "订单详情页面状态: Loading")
                     LoadingIndicator()
                 }
                 is OrderDetailState.Success -> {
                     val order = (orderDetailState as OrderDetailState.Success).order
-                    Log.d(TAG, """
-                        订单详情页面状态: Success
-                        订单信息:
-                        - ID: ${order.id}
-                        - 订单编号: ${order.number}
-                        - 状态: ${order.status}
-                        - 配送方式: ${order.orderMethod ?: "未设置"}
-                        - 配送日期: ${order.deliveryDate ?: "未设置"}
-                        - 配送时间: ${order.deliveryTime ?: "未设置"}
-                        - 小费: ${order.tip ?: "未设置"}
-                        - 配送费: ${order.deliveryFee ?: "未设置"}
-                    """.trimIndent())
                     OrderDetailsContent(
                         order = order,
                         onMarkAsCompleteClick = { viewModel.markOrderAsComplete(orderId) },
@@ -126,7 +107,6 @@ fun OrderDetailsScreen(
                 }
                 is OrderDetailState.Error -> {
                     val message = (orderDetailState as OrderDetailState.Error).message
-                    Log.e(TAG, "订单详情页面状态: Error - $message")
                     ErrorState(
                         message = message,
                         onRetry = { viewModel.loadOrderDetails(orderId) }

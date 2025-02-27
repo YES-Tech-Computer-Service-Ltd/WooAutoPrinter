@@ -290,11 +290,7 @@ class OrderViewModel(application: Application) : AndroidViewModel(application) {
     fun loadOrderDetails(orderId: Long) {
         viewModelScope.launch {
             _orderDetailState.value = OrderDetailState.Loading
-            Log.d(TAG, """
-                ===== 开始加载订单详情 =====
-                订单ID: $orderId
-                当前状态: Loading
-            """.trimIndent())
+            Log.d(TAG, "===== 开始加载订单详情 ID: $orderId =====")
 
             try {
                 // 先从数据库获取基本信息
@@ -303,21 +299,17 @@ class OrderViewModel(application: Application) : AndroidViewModel(application) {
                     本地数据库订单信息:
                     - ID: ${localOrder?.id}
                     - 订单编号: ${localOrder?.number}
-                    - 状态: ${localOrder?.status}
                     - 配送方式: ${localOrder?.orderMethod ?: "未设置"}
                     - 配送日期: ${localOrder?.deliveryDate ?: "未设置"}
                     - 配送时间: ${localOrder?.deliveryTime ?: "未设置"}
                     - 小费: ${localOrder?.tip ?: "未设置"}
                     - 配送费: ${localOrder?.deliveryFee ?: "未设置"}
-                    - 订单项目JSON长度: ${localOrder?.lineItemsJson?.length ?: 0}
                 """.trimIndent())
 
                 if (localOrder != null) {
-                    Log.d(TAG, "从本地数据库获取到订单，更新UI状态为Success")
                     _orderDetailState.value = OrderDetailState.Success(localOrder)
                     
                     // 尝试从API刷新数据
-                    Log.d(TAG, "尝试从API刷新订单数据...")
                     val result = orderRepository.getOrder(orderId)
                     if (result.isSuccess) {
                         Log.d(TAG, "成功从API刷新订单数据")
@@ -326,30 +318,17 @@ class OrderViewModel(application: Application) : AndroidViewModel(application) {
                         Log.e(TAG, "从API刷新订单数据失败: ${result.exceptionOrNull()?.message}")
                     }
                 } else {
-                    Log.d(TAG, "本地数据库中没有找到订单，尝试从API获取...")
                     // 如果本地没有数据，尝试从API获取
                     val result = orderRepository.getOrder(orderId)
                     if (result.isSuccess) {
                         val order = result.getOrNull()
                         if (order != null) {
-                            Log.d(TAG, """
-                                成功从API获取订单数据:
-                                - ID: ${order.id}
-                                - 订单编号: ${order.number}
-                                - 状态: ${order.status}
-                                - 配送方式: ${order.orderMethod ?: "未设置"}
-                                - 配送日期: ${order.deliveryDate ?: "未设置"}
-                                - 配送时间: ${order.deliveryTime ?: "未设置"}
-                                - 小费: ${order.tip ?: "未设置"}
-                                - 配送费: ${order.deliveryFee ?: "未设置"}
-                            """.trimIndent())
+                            Log.d(TAG, "成功从API获取订单数据")
                             // 数据会自动保存到数据库并更新UI
                         } else {
-                            Log.e(TAG, "API返回的订单数据为空")
                             _orderDetailState.value = OrderDetailState.Error("订单不存在")
                         }
                     } else {
-                        Log.e(TAG, "从API获取订单失败: ${result.exceptionOrNull()?.message}")
                         _orderDetailState.value = OrderDetailState.Error(
                             result.exceptionOrNull()?.message ?: "加载订单失败"
                         )
@@ -358,8 +337,6 @@ class OrderViewModel(application: Application) : AndroidViewModel(application) {
             } catch (e: Exception) {
                 Log.e(TAG, "加载订单详情时发生错误", e)
                 _orderDetailState.value = OrderDetailState.Error(e.message ?: "未知错误")
-            } finally {
-                Log.d(TAG, "===== 订单详情加载完成 =====")
             }
         }
     }

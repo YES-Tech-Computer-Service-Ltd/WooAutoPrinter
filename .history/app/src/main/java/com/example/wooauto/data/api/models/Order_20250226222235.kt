@@ -84,24 +84,9 @@ data class Order(
     }
 
     private fun parseMetaData() {
-        Log.d(TAG, """
-            ===== 开始解析元数据 =====
-            订单ID: $id
-            订单编号: $number
-            元数据数量: ${metaData.size}
-            所有元数据:
-            ${metaData.joinToString("\n") { "- ${it.key}: ${it.value}" }}
-            ========================
-        """.trimIndent())
-        
+        Log.d(TAG, "开始解析元数据，共 ${metaData.size} 条")
         metaData.forEach { meta ->
-            Log.d(TAG, """
-                处理元数据:
-                - 键: ${meta.key}
-                - 值: ${meta.value}
-                - 值类型: ${meta.value.javaClass.simpleName}
-            """.trimIndent())
-            
+            Log.d(TAG, "解析元数据: key=${meta.key}, value=${meta.value}")
             when (meta.key) {
                 META_DELIVERY_DATE -> {
                     deliveryDate = meta.value.toString()
@@ -124,73 +109,24 @@ data class Order(
                 }
             }
         }
-        
-        Log.d(TAG, """
-            ===== 元数据解析结果 =====
-            - 配送日期: ${deliveryDate ?: "未设置"}
-            - 配送时间: ${deliveryTime ?: "未设置"}
-            - 配送方式: ${orderMethod ?: "未设置"}
-            ========================
-        """.trimIndent())
     }
 
     private fun parseFeeLines() {
-        Log.d(TAG, """
-            ===== 开始解析费用信息 =====
-            订单ID: $id
-            订单编号: $number
-            费用行数量: ${feeLines.size}
-            所有费用行:
-            ${feeLines.joinToString("\n") { fee ->
-                """
-                - 名称: ${fee.name}
-                  金额: ${fee.total}
-                  税额: ${fee.totalTax}
-                  税类: ${fee.taxClass}
-                  税状态: ${fee.taxStatus}
-                  元数据: ${fee.metaData?.joinToString(", ") { "${it.key}=${it.value}" } ?: "无"}
-                """.trimIndent()
-            }}
-            ========================
-        """.trimIndent())
-
+        Log.d(TAG, "开始解析费用信息，共 ${feeLines.size} 条")
         feeLines.forEach { fee ->
-            Log.d(TAG, """
-                处理费用行:
-                - 名称: ${fee.name}
-                - 原始名称: ${fee.name}
-                - 金额: ${fee.total}
-                - 税额: ${fee.totalTax}
-                - 税类: ${fee.taxClass}
-                - 税状态: ${fee.taxStatus}
-            """.trimIndent())
-
+            Log.d(TAG, "解析费用: name=${fee.name}, total=${fee.total}")
             when {
-                fee.name.equals("tip", ignoreCase = true) ||
-                fee.name.equals("Tip", ignoreCase = true) ||
-                fee.name.equals("小费", ignoreCase = true) ||
-                fee.name.equals("Show Your Appreciation", ignoreCase = true) -> {
+                fee.name.equals("tip", ignoreCase = true) -> {
                     tip = fee.total
-                    Log.d(TAG, "设置小费: $tip (匹配名称: ${fee.name})")
+                    Log.d(TAG, "设置小费: $tip")
                 }
                 fee.name.equals("Shipping fee", ignoreCase = true) ||
-                fee.name.equals("Delivery Fee", ignoreCase = true) ||
-                fee.name.equals("配送费", ignoreCase = true) ||
-                fee.name.equals("运费", ignoreCase = true) ||
-                fee.name.contains("shipping", ignoreCase = true) ||
-                fee.name.contains("delivery", ignoreCase = true) -> {
+                fee.name.equals("Delivery Fee", ignoreCase = true) -> {
                     deliveryFee = fee.total
-                    Log.d(TAG, "设置配送费: $deliveryFee (匹配名称: ${fee.name})")
+                    Log.d(TAG, "设置配送费: $deliveryFee")
                 }
             }
         }
-
-        Log.d(TAG, """
-            ===== 费用解析结果 =====
-            - 小费: ${tip ?: "未设置"}
-            - 配送费: ${deliveryFee ?: "未设置"}
-            =====================
-        """.trimIndent())
     }
 
     private fun logOrderDetails() {

@@ -137,4 +137,9 @@
     <string name="pickup">自取</string>
     <string name="delivery_details">配送详情</string>
     <string name="fee_details">费用详情</string>
+    <string name="delivery_method">配送方式：%s</string>
+    <string name="delivery_date">配送日期：%s</string>
+    <string name="delivery_time">配送时间：%s</string>
+    <string name="tip">小费</string>
+    <string name="delivery_fee">配送费</string>
 </resources>

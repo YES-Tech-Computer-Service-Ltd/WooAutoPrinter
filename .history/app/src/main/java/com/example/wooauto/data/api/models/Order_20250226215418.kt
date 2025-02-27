@@ -3,7 +3,6 @@ package com.example.wooauto.data.api.models
 import com.google.gson.annotations.SerializedName
 import java.math.BigDecimal
 import java.util.Date
-import android.util.Log
 
 data class Order(
     @SerializedName("id")
@@ -65,166 +64,30 @@ data class Order(
     var tip: String? = null,
     var deliveryFee: String? = null
 ) {
-    companion object {
-        private const val TAG = "Order_DEBUG"
-
-        // WooCommerce Food plugin的元数据键名
-        private const val META_DELIVERY_DATE = "exwfood_date_deli"
-        private const val META_DELIVERY_TIME = "exwfood_time_deli"
-        private const val META_DELIVERY_TIMESLOT = "exwfood_timeslot"
-        private const val META_ORDER_METHOD = "exwfood_order_method"
-        private const val META_ORDER_TYPE = "woofood_order_type"
-    }
-
     init {
-        Log.d(TAG, "===== 开始解析订单 ID: $id =====")
-        parseMetaData()
-        parseFeeLines()
-        logOrderDetails()
-    }
-
-    private fun parseMetaData() {
-        Log.d(TAG, """
-            ===== 开始解析元数据 =====
-            订单ID: $id
-            订单编号: $number
-            元数据数量: ${metaData.size}
-            所有元数据:
-            ${metaData.joinToString("\n") { "- ${it.key}: ${it.value}" }}
-            ========================
-        """.trimIndent())
-        
+        // 解析元数据中的送餐信息
         metaData.forEach { meta ->
-            Log.d(TAG, """
-                处理元数据:
-                - 键: ${meta.key}
-                - 值: ${meta.value}
-                - 值类型: ${meta.value.javaClass.simpleName}
-            """.trimIndent())
-            
             when (meta.key) {
-                META_DELIVERY_DATE -> {
-                    deliveryDate = meta.value.toString()
-                    Log.d(TAG, "设置配送日期: $deliveryDate")
-                }
-                META_DELIVERY_TIME -> {
-                    deliveryTime = meta.value.toString()
-                    Log.d(TAG, "设置配送时间: $deliveryTime")
-                }
-                META_DELIVERY_TIMESLOT -> {
+                "exwfood_date_deli" -> deliveryDate = meta.value.toString()
+                "exwfood_time_deli" -> deliveryTime = meta.value.toString()
+                "exwfood_timeslot" -> {
                     if (deliveryTime == null) {
                         val slot = meta.value.toString()
                         deliveryTime = slot.replace("|", " - ")
-                        Log.d(TAG, "设置时间段: $deliveryTime")
                     }
                 }
-                META_ORDER_METHOD, META_ORDER_TYPE -> {
-                    orderMethod = meta.value.toString()
-                    Log.d(TAG, "设置配送方式: $orderMethod")
-                }
+                "exwfood_order_method", "woofood_order_type" -> orderMethod = meta.value.toString()
             }
         }
-        
-        Log.d(TAG, """
-            ===== 元数据解析结果 =====
-            - 配送日期: ${deliveryDate ?: "未设置"}
-            - 配送时间: ${deliveryTime ?: "未设置"}
-            - 配送方式: ${orderMethod ?: "未设置"}
-            ========================
-        """.trimIndent())
-    }
 
-    private fun parseFeeLines() {
-        Log.d(TAG, """
-            ===== 开始解析费用信息 =====
-            订单ID: $id
-            订单编号: $number
-            费用行数量: ${feeLines.size}
-            所有费用行:
-            ${feeLines.joinToString("\n") { fee ->
-                """
-                - 名称: ${fee.name}
-                  金额: ${fee.total}
-                  税额: ${fee.totalTax}
-                  税类: ${fee.taxClass}
-                  税状态: ${fee.taxStatus}
-                  元数据: ${fee.metaData?.joinToString(", ") { "${it.key}=${it.value}" } ?: "无"}
-                """.trimIndent()
-            }}
-            ========================
-        """.trimIndent())
-
+        // 解析费用信息
         feeLines.forEach { fee ->
-            Log.d(TAG, """
-                处理费用行:
-                - 名称: ${fee.name}
-                - 原始名称: ${fee.name}
-                - 金额: ${fee.total}
-                - 税额: ${fee.totalTax}
-                - 税类: ${fee.taxClass}
-                - 税状态: ${fee.taxStatus}
-            """.trimIndent())
-
             when {
-                fee.name.equals("tip", ignoreCase = true) ||
-                fee.name.equals("Tip", ignoreCase = true) ||
-                fee.name.equals("小费", ignoreCase = true) ||
-                fee.name.equals("Show Your Appreciation", ignoreCase = true) -> {
-                    tip = fee.total
-                    Log.d(TAG, "设置小费: $tip (匹配名称: ${fee.name})")
-                }
+                fee.name.equals("tip", ignoreCase = true) -> tip = fee.total
                 fee.name.equals("Shipping fee", ignoreCase = true) ||
-                fee.name.equals("Delivery Fee", ignoreCase = true) ||
-                fee.name.equals("配送费", ignoreCase = true) ||
-                fee.name.equals("运费", ignoreCase = true) ||
-                fee.name.contains("shipping", ignoreCase = true) ||
-                fee.name.contains("delivery", ignoreCase = true) -> {
-                    deliveryFee = fee.total
-                    Log.d(TAG, "设置配送费: $deliveryFee (匹配名称: ${fee.name})")
-                }
+                        fee.name.equals("Delivery Fee", ignoreCase = true) -> deliveryFee = fee.total
             }
         }
-
-        Log.d(TAG, """
-            ===== 费用解析结果 =====
-            - 小费: ${tip ?: "未设置"}
-            - 配送费: ${deliveryFee ?: "未设置"}
-            =====================
-        """.trimIndent())
-    }
-
-    private fun logOrderDetails() {
-        Log.d(TAG, """
-            ===== 订单解析结果 =====
-            - 订单号: $number
-            - 配送方式: ${orderMethod ?: "未设置"}
-            - 配送日期: ${deliveryDate ?: "未设置"}
-            - 配送时间: ${deliveryTime ?: "未设置"}
-            - 小费: ${tip ?: "未设置"}
-            - 配送费: ${deliveryFee ?: "未设置"}
-            - 总金额: $total
-            =======================
-        """.trimIndent())
-    }
-
-    // 获取格式化的配送信息(用于列表页显示)
-    fun getDeliveryInfo(): String {
-        return when (orderMethod?.lowercase()) {
-            "delivery" -> "配送"
-            "pickup" -> "自取"
-            else -> orderMethod ?: "未知"
-        }
-    }
-
-    // 获取完整的配送详情(用于详情页显示)
-    fun getFullDeliveryDetails(): Map<String, String?> {
-        return mapOf(
-            "配送方式" to getDeliveryInfo(),
-            "配送日期" to deliveryDate,
-            "配送时间" to deliveryTime,
-            "配送费" to deliveryFee,
-            "小费" to tip
-        )
     }
 }
 
