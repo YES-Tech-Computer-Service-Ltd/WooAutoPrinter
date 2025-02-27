@@ -1,12 +1,12 @@
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android")
+    id("org.jetbrains.kotlin.android") version "1.9.22"
     id("com.google.devtools.ksp") version "1.9.22-1.0.17"
 }
 
 android {
     namespace = "com.example.wooauto"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.example.wooauto"
@@ -58,14 +58,32 @@ android {
 }
 
 dependencies {
+
+    implementation(libs.firebase.functions.ktx)
+    // JUnit 5
+    testImplementation(libs.junit.jupiter)
+    testImplementation(libs.junit)
+
+    // Mockk（用于模拟 Repository）
+    testImplementation(libs.mockk)
+
+    // Coroutines 测试支持
+    testImplementation(libs.kotlinx.coroutines.test)
+
+    testImplementation(libs.androidx.room.testing)
+    testImplementation(libs.jetbrains.kotlinx.coroutines.test)
+    testImplementation (libs.org.jetbrains.kotlinx.kotlinx.coroutines.test)
+    implementation(libs.hilt.android)
+
+
     // Core Android
-    implementation("androidx.core:core-ktx:1.12.0")
-    implementation("androidx.appcompat:appcompat:1.6.1")
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
-    implementation("androidx.activity:activity-compose:1.8.2")
-    implementation("androidx.constraintlayout:constraintlayout:2.1.4")
-    implementation("com.google.android.material:material:1.11.0")
-    implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
+    implementation(libs.androidx.core.ktx.v1150)
+    implementation(libs.androidx.appcompat)
+    implementation(libs.androidx.lifecycle.runtime.ktx.v287)
+    implementation(libs.androidx.activity.compose.v1101)
+    implementation(libs.androidx.constraintlayout)
+    implementation(libs.material)
+    implementation(libs.androidx.swiperefreshlayout)
     implementation(libs.play.services.analytics.impl)
 
     // 排除重复的 XML 解析器依赖
@@ -121,4 +139,6 @@ dependencies {
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
-}
+
+
+    }
