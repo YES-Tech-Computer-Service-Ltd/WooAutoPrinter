@@ -241,52 +241,194 @@ class PrintService(private val context: Context) {
 
     // Placeholder methods for printer management - in a real app this would use DataStore
     private suspend fun getDefaultPrinter(): PrinterInfo? {
-        // In a real app, retrieve this from DataStore
-        // This is just a placeholder
+        try {
+            // 读取打印机设置
+            val defaultPrinterId = prefsManager.getStringPreference("default_printer_id", "")
+
+            if (defaultPrinterId.isEmpty()) {
+                Log.w(TAG, "未设置默认打印机")
+                return getFallbackPrinter()
+            }
+
+            return getPrinterById(defaultPrinterId) ?: getFallbackPrinter()
+        } catch (e: Exception) {
+            Log.e(TAG, "获取默认打印机时出错", e)
+            return getFallbackPrinter()
+        }
+    }
+
+    private suspend fun getBackupPrinter(): PrinterInfo? {
+        try {
+            // 读取备用打印机设置
+            val backupPrinterId = prefsManager.getStringPreference("backup_printer_id", "")
+
+            if (backupPrinterId.isEmpty()) {
+                return null
+            }
+
+            return getPrinterById(backupPrinterId)
+        } catch (e: Exception) {
+            Log.e(TAG, "获取备用打印机时出错", e)
+            return null
+        }
+    }
+
+    /**
+     * 根据ID获取打印机信息
+     */
+    private suspend fun getPrinterById(printerId: String): PrinterInfo? {
+        try {
+            // 尝试读取保存的打印机列表
+            val printersJson = prefsManager.getStringPreference("printers_json", "")
+
+            if (printersJson.isEmpty()) {
+                return null
+            }
+
+            val gson = com.google.gson.Gson()
+            val type = object : com.google.gson.reflect.TypeToken<List<PrinterInfo>>() {}.type
+            val printers = gson.fromJson<List<PrinterInfo>>(printersJson, type)
+
+            return printers.find { it.id == printerId }
+        } catch (e: Exception) {
+            Log.e(TAG, "根据ID获取打印机时出错", e)
+            return null
+        }
+    }
+
+    /**
+     * 获取预设的备用打印机（用于无法获取默认打印机时）
+     */
+    private fun getFallbackPrinter(): PrinterInfo {
+        Log.d(TAG, "使用预设的通用打印机")
         return PrinterInfo(
-            id = "1",
+            id = "fallback",
             name = "Default Printer",
-            type = PrinterType.BLUETOOTH,
-            address = "00:11:22:33:44:55",
+            type = PrinterType.NETWORK,  // 优先使用网络打印机作为备用
+            address = "192.168.1.100",   // 常见打印机地址
+            port = 9100,
             model = "Generic ESC/POS",
             paperSize = PaperSize.SIZE_80MM,
             isDefault = true
         )
     }
 
-    private suspend fun getBackupPrinter(): PrinterInfo? {
-        // In a real app, retrieve this from DataStore
-        // This is just a placeholder
-        return null
+    /**
+     * 判断是否应该自动打印
+     */
+    suspend fun shouldAutoPrintOrder(): Boolean {
+        return prefsManager.getBooleanPreference("auto_print_enabled", true)
     }
 
-    // Add a new printer to DataStore
-    suspend fun addPrinter(printerInfo: PrinterInfo) {
-        // In a real app, store this in DataStore
-        // This is just a placeholder
-        Log.d(TAG, "Added printer: ${printerInfo.name}")
-    }
-
-    // Get all printers from DataStore
+    /**
+     * 获取所有打印机
+     */
     suspend fun getAllPrinters(): List<PrinterInfo> {
-        // In a real app, retrieve this from DataStore
-        // This is just a placeholder
-        return listOf()
+        try {
+            val printersJson = prefsManager.getStringPreference("printers_json", "")
+
+            if (printersJson.isEmpty()) {
+                return emptyList()
+            }
+
+            val gson = com.google.gson.Gson()
+            val type = object : com.google.gson.reflect.TypeToken<List<PrinterInfo>>() {}.type
+            return gson.fromJson(printersJson, type)
+        } catch (e: Exception) {
+            Log.e(TAG, "获取所有打印机时出错", e)
+            return emptyList()
+        }
     }
 
-    // Set a printer as default
+    /**
+     * 添加或更新打印机
+     */
+    suspend fun addPrinter(printerInfo: PrinterInfo) {
+        try {
+            // 先获取现有列表
+            val printers = getAllPrinters().toMutableList()
+
+            // 移除同ID的打印机（如果存在）
+            printers.removeAll { it.id == printerInfo.id }
+
+            // 添加新的打印机
+            printers.add(printerInfo)
+
+            // 保存回DataStore
+            val gson = com.google.gson.Gson()
+            val printersJson = gson.toJson(printers)
+            prefsManager.setStringPreference("printers_json", printersJson)
+
+            Log.d(TAG, "已保存打印机: ${printerInfo.name}")
+        } catch (e: Exception) {
+            Log.e(TAG, "保存打印机时出错", e)
+        }
+    }
+
+    /**
+     * 设置默认打印机
+     */
     suspend fun setDefaultPrinter(printerId: String) {
-        // In a real app, update this in DataStore
-        // This is just a placeholder
-        Log.d(TAG, "Set default printer: $printerId")
+        try {
+            // 确保打印机存在
+            val printer = getPrinterById(printerId)
+            if (printer == null) {
+                Log.e(TAG, "设置默认打印机失败：找不到ID为 $printerId 的打印机")
+                return
+            }
+
+            // 更新所有打印机的默认状态
+            val printers = getAllPrinters().map {
+                it.copy(isDefault = it.id == printerId, isBackup = it.isBackup && it.id != printerId)
+            }
+
+            // 保存回DataStore
+            val gson = com.google.gson.Gson()
+            val printersJson = gson.toJson(printers)
+            prefsManager.setStringPreference("printers_json", printersJson)
+            prefsManager.setStringPreference("default_printer_id", printerId)
+
+            Log.d(TAG, "已设置默认打印机: $printerId")
+        } catch (e: Exception) {
+            Log.e(TAG, "设置默认打印机时出错", e)
+        }
     }
 
-    // Set a printer as backup
+    /**
+     * 设置备用打印机
+     */
     suspend fun setBackupPrinter(printerId: String) {
-        // In a real app, update this in DataStore
-        // This is just a placeholder
-        Log.d(TAG, "Set backup printer: $printerId")
+        try {
+            // 确保打印机存在
+            val printer = getPrinterById(printerId)
+            if (printer == null) {
+                Log.e(TAG, "设置备用打印机失败：找不到ID为 $printerId 的打印机")
+                return
+            }
+
+            // 获取默认打印机ID
+            val defaultPrinterId = prefsManager.getStringPreference("default_printer_id", "")
+
+            // 更新所有打印机的备用状态
+            val printers = getAllPrinters().map {
+                it.copy(
+                    isBackup = it.id == printerId && it.id != defaultPrinterId,
+                    isDefault = it.isDefault && it.id == defaultPrinterId
+                )
+            }
+
+            // 保存回DataStore
+            val gson = com.google.gson.Gson()
+            val printersJson = gson.toJson(printers)
+            prefsManager.setStringPreference("printers_json", printersJson)
+            prefsManager.setStringPreference("backup_printer_id", printerId)
+
+            Log.d(TAG, "已设置备用打印机: $printerId")
+        } catch (e: Exception) {
+            Log.e(TAG, "设置备用打印机时出错", e)
+        }
     }
+
 
     // Test a printer connection
     suspend fun testPrinterConnection(printerInfo: PrinterInfo): Boolean {

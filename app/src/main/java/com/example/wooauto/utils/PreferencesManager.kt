@@ -280,4 +280,26 @@ class PreferencesManager(private val context: Context) {
     }
 
 
+    suspend fun getStringPreference(key: String, defaultValue: String = ""): String {
+        val prefKey = androidx.datastore.preferences.core.stringPreferencesKey(key)
+        return context.dataStore.data.map { preferences ->
+            preferences[prefKey] ?: defaultValue
+        }.first()
+    }
+
+    suspend fun setStringPreference(key: String, value: String) {
+        val prefKey = androidx.datastore.preferences.core.stringPreferencesKey(key)
+        context.dataStore.edit { preferences ->
+            preferences[prefKey] = value
+        }
+    }
+
+    suspend fun getBooleanPreference(key: String, defaultValue: Boolean = false): Boolean {
+        val prefKey = androidx.datastore.preferences.core.booleanPreferencesKey(key)
+        return context.dataStore.data.map { preferences ->
+            preferences[prefKey] ?: defaultValue
+        }.first()
+    }
+
+
 }

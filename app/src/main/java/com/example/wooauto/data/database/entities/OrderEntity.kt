@@ -50,5 +50,20 @@ data class OrderEntity(
     val notificationShown: Boolean = false,
 
     @ColumnInfo(name = "last_updated")
-    val lastUpdated: Date = Date()
+    val lastUpdated: Date = Date(),
+
+    @ColumnInfo(name = "delivery_date")
+    val deliveryDate: String? = null,
+
+    @ColumnInfo(name = "delivery_time")
+    val deliveryTime: String? = null,
+
+    @ColumnInfo(name = "order_method")
+    val orderMethod: String? = null,
+
+    @ColumnInfo(name = "tip")
+    val tip: String? = null,
+
+    @ColumnInfo(name = "delivery_fee")
+    val deliveryFee: String? = null
 )

@@ -381,6 +381,30 @@ fun OrderItem(
                 )
             }
 
+            order.orderMethod?.let { method ->
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        painter = painterResource(
+                            id = when (method.lowercase()) {
+                                "delivery" -> R.drawable.ic_delivery
+                                "pickup" -> R.drawable.ic_pickup
+                                else -> R.drawable.ic_order
+                            }
+                        ),
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = method.replaceFirstChar { it.uppercase() },
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+
             Spacer(modifier = Modifier.height(8.dp))
 
             // Order date

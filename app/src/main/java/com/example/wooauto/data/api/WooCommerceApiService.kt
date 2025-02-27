@@ -76,3 +76,4 @@ interface WooCommerceApiService {
         @Query("page") page: Int = 1
     ): Response<List<com.example.wooauto.data.api.models.Category>>
 }
+

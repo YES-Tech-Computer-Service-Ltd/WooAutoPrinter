@@ -129,4 +129,14 @@
     <string name="success">Success</string>
     <string name="retry">Retry</string>
 
+    <string name="delivery_method">Delivery Method</string>
+    <string name="delivery_date">Delivery Date</string>
+    <string name="delivery_time">Delivery Time</string>
+    <string name="delivery_fee">Delivery Fee</string>
+    <string name="tip">Tip</string>
+    <string name="order_summary">Order Summary</string>
+    <string name="delivery">Delivery</string>
+    <string name="pickup">Pickup</string>
+    <string name="delivery_details">Delivery Details</string>
+
 </resources>

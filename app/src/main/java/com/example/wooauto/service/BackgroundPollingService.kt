@@ -20,6 +20,7 @@ import com.example.wooauto.data.database.AppDatabase
 import com.example.wooauto.data.repositories.OrderRepository
 import com.example.wooauto.utils.NotificationHelper
 import com.example.wooauto.utils.PreferencesManager
+import com.example.wooauto.utils.PrintService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -104,6 +105,8 @@ class BackgroundPollingService : Service() {
         pollingHandler.removeCallbacksAndMessages(null)
     }
 
+    // 需要在BackgroundPollingService.kt中修改pollForNewOrders方法
+
     private suspend fun pollForNewOrders() {
         Log.d(TAG, "===== 开始后台轮询订单任务 =====")
         try {
@@ -118,7 +121,7 @@ class BackgroundPollingService : Service() {
                 return
             }
 
-            // 初始化API服务
+            // 初始化API服务和打印服务
             val apiService = RetrofitClient.getWooCommerceApiService(websiteUrl)
             val orderDao = AppDatabase.getInstance(applicationContext).orderDao()
             val repository = OrderRepository(
@@ -128,7 +131,9 @@ class BackgroundPollingService : Service() {
                 apiSecret
             )
 
-            // 获取上次检查时间
+            val printService = PrintService(applicationContext)
+
+            // 获取上次检查时间，添加5分钟安全缓冲区
             val lastCheckedTime = preferencesManager.lastCheckedDate.first()
             val checkFrom = if (lastCheckedTime == 0L) {
                 // 首次运行，使用24小时前的时间
@@ -136,26 +141,59 @@ class BackgroundPollingService : Service() {
                 Log.d(TAG, "首次运行，使用24小时前的时间: ${Date(fromTime)}")
                 fromTime
             } else {
-                Log.d(TAG, "使用上次检查时间: ${Date(lastCheckedTime)}")
-                lastCheckedTime
+                // 添加5分钟安全缓冲区
+                val bufferTime = 5 * 60 * 1000L // 5分钟毫秒数
+                val adjustedTime = lastCheckedTime - bufferTime
+                Log.d(TAG, "使用上次检查时间(含5分钟缓冲): ${Date(adjustedTime)}")
+                adjustedTime
             }
 
-            // 获取新订单
+            // 使用调整后的时间获取新订单
             val checkFromDate = Date(checkFrom)
             Log.d(TAG, "开始获取从 ${checkFromDate} 开始的新订单")
             val result = repository.fetchNewOrders(checkFromDate)
 
-            // 更新上次检查时间为当前时间
-            val currentTime = System.currentTimeMillis()
-            Log.d(TAG, "更新上次检查时间为当前时间: ${Date(currentTime)}")
-            preferencesManager.setLastCheckedDate(currentTime)
-
             if (result.isSuccess) {
                 val orders = result.getOrNull() ?: emptyList()
                 Log.d(TAG, "获取到 ${orders.size} 个新订单")
-                orders.forEach { order ->
-                    Log.d(TAG, "新订单: ID=${order.id}, 编号=${order.number}, 状态=${order.status}")
-                    NotificationHelper.showNewOrderNotification(applicationContext, order)
+
+                if (orders.isNotEmpty()) {
+                    // 只有成功获取到新订单时才更新检查时间
+                    val currentTime = System.currentTimeMillis()
+                    Log.d(TAG, "有新订单，更新上次检查时间为当前时间: ${Date(currentTime)}")
+                    preferencesManager.setLastCheckedDate(currentTime)
+
+                    // 处理每个新订单
+                    orders.forEach { order ->
+                        Log.d(TAG, "处理新订单: ID=${order.id}, 编号=${order.number}, 状态=${order.status}")
+
+                        try {
+                            // 显示通知
+                            NotificationHelper.showNewOrderNotification(applicationContext, order)
+
+                            // 自动打印（如果配置了自动打印）
+                            val shouldAutoPrint = true  // 实际应从设置中读取
+                            if (shouldAutoPrint) {
+                                val printResult = printService.printOrder(order)
+                                if (printResult) {
+                                    Log.d(TAG, "自动打印订单 ${order.id} 成功")
+                                    repository.markOrderAsPrinted(order.id)
+                                } else {
+                                    Log.w(TAG, "自动打印订单 ${order.id} 失败")
+                                }
+                            }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "处理订单 ${order.id} 过程中出错", e)
+                        }
+                    }
+
+                    // 发送广播通知UI更新
+                    val intent = Intent("com.example.wooauto.NEW_ORDERS")
+                    intent.putExtra("count", orders.size)
+                    applicationContext.sendBroadcast(intent)
+                    Log.d(TAG, "已发送新订单广播，订单数量: ${orders.size}")
+                } else {
+                    Log.d(TAG, "未找到新订单，保持上次检查时间不变")
                 }
             } else {
                 Log.e(TAG, "获取订单失败", result.exceptionOrNull())

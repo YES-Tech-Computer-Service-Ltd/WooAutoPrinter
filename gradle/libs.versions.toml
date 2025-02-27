@@ -47,6 +47,7 @@ junit = "4.13.2"
 androidxJunit = "1.1.5"
 espresso = "3.5.1"
 workRuntimeKtx = "2.10.0"
+playServicesAnalyticsImpl = "18.2.0"
 
 [libraries]
 # Android core
@@ -116,6 +117,7 @@ ui-test-junit4 = { module = "androidx.compose.ui:ui-test-junit4" }
 ui-test-manifest = { module = "androidx.compose.ui:ui-test-manifest" }
 ui-tooling = { module = "androidx.compose.ui:ui-tooling" }
 ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview" }
+play-services-analytics-impl = { group = "com.google.android.gms", name = "play-services-analytics-impl", version.ref = "playServicesAnalyticsImpl" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "androidGradlePlugin" }

@@ -51,8 +51,8 @@ interface OrderDao {
     @Query("UPDATE orders SET notification_shown = 1 WHERE id = :orderId")
     suspend fun markOrderNotificationShown(orderId: Long)
 
-    @Query("UPDATE orders SET status = :status WHERE id = :orderId")
-    suspend fun updateOrderStatus(orderId: Long, status: String)
+    @Query("UPDATE orders SET status = :status, last_updated = :timestamp WHERE id = :orderId")
+    suspend fun updateOrderStatus(orderId: Long, status: String, timestamp: Date = Date())
 
     @Query("SELECT id FROM orders WHERE date_created > :date")
     suspend fun getOrderIdsAfterDate(date: Date): List<Long>

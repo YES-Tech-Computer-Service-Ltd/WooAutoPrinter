@@ -17,6 +17,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 
 class OrderViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -51,10 +54,38 @@ class OrderViewModel(application: Application) : AndroidViewModel(application) {
     private val _apiConfigured = MutableStateFlow(false)
     val apiConfigured: StateFlow<Boolean> = _apiConfigured.asStateFlow()
 
+    // 添加一个变量来跟踪正在进行的操作
+    private val _pendingOperations = MutableStateFlow<Set<Long>>(emptySet())
+
+    // 自动刷新任务
+    private var autoRefreshJob: Job? = null
+
     private val TAG = "OrderVM_DEBUG"
 
     init {
         checkApiCredentials()
+        // 启动自动刷新
+        startAutoRefresh()
+    }
+
+    // 启动自动刷新任务
+    private fun startAutoRefresh() {
+        autoRefreshJob?.cancel()
+        autoRefreshJob = viewModelScope.launch {
+            while (isActive) {
+                delay(30000) // 每30秒自动刷新一次
+                if (_apiConfigured.value && ::orderRepository.isInitialized) {
+                    Log.d(TAG, "执行自动刷新...")
+                    refreshOrders()
+                }
+            }
+        }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        // 取消自动刷新任务
+        autoRefreshJob?.cancel()
     }
 
     private fun checkApiCredentials() {
@@ -120,6 +151,8 @@ class OrderViewModel(application: Application) : AndroidViewModel(application) {
 
                         matchesQuery && matchesStatus
                     }
+
+                    Log.d(TAG, "订单流更新，过滤后订单数量: ${filteredOrders.size}")
 
                     // 修改判断逻辑，只在非刷新状态且列表为空时显示 Empty
                     when {
@@ -294,15 +327,50 @@ class OrderViewModel(application: Application) : AndroidViewModel(application) {
                     return@launch
                 }
 
+                // 检查订单是否已经在处理中
+                val currentOperations = _pendingOperations.value
+                if (orderId in currentOperations) {
+                    Log.d(TAG, "订单 $orderId 已经在处理中，忽略重复操作")
+                    return@launch
+                }
+
+                // 将此订单添加到正在处理的操作集合中
+                _pendingOperations.value = currentOperations + orderId
+
+                // 更新前先将UI显示为刷新状态
+                _isRefreshing.value = true
+
+                Log.d(TAG, "开始将订单 $orderId 标记为已完成")
                 val result = orderRepository.updateOrderStatus(orderId, "completed")
+
                 if (result.isSuccess) {
-                    // 刷新订单详情以显示更新的状态
-                    loadOrderDetails(orderId)
+                    Log.d(TAG, "订单状态更新成功，刷新UI")
+
+                    // 从数据库重新加载该订单以确保UI更新
+                    val updatedOrder = orderRepository.getOrderById(orderId)
+                    Log.d(TAG, "从数据库获取更新后的订单: ${updatedOrder?.status}")
+
+                    // 刷新所有订单以更新UI
+                    refreshOrders()
+
+                    // 如果正在查看订单详情，也更新详情页
+                    if (_orderDetailState.value is OrderDetailState.Success) {
+                        val currentOrder = (_orderDetailState.value as OrderDetailState.Success).order
+                        if (currentOrder.id == orderId) {
+                            loadOrderDetails(orderId)
+                        }
+                    }
                 } else {
-                    Log.e("OrderViewModel", "将订单标记为已完成时出错", result.exceptionOrNull())
+                    // 处理错误情况
+                    Log.e(TAG, "将订单标记为已完成时出错", result.exceptionOrNull())
+                    _isRefreshing.value = false
                 }
             } catch (e: Exception) {
-                Log.e("OrderViewModel", "将订单标记为已完成时出错", e)
+                Log.e(TAG, "将订单标记为已完成时出错", e)
+                _isRefreshing.value = false
+            } finally {
+                // 从正在处理的操作集合中移除此订单
+                _pendingOperations.value = _pendingOperations.value - orderId
             }
         }
     }
@@ -331,6 +399,9 @@ class OrderViewModel(application: Application) : AndroidViewModel(application) {
 
                             // 刷新订单详情以显示打印状态
                             loadOrderDetails(orderId)
+
+                            // 刷新订单列表以更新UI
+                            refreshOrders()
                         } else {
                             // 处理打印失败
                             Log.e("OrderViewModel", "打印订单失败")
