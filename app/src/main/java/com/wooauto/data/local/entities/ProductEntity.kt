@@ -2,15 +2,12 @@ package com.wooauto.data.local.entities
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
-import androidx.room.TypeConverters
-import com.wooauto.data.local.db.Converters
 
 /**
  * 产品实体类
  * 用于本地数据库存储产品信息
  */
 @Entity(tableName = "products")
-@TypeConverters(Converters::class)
 data class ProductEntity(
     @PrimaryKey
     val id: Long,

@@ -40,7 +40,7 @@ interface DomainProductRepository {
      * @param categoryId 可选的分类ID过滤条件
      * @return 刷新结果，包含刷新的产品列表
      */
-    suspend fun refreshProducts(categoryId: Long? = null): Result<List<Product>>
+    suspend fun refreshProducts(categoryId: Long?): Result<List<Product>>
 
     /**
      * 获取产品详情

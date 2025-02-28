@@ -11,13 +11,8 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-        maven { url = uri("https://jitpack.io") } // 用于 DantSu/ESCPOS-ThermalPrinter-Android 依赖
     }
 }
 
-
 rootProject.name = "WooAuto"
 include(":app")
-include(":domain")
-include(":data")
-include(":presentation")

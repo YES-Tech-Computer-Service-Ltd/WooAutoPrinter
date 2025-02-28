@@ -2,6 +2,7 @@ package com.wooauto.domain.usecases.orders
 
 import com.wooauto.domain.models.Order
 import com.wooauto.domain.repositories.DomainOrderRepository
+import javax.inject.Inject
 
 /**
  * 订单管理用例
@@ -10,7 +11,7 @@ import com.wooauto.domain.repositories.DomainOrderRepository
  * - 获取单个订单详情
  * - 更新订单状态（根据指定id）
  */
-class ManageOrderUseCase(
+class ManageOrderUseCase @Inject constructor(
     private val orderRepository: DomainOrderRepository
 ) {
     /**
@@ -30,5 +31,13 @@ class ManageOrderUseCase(
      */
     suspend fun updateOrderStatus(orderId: Long, newStatus: String): Result<Order> {
         return orderRepository.updateOrderStatus(orderId, newStatus)
+    }
+
+    suspend fun markOrderAsPrinted(orderId: Long): Result<Unit> {
+        return orderRepository.markOrderAsPrinted(orderId)
+    }
+
+    suspend fun markOrderNotificationShown(orderId: Long): Result<Unit> {
+        return orderRepository.markOrderNotificationShown(orderId)
     }
 } 
