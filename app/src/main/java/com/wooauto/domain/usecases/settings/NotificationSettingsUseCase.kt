@@ -1,6 +1,6 @@
 package com.wooauto.domain.usecases.settings
 
-import com.wooauto.domain.repositories.SettingRepository_domain
+import com.wooauto.domain.repositories.DomainSettingRepository
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.Flow
  * - 设置通知开启状态
  */
 class NotificationSettingsUseCase(
-    private val settingRepository: SettingRepository_domain
+    private val settingRepository: DomainSettingRepository
 ) {
     /**
      * 获取通知开启状态的Flow

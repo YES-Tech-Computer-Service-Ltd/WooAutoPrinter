@@ -1,7 +1,7 @@
 package com.wooauto.domain.usecases.orders
 
 import com.wooauto.domain.models.Order
-import com.wooauto.domain.repositories.OrderRepository_domain
+import com.wooauto.domain.repositories.DomainOrderRepository
 
 /**
  * 订单管理用例
@@ -11,7 +11,7 @@ import com.wooauto.domain.repositories.OrderRepository_domain
  * - 更新订单状态（根据指定id）
  */
 class ManageOrderUseCase(
-    private val orderRepository: OrderRepository_domain
+    private val orderRepository: DomainOrderRepository
 ) {
     /**
      * 获取指定ID的订单详情

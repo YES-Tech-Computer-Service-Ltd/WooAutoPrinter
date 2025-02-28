@@ -1,7 +1,7 @@
 package com.wooauto.domain.usecases.orders
 
 import com.wooauto.domain.models.Order
-import com.wooauto.domain.repositories.OrderRepository_domain
+import com.wooauto.domain.repositories.DomainOrderRepository
 import kotlinx.coroutines.flow.Flow
 import java.util.Date
 
@@ -14,7 +14,7 @@ import java.util.Date
  * - 刷新订单列表（所有订单）
  */
 class GetOrdersUseCase(
-    private val orderRepository: OrderRepository_domain
+    private val orderRepository: DomainOrderRepository
 ) {
     /**
      * 获取所有订单的Flow

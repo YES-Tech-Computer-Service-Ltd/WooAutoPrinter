@@ -4,7 +4,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-class FakeSettingRepository : SettingRepository_domain {
+class FakeSettingRepository : DomainSettingRepository {
     // API设置
     private val _apiUrl = MutableStateFlow("https://default.api.com")
     private val _consumerKey = MutableStateFlow("")

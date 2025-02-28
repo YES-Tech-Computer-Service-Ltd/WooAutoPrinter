@@ -60,4 +60,7 @@ interface ProductDao {
      */
     @Query("SELECT * FROM products WHERE category = :category")
     fun getProductsByCategory(category: String): Flow<List<ProductEntity>>
+
+    @Query("SELECT * FROM products WHERE name LIKE :query OR description LIKE :query")
+    fun searchProducts(query: String): Flow<List<ProductEntity>>
 } 

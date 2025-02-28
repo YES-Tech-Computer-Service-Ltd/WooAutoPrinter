@@ -1,6 +1,6 @@
 package com.wooauto.domain.usecases.settings
 
-import com.wooauto.domain.repositories.SettingRepository_domain
+import com.wooauto.domain.repositories.DomainSettingRepository
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.Flow
  * - 打印机连接状态管理
  */
 class PrinterSettingsUseCase(
-    private val settingRepository: SettingRepository_domain
+    private val settingRepository: DomainSettingRepository
 ) {
     /**
      * 获取打印机类型的Flow

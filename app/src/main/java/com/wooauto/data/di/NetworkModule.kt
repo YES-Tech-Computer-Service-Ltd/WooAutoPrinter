@@ -11,7 +11,8 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
-
+import com.google.gson.GsonBuilder
+import com.wooauto.data.remote.adapters.FlexibleTypeAdapter
 /**
  * 网络模块
  * 提供网络相关的依赖注入
@@ -47,6 +48,10 @@ object NetworkModule {
     @Provides
     @Singleton
     fun provideRetrofit(okHttpClient: OkHttpClient): Retrofit {
+        val gson = GsonBuilder()
+            .registerTypeAdapter(Any::class.java, FlexibleTypeAdapter())
+            .create()
+
         return Retrofit.Builder()
             .baseUrl("https://your-woocommerce-site.com/wp-json/wc/v3/")
             .client(okHttpClient)
@@ -64,4 +69,6 @@ object NetworkModule {
     fun provideWooCommerceApiService(retrofit: Retrofit): WooCommerceApiService {
         return retrofit.create(WooCommerceApiService::class.java)
     }
+
+
 } 

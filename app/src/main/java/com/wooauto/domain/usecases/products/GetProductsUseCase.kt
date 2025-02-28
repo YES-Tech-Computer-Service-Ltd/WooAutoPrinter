@@ -1,7 +1,7 @@
 package com.wooauto.domain.usecases.products
 
 import com.wooauto.domain.models.Product
-import com.wooauto.domain.repositories.ProductRepository_domain
+import com.wooauto.domain.repositories.DomainProductRepository
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -15,7 +15,7 @@ import kotlinx.coroutines.flow.Flow
  * - 获取产品分类
  */
 class GetProductsUseCase(
-    private val productRepository: ProductRepository_domain
+    private val productRepository: DomainProductRepository
 ) {
     /**
      * 获取所有产品的Flow（所有产品）

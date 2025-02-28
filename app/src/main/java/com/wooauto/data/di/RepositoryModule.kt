@@ -3,9 +3,9 @@ package com.wooauto.data.di
 import com.wooauto.data.repository.OrderRepositoryImpl
 import com.wooauto.data.repository.ProductRepositoryImpl
 import com.wooauto.data.repository.SettingRepositoryImpl
-import com.wooauto.domain.repositories.OrderRepository_domain
-import com.wooauto.domain.repositories.ProductRepository_domain
-import com.wooauto.domain.repositories.SettingRepository_domain
+import com.wooauto.domain.repositories.DomainOrderRepository
+import com.wooauto.domain.repositories.DomainProductRepository
+import com.wooauto.domain.repositories.DomainSettingRepository
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -27,7 +27,7 @@ abstract class RepositoryModule {
     @Binds
     abstract fun bindOrderRepository(
         repository: OrderRepositoryImpl
-    ): OrderRepository_domain
+    ): DomainOrderRepository
 
     /**
      * 绑定ProductRepository接口与其实现
@@ -37,7 +37,7 @@ abstract class RepositoryModule {
     @Binds
     abstract fun bindProductRepository(
         repository: ProductRepositoryImpl
-    ): ProductRepository_domain
+    ): DomainProductRepository
 
     /**
      * 绑定SettingRepository接口与其实现
@@ -47,5 +47,5 @@ abstract class RepositoryModule {
     @Binds
     abstract fun bindSettingRepository(
         repository: SettingRepositoryImpl
-    ): SettingRepository_domain
-} 
+    ): DomainSettingRepository
+}

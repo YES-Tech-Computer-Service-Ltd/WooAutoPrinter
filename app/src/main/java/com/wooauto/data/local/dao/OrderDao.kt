@@ -45,4 +45,8 @@ interface OrderDao {
      */
     @Update
     suspend fun updateOrder(order: OrderEntity)
+
+
+    @Query("SELECT * FROM orders WHERE status = :status")
+    fun getOrdersByStatus(status: String): Flow<List<OrderEntity>>
 } 

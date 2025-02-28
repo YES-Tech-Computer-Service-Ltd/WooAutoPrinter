@@ -1,5 +1,6 @@
 package com.wooauto.data.remote.api
 
+import com.wooauto.data.remote.models.CategoryResponse
 import com.wooauto.data.remote.models.OrderResponse
 import com.wooauto.data.remote.models.ProductResponse
 import retrofit2.http.*
@@ -9,6 +10,12 @@ import retrofit2.http.*
  * 定义了与WooCommerce REST API的所有交互方法
  */
 interface WooCommerceApiService {
+
+    
+
+
+
+
     /**
      * 获取所有产品
      * @param page 页码
@@ -18,7 +25,9 @@ interface WooCommerceApiService {
     @GET("products")
     suspend fun getProducts(
         @Query("page") page: Int,
-        @Query("per_page") perPage: Int = 20
+        @Query("per_page") perPage: Int = 20,
+        @QueryMap params: Map<String, String> = emptyMap()
+
     ): List<ProductResponse>
 
     /**
@@ -38,7 +47,8 @@ interface WooCommerceApiService {
     @GET("orders")
     suspend fun getOrders(
         @Query("page") page: Int,
-        @Query("per_page") perPage: Int = 20
+        @Query("per_page") perPage: Int = 20,
+        @QueryMap params: Map<String, String> = emptyMap()
     ): List<OrderResponse>
 
     /**
@@ -74,4 +84,14 @@ interface WooCommerceApiService {
         @Query("page") page: Int,
         @Query("per_page") perPage: Int = 20
     ): List<ProductResponse>
+
+    // 在WooCommerceApiService接口中添加以下方法
+    @GET("products/categories")
+    suspend fun getCategories(): List<CategoryResponse>
+
+    @PATCH("products/{id}")
+    suspend fun updateProduct(
+        @Path("id") id: Long,
+        @Body updates: Map<String, Any?>
+    ): ProductResponse
 } 

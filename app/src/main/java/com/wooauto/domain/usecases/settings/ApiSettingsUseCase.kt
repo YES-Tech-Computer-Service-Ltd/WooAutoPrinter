@@ -1,6 +1,6 @@
 package com.wooauto.domain.usecases.settings
 
-import com.wooauto.domain.repositories.SettingRepository_domain
+import com.wooauto.domain.repositories.DomainSettingRepository
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -12,7 +12,7 @@ import kotlinx.coroutines.flow.Flow
  * - 获取和设置WooCommerce Consumer Secret
  */
 class ApiSettingsUseCase(
-    private val settingRepository: SettingRepository_domain
+    private val settingRepository: DomainSettingRepository
 ) {
     /**
      * 获取API URL的Flow（商店地址）

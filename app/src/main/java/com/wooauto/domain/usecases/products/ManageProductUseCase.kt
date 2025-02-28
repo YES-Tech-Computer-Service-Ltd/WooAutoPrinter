@@ -1,7 +1,7 @@
 package com.wooauto.domain.usecases.products
 
 import com.wooauto.domain.models.Product
-import com.wooauto.domain.repositories.ProductRepository_domain
+import com.wooauto.domain.repositories.DomainProductRepository
 
 /**
  * 产品管理用例
@@ -13,7 +13,7 @@ import com.wooauto.domain.repositories.ProductRepository_domain
  * - 更新产品价格（根据指定id）
  */
 class ManageProductUseCase(
-    private val productRepository: ProductRepository_domain
+    private val productRepository: DomainProductRepository
 ) {
     /**
      * 获取单个产品详情（根据指定id）
