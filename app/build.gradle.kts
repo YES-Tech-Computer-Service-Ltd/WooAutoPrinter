@@ -60,6 +60,7 @@ android {
 dependencies {
 
     implementation(libs.firebase.functions.ktx)
+    implementation(libs.annotations)
     // JUnit 5
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.junit)
@@ -140,5 +141,7 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 
+
+    implementation (libs.androidx.material.icons.extended)
 
     }
