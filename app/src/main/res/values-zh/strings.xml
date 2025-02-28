@@ -4,9 +4,8 @@
 
     <!-- Navigation -->
     <string name="orders">订单</string>
-    <string name="products">商品</string>
+    <string name="products">产品</string>
     <string name="settings">设置</string>
-    <string name="back">返回</string>
 
     <!-- Bottom Navigation -->
     <string name="nav_orders">订单</string>
@@ -17,48 +16,47 @@
     <string name="order_details">订单详情</string>
     <string name="search_orders">搜索订单</string>
     <string name="order_number">订单 #%1$s</string>
-    <string name="order_date">日期：%1$s</string>
-    <string name="customer_name">客户：%1$s</string>
-    <string name="order_amount">金额：%1$s</string>
-    <string name="order_status">状态：%1$s</string>
-    <string name="mark_as_complete">标记为已完成</string>
+    <string name="order_date">日期: %1$s</string>
+    <string name="customer_name">客户: %1$s</string>
+    <string name="order_amount">金额: %1$s</string>
+    <string name="order_status">状态: %1$s</string>
+    <string name="mark_as_complete">标记为完成</string>
     <string name="print_order">打印订单</string>
     <string name="close">关闭</string>
     <string name="print_all_unprinted">打印所有未打印订单</string>
-    <string name="no_orders_found">未找到订单</string>
+    <string name="no_orders_found">没有找到订单</string>
     <string name="new_order_received">收到新订单</string>
 
     <!-- Products -->
-    <string name="product_details">商品详情</string>
-    <string name="search_products">搜索商品</string>
+    <string name="product_details">产品详情</string>
+    <string name="search_products">搜索产品</string>
     <string name="categories">分类</string>
     <string name="all_categories">所有分类</string>
-    <string name="product_name">名称：%1$s</string>
-    <string name="regular_price">原价：%1$s</string>
-    <string name="sale_price">促销价：%1$s</string>
-    <string name="stock_quantity">库存：%1$d</string>
-    <string name="product_status">状态：%1$s</string>
-    <string name="product_category">分类：%1$s</string>
+    <string name="product_name">名称: %1$s</string>
+    <string name="regular_price">常规价格: %1$s</string>
+    <string name="sale_price">促销价格: %1$s</string>
+    <string name="stock_quantity">库存: %1$d</string>
+    <string name="product_status">状态: %1$s</string>
+    <string name="product_category">分类: %1$s</string>
     <string name="save_changes">保存更改</string>
-    <string name="no_products_found">未找到商品</string>
+    <string name="no_products_found">没有找到产品</string>
 
     <!-- Settings -->
-    <string name="website_setup">网站设置</string>
+    <string name="website_setup">网站连接</string>
     <string name="printer_setup">打印机设置</string>
     <string name="sound_setup">声音设置</string>
     <string name="app_settings">应用设置</string>
 
     <!-- Website Setup -->
-    <string name="website_url">网站地址</string>
+    <string name="website_url">网站URL</string>
     <string name="api_key">API密钥</string>
     <string name="api_secret">API密钥</string>
-    <string name="polling_interval">轮询间隔（秒）</string>
+    <string name="polling_interval">轮询间隔(秒)</string>
     <string name="test_connection">测试连接</string>
     <string name="connection_successful">连接成功</string>
     <string name="connection_failed">连接失败</string>
     <string name="plugin_selection">订餐插件选择</string>
     <string name="plugin_woocommerce_food">WooCommerce Food</string>
-    <string name="api_test_success">API连接成功！</string>
 
     <!-- Printer Setup -->
     <string name="add_printer">添加打印机</string>
@@ -79,8 +77,6 @@
     <string name="size_letter">信纸尺寸</string>
     <string name="default_printer">默认打印机</string>
     <string name="backup_printer">备用打印机</string>
-    <string name="printer_status">打印机状态</string>
-    <string name="test_print">测试打印</string>
 
     <!-- Sound Setup -->
     <string name="sound_type">声音类型</string>
@@ -98,13 +94,14 @@
     <string name="language">语言</string>
     <string name="english">英文</string>
     <string name="chinese">中文</string>
-    <string name="auto_close_notification">自动关闭通知（秒）</string>
+    <string name="auto_close_notification">自动关闭通知(秒)</string>
 
     <!-- Setup Wizard -->
     <string name="setup_wizard">设置向导</string>
     <string name="welcome">欢迎使用 WooAuto</string>
-    <string name="setup_intro">让我们开始设置您的应用</string>
+    <string name="setup_intro">让我们设置您的应用程序</string>
     <string name="next">下一步</string>
+    <string name="back">返回</string>
     <string name="finish">完成</string>
     <string name="skip">跳过</string>
 
@@ -112,15 +109,15 @@
     <string name="error_connection">连接错误</string>
     <string name="error_printer">打印机错误</string>
     <string name="error_permission">权限被拒绝</string>
-    <string name="error_general">发生错误</string>
+    <string name="error_general">出现错误</string>
 
-    <!-- Order Status -->
+    <string name="test_print">测试打印</string>
+    <string name="printer_status">打印机状态</string>
+
     <string name="order_status_pending">待处理</string>
     <string name="order_status_processing">处理中</string>
     <string name="order_status_completed">已完成</string>
     <string name="order_status_cancelled">已取消</string>
-
-    <!-- Common -->
     <string name="save">保存</string>
     <string name="cancel">取消</string>
     <string name="confirm">确认</string>
@@ -129,7 +126,7 @@
     <string name="success">成功</string>
     <string name="retry">重试</string>
 
-    <!-- Delivery -->
+    <!-- woofood related -->
     <string name="delivery_method">配送方式</string>
     <string name="delivery_date">配送日期</string>
     <string name="delivery_time">配送时间</string>
@@ -140,5 +137,4 @@
     <string name="pickup">自取</string>
     <string name="delivery_details">配送详情</string>
     <string name="fee_details">费用详情</string>
-
 </resources>

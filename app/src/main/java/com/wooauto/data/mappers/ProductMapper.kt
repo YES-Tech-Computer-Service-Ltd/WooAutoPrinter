@@ -6,8 +6,8 @@ import com.wooauto.data.remote.models.AttributeResponse
 import com.wooauto.data.remote.models.ProductResponse
 import com.wooauto.domain.models.Category
 import com.wooauto.domain.models.Dimensions
+import com.wooauto.domain.models.Image
 import com.wooauto.domain.models.Product
-import com.wooauto.domain.models.ProductAttribute
 
 /**
  * 产品数据映射器
@@ -32,7 +32,7 @@ object ProductMapper {
             stockQuantity = response.stockQuantity,
             category = response.categories.firstOrNull()?.name ?: "",
             images = response.images.map { it.src },
-            attributes = response.attributes?.map { mapAttributeResponseToEntity(it) },
+            attributes = response.attributes?.map { mapAttributeResponseToEntity(it) }, //通过添加映射函数解决
             variations = response.variations
         )
     }
@@ -46,20 +46,20 @@ object ProductMapper {
         return Product(
             id = entity.id,
             name = entity.name,
-            slug = "",  // 从本地数据库实体中无法获取
-            permalink = "", // 从本地数据库实体中无法获取
-            dateCreated = "", // 从本地数据库实体中无法获取
+            slug = entity.name.lowercase().replace(" ", "-"),
+            permalink = "",
+            dateCreated = "",
             status = entity.stockStatus,
             featured = false,
             catalogVisibility = "visible",
             description = entity.description,
-            shortDescription = "", // 从本地数据库实体中无法获取
-            sku = "", // 从本地数据库实体中无法获取
+            shortDescription = entity.description.take(100),
+            sku = "",
             price = entity.price,
             regularPrice = entity.regularPrice,
             salePrice = entity.salePrice ?: "",
-            onSale = entity.salePrice != null,
-            purchasable = true,
+            onSale = !entity.salePrice.isNullOrEmpty(),
+            purchasable = entity.stockStatus == "instock",
             totalSales = 0,
             stockQuantity = entity.stockQuantity,
             stockStatus = entity.stockStatus,
@@ -70,15 +70,7 @@ object ProductMapper {
             weight = "",
             dimensions = Dimensions("", "", ""),
             categories = listOf(Category(0, entity.category, "")),
-            images = entity.images,
-            attributes = entity.attributes?.map { 
-                ProductAttribute(
-                    id = it.id,
-                    name = it.name,
-                    options = it.options,
-                    variation = it.variation
-                )
-            }
+            images = entity.images.map { Image(0, "", "", it, "", "") }
         )
     }
 
@@ -94,20 +86,13 @@ object ProductMapper {
             description = domain.description,
             price = domain.price,
             regularPrice = domain.regularPrice,
-            salePrice = domain.salePrice?.takeIf { it.isNotEmpty() },
+            salePrice = domain.salePrice.takeIf { it.isNotEmpty() },
             stockStatus = domain.stockStatus,
             stockQuantity = domain.stockQuantity,
             category = domain.categories.firstOrNull()?.name ?: "",
-            images = domain.images,
-            attributes = domain.attributes?.map { 
-                ProductAttributeEntity(
-                    id = it.id,
-                    name = it.name,
-                    options = it.options,
-                    variation = it.variation
-                )
-            },
-            variations = null  // 领域模型中没有变体信息
+            images = domain.images.map { it.src },
+            attributes = null, // 由于领域模型中的属性结构可能与数据库不同，需要进一步处理
+            variations = null  // 由于领域模型中的变体结构可能与数据库不同，需要进一步处理
         )
     }
 
@@ -129,11 +114,6 @@ object ProductMapper {
         return entities.map { mapEntityToDomain(it) }
     }
 
-    /**
-     * 将属性响应转换为属性实体
-     * @param response 属性响应模型
-     * @return 属性实体
-     */
     private fun mapAttributeResponseToEntity(response: AttributeResponse): ProductAttributeEntity {
         return ProductAttributeEntity(
             id = response.id,
@@ -142,4 +122,4 @@ object ProductMapper {
             variation = response.variation
         )
     }
-} 
+}

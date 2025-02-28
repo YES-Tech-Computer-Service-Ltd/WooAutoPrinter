@@ -20,7 +20,7 @@ data class Product(
     val sku: String,                // 库存单位号（产品 SKU）
     val price: String,              // 当前销售价格
     val regularPrice: String,       // 常规价格
-    val salePrice: String?,         // 折扣销售价格
+    val salePrice: String,          // 折扣销售价格
     val onSale: Boolean,            // 是否正在促销
     val purchasable: Boolean,       // 是否可购买
     val totalSales: Int,            // 销售总量
@@ -33,8 +33,7 @@ data class Product(
     val weight: String,             // 产品重量（可能包含单位信息）
     val dimensions: Dimensions,     // 产品尺寸信息
     val categories: List<Category>, // 产品所属分类列表
-    val images: List<String>,       // 产品图片列表
-    val attributes: List<ProductAttribute>?
+    val images: List<Image>         // 产品图片列表
 )
 
 /**
@@ -65,11 +64,4 @@ data class Image(
     val src: String,           // 图片 URL 地址
     val name: String,          // 图片名称
     val alt: String            // 图片替代文本（alt文本）
-)
-
-data class ProductAttribute(
-    val id: Long,
-    val name: String,
-    val options: List<String>,
-    val variation: Boolean
 )
