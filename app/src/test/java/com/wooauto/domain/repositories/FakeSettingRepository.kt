@@ -1,10 +1,12 @@
 package com.wooauto.domain.repositories
 
+import com.example.wooauto.domain.repositories.DomainSettingRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-class FakeSettingRepository : DomainSettingRepository {
+class FakeSettingRepository :
+    DomainSettingRepository {
     // API设置
     private val _apiUrl = MutableStateFlow("https://default.api.com")
     private val _consumerKey = MutableStateFlow("")

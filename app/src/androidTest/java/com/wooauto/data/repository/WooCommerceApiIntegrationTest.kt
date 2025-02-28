@@ -1,8 +1,8 @@
 package com.wooauto.data.repository
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.example.wooauto.data.remote.adapters.FlexibleTypeAdapter
 import com.wooauto.data.remote.api.WooCommerceApiService
-import com.wooauto.data.remote.models.OrderResponse
 import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -14,7 +14,6 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
 import com.google.gson.GsonBuilder
-import com.wooauto.data.remote.adapters.FlexibleTypeAdapter
 
 @RunWith(AndroidJUnit4::class)
 class WooCommerceApiIntegrationTest {
@@ -53,7 +52,9 @@ class WooCommerceApiIntegrationTest {
 
         // 在这里使用GsonBuilder，替换原有的Gson创建方式
         val gson = GsonBuilder()
-            .registerTypeAdapter(Any::class.java, FlexibleTypeAdapter())
+            .registerTypeAdapter(Any::class.java,
+                FlexibleTypeAdapter()
+            )
             .create()
 
         // 修改现有的retrofit变量初始化，不要创建新的变量

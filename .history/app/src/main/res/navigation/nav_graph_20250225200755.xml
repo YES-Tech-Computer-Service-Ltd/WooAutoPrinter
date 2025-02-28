@@ -7,7 +7,7 @@
 
     <fragment
         android:id="@+id/ordersFragment"
-        android:name="com.example.wooauto.ui.orders.OrdersFragment"
+        android:name="com.example.fake.ui.orders.OrdersFragment"
         android:label="订单列表"
         tools:layout="@layout/fragment_orders">
         <action
@@ -17,7 +17,7 @@
 
     <fragment
         android:id="@+id/orderDetailFragment"
-        android:name="com.example.wooauto.ui.orders.OrderDetailFragment"
+        android:name="com.example.fake.ui.orders.OrderDetailFragment"
         android:label="订单详情"
         tools:layout="@layout/fragment_order_details">
         <argument
@@ -27,7 +27,7 @@
 
     <composable
         android:id="@+id/productsFragment"
-        android:name="com.example.wooauto.ui.products.ProductsScreen"
+        android:name="com.example.fake.ui.products.ProductsScreen"
         android:label="商品列表">
         <action
             android:id="@+id/action_productsFragment_to_productDetailsFragment"
@@ -36,7 +36,7 @@
 
     <composable
         android:id="@+id/productDetailsFragment"
-        android:name="com.example.wooauto.ui.products.ProductDetailsScreen"
+        android:name="com.example.fake.ui.products.ProductDetailsScreen"
         android:label="商品详情">
         <argument
             android:name="productId"
@@ -45,7 +45,7 @@
 
     <fragment
         android:id="@+id/settingsFragment"
-        android:name="com.example.wooauto.ui.settings.SettingsFragment"
+        android:name="com.example.fake.ui.settings.SettingsFragment"
         android:label="设置"
         tools:layout="@layout/fragment_settings">
         <action

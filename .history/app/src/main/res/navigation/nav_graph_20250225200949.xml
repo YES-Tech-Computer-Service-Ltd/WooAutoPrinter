@@ -7,7 +7,7 @@
 
     <composable
         android:id="@+id/ordersFragment"
-        android:name="com.example.wooauto.ui.orders.OrderScreen"
+        android:name="com.example.fake.ui.orders.OrderScreen"
         android:label="订单列表">
         <action
             android:id="@+id/action_ordersFragment_to_orderDetailFragment"
@@ -16,7 +16,7 @@
 
     <composable
         android:id="@+id/orderDetailFragment"
-        android:name="com.example.wooauto.ui.orders.OrderDetailsScreen"
+        android:name="com.example.fake.ui.orders.OrderDetailsScreen"
         android:label="订单详情">
         <argument
             android:name="orderId"
@@ -25,7 +25,7 @@
 
     <composable
         android:id="@+id/productsFragment"
-        android:name="com.example.wooauto.ui.products.ProductsScreen"
+        android:name="com.example.fake.ui.products.ProductsScreen"
         android:label="商品列表">
         <action
             android:id="@+id/action_productsFragment_to_productDetailsFragment"
@@ -34,7 +34,7 @@
 
     <composable
         android:id="@+id/productDetailsFragment"
-        android:name="com.example.wooauto.ui.products.ProductDetailsScreen"
+        android:name="com.example.fake.ui.products.ProductDetailsScreen"
         android:label="商品详情">
         <argument
             android:name="productId"
@@ -43,7 +43,7 @@
 
     <composable
         android:id="@+id/settingsFragment"
-        android:name="com.example.wooauto.ui.settings.SettingsScreen"
+        android:name="com.example.fake.ui.settings.SettingsScreen"
         android:label="设置">
         <action
             android:id="@+id/action_settingsFragment_to_printerSetupFragment"
@@ -55,12 +55,12 @@
 
     <composable
         android:id="@+id/printerSetupFragment"
-        android:name="com.example.wooauto.ui.settings.printer.PrinterSetupScreen"
+        android:name="com.example.fake.ui.settings.printer.PrinterSetupScreen"
         android:label="@string/printer_setup" />
 
     <composable
         android:id="@+id/websiteSetupFragment"
-        android:name="com.example.wooauto.ui.settings.website.WebsiteSetupScreen"
+        android:name="com.example.fake.ui.settings.website.WebsiteSetupScreen"
         android:label="@string/website_setup" />
 
 </navigation>
