@@ -6,9 +6,6 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.ui.graphics.vector.ImageVector
-// 导入自动镜像版本的图标
-import androidx.compose.material.icons.automirrored.filled.List
-import androidx.compose.material.icons.automirrored.outlined.List
 
 sealed class NavigationItem(
     val route: String,
@@ -19,8 +16,6 @@ sealed class NavigationItem(
     object Orders : NavigationItem(
         route = "orders",
         title = "订单",
-        selectedIcon = Icons.AutoMirrored.Filled.List,
-        unselectedIcon = Icons.AutoMirrored.Outlined.List
     )
     
     object Products : NavigationItem(
