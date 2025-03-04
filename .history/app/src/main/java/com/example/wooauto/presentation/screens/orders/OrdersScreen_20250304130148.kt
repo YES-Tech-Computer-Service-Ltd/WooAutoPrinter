@@ -76,7 +76,6 @@ import com.example.wooauto.domain.models.OrderItem
 import com.example.wooauto.navigation.NavigationItem
 import com.example.wooauto.presentation.theme.WooAutoTheme
 import com.example.wooauto.utils.LocaleHelper
-import com.example.wooauto.presentation.screens.settings.SettingsViewModel
 import com.google.gson.Gson
 import kotlinx.coroutines.launch
 import org.json.JSONArray

@@ -95,15 +95,6 @@ class WooCommerceApiImpl(
                 val fullUrl = urlBuilder.build().toString()
                 Log.d("WooCommerceApiImpl", "【URL构建】最终URL: $fullUrl")
                 
-                // 特别监控状态参数
-                if (endpoint.contains("orders") && queryParams.containsKey("status")) {
-                    Log.d("WooCommerceApiImpl", "【状态请求】监控 - 状态参数值: '${queryParams["status"]}', URL中的状态参数: ${fullUrl.contains("status=")}") 
-                    
-                    // 检查URL中的状态参数
-                    val urlStatus = fullUrl.substringAfter("status=", "未找到").substringBefore("&", "未找到后缀")
-                    Log.d("WooCommerceApiImpl", "【状态请求】监控 - URL中的status参数值: '$urlStatus'")
-                }
-                
                 val request = Request.Builder()
                     .url(urlBuilder.build())
                     .get()
@@ -265,26 +256,9 @@ class WooCommerceApiImpl(
                 Log.d("WooCommerceApiImpl", "【API请求】添加有效状态过滤: '$requestedStatus'")
                 queryParams["status"] = requestedStatus  // 直接使用单个字符串状态值
             } else {
-                // 检查是否是中文状态，尝试映射为英文
-                val statusMap = mapOf(
-                    "处理中" to "processing",
-                    "待付款" to "pending",
-                    "已完成" to "completed",
-                    "已取消" to "cancelled",
-                    "已退款" to "refunded",
-                    "失败" to "failed",
-                    "暂挂" to "on-hold"
-                )
-                
-                val mappedStatus = statusMap[requestedStatus]
-                if (mappedStatus != null && validStatuses.contains(mappedStatus)) {
-                    Log.d("WooCommerceApiImpl", "【API请求】将中文状态 '$requestedStatus' 映射为英文 '$mappedStatus'")
-                    queryParams["status"] = mappedStatus
-                } else {
-                    // 如果是无效状态，记录警告并使用"any"状态
-                    Log.w("WooCommerceApiImpl", "【API请求】警告: '$requestedStatus' 不是有效的WooCommerce状态，改用'any'")
-                    queryParams["status"] = "any"  // 使用"any"作为备选
-                }
+                // 如果是无效状态，记录警告并使用"any"状态
+                Log.w("WooCommerceApiImpl", "【API请求】警告: '$requestedStatus' 不是有效的WooCommerce状态，改用'any'")
+                queryParams["status"] = "any"  // 使用"any"作为备选
             }
         }
         

@@ -182,45 +182,32 @@ class OrdersViewModel @Inject constructor(
             "on-hold" to "暂挂"
         )
         
-        // 有效的API状态值列表
+        val cleanStatus = status.trim()
+        
+        // 检查API支持的所有英文状态值
         val validApiStatuses = listOf(
             "pending", "processing", "on-hold", "completed", 
             "cancelled", "refunded", "failed", "trash", "any"
         )
         
-        val cleanStatus = status.trim()
-        
         val result = if (toEnglish) {
-            // 判断是否已经是有效的英文状态
-            if (validApiStatuses.contains(cleanStatus.lowercase())) {
-                // 如果已经是有效的API状态，直接返回小写形式
-                Log.d("OrdersViewModel", "【状态映射】'$cleanStatus' 已是有效的英文状态，无需转换")
+            // 中文到英文的映射
+            val mappedStatus = statusMap[cleanStatus]
+            
+            if (mappedStatus != null) {
+                // 如果能直接映射，使用映射结果
+                mappedStatus
+            } else if (validApiStatuses.contains(cleanStatus.lowercase())) {
+                // 如果输入已经是有效的英文状态，直接使用它
                 cleanStatus.lowercase()
             } else {
-                // 尝试从中文映射到英文
-                val mappedStatus = statusMap[cleanStatus]
-                
-                if (mappedStatus != null) {
-                    // 如果能直接映射，使用映射结果
-                    Log.d("OrdersViewModel", "【状态映射】中文转英文成功: '$cleanStatus' -> '$mappedStatus'")
-                    mappedStatus
-                } else {
-                    // 无法映射且不是有效的英文状态，使用"any"作为默认值
-                    Log.w("OrdersViewModel", "【状态映射】警告：无法映射 '$cleanStatus' 到有效的英文状态，使用 'any'")
-                    "any"
-                }
+                // 无法映射且不是有效的英文状态，使用"any"作为默认值
+                Log.w("OrdersViewModel", "【状态映射】警告：无法映射状态 '$cleanStatus' 到有效的英文API状态，使用'any'")
+                "any"
             }
         } else {
-            // 从英文转换到中文
-            val mappedStatus = statusMap[cleanStatus.lowercase()]
-            if (mappedStatus != null) {
-                Log.d("OrdersViewModel", "【状态映射】英文转中文成功: '$cleanStatus' -> '$mappedStatus'")
-                mappedStatus
-            } else {
-                // 如果找不到映射，保留原值
-                Log.d("OrdersViewModel", "【状态映射】无法将英文 '$cleanStatus' 映射为中文，保留原值")
-                cleanStatus
-            }
+            // 英文到中文的映射
+            statusMap[cleanStatus.lowercase()] ?: cleanStatus
         }
         
         // 记录映射结果
@@ -358,22 +345,5 @@ class OrdersViewModel @Inject constructor(
     
     fun clearError() {
         _errorMessage.value = null
-    }
-
-    /**
-     * 获取所有有效的订单状态选项，包括中英文对应
-     * 可用于在UI中显示状态选择器
-     * @return 订单状态列表，包含中英文状态
-     */
-    fun getOrderStatusOptions(): List<Pair<String, String>> {
-        return listOf(
-            Pair("处理中", "processing"),
-            Pair("待付款", "pending"),
-            Pair("已完成", "completed"),
-            Pair("已取消", "cancelled"),
-            Pair("已退款", "refunded"),
-            Pair("失败", "failed"),
-            Pair("暂挂", "on-hold")
-        )
     }
 } 

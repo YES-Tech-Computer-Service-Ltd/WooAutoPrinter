@@ -76,7 +76,6 @@ import com.example.wooauto.domain.models.OrderItem
 import com.example.wooauto.navigation.NavigationItem
 import com.example.wooauto.presentation.theme.WooAutoTheme
 import com.example.wooauto.utils.LocaleHelper
-import com.example.wooauto.presentation.screens.settings.SettingsViewModel
 import com.google.gson.Gson
 import kotlinx.coroutines.launch
 import org.json.JSONArray
@@ -552,10 +551,6 @@ fun OrderDetailDialog(
 ) {
     var showStatusOptions by remember { mutableStateOf(false) }
     
-    // 获取WooFood配置状态
-    val settingsViewModel = hiltViewModel<SettingsViewModel>()
-    val useWooFood by settingsViewModel.useWooCommerceFood.collectAsState(initial = false)
-    
     Dialog(onDismissRequest = onDismiss) {
         Card(
             modifier = Modifier
@@ -594,39 +589,6 @@ fun OrderDetailDialog(
                 
                 OrderDetailRow("支付方式", order.paymentMethod)
                 OrderDetailRow("总金额", order.total)
-                
-                // WooFood信息显示，只有当开启WooFood选项且订单有WooFood信息时才显示
-                if (useWooFood && order.woofoodInfo != null) {
-                    val woofoodInfo = order.woofoodInfo
-                    
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "外卖信息",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                        modifier = Modifier.padding(vertical = 8.dp)
-                    )
-                    
-                    woofoodInfo.orderMethod?.let {
-                        OrderDetailRow("订单方式", it)
-                    }
-                    
-                    woofoodInfo.deliveryTime?.let {
-                        OrderDetailRow("配送时间", it)
-                    }
-                    
-                    woofoodInfo.deliveryAddress?.let {
-                        OrderDetailRow("配送地址", it)
-                    }
-                    
-                    woofoodInfo.deliveryFee?.let {
-                        OrderDetailRow("配送费用", it)
-                    }
-                    
-                    woofoodInfo.tip?.let {
-                        OrderDetailRow("小费", it)
-                    }
-                }
                 
                 // 显示订单项目
                 Spacer(modifier = Modifier.height(16.dp))

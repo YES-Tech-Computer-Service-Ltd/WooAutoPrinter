@@ -120,55 +120,30 @@ class OrderRepositoryImpl @Inject constructor(
             
             val api = getApi(config)
             
-            // 状态映射表 - 定义在方法级别，使其在整个方法中可用
-            val statusMap = mapOf(
-                "处理中" to "processing",
-                "待付款" to "pending",
-                "已完成" to "completed",
-                "已取消" to "cancelled",
-                "已退款" to "refunded",
-                "失败" to "failed",
-                "暂挂" to "on-hold",
-                // 反向映射（便于双向检查）
-                "processing" to "处理中",
-                "pending" to "待付款",
-                "completed" to "已完成",
-                "cancelled" to "已取消",
-                "refunded" to "已退款",
-                "failed" to "失败",
-                "on-hold" to "暂挂"
-            )
-            
-            // WooCommerce API支持的所有状态
-            val validApiStatuses = listOf(
-                "pending", "processing", "on-hold", "completed", 
-                "cancelled", "refunded", "failed", "trash", "any", 
-                "auto-draft", "checkout-draft"
-            )
-            
             // 准备API需要的状态参数 - 确保使用英文状态名
             val apiStatus = if (status != null) {
-                val cleanStatus = status.trim().lowercase()
+                // 中文状态对应的英文状态
+                val statusMap = mapOf(
+                    "处理中" to "processing",
+                    "待付款" to "pending",
+                    "已完成" to "completed",
+                    "已取消" to "cancelled",
+                    "已退款" to "refunded",
+                    "失败" to "failed",
+                    "暂挂" to "on-hold"
+                )
                 
-                // 直接判断输入是否已经是有效的API状态
-                if (validApiStatuses.contains(cleanStatus)) {
-                    // 如果已经是有效的API状态，直接使用
-                    Log.d("OrderRepositoryImpl", "【状态刷新】直接使用有效状态: '$cleanStatus'")
-                    cleanStatus
-                } else {
-                    // 如果不是有效API状态，尝试从中文映射到英文
-                    val mappedStatus = statusMap[cleanStatus]
-                    
-                    if (mappedStatus != null && validApiStatuses.contains(mappedStatus)) {
-                        // 映射成功且是有效状态
-                        Log.d("OrderRepositoryImpl", "【状态刷新】状态映射成功: '$cleanStatus' -> '$mappedStatus'")
-                        mappedStatus
-                    } else {
-                        // 无法映射或映射结果不是有效状态，使用"any"
-                        Log.w("OrderRepositoryImpl", "【状态刷新】警告：无法将 '$cleanStatus' 映射为有效的API状态，使用 'any'")
-                        "any"
-                    }
+                // 尝试映射状态，如果已经是英文状态则直接使用
+                val mappedStatus = statusMap[status] ?: status
+                Log.d("OrderRepositoryImpl", "【状态刷新】状态映射: '$status' -> '$mappedStatus'")
+                
+                // 验证是否是WooCommerce支持的有效状态
+                val validStatuses = listOf("pending", "processing", "on-hold", "completed", "cancelled", "refunded", "failed")
+                if (!validStatuses.contains(mappedStatus)) {
+                    Log.w("OrderRepositoryImpl", "【状态刷新】警告：映射后的状态值 '$mappedStatus' 可能不是WooCommerce支持的有效状态")
                 }
+                
+                mappedStatus
             } else {
                 null
             }
@@ -186,11 +161,6 @@ class OrderRepositoryImpl @Inject constructor(
                 val statusCounts = response.groupBy { order -> order.status }.mapValues { entry -> entry.value.size }
                 Log.d("OrderRepositoryImpl", "【状态刷新】状态分布: $statusCounts")
                 
-                // 如果请求了特定状态，但返回的订单中没有该状态的订单，记录警告
-                if (apiStatus != null && !statusCounts.containsKey(apiStatus)) {
-                    Log.w("OrderRepositoryImpl", "【状态刷新】警告：API没有返回状态为 '$apiStatus' 的订单")
-                }
-                
                 // 转换为领域模型
                 val orders = response.map { orderDto -> orderDto.toOrder() }
                 
@@ -204,32 +174,10 @@ class OrderRepositoryImpl @Inject constructor(
                 orderDao.deleteAllOrders() // 清除旧数据
                 orderDao.insertOrders(entities) // 插入新数据
                 
-                // 如果API没有正确过滤状态，在本地进行过滤
-                val finalOrders = if (status != null) {
-                    // 再次进行本地过滤，确保只返回匹配状态的订单
-                    val filteredOrders = orders.filter { 
-                        val orderStatus = it.status
-                        val matches = orderStatus == status || 
-                                       (statusMap[status] == orderStatus) || 
-                                       (statusMap.entries.find { entry -> entry.value == status }?.key == orderStatus)
-                        
-                        if (!matches) {
-                            Log.d("OrderRepositoryImpl", "【状态过滤】订单 ${it.id} 状态 '$orderStatus' 与请求状态 '$status' 不匹配")
-                        }
-                        
-                        matches
-                    }
-                    
-                    Log.d("OrderRepositoryImpl", "【状态过滤】本地过滤后，符合状态 '$status' 的订单数量: ${filteredOrders.size}")
-                    filteredOrders
-                } else {
-                    orders
-                }
-                
                 // 更新状态分组
                 updateOrdersByStatus()
                 
-                return@withContext Result.success(finalOrders)
+                return@withContext Result.success(orders)
             } catch (e: Exception) {
                 Log.e("OrderRepositoryImpl", "API调用异常: ${e.message}", e)
                 
@@ -252,64 +200,6 @@ class OrderRepositoryImpl @Inject constructor(
             }
             
             Log.e("OrderRepositoryImpl", "刷新订单数据失败: ${error.message}", e)
-            return@withContext Result.failure(error)
-        }
-    }
-
-    /**
-     * 专门用于后台轮询服务的方法，查询处理中的订单但不会影响UI显示
-     * 此方法不会修改_ordersFlow，因此不会干扰用户当前的筛选状态
-     */
-    override suspend fun refreshProcessingOrdersForPolling(afterDate: Date?): Result<List<Order>> = withContext(Dispatchers.IO) {
-        Log.d("OrderRepositoryImpl", "【轮询刷新】开始查询处理中订单(UI安全)")
-        
-        try {
-            val config = settingsRepository.getWooCommerceConfig()
-            if (!config.isValid()) {
-                Log.e("OrderRepositoryImpl", "API配置无效，请检查设置")
-                return@withContext Result.failure(ApiError.fromHttpCode(401, "API配置无效，请检查设置"))
-            }
-            
-            val api = getApi(config)
-            
-            try {
-                // 使用固定的"processing"状态，确保只查询处理中的订单
-                Log.d("OrderRepositoryImpl", "【轮询刷新】调用API: getOrders(page=1, perPage=100, status=processing)")
-                
-                // 调用API获取处理中订单
-                val response = api.getOrders(1, 100, "processing")
-                
-                Log.d("OrderRepositoryImpl", "【轮询刷新】API返回 ${response.size} 个处理中订单")
-                
-                // 记录返回订单的状态分布
-                val statusCounts = response.groupBy { order -> order.status }.mapValues { entry -> entry.value.size }
-                Log.d("OrderRepositoryImpl", "【轮询刷新】状态分布: $statusCounts")
-                
-                // 转换为领域模型
-                val orders = response.map { orderDto -> orderDto.toOrder() }
-                
-                // 更新数据库中的处理中订单，但不影响当前缓存
-                val entities = orders.map { order -> OrderMapper.mapDomainToEntity(order) }
-                
-                // 注意：不同于普通刷新，这里只删除和添加processing状态的订单
-                orderDao.deleteOrdersByStatus("processing") 
-                orderDao.insertOrders(entities)
-                
-                // 注意：这里特意不更新_ordersFlow，以避免影响UI显示
-                Log.d("OrderRepositoryImpl", "【轮询刷新】成功获取处理中订单，不影响UI状态")
-                
-                return@withContext Result.success(orders)
-            } catch (e: Exception) {
-                Log.e("OrderRepositoryImpl", "【轮询刷新】API调用异常: ${e.message}", e)
-                throw e
-            }
-        } catch (e: Exception) {
-            val error = when (e) {
-                is ApiError -> e
-                else -> ApiError.fromException(e)
-            }
-            
-            Log.e("OrderRepositoryImpl", "【轮询刷新】刷新订单数据失败: ${error.message}", e)
             return@withContext Result.failure(error)
         }
     }
@@ -373,47 +263,18 @@ class OrderRepositoryImpl @Inject constructor(
 
     override fun getOrdersByStatusFlow(status: String): Flow<List<Order>> {
         Log.d("OrderRepositoryImpl", "【状态调试】获取状态为 '$status' 的订单流")
-        
-        // 创建中英文状态映射表
-        val statusMap = mapOf(
-            "处理中" to "processing",
-            "待付款" to "pending",
-            "已完成" to "completed",
-            "已取消" to "cancelled",
-            "已退款" to "refunded",
-            "失败" to "failed",
-            "暂挂" to "on-hold",
-            "processing" to "处理中",
-            "pending" to "待付款",
-            "completed" to "已完成",
-            "cancelled" to "已取消",
-            "refunded" to "已退款",
-            "failed" to "失败",
-            "on-hold" to "暂挂"
-        )
-        
-        return _ordersFlow.asStateFlow().map { allOrders ->
-            // 严格过滤，确保状态完全匹配
-            val filteredOrders = allOrders.filter { order ->
-                // 检查订单状态是否与请求的状态匹配
-                // 1. 直接匹配
-                // 2. 订单状态的中文名与请求的状态匹配
-                // 3. 订单状态的英文名与请求的状态匹配
-                val matchesDirect = order.status == status
-                val matchesViaChinese = statusMap[order.status] == status
-                val matchesViaEnglish = statusMap[status] == order.status
-                
-                val matches = matchesDirect || matchesViaChinese || matchesViaEnglish
-                
-                if (!matches) {
-                    Log.d("OrderRepositoryImpl", "【状态过滤】订单 ${order.id} 状态 '${order.status}' 与请求状态 '$status' 不匹配")
-                }
-                
-                matches
+        return _ordersByStatusFlow.asStateFlow().map { statusMap ->
+            val orders = statusMap[status] ?: emptyList()
+            Log.d("OrderRepositoryImpl", "【状态调试】从状态流中获取到 ${orders.size} 个 '$status' 状态的订单")
+            
+            // 手动验证每个订单的状态
+            val strictlyFiltered = orders.filter { it.status == status }
+            if (strictlyFiltered.size != orders.size) {
+                Log.w("OrderRepositoryImpl", "【状态调试】警告：有 ${orders.size - strictlyFiltered.size} 个订单状态与 '$status' 不匹配")
             }
             
-            Log.d("OrderRepositoryImpl", "【状态调试】过滤后找到 ${filteredOrders.size} 个 '$status' 状态的订单")
-            filteredOrders
+            // 强制返回只符合指定状态的订单，不依赖groupBy的结果
+            strictlyFiltered
         }
     }
 

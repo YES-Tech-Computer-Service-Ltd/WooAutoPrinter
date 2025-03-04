@@ -117,9 +117,8 @@ class OrdersViewModel @Inject constructor(
                 
                 // 将选择的中文状态映射为API需要的英文状态
                 val apiStatus = mapStatusToChinese(currentStatus, true)
-                Log.d("OrdersViewModel", "【状态刷新】状态映射结果: '$currentStatus' -> '$apiStatus'")
+                Log.d("OrdersViewModel", "【状态刷新】状态映射: '$currentStatus' -> '$apiStatus'")
                 
-                // 确保API参数中使用的是有效的英文状态
                 val result = orderRepository.refreshOrders(apiStatus)
                 
                 if (result.isSuccess) {
@@ -162,9 +161,9 @@ class OrdersViewModel @Inject constructor(
     private fun mapStatusToChinese(status: String?, toEnglish: Boolean = false): String? {
         if (status == null) return null
         
-        // 状态映射表 - 确保英文状态值完全符合WooCommerce API要求
+        // 状态映射表
         val statusMap = mapOf(
-            // 中文 to 英文 (使用API支持的精确状态值)
+            // 中文 to 英文
             "处理中" to "processing",
             "待付款" to "pending",
             "已完成" to "completed",
@@ -182,50 +181,12 @@ class OrdersViewModel @Inject constructor(
             "on-hold" to "暂挂"
         )
         
-        // 有效的API状态值列表
-        val validApiStatuses = listOf(
-            "pending", "processing", "on-hold", "completed", 
-            "cancelled", "refunded", "failed", "trash", "any"
-        )
-        
-        val cleanStatus = status.trim()
-        
-        val result = if (toEnglish) {
-            // 判断是否已经是有效的英文状态
-            if (validApiStatuses.contains(cleanStatus.lowercase())) {
-                // 如果已经是有效的API状态，直接返回小写形式
-                Log.d("OrdersViewModel", "【状态映射】'$cleanStatus' 已是有效的英文状态，无需转换")
-                cleanStatus.lowercase()
-            } else {
-                // 尝试从中文映射到英文
-                val mappedStatus = statusMap[cleanStatus]
-                
-                if (mappedStatus != null) {
-                    // 如果能直接映射，使用映射结果
-                    Log.d("OrdersViewModel", "【状态映射】中文转英文成功: '$cleanStatus' -> '$mappedStatus'")
-                    mappedStatus
-                } else {
-                    // 无法映射且不是有效的英文状态，使用"any"作为默认值
-                    Log.w("OrdersViewModel", "【状态映射】警告：无法映射 '$cleanStatus' 到有效的英文状态，使用 'any'")
-                    "any"
-                }
-            }
+        // 根据方向转换状态
+        return if (toEnglish) {
+            statusMap[status] ?: status // 如果找不到映射，返回原状态
         } else {
-            // 从英文转换到中文
-            val mappedStatus = statusMap[cleanStatus.lowercase()]
-            if (mappedStatus != null) {
-                Log.d("OrdersViewModel", "【状态映射】英文转中文成功: '$cleanStatus' -> '$mappedStatus'")
-                mappedStatus
-            } else {
-                // 如果找不到映射，保留原值
-                Log.d("OrdersViewModel", "【状态映射】无法将英文 '$cleanStatus' 映射为中文，保留原值")
-                cleanStatus
-            }
+            statusMap.entries.find { it.value == status }?.key ?: status
         }
-        
-        // 记录映射结果
-        Log.d("OrdersViewModel", "【状态映射】${if (toEnglish) "中->英" else "英->中"}: '$cleanStatus' -> '$result'")
-        return result
     }
     
     fun filterOrdersByStatus(status: String?) {
@@ -239,54 +200,23 @@ class OrdersViewModel @Inject constructor(
                 
                 if (status.isNullOrEmpty()) {
                     Log.d("OrdersViewModel", "状态为空，显示所有订单")
-                    // 回到无过滤状态
-                    _currentStatusFilter.value = null
                     observeOrders()
                 } else {
                     // 将中文状态映射为英文状态用于API调用
                     val apiStatus = mapStatusToChinese(status, true)
-                    Log.d("OrdersViewModel", "【状态筛选】映射后的API状态: '$apiStatus'")
+                    Log.d("OrdersViewModel", "【状态筛选】映射状态: '$status' -> '$apiStatus'")
                     
                     // 刷新对应状态的订单数据
                     val refreshResult = orderRepository.refreshOrders(apiStatus)
                     
                     if (refreshResult.isSuccess) {
-                        Log.d("OrdersViewModel", "【状态筛选】成功刷新订单数据")
+                        Log.d("OrdersViewModel", "【状态筛选】成功刷新 '$status'($apiStatus) 状态的订单")
                         
-                        // 获取刷新结果中的订单
-                        val allRefreshedOrders = refreshResult.getOrDefault(emptyList())
-                        Log.d("OrdersViewModel", "【状态筛选】刷新获取到 ${allRefreshedOrders.size} 个订单")
+                        // 获取并应用过滤后的数据
+                        val filteredOrders = orderRepository.getOrdersByStatusFlow(status).first()
+                        Log.d("OrdersViewModel", "【状态筛选】过滤后得到 ${filteredOrders.size} 个订单")
                         
-                        // 检查是否有匹配当前状态的订单
-                        val statusMatchedOrders = allRefreshedOrders.filter { order ->
-                            // 检查状态是否匹配，考虑中英文转换
-                            val orderStatus = order.status
-                            val requestedStatus = status
-                            
-                            // 直接匹配
-                            if (orderStatus == requestedStatus) return@filter true
-                            
-                            // 通过映射匹配
-                            val mappedOrderStatus = mapStatusToChinese(orderStatus, false)
-                            if (mappedOrderStatus == requestedStatus) return@filter true
-                            
-                            // 反向映射匹配
-                            val mappedRequestedStatus = mapStatusToChinese(requestedStatus, true)
-                            if (orderStatus == mappedRequestedStatus) return@filter true
-                            
-                            false
-                        }
-                        
-                        Log.d("OrdersViewModel", "【状态筛选】筛选后得到 ${statusMatchedOrders.size} 个状态为 '$status' 的订单")
-                        
-                        // 如果没有找到匹配状态的订单，显示错误消息
-                        if (statusMatchedOrders.isEmpty()) {
-                            _errorMessage.value = "没有找到状态为 '$status' 的订单"
-                            Log.w("OrdersViewModel", "【状态筛选】警告：未找到状态为 '$status' 的订单")
-                        }
-                        
-                        // 应用过滤后的结果到UI
-                        _orders.value = statusMatchedOrders
+                        _orders.value = filteredOrders
                     } else {
                         val exception = refreshResult.exceptionOrNull()
                         Log.e("OrdersViewModel", "刷新状态 '$status' 的订单失败: ${exception?.message}")
@@ -358,22 +288,5 @@ class OrdersViewModel @Inject constructor(
     
     fun clearError() {
         _errorMessage.value = null
-    }
-
-    /**
-     * 获取所有有效的订单状态选项，包括中英文对应
-     * 可用于在UI中显示状态选择器
-     * @return 订单状态列表，包含中英文状态
-     */
-    fun getOrderStatusOptions(): List<Pair<String, String>> {
-        return listOf(
-            Pair("处理中", "processing"),
-            Pair("待付款", "pending"),
-            Pair("已完成", "completed"),
-            Pair("已取消", "cancelled"),
-            Pair("已退款", "refunded"),
-            Pair("失败", "failed"),
-            Pair("暂挂", "on-hold")
-        )
     }
 } 

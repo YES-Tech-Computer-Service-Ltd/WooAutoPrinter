@@ -139,36 +139,15 @@ class OrderRepositoryImpl @Inject constructor(
                 "on-hold" to "暂挂"
             )
             
-            // WooCommerce API支持的所有状态
-            val validApiStatuses = listOf(
-                "pending", "processing", "on-hold", "completed", 
-                "cancelled", "refunded", "failed", "trash", "any", 
-                "auto-draft", "checkout-draft"
-            )
-            
             // 准备API需要的状态参数 - 确保使用英文状态名
             val apiStatus = if (status != null) {
-                val cleanStatus = status.trim().lowercase()
+                // 尝试映射状态，如果已经是英文状态则直接使用
+                val mappedStatus = statusMap[status] ?: status
+                Log.d("OrderRepositoryImpl", "【状态刷新】状态映射: '$status' -> '$mappedStatus'")
                 
-                // 直接判断输入是否已经是有效的API状态
-                if (validApiStatuses.contains(cleanStatus)) {
-                    // 如果已经是有效的API状态，直接使用
-                    Log.d("OrderRepositoryImpl", "【状态刷新】直接使用有效状态: '$cleanStatus'")
-                    cleanStatus
-                } else {
-                    // 如果不是有效API状态，尝试从中文映射到英文
-                    val mappedStatus = statusMap[cleanStatus]
-                    
-                    if (mappedStatus != null && validApiStatuses.contains(mappedStatus)) {
-                        // 映射成功且是有效状态
-                        Log.d("OrderRepositoryImpl", "【状态刷新】状态映射成功: '$cleanStatus' -> '$mappedStatus'")
-                        mappedStatus
-                    } else {
-                        // 无法映射或映射结果不是有效状态，使用"any"
-                        Log.w("OrderRepositoryImpl", "【状态刷新】警告：无法将 '$cleanStatus' 映射为有效的API状态，使用 'any'")
-                        "any"
-                    }
-                }
+                // 记录请求的原始状态和映射后的状态
+                Log.d("OrderRepositoryImpl", "【状态刷新】原始请求状态: '$status', 映射后: '$mappedStatus'")
+                mappedStatus
             } else {
                 null
             }
@@ -252,64 +231,6 @@ class OrderRepositoryImpl @Inject constructor(
             }
             
             Log.e("OrderRepositoryImpl", "刷新订单数据失败: ${error.message}", e)
-            return@withContext Result.failure(error)
-        }
-    }
-
-    /**
-     * 专门用于后台轮询服务的方法，查询处理中的订单但不会影响UI显示
-     * 此方法不会修改_ordersFlow，因此不会干扰用户当前的筛选状态
-     */
-    override suspend fun refreshProcessingOrdersForPolling(afterDate: Date?): Result<List<Order>> = withContext(Dispatchers.IO) {
-        Log.d("OrderRepositoryImpl", "【轮询刷新】开始查询处理中订单(UI安全)")
-        
-        try {
-            val config = settingsRepository.getWooCommerceConfig()
-            if (!config.isValid()) {
-                Log.e("OrderRepositoryImpl", "API配置无效，请检查设置")
-                return@withContext Result.failure(ApiError.fromHttpCode(401, "API配置无效，请检查设置"))
-            }
-            
-            val api = getApi(config)
-            
-            try {
-                // 使用固定的"processing"状态，确保只查询处理中的订单
-                Log.d("OrderRepositoryImpl", "【轮询刷新】调用API: getOrders(page=1, perPage=100, status=processing)")
-                
-                // 调用API获取处理中订单
-                val response = api.getOrders(1, 100, "processing")
-                
-                Log.d("OrderRepositoryImpl", "【轮询刷新】API返回 ${response.size} 个处理中订单")
-                
-                // 记录返回订单的状态分布
-                val statusCounts = response.groupBy { order -> order.status }.mapValues { entry -> entry.value.size }
-                Log.d("OrderRepositoryImpl", "【轮询刷新】状态分布: $statusCounts")
-                
-                // 转换为领域模型
-                val orders = response.map { orderDto -> orderDto.toOrder() }
-                
-                // 更新数据库中的处理中订单，但不影响当前缓存
-                val entities = orders.map { order -> OrderMapper.mapDomainToEntity(order) }
-                
-                // 注意：不同于普通刷新，这里只删除和添加processing状态的订单
-                orderDao.deleteOrdersByStatus("processing") 
-                orderDao.insertOrders(entities)
-                
-                // 注意：这里特意不更新_ordersFlow，以避免影响UI显示
-                Log.d("OrderRepositoryImpl", "【轮询刷新】成功获取处理中订单，不影响UI状态")
-                
-                return@withContext Result.success(orders)
-            } catch (e: Exception) {
-                Log.e("OrderRepositoryImpl", "【轮询刷新】API调用异常: ${e.message}", e)
-                throw e
-            }
-        } catch (e: Exception) {
-            val error = when (e) {
-                is ApiError -> e
-                else -> ApiError.fromException(e)
-            }
-            
-            Log.e("OrderRepositoryImpl", "【轮询刷新】刷新订单数据失败: ${error.message}", e)
             return@withContext Result.failure(error)
         }
     }

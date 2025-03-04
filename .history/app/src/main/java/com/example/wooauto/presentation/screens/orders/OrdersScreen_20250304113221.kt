@@ -18,7 +18,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
@@ -45,7 +44,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SmallTopAppBar
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -76,7 +74,6 @@ import com.example.wooauto.domain.models.OrderItem
 import com.example.wooauto.navigation.NavigationItem
 import com.example.wooauto.presentation.theme.WooAutoTheme
 import com.example.wooauto.utils.LocaleHelper
-import com.example.wooauto.presentation.screens.settings.SettingsViewModel
 import com.google.gson.Gson
 import kotlinx.coroutines.launch
 import org.json.JSONArray
@@ -84,7 +81,6 @@ import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Locale
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.material3.TopAppBarDefaults
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -125,6 +121,7 @@ fun OrdersScreen(
     var searchQuery by remember { mutableStateOf("") }
     var showOrderDetail by remember { mutableStateOf(false) }
     var statusFilter by remember { mutableStateOf("") }
+    var statusExpanded by remember { mutableStateOf(false) }
     
     val statusOptions = listOf(
         "" to "全部状态",
@@ -138,36 +135,7 @@ fun OrdersScreen(
     )
     
     Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        topBar = {
-            SmallTopAppBar(
-                title = { Text("订单") },
-                colors = TopAppBarDefaults.smallTopAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary
-                ),
-                actions = {
-                    IconButton(
-                        onClick = { viewModel.refreshOrders() },
-                        enabled = !isRefreshing
-                    ) {
-                        if (isRefreshing) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(24.dp),
-                                strokeWidth = 2.dp,
-                                color = MaterialTheme.colorScheme.onPrimary
-                            )
-                        } else {
-                            Icon(
-                                imageVector = Icons.Default.Refresh,
-                                contentDescription = "刷新",
-                                tint = MaterialTheme.colorScheme.onPrimary
-                            )
-                        }
-                    }
-                }
-            )
-        }
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { paddingValues ->
         Box(
             modifier = Modifier
@@ -235,78 +203,122 @@ fun OrdersScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(horizontal = 8.dp)
+                        .padding(16.dp)
                 ) {
-                    // 搜索框与状态过滤器
-                    OutlinedTextField(
-                        value = searchQuery,
-                        onValueChange = { searchQuery = it },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 8.dp, vertical = 8.dp),
-                        placeholder = { Text("搜索订单...") },
-                        leadingIcon = { 
-                            Icon(
-                                imageVector = Icons.Default.Search,
-                                contentDescription = "搜索"
+                    // 顶部提示和刷新按钮
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "订单列表",
+                            style = MaterialTheme.typography.headlineMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        
+                        IconButton(
+                            onClick = { viewModel.refreshOrders() },
+                            modifier = Modifier.size(48.dp),
+                            enabled = !isRefreshing
+                        ) {
+                            if (isRefreshing) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(24.dp),
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.Refresh,
+                                    contentDescription = "刷新",
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    // 搜索和过滤
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // 搜索框
+                        OutlinedTextField(
+                            value = searchQuery,
+                            onValueChange = { searchQuery = it },
+                            modifier = Modifier.weight(0.7f),
+                            placeholder = { Text("搜索订单...") },
+                            leadingIcon = { 
+                                Icon(
+                                    imageVector = Icons.Default.Search,
+                                    contentDescription = "搜索"
+                                )
+                            },
+                            trailingIcon = {
+                                if (searchQuery.isNotEmpty()) {
+                                    IconButton(onClick = { searchQuery = "" }) {
+                                        Icon(
+                                            imageVector = Icons.Default.Clear,
+                                            contentDescription = "清除"
+                                        )
+                                    }
+                                }
+                            },
+                            singleLine = true,
+                            shape = RoundedCornerShape(8.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
                             )
-                        },
-                        trailingIcon = {
-                            if (searchQuery.isNotEmpty()) {
-                                IconButton(onClick = { searchQuery = "" }) {
-                                    Icon(
-                                        imageVector = Icons.Default.Clear,
-                                        contentDescription = "清除"
+                        )
+                        
+                        // 状态过滤器 - 水平滚动按钮样式
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 8.dp)
+                        ) {
+                            LazyRow(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                contentPadding = PaddingValues(horizontal = 4.dp),
+                                state = rememberLazyListState()
+                            ) {
+                                items(statusOptions) { (status, label) ->
+                                    FilterChip(
+                                        selected = statusFilter == status,
+                                        onClick = {
+                                            statusFilter = status
+                                            viewModel.filterOrdersByStatus(status.takeIf { it.isNotEmpty() })
+                                        },
+                                        label = { 
+                                            Text(
+                                                text = label,
+                                                style = MaterialTheme.typography.bodyMedium
+                                            ) 
+                                        },
+                                        leadingIcon = if (statusFilter == status) {
+                                            {
+                                                Icon(
+                                                    imageVector = Icons.Default.Check,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
+                                        } else null,
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                        )
                                     )
                                 }
                             }
-                        },
-                        singleLine = true,
-                        shape = RoundedCornerShape(8.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = MaterialTheme.colorScheme.primary,
-                            unfocusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
-                        )
-                    )
-                    
-                    // 状态过滤器 - 水平滚动按钮样式
-                    LazyRow(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        contentPadding = PaddingValues(horizontal = 8.dp),
-                        state = rememberLazyListState()
-                    ) {
-                        items(statusOptions) { (status, label) ->
-                            FilterChip(
-                                selected = statusFilter == status,
-                                onClick = {
-                                    statusFilter = status
-                                    viewModel.filterOrdersByStatus(status.takeIf { it.isNotEmpty() })
-                                },
-                                label = { 
-                                    Text(
-                                        text = label,
-                                        style = MaterialTheme.typography.bodyMedium
-                                    ) 
-                                },
-                                leadingIcon = if (statusFilter == status) {
-                                    {
-                                        Icon(
-                                            imageVector = Icons.Default.Check,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                    }
-                                } else null,
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                            )
                         }
                     }
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
                     
                     // 订单列表
                     if (orders.isEmpty()) {
@@ -335,8 +347,7 @@ fun OrdersScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                            contentPadding = PaddingValues(vertical = 8.dp)
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             val filteredOrders = orders.filter {
                                 val orderNumber = it.number.lowercase(Locale.getDefault())
@@ -405,55 +416,30 @@ fun OrderCard(
 ) {
     Card(
         modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 8.dp),
+            .fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
         onClick = onClick
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
+                .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .background(
-                        color = getStatusColor(order.status).copy(alpha = 0.1f),
-                        shape = CircleShape
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = order.number.takeLast(2),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = getStatusColor(order.status)
-                )
-            }
-            
-            Spacer(modifier = Modifier.width(12.dp))
-            
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "订单号: ${order.number}",
                     style = MaterialTheme.typography.titleMedium
                 )
                 
-                Spacer(modifier = Modifier.height(2.dp))
+                Spacer(modifier = Modifier.height(4.dp))
                 
                 Text(
                     text = "客户: ${order.customerName}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    style = MaterialTheme.typography.bodyMedium
                 )
                 
-                Spacer(modifier = Modifier.height(2.dp))
+                Spacer(modifier = Modifier.height(4.dp))
                 
                 val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
                 val formattedDate = dateFormat.format(order.dateCreated)
@@ -468,9 +454,7 @@ fun OrderCard(
             Column(horizontalAlignment = Alignment.End) {
                 Text(
                     text = order.total,
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
-                    ),
+                    style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.primary
                 )
                 
@@ -488,58 +472,51 @@ fun OrderCard(
                     else -> order.status
                 }
                 
-                val statusColor = getStatusColor(order.status)
+                val statusColor = when(order.status) {
+                    "completed" -> MaterialTheme.colorScheme.primary
+                    "processing" -> Color(0xFF2196F3) // 蓝色
+                    "pending" -> Color(0xFFFFA000) // 橙色
+                    "cancelled", "failed" -> MaterialTheme.colorScheme.error
+                    else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                }
                 
-                Box(
-                    modifier = Modifier
-                        .background(
-                            color = statusColor.copy(alpha = 0.1f),
-                            shape = RoundedCornerShape(4.dp)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .background(
+                                color = statusColor.copy(alpha = 0.1f),
+                                shape = RoundedCornerShape(4.dp)
+                            )
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = statusText,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = statusColor
                         )
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                ) {
-                    Text(
-                        text = statusText,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = statusColor
-                    )
+                    }
+                    
+                    if (order.status == "completed") {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Icon(
+                            imageVector = Icons.Default.CheckCircle,
+                            contentDescription = "已完成",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
                 }
                 
                 if (order.isPrinted) {
                     Spacer(modifier = Modifier.height(4.dp))
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.End
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.CheckCircle,
-                            contentDescription = "已打印",
-                            modifier = Modifier.size(12.dp),
-                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
-                        )
-                        Spacer(modifier = Modifier.width(2.dp))
-                        Text(
-                            text = "已打印",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
-                        )
-                    }
+                    Text(
+                        text = "已打印",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+                    )
                 }
             }
         }
-    }
-}
-
-@Composable
-fun getStatusColor(status: String): Color {
-    return when(status) {
-        "completed" -> MaterialTheme.colorScheme.primary
-        "processing" -> Color(0xFF2196F3) // 蓝色
-        "pending" -> Color(0xFFFFA000) // 橙色
-        "on-hold" -> Color(0xFF9C27B0) // 紫色
-        "cancelled", "failed" -> MaterialTheme.colorScheme.error
-        "refunded" -> Color(0xFF4CAF50) // 绿色
-        else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
     }
 }
 
@@ -551,10 +528,6 @@ fun OrderDetailDialog(
     onMarkAsPrinted: (Long) -> Unit
 ) {
     var showStatusOptions by remember { mutableStateOf(false) }
-    
-    // 获取WooFood配置状态
-    val settingsViewModel = hiltViewModel<SettingsViewModel>()
-    val useWooFood by settingsViewModel.useWooCommerceFood.collectAsState(initial = false)
     
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -594,39 +567,6 @@ fun OrderDetailDialog(
                 
                 OrderDetailRow("支付方式", order.paymentMethod)
                 OrderDetailRow("总金额", order.total)
-                
-                // WooFood信息显示，只有当开启WooFood选项且订单有WooFood信息时才显示
-                if (useWooFood && order.woofoodInfo != null) {
-                    val woofoodInfo = order.woofoodInfo
-                    
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "外卖信息",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                        modifier = Modifier.padding(vertical = 8.dp)
-                    )
-                    
-                    woofoodInfo.orderMethod?.let {
-                        OrderDetailRow("订单方式", it)
-                    }
-                    
-                    woofoodInfo.deliveryTime?.let {
-                        OrderDetailRow("配送时间", it)
-                    }
-                    
-                    woofoodInfo.deliveryAddress?.let {
-                        OrderDetailRow("配送地址", it)
-                    }
-                    
-                    woofoodInfo.deliveryFee?.let {
-                        OrderDetailRow("配送费用", it)
-                    }
-                    
-                    woofoodInfo.tip?.let {
-                        OrderDetailRow("小费", it)
-                    }
-                }
                 
                 // 显示订单项目
                 Spacer(modifier = Modifier.height(16.dp))

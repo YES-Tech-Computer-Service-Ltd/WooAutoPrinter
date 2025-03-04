@@ -127,8 +127,7 @@ class BackgroundPollingService : Service() {
     private suspend fun pollNewOrders() {
         Log.d(TAG, "开始轮询新订单...")
         try {
-            val isConfigValid = wooCommerceConfig.isConfigured.first()
-            if (!isConfigValid) {
+            if (!wooCommerceConfig.isValid()) {
                 Log.e(TAG, "WooCommerce配置无效，无法轮询订单")
                 return
             }

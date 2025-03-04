@@ -75,33 +75,14 @@ class WooCommerceApiImpl(
         return withContext(Dispatchers.IO) {
             try {
                 val baseUrl = buildBaseUrl()
-                // 确保不存在双斜杠
-                val cleanEndpoint = if (endpoint.startsWith("/")) endpoint.substring(1) else endpoint
-                val fullApiUrl = "$baseUrl$cleanEndpoint"
-                Log.d("WooCommerceApiImpl", "【URL构建】基本URL: $baseUrl, 终端点: $cleanEndpoint")
-                Log.d("WooCommerceApiImpl", "【URL构建】合并URL: $fullApiUrl")
-                
-                val urlBuilder = fullApiUrl.toHttpUrl().newBuilder()
+                val urlBuilder = ("$baseUrl$endpoint").toHttpUrl().newBuilder()
                 
                 // 添加认证参数
                 addAuthParams(urlBuilder)
                 
                 // 添加其他查询参数
                 queryParams.forEach { (key, value) ->
-                    Log.d("WooCommerceApiImpl", "【URL构建】添加参数: $key=$value")
                     urlBuilder.addQueryParameter(key, value)
-                }
-                
-                val fullUrl = urlBuilder.build().toString()
-                Log.d("WooCommerceApiImpl", "【URL构建】最终URL: $fullUrl")
-                
-                // 特别监控状态参数
-                if (endpoint.contains("orders") && queryParams.containsKey("status")) {
-                    Log.d("WooCommerceApiImpl", "【状态请求】监控 - 状态参数值: '${queryParams["status"]}', URL中的状态参数: ${fullUrl.contains("status=")}") 
-                    
-                    // 检查URL中的状态参数
-                    val urlStatus = fullUrl.substringAfter("status=", "未找到").substringBefore("&", "未找到后缀")
-                    Log.d("WooCommerceApiImpl", "【状态请求】监控 - URL中的status参数值: '$urlStatus'")
                 }
                 
                 val request = Request.Builder()
@@ -109,56 +90,66 @@ class WooCommerceApiImpl(
                     .get()
                     .build()
                 
-                val startTime = System.currentTimeMillis()
-                val response = client.newCall(request).execute()
-                val duration = System.currentTimeMillis() - startTime
-                
-                val responseBody = response.body?.string() ?: throw Exception("响应体为空")
-                
+                val fullUrl = urlBuilder.build().toString()
                 if (endpoint.contains("orders")) {
-                    Log.d("WooCommerceApiImpl", "【状态请求】响应状态码: ${response.code}, 耗时: ${duration}ms, 大小: ${responseBody.length}字节")
-                }
-                
-                if (!response.isSuccessful) {
-                    Log.e("WooCommerceApiImpl", "请求失败 - 状态码: ${response.code}, 响应: $responseBody")
-                    throw ApiError.fromHttpCode(response.code, responseBody)
+                    Log.d("WooCommerceApiImpl", "【状态请求】发送请求: $fullUrl")
                 }
                 
                 try {
-                    // 确定要使用的类型和解析策略
-                    val isOrdersList = T::class.java == List::class.java && endpoint.contains("orders")
+                    val startTime = System.currentTimeMillis()
+                    val response = client.newCall(request).execute()
+                    val duration = System.currentTimeMillis() - startTime
                     
-                    // 使用注册了自定义适配器的gson直接解析
-                    val result = when {
-                        isOrdersList -> {
-                            // 订单列表使用我们注册的专用适配器
-                            gson.fromJson<T>(responseBody, orderDtoListType)
-                        }
-                        else -> {
-                            // 其他类型使用标准解析
-                            gson.fromJson<T>(responseBody, object : TypeToken<T>() {}.type)
-                        }
+                    val responseBody = response.body?.string() ?: throw Exception("响应体为空")
+                    
+                    if (endpoint.contains("orders")) {
+                        Log.d("WooCommerceApiImpl", "【状态请求】响应状态码: ${response.code}, 耗时: ${duration}ms, 大小: ${responseBody.length}字节")
                     }
                     
-                    // 只为订单列表记录简要信息
-                    if (isOrdersList && result is List<*>) {
-                        val orderList = result as List<*>
-                        if (endpoint.contains("orders")) {
-                            Log.d("WooCommerceApiImpl", "【状态请求】成功解析订单数据，数量: ${orderList.size}")
-                            
-                            // 记录订单状态分布
-                            if (orderList.isNotEmpty() && orderList[0] is OrderDto) {
-                                val statusCounts = (orderList as List<OrderDto>).groupBy { it.status }
-                                    .mapValues { it.value.size }
-                                Log.d("WooCommerceApiImpl", "【状态请求】订单状态分布: $statusCounts")
+                    if (!response.isSuccessful) {
+                        Log.e("WooCommerceApiImpl", "请求失败 - 状态码: ${response.code}")
+                        throw ApiError.fromHttpCode(response.code, responseBody)
+                    }
+                    
+                    try {
+                        // 确定要使用的类型和解析策略
+                        val isOrdersList = T::class.java == List::class.java && endpoint.contains("orders")
+                        
+                        // 使用注册了自定义适配器的gson直接解析
+                        val result = when {
+                            isOrdersList -> {
+                                // 订单列表使用我们注册的专用适配器
+                                gson.fromJson<T>(responseBody, orderDtoListType)
+                            }
+                            else -> {
+                                // 其他类型使用标准解析
+                                gson.fromJson<T>(responseBody, object : TypeToken<T>() {}.type)
                             }
                         }
+                        
+                        // 只为订单列表记录简要信息
+                        if (isOrdersList && result is List<*>) {
+                            val orderList = result as List<*>
+                            if (endpoint.contains("orders")) {
+                                Log.d("WooCommerceApiImpl", "【状态请求】成功解析订单数据，数量: ${orderList.size}")
+                                
+                                // 记录订单状态分布
+                                if (orderList.isNotEmpty() && orderList[0] is OrderDto) {
+                                    val statusCounts = (orderList as List<OrderDto>).groupBy { it.status }
+                                        .mapValues { it.value.size }
+                                    Log.d("WooCommerceApiImpl", "【状态请求】订单状态分布: $statusCounts")
+                                }
+                            }
+                        }
+                        
+                        return@withContext result
+                    } catch (e: Exception) {
+                        Log.e("WooCommerceApiImpl", "解析响应失败: ${e.message}")
+                        throw Exception("解析响应失败: ${e.message}")
                     }
-                    
-                    return@withContext result
                 } catch (e: Exception) {
-                    Log.e("WooCommerceApiImpl", "解析响应失败: ${e.message}")
-                    throw Exception("解析响应失败: ${e.message}")
+                    Log.e("WooCommerceApiImpl", "执行请求时发生错误: ${e.message}")
+                    throw e
                 }
             } catch (e: Exception) {
                 Log.e("WooCommerceApiImpl", "请求失败: ${e.message}")
@@ -252,72 +243,29 @@ class WooCommerceApiImpl(
             "per_page" to perPage.toString()
         )
         
-        // 记录请求的状态，并进行处理
-        val requestedStatus = status?.trim()?.lowercase()
-        Log.d("WooCommerceApiImpl", "【API请求】请求订单，原始状态: $status, 处理后: $requestedStatus")
-        
-        // 添加状态参数到请求 - 确保格式正确（WooCommerce API期望单个字符串，不是数组）
-        if (!requestedStatus.isNullOrBlank()) {
-            // 检查状态是否是有效的WooCommerce状态
-            val validStatuses = listOf("pending", "processing", "on-hold", "completed", "cancelled", "refunded", "failed", "trash", "any")
-            
-            if (validStatuses.contains(requestedStatus)) {
-                Log.d("WooCommerceApiImpl", "【API请求】添加有效状态过滤: '$requestedStatus'")
-                queryParams["status"] = requestedStatus  // 直接使用单个字符串状态值
-            } else {
-                // 检查是否是中文状态，尝试映射为英文
-                val statusMap = mapOf(
-                    "处理中" to "processing",
-                    "待付款" to "pending",
-                    "已完成" to "completed",
-                    "已取消" to "cancelled",
-                    "已退款" to "refunded",
-                    "失败" to "failed",
-                    "暂挂" to "on-hold"
-                )
-                
-                val mappedStatus = statusMap[requestedStatus]
-                if (mappedStatus != null && validStatuses.contains(mappedStatus)) {
-                    Log.d("WooCommerceApiImpl", "【API请求】将中文状态 '$requestedStatus' 映射为英文 '$mappedStatus'")
-                    queryParams["status"] = mappedStatus
-                } else {
-                    // 如果是无效状态，记录警告并使用"any"状态
-                    Log.w("WooCommerceApiImpl", "【API请求】警告: '$requestedStatus' 不是有效的WooCommerce状态，改用'any'")
-                    queryParams["status"] = "any"  // 使用"any"作为备选
-                }
-            }
+        // 重要：确保状态参数正确添加到查询中
+        if (!status.isNullOrBlank()) {
+            // WooCommerce REST API 期望 status 参数是一个单值，不带数组符号
+            queryParams["status"] = status
+            Log.d("WooCommerceApiImpl", "【状态请求】获取订单 - 状态过滤: '$status'")
+        } else {
+            Log.d("WooCommerceApiImpl", "【状态请求】获取所有状态的订单")
         }
         
+        // 直接使用executeGetRequest方法
         try {
-            // 发送请求获取订单
             val result = executeGetRequest<List<OrderDto>>("orders", queryParams)
-            Log.d("WooCommerceApiImpl", "【API响应】获取到 ${result.size} 个订单")
-            
-            // 记录返回的订单状态分布
-            val statusDistribution = result.groupBy { it.status }.mapValues { it.value.size }
-            Log.d("WooCommerceApiImpl", "【API响应】状态分布: $statusDistribution")
-            
-            // 如果指定了状态但API没有正确过滤，在客户端进行过滤
-            if (!requestedStatus.isNullOrBlank() && result.isNotEmpty()) {
-                // 只在请求状态是有效状态时进行本地过滤
-                if (requestedStatus != "any") {
-                    val matchingOrders = result.filter { it.status == requestedStatus }
-                
-                    // 如果过滤后没有订单，记录并返回原始结果
-                    if (matchingOrders.isEmpty()) {
-                        Log.w("WooCommerceApiImpl", "【API警告】未找到状态为 '$requestedStatus' 的订单，服务器可能不支持此状态过滤")
-                        return result
-                    }
-                
-                    // 否则，返回过滤后的结果
-                    Log.d("WooCommerceApiImpl", "【API过滤】客户端过滤后，状态为 '$requestedStatus' 的订单数量: ${matchingOrders.size}")
-                    return matchingOrders
-                }
-            }
-            
+            Log.d("WooCommerceApiImpl", "【状态请求】成功获取 ${result.size} 个订单")
             return result
         } catch (e: Exception) {
-            Log.e("WooCommerceApiImpl", "【API错误】获取订单失败: ${e.message}")
+            Log.e("WooCommerceApiImpl", "获取订单失败: ${e.message}")
+            // 打印原始请求URL，帮助诊断问题
+            val baseUrl = buildBaseUrl()
+            val urlBuilder = ("$baseUrl/orders").toHttpUrl().newBuilder()
+            queryParams.forEach { (key, value) ->
+                urlBuilder.addQueryParameter(key, value)
+            }
+            Log.e("WooCommerceApiImpl", "失败的请求URL: ${urlBuilder.build().toString()}")
             throw e
         }
     }

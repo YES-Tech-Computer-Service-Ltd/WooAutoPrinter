@@ -31,9 +31,7 @@ data class OrderDto(
     @SerializedName("payment_method_title")
     val paymentMethodTitle: String?,
     @SerializedName("customer_note")
-    val customerNote: String?,
-    @SerializedName("meta_data")
-    val metaData: List<MetaDataDto>? = null
+    val customerNote: String?
 )
 
 data class CustomerDto(
@@ -124,20 +122,24 @@ fun OrderDto.toOrder(): Order {
 
 // 处理WooFood相关信息
 private fun OrderDto.processWooFoodInfo(): WooFoodInfo? {
-    // 如果没有元数据，直接返回null
+    // 这里需要从元数据中提取WooFood信息
+    // 如果没有元数据或不是WooFood订单，返回null
+    
+    // TODO: 实现从元数据提取WooFood信息的逻辑
+    // 这通常需要通过API响应中的meta_data字段
+    
+    // 示例实现（伪代码）
+    /*
     val metaData = this.metaData ?: return null
     
-    // 从元数据中提取WooFood信息
     val orderMethod = metaData.find { it.key == "exwfood_order_method" }?.value?.toString()
     val deliveryTime = metaData.find { it.key == "exwfood_delivery_time" }?.value?.toString()
     val deliveryAddress = metaData.find { it.key == "exwfood_delivery_address" }?.value?.toString()
     val deliveryFee = metaData.find { it.key == "exwfood_delivery_fee" }?.value?.toString()
     val tip = metaData.find { it.key == "exwfood_tip" }?.value?.toString()
     
-    // 判断是否是外卖订单
     val isDelivery = orderMethod?.lowercase() == "delivery"
     
-    // 如果有订单方式，则认为是WooFood订单
     return if (orderMethod != null) {
         WooFoodInfo(
             orderMethod = orderMethod,
@@ -150,4 +152,8 @@ private fun OrderDto.processWooFoodInfo(): WooFoodInfo? {
     } else {
         null
     }
+    */
+    
+    // 临时返回null，后续需要实现实际逻辑
+    return null
 } 

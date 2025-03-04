@@ -31,7 +31,6 @@ class BackgroundPollingService : Service() {
     companion object {
         private const val NOTIFICATION_ID = 1001
         private const val CHANNEL_ID = "woo_auto_polling_channel"
-        private const val TAG = "BackgroundPollingService"
     }
 
     @Inject
@@ -125,38 +124,25 @@ class BackgroundPollingService : Service() {
     }
 
     private suspend fun pollNewOrders() {
-        Log.d(TAG, "开始轮询新订单...")
         try {
-            val isConfigValid = wooCommerceConfig.isConfigured.first()
-            if (!isConfigValid) {
-                Log.e(TAG, "WooCommerce配置无效，无法轮询订单")
-                return
-            }
+            Log.d("BackgroundPollingService", "【轮询】开始轮询新订单...")
             
-            // 获取上次轮询的时间
-            val lastPolledDate = latestPolledDate
-            Log.d(TAG, "上次轮询时间: ${lastPolledDate ?: "从未轮询"}")
-            
-            // 使用专用的polling方法，避免影响UI显示的过滤状态
-            val result = orderRepository.refreshProcessingOrdersForPolling(lastPolledDate)
+            // 使用WooCommerce API支持的英文状态值 "processing"
+            val result = orderRepository.refreshOrders("processing", latestPolledDate)
             
             if (result.isSuccess) {
-                // 更新最后轮询时间
-                latestPolledDate = Date()
+                val orders = result.getOrNull() ?: emptyList()
+                Log.d("BackgroundPollingService", "【轮询】获取到 ${orders.size} 个处理中的订单")
                 
-                // 处理成功获取的订单
-                val orders = result.getOrDefault(emptyList())
-                Log.d(TAG, "轮询成功，获取了 ${orders.size} 个处理中订单")
-                
-                // 过滤并处理新订单
-                processNewOrders(orders)
-            } else {
-                // 处理错误
-                val error = result.exceptionOrNull()
-                Log.e(TAG, "轮询订单失败: ${error?.message}", error)
+                if (orders.isNotEmpty()) {
+                    processNewOrders(orders)
+                    
+                    // 更新最后轮询时间
+                    latestPolledDate = Date()
+                }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "轮询过程中发生异常: ${e.message}", e)
+            e.printStackTrace()
         }
     }
 

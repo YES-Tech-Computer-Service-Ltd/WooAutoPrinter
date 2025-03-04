@@ -95,15 +95,6 @@ class WooCommerceApiImpl(
                 val fullUrl = urlBuilder.build().toString()
                 Log.d("WooCommerceApiImpl", "【URL构建】最终URL: $fullUrl")
                 
-                // 特别监控状态参数
-                if (endpoint.contains("orders") && queryParams.containsKey("status")) {
-                    Log.d("WooCommerceApiImpl", "【状态请求】监控 - 状态参数值: '${queryParams["status"]}', URL中的状态参数: ${fullUrl.contains("status=")}") 
-                    
-                    // 检查URL中的状态参数
-                    val urlStatus = fullUrl.substringAfter("status=", "未找到").substringBefore("&", "未找到后缀")
-                    Log.d("WooCommerceApiImpl", "【状态请求】监控 - URL中的status参数值: '$urlStatus'")
-                }
-                
                 val request = Request.Builder()
                     .url(urlBuilder.build())
                     .get()
@@ -252,72 +243,104 @@ class WooCommerceApiImpl(
             "per_page" to perPage.toString()
         )
         
-        // 记录请求的状态，并进行处理
-        val requestedStatus = status?.trim()?.lowercase()
-        Log.d("WooCommerceApiImpl", "【API请求】请求订单，原始状态: $status, 处理后: $requestedStatus")
-        
-        // 添加状态参数到请求 - 确保格式正确（WooCommerce API期望单个字符串，不是数组）
-        if (!requestedStatus.isNullOrBlank()) {
-            // 检查状态是否是有效的WooCommerce状态
-            val validStatuses = listOf("pending", "processing", "on-hold", "completed", "cancelled", "refunded", "failed", "trash", "any")
+        // 重要：确保状态参数正确添加到查询中
+        if (!status.isNullOrBlank()) {
+            // WooCommerce REST API 要求状态参数格式特殊
+            // 错误信息表明参数被解释为数组形式 status[0]
+            // 使用status=failed格式而不是带方括号的形式
             
-            if (validStatuses.contains(requestedStatus)) {
-                Log.d("WooCommerceApiImpl", "【API请求】添加有效状态过滤: '$requestedStatus'")
-                queryParams["status"] = requestedStatus  // 直接使用单个字符串状态值
-            } else {
-                // 检查是否是中文状态，尝试映射为英文
-                val statusMap = mapOf(
-                    "处理中" to "processing",
-                    "待付款" to "pending",
-                    "已完成" to "completed",
-                    "已取消" to "cancelled",
-                    "已退款" to "refunded",
-                    "失败" to "failed",
-                    "暂挂" to "on-hold"
-                )
-                
-                val mappedStatus = statusMap[requestedStatus]
-                if (mappedStatus != null && validStatuses.contains(mappedStatus)) {
-                    Log.d("WooCommerceApiImpl", "【API请求】将中文状态 '$requestedStatus' 映射为英文 '$mappedStatus'")
-                    queryParams["status"] = mappedStatus
-                } else {
-                    // 如果是无效状态，记录警告并使用"any"状态
-                    Log.w("WooCommerceApiImpl", "【API请求】警告: '$requestedStatus' 不是有效的WooCommerce状态，改用'any'")
-                    queryParams["status"] = "any"  // 使用"any"作为备选
-                }
-            }
+            val cleanStatus = status.trim().toLowerCase()
+            Log.d("WooCommerceApiImpl", "【状态请求】原始状态值: '$status', 清理后: '$cleanStatus'")
+            
+            // 直接添加为查询参数，不使用数组表示法
+            queryParams["status"] = cleanStatus
+            
+            // 记录URL构建过程以便调试
+            Log.d("WooCommerceApiImpl", "【状态请求】最终查询参数: $queryParams")
+        } else {
+            Log.d("WooCommerceApiImpl", "【状态请求】获取所有状态的订单")
         }
         
         try {
-            // 发送请求获取订单
+            Log.d("WooCommerceApiImpl", "【状态请求】准备调用API，参数=$queryParams")
+            
+            // 构建完整URL以便日志记录
+            val baseUrl = buildBaseUrl()
+            val urlBuilder = ("${baseUrl}orders").toHttpUrl().newBuilder()
+            addAuthParams(urlBuilder)
+            queryParams.forEach { (key, value) ->
+                urlBuilder.addQueryParameter(key, value)
+            }
+            val fullUrl = urlBuilder.build().toString()
+            Log.d("WooCommerceApiImpl", "【状态请求】完整URL: $fullUrl")
+            
             val result = executeGetRequest<List<OrderDto>>("orders", queryParams)
-            Log.d("WooCommerceApiImpl", "【API响应】获取到 ${result.size} 个订单")
+            Log.d("WooCommerceApiImpl", "【状态请求】成功获取 ${result.size} 个订单")
+            return result
+        } catch (e: Exception) {
+            Log.e("WooCommerceApiImpl", "获取订单失败: ${e.message}")
             
-            // 记录返回的订单状态分布
-            val statusDistribution = result.groupBy { it.status }.mapValues { it.value.size }
-            Log.d("WooCommerceApiImpl", "【API响应】状态分布: $statusDistribution")
-            
-            // 如果指定了状态但API没有正确过滤，在客户端进行过滤
-            if (!requestedStatus.isNullOrBlank() && result.isNotEmpty()) {
-                // 只在请求状态是有效状态时进行本地过滤
-                if (requestedStatus != "any") {
-                    val matchingOrders = result.filter { it.status == requestedStatus }
-                
-                    // 如果过滤后没有订单，记录并返回原始结果
-                    if (matchingOrders.isEmpty()) {
-                        Log.w("WooCommerceApiImpl", "【API警告】未找到状态为 '$requestedStatus' 的订单，服务器可能不支持此状态过滤")
-                        return result
+            // 尝试进行备用请求方式
+            if (e.message?.contains("Invalid parameter") == true && !status.isNullOrBlank()) {
+                Log.w("WooCommerceApiImpl", "【状态请求】主要请求失败，尝试备用方式...")
+                try {
+                    // 在备用方法中尝试使用其他参数形式
+                    val baseUrl = buildBaseUrl()
+                    // 直接在URL路径中添加状态，而不是作为查询参数
+                    // WooCommerce支持 /wp-json/wc/v3/orders?status=failed 或 /wp-json/wc/v3/orders/status/failed 两种形式
+                    val endpoint = "orders"
+                    
+                    val alternateParams = mutableMapOf(
+                        "page" to page.toString(),
+                        "per_page" to perPage.toString()
+                    )
+                    
+                    // 尝试仅使用指定的有效状态值
+                    if (!status.isNullOrBlank()) {
+                        val validStatus = when (status.trim().toLowerCase()) {
+                            "failed" -> "failed"
+                            "失败" -> "failed"
+                            "processing" -> "processing"
+                            "处理中" -> "processing"
+                            "completed" -> "completed"
+                            "已完成" -> "completed"
+                            "pending" -> "pending"
+                            "待付款" -> "pending"
+                            "cancelled" -> "cancelled" 
+                            "已取消" -> "cancelled"
+                            "refunded" -> "refunded"
+                            "已退款" -> "refunded"
+                            "on-hold" -> "on-hold"
+                            "暂挂" -> "on-hold"
+                            else -> null
+                        }
+                        
+                        if (validStatus != null) {
+                            alternateParams["status"] = validStatus
+                            Log.d("WooCommerceApiImpl", "【状态请求】备用状态值: '$validStatus'")
+                        }
                     }
-                
-                    // 否则，返回过滤后的结果
-                    Log.d("WooCommerceApiImpl", "【API过滤】客户端过滤后，状态为 '$requestedStatus' 的订单数量: ${matchingOrders.size}")
-                    return matchingOrders
+                    
+                    Log.d("WooCommerceApiImpl", "【状态请求】备用参数: $alternateParams")
+                    
+                    // 构建备用URL供日志检查
+                    val altUrlBuilder = ("${baseUrl}${endpoint}").toHttpUrl().newBuilder()
+                    addAuthParams(altUrlBuilder)
+                    alternateParams.forEach { (key, value) ->
+                        altUrlBuilder.addQueryParameter(key, value)
+                    }
+                    val altFullUrl = altUrlBuilder.build().toString()
+                    Log.d("WooCommerceApiImpl", "【状态请求】备用完整URL: $altFullUrl")
+                    
+                    val backupResult = executeGetRequest<List<OrderDto>>(endpoint, alternateParams)
+                    Log.d("WooCommerceApiImpl", "【状态请求】备用请求成功，获取到 ${backupResult.size} 个订单")
+                    return backupResult
+                } catch (backupError: Exception) {
+                    Log.e("WooCommerceApiImpl", "备用请求也失败: ${backupError.message}")
+                    throw backupError
                 }
             }
             
-            return result
-        } catch (e: Exception) {
-            Log.e("WooCommerceApiImpl", "【API错误】获取订单失败: ${e.message}")
             throw e
         }
     }
