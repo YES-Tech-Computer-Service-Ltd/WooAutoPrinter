@@ -260,7 +260,7 @@ fun OrderDto.processWooFoodInfo(): WooFoodInfo? {
     Log.d("OrderDto", "订单#$number 小费: $tip")
     
     // 判断是否是外卖订单 - 更多可能的值
-    val isDelivery = orderMethod?.lowercase()?.contains("delivery") ?: false
+    val isDelivery = orderMethod?.toLowerCase()?.contains("delivery") ?: false
     Log.d("OrderDto", "订单#$number 是否为配送订单: $isDelivery")
     
     // 如果没有订单方式，仍然返回基本信息 - 保证所有订单都有WooFood信息

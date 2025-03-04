@@ -3,8 +3,6 @@ package com.example.wooauto.data.remote.dto
 import com.example.wooauto.domain.models.Order
 import com.example.wooauto.domain.models.OrderItem
 import com.example.wooauto.domain.models.WooFoodInfo
-import com.example.wooauto.domain.models.FeeLine
-import com.example.wooauto.domain.models.TaxLine
 import com.google.gson.annotations.SerializedName
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -117,80 +115,63 @@ fun OrderDto.toOrder(): Order {
     // 处理WooFood相关信息
     val woofoodInfo = processWooFoodInfo()
     
-    // 基于API返回的真实值或计算商品小计（如果API未提供）
-    val calculatedSubtotal = if (subtotal == "0.00" || subtotal.isEmpty()) {
-        lineItems.sumOf { 
-            it.subtotal?.toDoubleOrNull() ?: 0.0 
-        }.toString()
-    } else {
-        subtotal
-    }
+    // 计算商品小计（所有商品价格之和，不含税费和其他费用）
+    val subtotal = lineItems.sumOf { 
+        it.subtotal?.toDoubleOrNull() ?: 0.0 
+    }.toString()
     
-    // 使用API提供的真实税费总额，或者默认值
-    val realTotalTax = if (totalTax.isNotEmpty() && totalTax != "0" && totalTax != "0.0" && totalTax != "0.00") {
-        totalTax
-    } else {
-        // 如果没有API提供的税费总额，尝试从税费行计算
-        taxLines.sumOf { 
-            it.taxTotal.toDoubleOrNull() ?: 0.0 
-        }.toString()
-    }
+    // 计算税费总额（所有商品税费之和）
+    // 注意：实际税费可能存在于API的tax_lines字段中，这里仅做简单处理
+    val totalTax = "0.00" // 默认值，应从API的total_tax字段获取
+    val discountTotal = "0.00" // 默认值，应从API的discount_total字段获取
     
-    // 使用API提供的真实折扣总额
-    val realDiscountTotal = discountTotal
+    // 构建费用行列表（小费、配送费等）
+    // 注意：在实际项目中，应从API的fee_lines字段获取
+    val feeLines = mutableListOf<FeeLine>()
     
-    // 转换费用行和税费行到领域模型
-    val domainFeeLines = feeLines.map { it.toFeeLine() }.toMutableList()
-    val domainTaxLines = taxLines.map { it.toTaxLine() }
-    
-    // 如果没有费用行，但有WooFood信息中的小费和配送费，添加这些费用
-    if (domainFeeLines.isEmpty()) {
-        woofoodInfo?.let {
-            // 添加小费（如果有）
-            it.tip?.let { tipAmount ->
-                if (tipAmount.isNotEmpty() && tipAmount != "0" && tipAmount != "0.0" && tipAmount != "0.00") {
-                    domainFeeLines.add(
+    // 如果有WooFood信息，根据WooFood信息构建费用行
+    woofoodInfo?.let {
+        // 添加小费（如果有）
+        it.tip?.let { tipAmount ->
+            if (tipAmount.isNotEmpty() && tipAmount != "0" && tipAmount != "0.0" && tipAmount != "0.00") {
+                feeLines.add(
+                    FeeLine(
+                        id = -1L, // 使用虚拟ID
+                        name = "小费",
+                        total = tipAmount,
+                        totalTax = "0.00" // 默认不含税
+                    )
+                )
+            }
+        }
+        
+        // 添加配送费（如果是外卖订单且有配送费）
+        if (it.isDelivery) {
+            it.deliveryFee?.let { feeAmount ->
+                if (feeAmount.isNotEmpty() && feeAmount != "0" && feeAmount != "0.0" && feeAmount != "0.00") {
+                    feeLines.add(
                         FeeLine(
-                            id = -1L, // 使用虚拟ID
-                            name = "小费",
-                            total = tipAmount,
+                            id = -2L, // 使用虚拟ID
+                            name = "配送费",
+                            total = feeAmount,
                             totalTax = "0.00" // 默认不含税
                         )
                     )
                 }
             }
-            
-            // 添加配送费（如果是外卖订单且有配送费）
-            if (it.isDelivery) {
-                it.deliveryFee?.let { feeAmount ->
-                    if (feeAmount.isNotEmpty() && feeAmount != "0" && feeAmount != "0.0" && feeAmount != "0.00") {
-                        domainFeeLines.add(
-                            FeeLine(
-                                id = -2L, // 使用虚拟ID
-                                name = "配送费",
-                                total = feeAmount,
-                                totalTax = "0.00" // 默认不含税
-                            )
-                        )
-                    }
-                }
-            }
         }
     }
     
-    // 如果没有税费行，但有总税费，创建一个默认税费行
-    val finalTaxLines = if (domainTaxLines.isEmpty() && realTotalTax != "0.00") {
-        listOf(
-            TaxLine(
-                id = -1L, // 使用虚拟ID
-                label = "税费", // 默认税种
-                ratePercent = 5.0, // 默认税率
-                taxTotal = realTotalTax
-            )
+    // 构建税费行列表
+    // 注意：在实际项目中，应从API的tax_lines字段获取
+    val taxLines = listOf(
+        TaxLine(
+            id = -1L, // 使用虚拟ID
+            label = "GST/HST", // 默认税种
+            ratePercent = 5.0, // 默认税率
+            taxTotal = totalTax
         )
-    } else {
-        domainTaxLines
-    }
+    )
     
     return Order(
         id = id,
@@ -207,11 +188,11 @@ fun OrderDto.toOrder(): Order {
         notificationShown = false,  // 默认为未显示通知
         notes = customerNote.orEmpty(), // 使用客户备注作为订单备注
         woofoodInfo = woofoodInfo, // 添加WooFood信息
-        subtotal = calculatedSubtotal,
-        totalTax = realTotalTax,
-        discountTotal = realDiscountTotal,
-        feeLines = domainFeeLines,
-        taxLines = finalTaxLines
+        subtotal = subtotal,
+        totalTax = totalTax,
+        discountTotal = discountTotal,
+        feeLines = feeLines,
+        taxLines = taxLines
     )
 }
 
@@ -260,7 +241,7 @@ fun OrderDto.processWooFoodInfo(): WooFoodInfo? {
     Log.d("OrderDto", "订单#$number 小费: $tip")
     
     // 判断是否是外卖订单 - 更多可能的值
-    val isDelivery = orderMethod?.lowercase()?.contains("delivery") ?: false
+    val isDelivery = orderMethod?.toLowerCase()?.contains("delivery") ?: false
     Log.d("OrderDto", "订单#$number 是否为配送订单: $isDelivery")
     
     // 如果没有订单方式，仍然返回基本信息 - 保证所有订单都有WooFood信息

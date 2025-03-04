@@ -7,8 +7,6 @@ import com.example.wooauto.data.remote.dto.LineItemDto
 import com.example.wooauto.data.remote.dto.OrderDto
 import com.example.wooauto.data.remote.dto.MetaDataDto
 import com.example.wooauto.data.remote.dto.ImageDto
-import com.example.wooauto.data.remote.dto.FeeLineDto
-import com.example.wooauto.data.remote.dto.TaxLineDto
 import com.example.wooauto.data.remote.metadata.MetadataProcessorRegistry
 import com.google.gson.TypeAdapter
 import com.google.gson.stream.JsonReader
@@ -55,11 +53,6 @@ class OrderDtoTypeAdapter : TypeAdapter<OrderDto>() {
         var paymentMethodTitle: String? = null
         var customerNote: String? = null
         var metaData: List<MetaDataDto>? = null
-        var feeLines: List<FeeLineDto> = emptyList()
-        var taxLines: List<TaxLineDto> = emptyList()
-        var totalTax: String = "0.00"
-        var discountTotal: String = "0.00"
-        var subtotal: String = "0.00"
 
         try {
             reader.beginObject()
@@ -122,9 +115,6 @@ class OrderDtoTypeAdapter : TypeAdapter<OrderDto>() {
                     "date_created" -> dateCreated = if (reader.peek() == JsonToken.NULL) { reader.nextNull(); "" } else reader.nextString()
                     "date_modified" -> dateModified = if (reader.peek() == JsonToken.NULL) { reader.nextNull(); "" } else reader.nextString()
                     "total" -> total = if (reader.peek() == JsonToken.NULL) { reader.nextNull(); "0.00" } else reader.nextString()
-                    "total_tax" -> totalTax = if (reader.peek() == JsonToken.NULL) { reader.nextNull(); "0.00" } else reader.nextString()
-                    "discount_total" -> discountTotal = if (reader.peek() == JsonToken.NULL) { reader.nextNull(); "0.00" } else reader.nextString()
-                    "subtotal" -> subtotal = if (reader.peek() == JsonToken.NULL) { reader.nextNull(); "0.00" } else reader.nextString()
                     "customer" -> {
                         if (reader.peek() == JsonToken.NULL) {
                             reader.nextNull()
@@ -171,48 +161,32 @@ class OrderDtoTypeAdapter : TypeAdapter<OrderDto>() {
                             lineItems = emptyList()
                         }
                     }
-                    "fee_lines" -> {
-                        try {
-                            feeLines = readFeeLines(reader)
-                            Log.d("OrderDtoTypeAdapter", "订单#$number 的费用行解析完成，共有 ${feeLines.size} 条")
-                        } catch (e: Exception) {
-                            Log.e("OrderDtoTypeAdapter", "解析订单#$number 的费用行时出错: ${e.message}", e)
-                            reader.skipValue()
-                            feeLines = emptyList()
-                        }
-                    }
-                    "tax_lines" -> {
-                        try {
-                            taxLines = readTaxLines(reader)
-                            Log.d("OrderDtoTypeAdapter", "订单#$number 的税费行解析完成，共有 ${taxLines.size} 条")
-                        } catch (e: Exception) {
-                            Log.e("OrderDtoTypeAdapter", "解析订单#$number 的税费行时出错: ${e.message}", e)
-                            reader.skipValue()
-                            taxLines = emptyList()
-                        }
-                    }
                     "payment_method" -> paymentMethod = if (reader.peek() == JsonToken.NULL) { reader.nextNull(); null } else reader.nextString()
                     "payment_method_title" -> paymentMethodTitle = if (reader.peek() == JsonToken.NULL) { reader.nextNull(); null } else reader.nextString()
                     "customer_note" -> customerNote = if (reader.peek() == JsonToken.NULL) { reader.nextNull(); null } else reader.nextString()
                     "meta_data" -> {
-                        metaData = try {
-                            Log.d("OrderDtoTypeAdapter", "开始解析订单#$number 的元数据")
-                            if (reader.peek() == JsonToken.NULL) {
-                                reader.nextNull()
-                                Log.w("OrderDtoTypeAdapter", "订单#$number 的元数据字段为null")
-                                null
-                            } else {
-                                val metadata = metadataRegistry.readMetadata(reader)
-                                Log.d("OrderDtoTypeAdapter", "订单#$number 的元数据解析完成，共有 ${metadata.size} 条")
-                                // 记录元数据的键值对，帮助调试
-                                metadata.forEach { meta ->
-                                    Log.d("OrderDtoTypeAdapter", "元数据: 键=${meta.key}, 值=${meta.value}")
+                        if (reader.peek() != JsonToken.NULL) {
+                            try {
+                                // 记录解析前日志
+                                Log.d("OrderDtoTypeAdapter", "开始解析订单#$number 元数据 - peeking: ${reader.peek()}")
+                                
+                                // 使用元数据处理器注册表读取元数据
+                                metaData = metadataRegistry.readMetadata(reader)
+                                
+                                // 记录更详细的日志
+                                Log.d("OrderDtoTypeAdapter", "成功解析订单#$number 元数据，数量: ${metaData?.size ?: 0}")
+                                metaData?.forEach { meta ->
+                                    Log.d("OrderDtoTypeAdapter", "元数据: key=${meta.key}, value=${meta.value}")
                                 }
-                                metadata
+                            } catch (e: Exception) {
+                                Log.e("OrderDtoTypeAdapter", "解析订单#$number 元数据时出错: ${e.message}", e)
+                                reader.skipValue() // 跳过无法解析的元数据
+                                metaData = null
                             }
-                        } catch (e: Exception) {
-                            Log.e("OrderDtoTypeAdapter", "解析订单#$number 的元数据时出错: ${e.message}", e)
-                            null
+                        } else {
+                            reader.nextNull()
+                            Log.d("OrderDtoTypeAdapter", "订单#$number 元数据为空(NULL)")
+                            metaData = null
                         }
                     }
                     else -> reader.skipValue() // 跳过未知字段
@@ -223,7 +197,7 @@ class OrderDtoTypeAdapter : TypeAdapter<OrderDto>() {
             Log.e("OrderDtoTypeAdapter", "解析OrderDto时出错: ${e.message}", e)
         }
 
-        val orderDto = OrderDto(
+        return OrderDto(
             id = id,
             parentId = parentId,
             number = number,
@@ -238,16 +212,8 @@ class OrderDtoTypeAdapter : TypeAdapter<OrderDto>() {
             paymentMethod = paymentMethod,
             paymentMethodTitle = paymentMethodTitle,
             customerNote = customerNote,
-            metaData = metaData,
-            feeLines = feeLines,
-            taxLines = taxLines,
-            totalTax = totalTax,
-            discountTotal = discountTotal,
-            subtotal = subtotal
+            metaData = metaData
         )
-
-        Log.d("OrderDtoTypeAdapter", "订单#$number 解析完成，metaData=${metaData?.size ?: "null"}，创建了OrderDto对象")
-        return orderDto
     }
 
     private fun readCustomer(reader: JsonReader): CustomerDto {
@@ -563,139 +529,5 @@ class OrderDtoTypeAdapter : TypeAdapter<OrderDto>() {
         }
         
         return ImageDto(id, src)
-    }
-    
-    private fun readFeeLines(reader: JsonReader): List<FeeLineDto> {
-        val feeLines = mutableListOf<FeeLineDto>()
-        
-        try {
-            reader.beginArray()
-            while (reader.hasNext()) {
-                var id: Long = 0
-                var name: String = ""
-                var total: String = "0.00"
-                var totalTax: String = "0.00"
-                
-                reader.beginObject()
-                while (reader.hasNext()) {
-                    when (reader.nextName()) {
-                        "id" -> {
-                            id = when (reader.peek()) {
-                                JsonToken.NULL -> {
-                                    reader.nextNull()
-                                    0L
-                                }
-                                JsonToken.STRING -> {
-                                    val idStr = reader.nextString()
-                                    try {
-                                        if (idStr.isBlank()) 0L else idStr.toLong()
-                                    } catch (e: NumberFormatException) {
-                                        Log.e("OrderDtoTypeAdapter", "解析费用行ID失败: $idStr", e)
-                                        0L
-                                    }
-                                }
-                                else -> reader.nextLong()
-                            }
-                        }
-                        "name" -> name = if (reader.peek() == JsonToken.NULL) { reader.nextNull(); "" } else reader.nextString()
-                        "total" -> total = if (reader.peek() == JsonToken.NULL) { reader.nextNull(); "0.00" } else reader.nextString()
-                        "total_tax" -> totalTax = if (reader.peek() == JsonToken.NULL) { reader.nextNull(); "0.00" } else reader.nextString()
-                        else -> reader.skipValue()
-                    }
-                }
-                reader.endObject()
-                
-                feeLines.add(
-                    FeeLineDto(
-                        id = id,
-                        name = name,
-                        total = total,
-                        totalTax = totalTax
-                    )
-                )
-            }
-            reader.endArray()
-        } catch (e: Exception) {
-            Log.e("OrderDtoTypeAdapter", "解析费用行列表时出错: ${e.message}", e)
-        }
-        
-        return feeLines
-    }
-    
-    private fun readTaxLines(reader: JsonReader): List<TaxLineDto> {
-        val taxLines = mutableListOf<TaxLineDto>()
-        
-        try {
-            reader.beginArray()
-            while (reader.hasNext()) {
-                var id: Long = 0
-                var rateCode: String = ""
-                var label: String = ""
-                var ratePercent: Double = 0.0
-                var taxTotal: String = "0.00"
-                
-                reader.beginObject()
-                while (reader.hasNext()) {
-                    when (reader.nextName()) {
-                        "id" -> {
-                            id = when (reader.peek()) {
-                                JsonToken.NULL -> {
-                                    reader.nextNull()
-                                    0L
-                                }
-                                JsonToken.STRING -> {
-                                    val idStr = reader.nextString()
-                                    try {
-                                        if (idStr.isBlank()) 0L else idStr.toLong()
-                                    } catch (e: NumberFormatException) {
-                                        Log.e("OrderDtoTypeAdapter", "解析税费行ID失败: $idStr", e)
-                                        0L
-                                    }
-                                }
-                                else -> reader.nextLong()
-                            }
-                        }
-                        "rate_code" -> rateCode = if (reader.peek() == JsonToken.NULL) { reader.nextNull(); "" } else reader.nextString()
-                        "label" -> label = if (reader.peek() == JsonToken.NULL) { reader.nextNull(); "" } else reader.nextString()
-                        "rate_percent" -> {
-                            ratePercent = when (reader.peek()) {
-                                JsonToken.NULL -> {
-                                    reader.nextNull()
-                                    0.0
-                                }
-                                JsonToken.STRING -> {
-                                    val rateStr = reader.nextString()
-                                    try {
-                                        if (rateStr.isBlank()) 0.0 else rateStr.toDouble()
-                                    } catch (e: NumberFormatException) {
-                                        Log.e("OrderDtoTypeAdapter", "解析税率失败: $rateStr", e)
-                                        0.0
-                                    }
-                                }
-                                else -> reader.nextDouble()
-                            }
-                        }
-                        "tax_total" -> taxTotal = if (reader.peek() == JsonToken.NULL) { reader.nextNull(); "0.00" } else reader.nextString()
-                        else -> reader.skipValue()
-                    }
-                }
-                reader.endObject()
-                
-                taxLines.add(
-                    TaxLineDto(
-                        id = id,
-                        rateCode = rateCode,
-                        label = label,
-                        ratePercent = ratePercent,
-                        taxTotal = taxTotal
-                    )
-                )
-            }
-            reader.endArray()
-        } catch (e: Exception) {
-            Log.e("OrderDtoTypeAdapter", "解析税费行列表时出错: ${e.message}", e)
-        }
-        
-        return taxLines
     }
 } 

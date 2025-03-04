@@ -3,8 +3,6 @@ package com.example.wooauto.data.remote.dto
 import com.example.wooauto.domain.models.Order
 import com.example.wooauto.domain.models.OrderItem
 import com.example.wooauto.domain.models.WooFoodInfo
-import com.example.wooauto.domain.models.FeeLine
-import com.example.wooauto.domain.models.TaxLine
 import com.google.gson.annotations.SerializedName
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -260,7 +258,7 @@ fun OrderDto.processWooFoodInfo(): WooFoodInfo? {
     Log.d("OrderDto", "订单#$number 小费: $tip")
     
     // 判断是否是外卖订单 - 更多可能的值
-    val isDelivery = orderMethod?.lowercase()?.contains("delivery") ?: false
+    val isDelivery = orderMethod?.toLowerCase()?.contains("delivery") ?: false
     Log.d("OrderDto", "订单#$number 是否为配送订单: $isDelivery")
     
     // 如果没有订单方式，仍然返回基本信息 - 保证所有订单都有WooFood信息
