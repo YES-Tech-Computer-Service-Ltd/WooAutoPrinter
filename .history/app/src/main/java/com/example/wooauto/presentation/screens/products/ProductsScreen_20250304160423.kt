@@ -126,21 +126,20 @@ fun ProductsScreen(
         }
     }
     
-    // 优化防抖动延迟逻辑，提供更长的缓冲时间
+    // 添加防抖动延迟逻辑，避免短暂的错误状态显示
     var showErrorScreen by remember { mutableStateOf(false) }
     var errorMessageForDisplay by remember { mutableStateOf<String?>(null) }
     
-    // 使用更长的延迟时间，确保有足够的加载时间
+    // 使用LaunchedEffect检测errorMessage的变化，并添加延迟机制
     LaunchedEffect(errorMessage, isLoading) {
         if (errorMessage != null && !isLoading) {
             // 保存当前错误消息用于显示
             errorMessageForDisplay = errorMessage
-            // 设置较长的延迟，确保有足够的加载时间（3秒）
-            kotlinx.coroutines.delay(3000)
+            // 设置延迟，避免短暂的错误状态导致界面闪烁
+            kotlinx.coroutines.delay(300)
             // 如果延迟后错误消息仍然存在且不在加载中，才显示错误界面
             if (errorMessage != null && !isLoading) {
                 showErrorScreen = true
-                Log.d("ProductsScreen", "显示错误界面: $errorMessage")
             }
         } else {
             // 如果错误消息消失或开始加载，立即隐藏错误界面
@@ -243,9 +242,9 @@ fun ProductsScreen(
                     onSettingsClick = { navController.navigate(NavigationItem.Settings.route) }
                 )
             }
-            // 修改条件判断，始终显示加载状态而不是空状态
-            else if (products.isEmpty()) {
-                LoadingProductsView()
+            // 产品列表为空，并且不是正在加载
+            else if (products.isEmpty() && !isLoading && !isRefreshing) {
+                EmptyProductsView { viewModel.refreshData() }
             }
             // 显示产品列表（默认情况）
             else {
@@ -435,41 +434,7 @@ fun ErrorView(
 }
 
 @Composable
-fun LoadingProductsView() {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        CircularProgressIndicator(
-            modifier = Modifier.size(48.dp),
-            color = MaterialTheme.colorScheme.primary
-        )
-        
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        Text(
-            text = "正在加载产品...",
-            style = MaterialTheme.typography.headlineSmall,
-            textAlign = TextAlign.Center
-        )
-        
-        Spacer(modifier = Modifier.height(8.dp))
-        
-        Text(
-            text = "稍等片刻，正在从您的WooCommerce商店获取最新数据",
-            style = MaterialTheme.typography.bodyMedium,
-            textAlign = TextAlign.Center,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
-}
-
-// 保留原来的EmptyProductsView作为备用，但不再直接使用
-@Composable
-private fun EmptyProductsView(onRefreshClick: () -> Unit) {
+fun EmptyProductsView(onRefreshClick: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -682,35 +647,25 @@ fun ProductsContent(
                     }
                 }
                 
-                // 加载指示器更美观且不遮挡内容
+                // 半透明加载指示器
                 if (isLoading || isSwitchingCategory) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .alpha(0.5f), // 降低透明度，使背景内容更可见
+                            .alpha(0.6f),
                         contentAlignment = Alignment.Center
                     ) {
-                        Card(
-                            modifier = Modifier.padding(16.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)
-                            ),
-                            shape = RoundedCornerShape(8.dp),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                modifier = Modifier.padding(16.dp)
-                            ) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(36.dp)
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    text = if (isSwitchingCategory) "正在切换分类..." else "正在加载商品...",
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                            }
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(30.dp)
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = if (isSwitchingCategory) "正在切换分类..." else "正在加载...",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
                         }
                     }
                 }

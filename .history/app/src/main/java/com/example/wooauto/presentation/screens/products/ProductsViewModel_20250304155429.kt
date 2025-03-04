@@ -56,10 +56,7 @@ class ProductsViewModel @Inject constructor(
     private var productsCollectionJob: kotlinx.coroutines.Job? = null
     
     // 新增：缓存已加载的分类数据，避免重复网络请求
-    private val categoryProductsCache = ConcurrentHashMap<Long, Pair<List<Product>, Long>>()
-    
-    // 特殊值：代表"全部产品"的分类ID
-    private val ALL_PRODUCTS_KEY = -1L
+    private val categoryProductsCache = ConcurrentHashMap<Long?, Pair<List<Product>, Long>>()
     
     // 新增：记录最后一次分类数据刷新时间，用于智能刷新策略
     private val lastCategoryRefreshTime = mutableMapOf<Long?, Long>()
@@ -78,77 +75,43 @@ class ProductsViewModel @Inject constructor(
     
     init {
         Log.d("ProductsViewModel", "初始化ProductsViewModel")
-        viewModelScope.launch {
-            try {
-                // 在初始化时不显示加载状态，避免闪烁
-                checkConfiguration(showLoadingIndicator = false)
-            } catch (e: Exception) {
-                // 忽略初始化时的异常，会在后续交互中处理
-                Log.e("ProductsViewModel", "初始化时出错: ${e.message}")
-            }
-        }
+        checkConfiguration()
     }
     
-    // 检查配置状态，可选显示加载指示器
-    private suspend fun checkConfiguration(showLoadingIndicator: Boolean = true) {
-        try {
-            Log.d("ProductsViewModel", "正在检查API配置")
-            
-            // 只有在需要时显示加载指示器
-            if (showLoadingIndicator) {
-                _isLoading.value = true
-            }
-            
-            val config = settingsRepository.getWooCommerceConfig()
-            
-            // 检查配置有效性
-            if (!config.isValid()) {
-                Log.e("ProductsViewModel", "API配置无效: $config")
-                _isConfigured.value = false
-                _errorMessage.value = "WooCommerce API未正确配置，请在设置中检查"
-                _isLoading.value = false
-                return
-            }
-            
-            Log.d("ProductsViewModel", "API配置有效，尝试加载数据")
-            _isConfigured.value = true
-            
-            // 首先加载分类
-            loadCategories()
-            
-            // 只有在没有选择分类的情况下才加载所有产品
-            if (_currentSelectedCategoryId.value == null) {
-                loadAllProducts()
-            }
-            
-            // 刷新远程数据但不阻止界面显示
-            viewModelScope.launch {
-                try {
-                    refreshData(showFullscreenLoading = false)
-                } catch (e: Exception) {
-                    // 忽略刷新时的异常，因为我们已经有了本地数据
-                    Log.e("ProductsViewModel", "首次自动刷新时出错: ${e.message}")
+    private fun checkConfiguration() {
+        viewModelScope.launch {
+            try {
+                Log.d("ProductsViewModel", "正在检查API配置")
+                val config = settingsRepository.getWooCommerceConfig()
+                
+                // 检查配置有效性
+                if (!config.isValid()) {
+                    Log.e("ProductsViewModel", "API配置无效: $config")
+                    _isConfigured.value = false
+                    _errorMessage.value = "WooCommerce API未正确配置，请在设置中检查"
+                    _isLoading.value = false
+                    return@launch
                 }
-            }
-            
-        } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) {
-                // 忽略协程取消异常，这是正常的流程控制，不应显示为错误
-                Log.d("ProductsViewModel", "检查配置时协程被取消")
-                return
-            }
-            
-            Log.e("ProductsViewModel", "检查配置时出错: ${e.message}")
-            _isConfigured.value = false
-            _isLoading.value = false
-            
-            // 配置错误时才显示错误消息
-            if (_errorMessage.value == null) {
-                _errorMessage.value = "无法检查API配置: ${e.message}"
-            }
-        } finally {
-            if (showLoadingIndicator) {
+                
+                Log.d("ProductsViewModel", "API配置有效，尝试加载数据")
+                _isConfigured.value = true
+                
+                // 首先加载分类
+                loadCategories()
+                
+                // 只有在没有选择分类的情况下才加载所有产品
+                if (_currentSelectedCategoryId.value == null) {
+                    loadAllProducts()
+                }
+                
+                // 刷新远程数据
+                refreshData()
+                
+            } catch (e: Exception) {
+                Log.e("ProductsViewModel", "检查配置时出错: ${e.message}")
+                _isConfigured.value = false
                 _isLoading.value = false
+                _errorMessage.value = "无法检查API配置: ${e.message}"
             }
         }
     }
@@ -158,12 +121,12 @@ class ProductsViewModel @Inject constructor(
         productsCollectionJob?.cancel()
         
         // 从缓存加载全部产品 - 立即显示，无延迟
-        if (categoryProductsCache.containsKey(ALL_PRODUCTS_KEY)) {
+        if (categoryProductsCache.containsKey(null)) {
             Log.d("ProductsViewModel", "立即从缓存加载全部产品")
-            _products.value = categoryProductsCache[ALL_PRODUCTS_KEY]?.first ?: emptyList()
+            _products.value = categoryProductsCache[null]?.first ?: emptyList()
             // 如果缓存很新，就直接返回，不加载
             val currentTime = System.currentTimeMillis()
-            val lastRefresh = categoryProductsCache[ALL_PRODUCTS_KEY]?.second ?: 0L
+            val lastRefresh = categoryProductsCache[null]?.second ?: 0L
             if ((currentTime - lastRefresh) < refreshThreshold) {
                 _isLoading.value = false
                 return
@@ -217,9 +180,6 @@ class ProductsViewModel @Inject constructor(
                         _products.value = updatedProducts
                         lastAllProductsLoadTime = System.currentTimeMillis()
                         
-                        // 更新缓存
-                        categoryProductsCache[ALL_PRODUCTS_KEY] = Pair(updatedProducts, System.currentTimeMillis())
-                        
                         Log.d("ProductsViewModel", "成功更新所有产品: ${updatedProducts.size} 个")
                         
                         _isLoading.value = false
@@ -227,25 +187,8 @@ class ProductsViewModel @Inject constructor(
                     }
                 }
             } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) {
-                    // 忽略协程取消异常，这是正常的流程控制
-                    Log.d("ProductsViewModel", "加载产品协程被取消，这是正常的")
-                    _isLoading.value = false
-                    _refreshing.value = false
-                    return@launch
-                }
-                
                 Log.e("ProductsViewModel", "加载产品出错: ${e.message}")
-                
-                // 检查网络相关错误，给出更友好的提示
-                val errorMsg = when {
-                    e is UnknownHostException || e is IOException -> "网络连接问题，请检查您的网络设置"
-                    e is JsonParseException -> "数据解析错误，请稍后再试"
-                    e.message?.contains("timeout", ignoreCase = true) == true -> "连接超时，请稍后再试"
-                    else -> "无法加载产品: ${e.message}"
-                }
-                
-                _errorMessage.value = errorMsg
+                _errorMessage.value = "无法加载产品: ${e.message}"
                 _isLoading.value = false
                 _refreshing.value = false
             }
@@ -266,15 +209,11 @@ class ProductsViewModel @Inject constructor(
         }
     }
     
-    fun refreshData(showFullscreenLoading: Boolean = true) {
+    fun refreshData() {
         viewModelScope.launch {
             Log.d("ProductsViewModel", "刷新所有数据")
             try {
                 _refreshing.value = true
-                // 只有在需要时才显示全屏加载
-                if (showFullscreenLoading) {
-                    _isLoading.value = true
-                }
                 
                 // 清除缓存
                 categoryProductsCache.clear()
@@ -290,12 +229,6 @@ class ProductsViewModel @Inject constructor(
                     loadAllProducts()
                 }
             } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) {
-                    // 忽略取消异常，这是正常的流程控制
-                    Log.d("ProductsViewModel", "刷新数据协程已取消")
-                    return@launch
-                }
-                
                 Log.e("ProductsViewModel", "刷新数据出错: ${e.message}")
                 _errorMessage.value = "刷新数据时发生错误: ${e.message}"
                 
@@ -305,9 +238,7 @@ class ProductsViewModel @Inject constructor(
                     _errorMessage.value = "API认证失败。请检查您的Consumer Key和Consumer Secret。"
                 }
             } finally {
-                if (showFullscreenLoading) {
-                    _isLoading.value = false
-                }
+                _isLoading.value = false
                 _refreshing.value = false
             }
         }
@@ -321,11 +252,8 @@ class ProductsViewModel @Inject constructor(
             try {
                 Log.d("ProductsViewModel", "正在按分类过滤产品: 分类ID=${categoryId ?: "全部"}")
                 
-                // 使用适当的键（对于null使用ALL_PRODUCTS_KEY）
-                val cacheKey = categoryId ?: ALL_PRODUCTS_KEY
-                
                 // 标记为加载中，但只有在没有缓存时才设置完全加载状态
-                val hasCachedData = categoryProductsCache.containsKey(cacheKey)
+                val hasCachedData = categoryProductsCache.containsKey(categoryId)
                 
                 // 存储当前选择的分类ID
                 _currentSelectedCategoryId.value = categoryId
@@ -333,7 +261,7 @@ class ProductsViewModel @Inject constructor(
                 // 优先从缓存加载 - 立即显示，无延迟
                 if (hasCachedData) {
                     Log.d("ProductsViewModel", "立即从缓存加载分类 ${categoryId ?: "全部"} 的产品")
-                    _products.value = categoryProductsCache[cacheKey]?.first ?: emptyList()
+                    _products.value = categoryProductsCache[categoryId]?.first ?: emptyList()
                     // 如果有缓存数据，则不标记为加载中，避免UI闪烁
                 } else {
                     // 如果没有缓存，则设置加载状态
@@ -344,7 +272,7 @@ class ProductsViewModel @Inject constructor(
                     Log.d("ProductsViewModel", "加载所有产品")
                     // 如果没有缓存，或者缓存很旧，才加载所有产品
                     val shouldRefresh = !hasCachedData || 
-                            (System.currentTimeMillis() - (categoryProductsCache[cacheKey]?.second ?: 0L)) > refreshThreshold
+                            (System.currentTimeMillis() - (categoryProductsCache[categoryId]?.second ?: 0L)) > refreshThreshold
                     
                     if (shouldRefresh) {
                         loadAllProducts()
@@ -355,7 +283,7 @@ class ProductsViewModel @Inject constructor(
                 } else {
                     // 判断是否需要加载新数据
                     val currentTime = System.currentTimeMillis()
-                    val lastRefresh = categoryProductsCache[cacheKey]?.second ?: 0L
+                    val lastRefresh = categoryProductsCache[categoryId]?.second ?: 0L
                     val shouldRefresh = !hasCachedData || (currentTime - lastRefresh) > refreshThreshold
                     
                     if (shouldRefresh) {
@@ -373,7 +301,7 @@ class ProductsViewModel @Inject constructor(
                                     _products.value = productsForCategory
                                     
                                     // 更新缓存
-                                    categoryProductsCache[cacheKey] = Pair(productsForCategory, currentTime)
+                                    categoryProductsCache[categoryId] = Pair(productsForCategory, currentTime)
                                     
                                     _isLoading.value = false
                                     return@launch  // 已获取数据，不需要继续
@@ -388,14 +316,13 @@ class ProductsViewModel @Inject constructor(
                                 Log.d("ProductsViewModel", "从本地获取到分类 $categoryId 的产品: ${filteredProducts.size} 个")
                                 
                                 // 更新缓存
-                                categoryProductsCache[cacheKey] = Pair(filteredProducts, currentTime)
+                                categoryProductsCache[categoryId] = Pair(filteredProducts, currentTime)
                                 
                                 _products.value = filteredProducts
                             }
                             
                         } catch (e: Exception) {
                             if (e is kotlinx.coroutines.CancellationException) {
-                                Log.d("ProductsViewModel", "分类过滤协程被取消，这是正常的")
                                 throw e // 协程取消异常需要向上传播
                             } else {
                                 Log.e("ProductsViewModel", "获取分类产品时出错: ${e.message}", e)
@@ -403,16 +330,7 @@ class ProductsViewModel @Inject constructor(
                                 if (!hasCachedData) {
                                     handleInMemoryFiltering(categoryId)
                                 }
-                                
-                                // 检查网络相关错误，给出更友好的提示
-                                val errorMsg = when {
-                                    e is UnknownHostException || e is IOException -> "网络连接问题，请检查您的网络设置"
-                                    e is JsonParseException -> "数据解析错误，请稍后再试"
-                                    e.message?.contains("timeout", ignoreCase = true) == true -> "连接超时，请稍后再试"
-                                    else -> "无法获取分类产品: ${e.message}"
-                                }
-                                
-                                _errorMessage.value = errorMsg
+                                _errorMessage.value = "无法获取分类产品: ${e.message}"
                             }
                         }
                     } else {
@@ -422,19 +340,10 @@ class ProductsViewModel @Inject constructor(
             } catch (e: Exception) {
                 // 忽略协程取消异常
                 if (e is kotlinx.coroutines.CancellationException) {
-                    Log.d("ProductsViewModel", "过滤产品协程已取消，这是正常流程")
+                    Log.d("ProductsViewModel", "过滤产品协程已取消")
                 } else {
                     Log.e("ProductsViewModel", "过滤产品时出错: ${e.message}", e)
-                    
-                    // 检查网络相关错误，给出更友好的提示
-                    val errorMsg = when {
-                        e is UnknownHostException || e is IOException -> "网络连接问题，请检查您的网络设置"
-                        e is JsonParseException -> "数据解析错误，请稍后再试"
-                        e.message?.contains("timeout", ignoreCase = true) == true -> "连接超时，请稍后再试"
-                        else -> "无法过滤产品: ${e.message}"
-                    }
-                    
-                    _errorMessage.value = errorMsg
+                    _errorMessage.value = "无法过滤产品: ${e.message}"
                 }
             } finally {
                 // 确保加载状态最终会被重置
@@ -481,19 +390,10 @@ class ProductsViewModel @Inject constructor(
                             }
                         } catch (e: Exception) {
                             if (e is kotlinx.coroutines.CancellationException) {
-                                Log.d("ProductsViewModel", "搜索产品协程已取消，这是正常流程")
+                                Log.d("ProductsViewModel", "搜索产品协程已取消")
                             } else {
                                 Log.e("ProductsViewModel", "搜索产品时出错: ${e.message}", e)
-                                
-                                // 检查网络相关错误，给出更友好的提示
-                                val errorMsg = when {
-                                    e is UnknownHostException || e is IOException -> "网络连接问题，请检查您的网络设置"
-                                    e is JsonParseException -> "数据解析错误，请稍后再试"
-                                    e.message?.contains("timeout", ignoreCase = true) == true -> "连接超时，请稍后再试"
-                                    else -> "无法搜索产品: ${e.message}"
-                                }
-                                
-                                _errorMessage.value = errorMsg
+                                _errorMessage.value = "无法搜索产品: ${e.message}"
                             }
                             _isLoading.value = false
                         }
@@ -502,19 +402,10 @@ class ProductsViewModel @Inject constructor(
             } catch (e: Exception) {
                 // 忽略协程取消异常
                 if (e is kotlinx.coroutines.CancellationException) {
-                    Log.d("ProductsViewModel", "搜索产品协程已取消，这是正常流程")
+                    Log.d("ProductsViewModel", "搜索产品协程已取消")
                 } else {
-                    Log.e("ProductsViewModel", "搜索产品时出错: ${e.message}", e)
-                    
-                    // 检查网络相关错误，给出更友好的提示
-                    val errorMsg = when {
-                        e is UnknownHostException || e is IOException -> "网络连接问题，请检查您的网络设置"
-                        e is JsonParseException -> "数据解析错误，请稍后再试"
-                        e.message?.contains("timeout", ignoreCase = true) == true -> "连接超时，请稍后再试"
-                        else -> "无法搜索产品: ${e.message}"
-                    }
-                    
-                    _errorMessage.value = errorMsg
+                    Log.e("ProductsViewModel", "搜索产品时出错: ${e.message}")
+                    _errorMessage.value = "无法搜索产品: ${e.message}"
                 }
                 _isLoading.value = false
             }
@@ -568,37 +459,26 @@ class ProductsViewModel @Inject constructor(
     fun checkAndRefreshConfig() {
         // 用户从设置页面返回时调用此方法
         viewModelScope.launch {
-            try {
-                val config = settingsRepository.getWooCommerceConfig()
-                if (config.isValid() && !_isConfigured.value) {
-                    _isConfigured.value = true
-                    // 加载分类
-                    loadCategories()
-                    
-                    // 检查是否有选中的分类
-                    if (_currentSelectedCategoryId.value != null) {
-                        // 如果有选中的分类，则按分类过滤
-                        filterProductsByCategory(_currentSelectedCategoryId.value)
-                    } else {
-                        // 否则加载所有产品
-                        loadAllProducts()
-                    }
-                    
-                    // 刷新数据但保持过滤状态，且不显示全屏加载
-                    refreshData(showFullscreenLoading = false)
-                } else if (!config.isValid() && _isConfigured.value) {
-                    _isConfigured.value = false
-                    _errorMessage.value = "WooCommerce API配置已更改，但无效"
-                }
-            } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) {
-                    // 忽略取消异常
-                    Log.d("ProductsViewModel", "检查和刷新配置时协程已取消")
-                    return@launch
+            val config = settingsRepository.getWooCommerceConfig()
+            if (config.isValid() && !_isConfigured.value) {
+                _isConfigured.value = true
+                // 加载分类
+                loadCategories()
+                
+                // 检查是否有选中的分类
+                if (_currentSelectedCategoryId.value != null) {
+                    // 如果有选中的分类，则按分类过滤
+                    filterProductsByCategory(_currentSelectedCategoryId.value)
+                } else {
+                    // 否则加载所有产品
+                    loadAllProducts()
                 }
                 
-                Log.e("ProductsViewModel", "检查和刷新配置时出错: ${e.message}")
-                // 不设置错误消息，避免频繁错误提示干扰用户
+                // 刷新数据但保持过滤状态
+                refreshData()
+            } else if (!config.isValid() && _isConfigured.value) {
+                _isConfigured.value = false
+                _errorMessage.value = "WooCommerce API配置已更改，但无效"
             }
         }
     }
@@ -615,42 +495,10 @@ class ProductsViewModel @Inject constructor(
                 // 检查是否有产品数据
                 if (_products.value.isEmpty()) {
                     Log.d("ProductsViewModel", "产品列表为空，尝试从本地加载")
-                    
-                    // 尝试从当前分类加载
-                    if (_currentSelectedCategoryId.value != null) {
-                        // 检查缓存
-                        val cacheKey = _currentSelectedCategoryId.value ?: ALL_PRODUCTS_KEY
-                        val cachedData = categoryProductsCache[cacheKey]
-                        if (cachedData != null) {
-                            Log.d("ProductsViewModel", "使用缓存的分类产品")
-                            _products.value = cachedData.first
-                        } else {
-                            // 从数据库加载
-                            try {
-                                val localProducts = productRepository.getProductsByCategory(_currentSelectedCategoryId.value!!)
-                                if (localProducts.isNotEmpty()) {
-                                    Log.d("ProductsViewModel", "从数据库加载分类产品")
-                                    _products.value = localProducts
-                                    // 更新缓存
-                                    categoryProductsCache[cacheKey] = Pair(localProducts, System.currentTimeMillis())
-                                }
-                            } catch (e: Exception) {
-                                Log.e("ProductsViewModel", "重置状态时加载分类产品失败: ${e.message}")
-                            }
-                        }
-                    } else {
-                        // 加载所有产品
-                        try {
-                            val localProducts = productRepository.getProducts()
-                            if (localProducts.isNotEmpty()) {
-                                Log.d("ProductsViewModel", "从数据库加载所有产品")
-                                _products.value = localProducts
-                                // 更新缓存
-                                categoryProductsCache[ALL_PRODUCTS_KEY] = Pair(localProducts, System.currentTimeMillis())
-                            }
-                        } catch (e: Exception) {
-                            Log.e("ProductsViewModel", "重置状态时加载所有产品失败: ${e.message}")
-                        }
+                    val cachedProducts = productRepository.getProducts()
+                    if (cachedProducts.isNotEmpty()) {
+                        Log.d("ProductsViewModel", "从缓存加载了 ${cachedProducts.size} 个产品")
+                        _products.value = cachedProducts
                     }
                 }
             } catch (e: Exception) {

@@ -243,8 +243,8 @@ fun ProductsScreen(
                     onSettingsClick = { navController.navigate(NavigationItem.Settings.route) }
                 )
             }
-            // 修改条件判断，始终显示加载状态而不是空状态
-            else if (products.isEmpty()) {
+            // 修改条件判断，将空白状态也展示为加载状态
+            else if (products.isEmpty() && !isLoading && !isRefreshing) {
                 LoadingProductsView()
             }
             // 显示产品列表（默认情况）
@@ -464,57 +464,6 @@ fun LoadingProductsView() {
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-    }
-}
-
-// 保留原来的EmptyProductsView作为备用，但不再直接使用
-@Composable
-private fun EmptyProductsView(onRefreshClick: () -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Icon(
-            imageVector = Icons.AutoMirrored.Filled.List,
-            contentDescription = null,
-            modifier = Modifier.size(72.dp),
-            tint = MaterialTheme.colorScheme.secondary
-        )
-        
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        Text(
-            text = "没有产品数据",
-            style = MaterialTheme.typography.headlineSmall,
-            textAlign = TextAlign.Center
-        )
-        
-        Spacer(modifier = Modifier.height(8.dp))
-        
-        Text(
-            text = "您的WooCommerce商店中可能还没有产品，或API访问权限不足",
-            style = MaterialTheme.typography.bodyMedium,
-            textAlign = TextAlign.Center,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        
-        Spacer(modifier = Modifier.height(24.dp))
-        
-        Button(
-            onClick = onRefreshClick,
-            modifier = Modifier.padding(8.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Default.Refresh,
-                contentDescription = null,
-                modifier = Modifier.size(ButtonDefaults.IconSize)
-            )
-            Spacer(modifier = Modifier.width(ButtonDefaults.IconSpacing))
-            Text(text = "刷新数据")
-        }
     }
 }
 

@@ -78,77 +78,43 @@ class ProductsViewModel @Inject constructor(
     
     init {
         Log.d("ProductsViewModel", "初始化ProductsViewModel")
-        viewModelScope.launch {
-            try {
-                // 在初始化时不显示加载状态，避免闪烁
-                checkConfiguration(showLoadingIndicator = false)
-            } catch (e: Exception) {
-                // 忽略初始化时的异常，会在后续交互中处理
-                Log.e("ProductsViewModel", "初始化时出错: ${e.message}")
-            }
-        }
+        checkConfiguration()
     }
     
-    // 检查配置状态，可选显示加载指示器
-    private suspend fun checkConfiguration(showLoadingIndicator: Boolean = true) {
-        try {
-            Log.d("ProductsViewModel", "正在检查API配置")
-            
-            // 只有在需要时显示加载指示器
-            if (showLoadingIndicator) {
-                _isLoading.value = true
-            }
-            
-            val config = settingsRepository.getWooCommerceConfig()
-            
-            // 检查配置有效性
-            if (!config.isValid()) {
-                Log.e("ProductsViewModel", "API配置无效: $config")
-                _isConfigured.value = false
-                _errorMessage.value = "WooCommerce API未正确配置，请在设置中检查"
-                _isLoading.value = false
-                return
-            }
-            
-            Log.d("ProductsViewModel", "API配置有效，尝试加载数据")
-            _isConfigured.value = true
-            
-            // 首先加载分类
-            loadCategories()
-            
-            // 只有在没有选择分类的情况下才加载所有产品
-            if (_currentSelectedCategoryId.value == null) {
-                loadAllProducts()
-            }
-            
-            // 刷新远程数据但不阻止界面显示
-            viewModelScope.launch {
-                try {
-                    refreshData(showFullscreenLoading = false)
-                } catch (e: Exception) {
-                    // 忽略刷新时的异常，因为我们已经有了本地数据
-                    Log.e("ProductsViewModel", "首次自动刷新时出错: ${e.message}")
+    private fun checkConfiguration() {
+        viewModelScope.launch {
+            try {
+                Log.d("ProductsViewModel", "正在检查API配置")
+                val config = settingsRepository.getWooCommerceConfig()
+                
+                // 检查配置有效性
+                if (!config.isValid()) {
+                    Log.e("ProductsViewModel", "API配置无效: $config")
+                    _isConfigured.value = false
+                    _errorMessage.value = "WooCommerce API未正确配置，请在设置中检查"
+                    _isLoading.value = false
+                    return@launch
                 }
-            }
-            
-        } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) {
-                // 忽略协程取消异常，这是正常的流程控制，不应显示为错误
-                Log.d("ProductsViewModel", "检查配置时协程被取消")
-                return
-            }
-            
-            Log.e("ProductsViewModel", "检查配置时出错: ${e.message}")
-            _isConfigured.value = false
-            _isLoading.value = false
-            
-            // 配置错误时才显示错误消息
-            if (_errorMessage.value == null) {
-                _errorMessage.value = "无法检查API配置: ${e.message}"
-            }
-        } finally {
-            if (showLoadingIndicator) {
+                
+                Log.d("ProductsViewModel", "API配置有效，尝试加载数据")
+                _isConfigured.value = true
+                
+                // 首先加载分类
+                loadCategories()
+                
+                // 只有在没有选择分类的情况下才加载所有产品
+                if (_currentSelectedCategoryId.value == null) {
+                    loadAllProducts()
+                }
+                
+                // 刷新远程数据
+                refreshData()
+                
+            } catch (e: Exception) {
+                Log.e("ProductsViewModel", "检查配置时出错: ${e.message}")
+                _isConfigured.value = false
                 _isLoading.value = false
+                _errorMessage.value = "无法检查API配置: ${e.message}"
             }
         }
     }
@@ -227,25 +193,8 @@ class ProductsViewModel @Inject constructor(
                     }
                 }
             } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) {
-                    // 忽略协程取消异常，这是正常的流程控制
-                    Log.d("ProductsViewModel", "加载产品协程被取消，这是正常的")
-                    _isLoading.value = false
-                    _refreshing.value = false
-                    return@launch
-                }
-                
                 Log.e("ProductsViewModel", "加载产品出错: ${e.message}")
-                
-                // 检查网络相关错误，给出更友好的提示
-                val errorMsg = when {
-                    e is UnknownHostException || e is IOException -> "网络连接问题，请检查您的网络设置"
-                    e is JsonParseException -> "数据解析错误，请稍后再试"
-                    e.message?.contains("timeout", ignoreCase = true) == true -> "连接超时，请稍后再试"
-                    else -> "无法加载产品: ${e.message}"
-                }
-                
-                _errorMessage.value = errorMsg
+                _errorMessage.value = "无法加载产品: ${e.message}"
                 _isLoading.value = false
                 _refreshing.value = false
             }
@@ -266,15 +215,11 @@ class ProductsViewModel @Inject constructor(
         }
     }
     
-    fun refreshData(showFullscreenLoading: Boolean = true) {
+    fun refreshData() {
         viewModelScope.launch {
             Log.d("ProductsViewModel", "刷新所有数据")
             try {
                 _refreshing.value = true
-                // 只有在需要时才显示全屏加载
-                if (showFullscreenLoading) {
-                    _isLoading.value = true
-                }
                 
                 // 清除缓存
                 categoryProductsCache.clear()
@@ -290,12 +235,6 @@ class ProductsViewModel @Inject constructor(
                     loadAllProducts()
                 }
             } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) {
-                    // 忽略取消异常，这是正常的流程控制
-                    Log.d("ProductsViewModel", "刷新数据协程已取消")
-                    return@launch
-                }
-                
                 Log.e("ProductsViewModel", "刷新数据出错: ${e.message}")
                 _errorMessage.value = "刷新数据时发生错误: ${e.message}"
                 
@@ -305,9 +244,7 @@ class ProductsViewModel @Inject constructor(
                     _errorMessage.value = "API认证失败。请检查您的Consumer Key和Consumer Secret。"
                 }
             } finally {
-                if (showFullscreenLoading) {
-                    _isLoading.value = false
-                }
+                _isLoading.value = false
                 _refreshing.value = false
             }
         }
@@ -395,7 +332,6 @@ class ProductsViewModel @Inject constructor(
                             
                         } catch (e: Exception) {
                             if (e is kotlinx.coroutines.CancellationException) {
-                                Log.d("ProductsViewModel", "分类过滤协程被取消，这是正常的")
                                 throw e // 协程取消异常需要向上传播
                             } else {
                                 Log.e("ProductsViewModel", "获取分类产品时出错: ${e.message}", e)
@@ -403,16 +339,7 @@ class ProductsViewModel @Inject constructor(
                                 if (!hasCachedData) {
                                     handleInMemoryFiltering(categoryId)
                                 }
-                                
-                                // 检查网络相关错误，给出更友好的提示
-                                val errorMsg = when {
-                                    e is UnknownHostException || e is IOException -> "网络连接问题，请检查您的网络设置"
-                                    e is JsonParseException -> "数据解析错误，请稍后再试"
-                                    e.message?.contains("timeout", ignoreCase = true) == true -> "连接超时，请稍后再试"
-                                    else -> "无法获取分类产品: ${e.message}"
-                                }
-                                
-                                _errorMessage.value = errorMsg
+                                _errorMessage.value = "无法获取分类产品: ${e.message}"
                             }
                         }
                     } else {
@@ -422,19 +349,10 @@ class ProductsViewModel @Inject constructor(
             } catch (e: Exception) {
                 // 忽略协程取消异常
                 if (e is kotlinx.coroutines.CancellationException) {
-                    Log.d("ProductsViewModel", "过滤产品协程已取消，这是正常流程")
+                    Log.d("ProductsViewModel", "过滤产品协程已取消")
                 } else {
                     Log.e("ProductsViewModel", "过滤产品时出错: ${e.message}", e)
-                    
-                    // 检查网络相关错误，给出更友好的提示
-                    val errorMsg = when {
-                        e is UnknownHostException || e is IOException -> "网络连接问题，请检查您的网络设置"
-                        e is JsonParseException -> "数据解析错误，请稍后再试"
-                        e.message?.contains("timeout", ignoreCase = true) == true -> "连接超时，请稍后再试"
-                        else -> "无法过滤产品: ${e.message}"
-                    }
-                    
-                    _errorMessage.value = errorMsg
+                    _errorMessage.value = "无法过滤产品: ${e.message}"
                 }
             } finally {
                 // 确保加载状态最终会被重置
@@ -481,19 +399,10 @@ class ProductsViewModel @Inject constructor(
                             }
                         } catch (e: Exception) {
                             if (e is kotlinx.coroutines.CancellationException) {
-                                Log.d("ProductsViewModel", "搜索产品协程已取消，这是正常流程")
+                                Log.d("ProductsViewModel", "搜索产品协程已取消")
                             } else {
                                 Log.e("ProductsViewModel", "搜索产品时出错: ${e.message}", e)
-                                
-                                // 检查网络相关错误，给出更友好的提示
-                                val errorMsg = when {
-                                    e is UnknownHostException || e is IOException -> "网络连接问题，请检查您的网络设置"
-                                    e is JsonParseException -> "数据解析错误，请稍后再试"
-                                    e.message?.contains("timeout", ignoreCase = true) == true -> "连接超时，请稍后再试"
-                                    else -> "无法搜索产品: ${e.message}"
-                                }
-                                
-                                _errorMessage.value = errorMsg
+                                _errorMessage.value = "无法搜索产品: ${e.message}"
                             }
                             _isLoading.value = false
                         }
@@ -502,19 +411,10 @@ class ProductsViewModel @Inject constructor(
             } catch (e: Exception) {
                 // 忽略协程取消异常
                 if (e is kotlinx.coroutines.CancellationException) {
-                    Log.d("ProductsViewModel", "搜索产品协程已取消，这是正常流程")
+                    Log.d("ProductsViewModel", "搜索产品协程已取消")
                 } else {
-                    Log.e("ProductsViewModel", "搜索产品时出错: ${e.message}", e)
-                    
-                    // 检查网络相关错误，给出更友好的提示
-                    val errorMsg = when {
-                        e is UnknownHostException || e is IOException -> "网络连接问题，请检查您的网络设置"
-                        e is JsonParseException -> "数据解析错误，请稍后再试"
-                        e.message?.contains("timeout", ignoreCase = true) == true -> "连接超时，请稍后再试"
-                        else -> "无法搜索产品: ${e.message}"
-                    }
-                    
-                    _errorMessage.value = errorMsg
+                    Log.e("ProductsViewModel", "搜索产品时出错: ${e.message}")
+                    _errorMessage.value = "无法搜索产品: ${e.message}"
                 }
                 _isLoading.value = false
             }
@@ -568,37 +468,26 @@ class ProductsViewModel @Inject constructor(
     fun checkAndRefreshConfig() {
         // 用户从设置页面返回时调用此方法
         viewModelScope.launch {
-            try {
-                val config = settingsRepository.getWooCommerceConfig()
-                if (config.isValid() && !_isConfigured.value) {
-                    _isConfigured.value = true
-                    // 加载分类
-                    loadCategories()
-                    
-                    // 检查是否有选中的分类
-                    if (_currentSelectedCategoryId.value != null) {
-                        // 如果有选中的分类，则按分类过滤
-                        filterProductsByCategory(_currentSelectedCategoryId.value)
-                    } else {
-                        // 否则加载所有产品
-                        loadAllProducts()
-                    }
-                    
-                    // 刷新数据但保持过滤状态，且不显示全屏加载
-                    refreshData(showFullscreenLoading = false)
-                } else if (!config.isValid() && _isConfigured.value) {
-                    _isConfigured.value = false
-                    _errorMessage.value = "WooCommerce API配置已更改，但无效"
-                }
-            } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) {
-                    // 忽略取消异常
-                    Log.d("ProductsViewModel", "检查和刷新配置时协程已取消")
-                    return@launch
+            val config = settingsRepository.getWooCommerceConfig()
+            if (config.isValid() && !_isConfigured.value) {
+                _isConfigured.value = true
+                // 加载分类
+                loadCategories()
+                
+                // 检查是否有选中的分类
+                if (_currentSelectedCategoryId.value != null) {
+                    // 如果有选中的分类，则按分类过滤
+                    filterProductsByCategory(_currentSelectedCategoryId.value)
+                } else {
+                    // 否则加载所有产品
+                    loadAllProducts()
                 }
                 
-                Log.e("ProductsViewModel", "检查和刷新配置时出错: ${e.message}")
-                // 不设置错误消息，避免频繁错误提示干扰用户
+                // 刷新数据但保持过滤状态
+                refreshData()
+            } else if (!config.isValid() && _isConfigured.value) {
+                _isConfigured.value = false
+                _errorMessage.value = "WooCommerce API配置已更改，但无效"
             }
         }
     }

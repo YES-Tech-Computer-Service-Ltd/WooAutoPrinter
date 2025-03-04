@@ -227,25 +227,8 @@ class ProductsViewModel @Inject constructor(
                     }
                 }
             } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) {
-                    // 忽略协程取消异常，这是正常的流程控制
-                    Log.d("ProductsViewModel", "加载产品协程被取消，这是正常的")
-                    _isLoading.value = false
-                    _refreshing.value = false
-                    return@launch
-                }
-                
                 Log.e("ProductsViewModel", "加载产品出错: ${e.message}")
-                
-                // 检查网络相关错误，给出更友好的提示
-                val errorMsg = when {
-                    e is UnknownHostException || e is IOException -> "网络连接问题，请检查您的网络设置"
-                    e is JsonParseException -> "数据解析错误，请稍后再试"
-                    e.message?.contains("timeout", ignoreCase = true) == true -> "连接超时，请稍后再试"
-                    else -> "无法加载产品: ${e.message}"
-                }
-                
-                _errorMessage.value = errorMsg
+                _errorMessage.value = "无法加载产品: ${e.message}"
                 _isLoading.value = false
                 _refreshing.value = false
             }
@@ -395,7 +378,6 @@ class ProductsViewModel @Inject constructor(
                             
                         } catch (e: Exception) {
                             if (e is kotlinx.coroutines.CancellationException) {
-                                Log.d("ProductsViewModel", "分类过滤协程被取消，这是正常的")
                                 throw e // 协程取消异常需要向上传播
                             } else {
                                 Log.e("ProductsViewModel", "获取分类产品时出错: ${e.message}", e)
@@ -403,16 +385,7 @@ class ProductsViewModel @Inject constructor(
                                 if (!hasCachedData) {
                                     handleInMemoryFiltering(categoryId)
                                 }
-                                
-                                // 检查网络相关错误，给出更友好的提示
-                                val errorMsg = when {
-                                    e is UnknownHostException || e is IOException -> "网络连接问题，请检查您的网络设置"
-                                    e is JsonParseException -> "数据解析错误，请稍后再试"
-                                    e.message?.contains("timeout", ignoreCase = true) == true -> "连接超时，请稍后再试"
-                                    else -> "无法获取分类产品: ${e.message}"
-                                }
-                                
-                                _errorMessage.value = errorMsg
+                                _errorMessage.value = "无法获取分类产品: ${e.message}"
                             }
                         }
                     } else {
@@ -422,19 +395,10 @@ class ProductsViewModel @Inject constructor(
             } catch (e: Exception) {
                 // 忽略协程取消异常
                 if (e is kotlinx.coroutines.CancellationException) {
-                    Log.d("ProductsViewModel", "过滤产品协程已取消，这是正常流程")
+                    Log.d("ProductsViewModel", "过滤产品协程已取消")
                 } else {
                     Log.e("ProductsViewModel", "过滤产品时出错: ${e.message}", e)
-                    
-                    // 检查网络相关错误，给出更友好的提示
-                    val errorMsg = when {
-                        e is UnknownHostException || e is IOException -> "网络连接问题，请检查您的网络设置"
-                        e is JsonParseException -> "数据解析错误，请稍后再试"
-                        e.message?.contains("timeout", ignoreCase = true) == true -> "连接超时，请稍后再试"
-                        else -> "无法过滤产品: ${e.message}"
-                    }
-                    
-                    _errorMessage.value = errorMsg
+                    _errorMessage.value = "无法过滤产品: ${e.message}"
                 }
             } finally {
                 // 确保加载状态最终会被重置
@@ -481,19 +445,10 @@ class ProductsViewModel @Inject constructor(
                             }
                         } catch (e: Exception) {
                             if (e is kotlinx.coroutines.CancellationException) {
-                                Log.d("ProductsViewModel", "搜索产品协程已取消，这是正常流程")
+                                Log.d("ProductsViewModel", "搜索产品协程已取消")
                             } else {
                                 Log.e("ProductsViewModel", "搜索产品时出错: ${e.message}", e)
-                                
-                                // 检查网络相关错误，给出更友好的提示
-                                val errorMsg = when {
-                                    e is UnknownHostException || e is IOException -> "网络连接问题，请检查您的网络设置"
-                                    e is JsonParseException -> "数据解析错误，请稍后再试"
-                                    e.message?.contains("timeout", ignoreCase = true) == true -> "连接超时，请稍后再试"
-                                    else -> "无法搜索产品: ${e.message}"
-                                }
-                                
-                                _errorMessage.value = errorMsg
+                                _errorMessage.value = "无法搜索产品: ${e.message}"
                             }
                             _isLoading.value = false
                         }
@@ -502,19 +457,10 @@ class ProductsViewModel @Inject constructor(
             } catch (e: Exception) {
                 // 忽略协程取消异常
                 if (e is kotlinx.coroutines.CancellationException) {
-                    Log.d("ProductsViewModel", "搜索产品协程已取消，这是正常流程")
+                    Log.d("ProductsViewModel", "搜索产品协程已取消")
                 } else {
-                    Log.e("ProductsViewModel", "搜索产品时出错: ${e.message}", e)
-                    
-                    // 检查网络相关错误，给出更友好的提示
-                    val errorMsg = when {
-                        e is UnknownHostException || e is IOException -> "网络连接问题，请检查您的网络设置"
-                        e is JsonParseException -> "数据解析错误，请稍后再试"
-                        e.message?.contains("timeout", ignoreCase = true) == true -> "连接超时，请稍后再试"
-                        else -> "无法搜索产品: ${e.message}"
-                    }
-                    
-                    _errorMessage.value = errorMsg
+                    Log.e("ProductsViewModel", "搜索产品时出错: ${e.message}")
+                    _errorMessage.value = "无法搜索产品: ${e.message}"
                 }
                 _isLoading.value = false
             }

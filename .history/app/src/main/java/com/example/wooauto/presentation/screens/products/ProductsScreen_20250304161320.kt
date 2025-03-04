@@ -243,9 +243,9 @@ fun ProductsScreen(
                     onSettingsClick = { navController.navigate(NavigationItem.Settings.route) }
                 )
             }
-            // 修改条件判断，始终显示加载状态而不是空状态
-            else if (products.isEmpty()) {
-                LoadingProductsView()
+            // 产品列表为空，并且不是正在加载
+            else if (products.isEmpty() && !isLoading && !isRefreshing) {
+                EmptyProductsView { viewModel.refreshData() }
             }
             // 显示产品列表（默认情况）
             else {
@@ -435,41 +435,7 @@ fun ErrorView(
 }
 
 @Composable
-fun LoadingProductsView() {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        CircularProgressIndicator(
-            modifier = Modifier.size(48.dp),
-            color = MaterialTheme.colorScheme.primary
-        )
-        
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        Text(
-            text = "正在加载产品...",
-            style = MaterialTheme.typography.headlineSmall,
-            textAlign = TextAlign.Center
-        )
-        
-        Spacer(modifier = Modifier.height(8.dp))
-        
-        Text(
-            text = "稍等片刻，正在从您的WooCommerce商店获取最新数据",
-            style = MaterialTheme.typography.bodyMedium,
-            textAlign = TextAlign.Center,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
-}
-
-// 保留原来的EmptyProductsView作为备用，但不再直接使用
-@Composable
-private fun EmptyProductsView(onRefreshClick: () -> Unit) {
+fun EmptyProductsView(onRefreshClick: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()

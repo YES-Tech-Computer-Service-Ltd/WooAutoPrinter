@@ -243,8 +243,8 @@ fun ProductsScreen(
                     onSettingsClick = { navController.navigate(NavigationItem.Settings.route) }
                 )
             }
-            // 修改条件判断，始终显示加载状态而不是空状态
-            else if (products.isEmpty()) {
+            // 修改条件判断，将空白状态也展示为加载状态
+            else if (products.isEmpty() && !isLoading && !isRefreshing) {
                 LoadingProductsView()
             }
             // 显示产品列表（默认情况）
