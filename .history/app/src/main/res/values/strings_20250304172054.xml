@@ -129,7 +129,6 @@
     <string name="error">Error</string>
     <string name="success">Success</string>
     <string name="retry">Retry</string>
-    <string name="refresh">Refresh</string>
 
     <string name="delivery_method">Delivery Method</string>
     <string name="delivery_date">Delivery Date</string>

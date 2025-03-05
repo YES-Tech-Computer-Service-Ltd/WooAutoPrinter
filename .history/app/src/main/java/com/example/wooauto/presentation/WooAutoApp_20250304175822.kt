@@ -27,16 +27,10 @@ import android.util.Log
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.compose.currentBackStackEntryAsState
-
-private const val TAG = "WooAutoApp"
 
 class WooAutoApp {
     companion object {
@@ -51,19 +45,12 @@ class WooAutoApp {
         fun getContent() {
             // 获取当前语言状态并提供给整个应用
             val context = LocalContext.current
+            val currentLocale = LocaleManager.currentLocale
             
-            // 使用rememberUpdatedState确保每次重组时获取最新的语言状态
-            val currentLocale by rememberUpdatedState(LocaleManager.currentLocale)
-            
-            // 添加日志以追踪语言状态变化
-            LaunchedEffect(currentLocale) {
-                Log.d(TAG, "语言状态更新: ${currentLocale.language}, ${currentLocale.displayName}")
-            }
-            
-            // 使用key包装整个UI树，确保语言变化时整个UI树重新构建
-            key(currentLocale.language) {
-                // 使用CompositionLocalProvider提供语言状态给所有子组件
-                CompositionLocalProvider(LocalAppLocale provides currentLocale) {
+            // 使用 CompositionLocalProvider 提供语言状态
+            CompositionLocalProvider(LocalAppLocale provides currentLocale) {
+                // 使用 key 参数确保语言变化时重组整个 UI
+                key(currentLocale) {
                     AppContent()
                 }
             }
@@ -74,18 +61,14 @@ class WooAutoApp {
 @Composable
 fun AppContent() {
     val navController = rememberNavController()
-    val context = LocalContext.current
     
     // 使用currentBackStackEntryAsState获取当前路由
     val navBackStackEntry = navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry.value?.destination?.route ?: "未知路由"
     
-    // 获取当前语言状态
-    val locale = LocalAppLocale.current
-    
     // 添加日志跟踪导航变化
     LaunchedEffect(currentRoute) {
-        Log.d(TAG, "导航状态: 当前路由='$currentRoute', 当前语言=${locale.language}")
+        Log.d("导航状态", "当前路由: $currentRoute")
     }
     
     Scaffold(
@@ -101,29 +84,29 @@ fun AppContent() {
             modifier = Modifier.padding(paddingValues)
         ) {
             composable(NavigationItem.Orders.route) {
-                Log.d(TAG, "导航到订单页面")
+                Log.d("导航", "正在导航到订单页面")
                 OrdersScreen(navController = navController)
             }
             
             composable(NavigationItem.Products.route) {
-                Log.d(TAG, "导航到产品页面")
+                Log.d("导航", "正在导航到产品页面")
                 ProductsScreen(navController = navController)
             }
             
             composable(NavigationItem.Settings.route) {
-                Log.d(TAG, "导航到设置页面")
+                Log.d("导航", "正在导航到设置页面")
                 SettingsScreen(navController = navController)
             }
             
             // 网站设置页面
             composable(Screen.WebsiteSettings.route) {
-                Log.d(TAG, "导航到网站设置页面")
+                Log.d("导航", "正在导航到网站设置页面")
                 WebsiteSettingsScreen()
             }
             
             // 打印机设置页面
             composable(Screen.PrinterSettings.route) {
-                Log.d(TAG, "导航到打印机设置页面")
+                Log.d("导航", "正在导航到打印机设置页面")
                 PrinterSettingsScreen(navController = navController)
             }
             
@@ -139,7 +122,7 @@ fun AppContent() {
                 )
             ) { backStackEntry ->
                 val printerId = backStackEntry.arguments?.getString("printerId")
-                Log.d(TAG, "导航到打印机详情页面: printerId=$printerId")
+                Log.d("Navigation", "Navigating to PrinterDetails: $printerId")
                 PrinterDetailsScreen(
                     navController = navController,
                     printerId = printerId

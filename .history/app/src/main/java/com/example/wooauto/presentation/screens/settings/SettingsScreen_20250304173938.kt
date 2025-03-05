@@ -75,7 +75,6 @@ import com.example.wooauto.presentation.navigation.Screen
 import kotlinx.coroutines.launch
 import java.util.Locale
 import androidx.compose.material3.HorizontalDivider
-import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -291,7 +290,6 @@ fun SettingsScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
-                                    // 不再在这里使用LocalContext.current
                                     viewModel.setAppLanguage(Locale.ENGLISH)
                                     showLanguageDialog = false
                                 }
@@ -315,7 +313,6 @@ fun SettingsScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
-                                    // 不再在这里使用LocalContext.current
                                     viewModel.setAppLanguage(Locale.SIMPLIFIED_CHINESE)
                                     showLanguageDialog = false
                                 }
@@ -737,5 +734,21 @@ fun SettingItem(
             tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
             modifier = Modifier.size(16.dp)
         )
+    }
+}
+
+@Composable
+private fun RestartActivity() {
+    val context = LocalContext.current
+    LaunchedEffect(Unit) {
+        if (context is Activity) {
+            Log.d("SettingsScreen", "重启Activity以应用语言变更")
+            val intent = context.intent
+            context.finish()
+            context.startActivity(intent)
+            context.overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+        } else {
+            Log.e("SettingsScreen", "无法重启Activity，提供的context不是Activity")
+        }
     }
 } 

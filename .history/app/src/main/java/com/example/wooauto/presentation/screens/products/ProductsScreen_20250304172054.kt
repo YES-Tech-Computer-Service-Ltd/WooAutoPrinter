@@ -571,7 +571,7 @@ fun ProductsContent(
                     } else {
                         Icon(
                             imageVector = Icons.Default.Refresh,
-                            contentDescription = stringResource(id = R.string.refresh),
+                            contentDescription = "刷新",
                             tint = MaterialTheme.colorScheme.primary
                         )
                     }

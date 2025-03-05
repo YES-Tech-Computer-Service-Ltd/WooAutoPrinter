@@ -21,8 +21,6 @@ import androidx.core.content.ContextCompat
 import com.example.wooauto.presentation.WooAutoApp
 import com.example.wooauto.presentation.theme.WooAutoTheme
 import com.example.wooauto.utils.LocaleHelper
-import com.example.wooauto.utils.LocaleManager
-import java.util.Locale
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -121,17 +119,13 @@ class MainActivity : ComponentActivity() {
      */
     private fun initAppLanguage() {
         try {
-            // 初始化 LocaleManager
-            LocaleManager.initialize(this)
-            
-            // 从SharedPreferences加载保存的语言设置
+            // 从SharePreferences加载保存的语言设置
             val savedLocale = LocaleHelper.loadSavedLocale(this)
             
             if (savedLocale != null) {
                 // 找到保存的语言设置，应用它
                 Log.d(TAG, "从SharedPreferences加载语言设置: ${savedLocale.language}")
-                // 使用 LocaleManager 更新语言
-                LocaleManager.updateLocale(savedLocale)
+                LocaleHelper.setLocale(savedLocale)
             } else {
                 // 没有保存的语言设置，使用系统语言
                 val systemLocale = LocaleHelper.getSystemLocale(this)
@@ -141,15 +135,14 @@ class MainActivity : ComponentActivity() {
                 } ?: Locale.ENGLISH
                 
                 Log.d(TAG, "没有保存的语言设置，使用系统语言: ${supportedLocale.language}")
-                // 使用 LocaleManager 更新语言
-                LocaleManager.updateLocale(supportedLocale)
+                LocaleHelper.setLocale(supportedLocale)
                 // 保存语言设置
                 LocaleHelper.saveLocalePreference(this, supportedLocale)
             }
         } catch (e: Exception) {
             Log.e(TAG, "初始化应用语言失败", e)
             // 如果初始化失败，使用英语作为默认语言
-            LocaleManager.updateLocale(Locale.ENGLISH)
+            LocaleHelper.setLocale(Locale.ENGLISH)
         }
     }
     

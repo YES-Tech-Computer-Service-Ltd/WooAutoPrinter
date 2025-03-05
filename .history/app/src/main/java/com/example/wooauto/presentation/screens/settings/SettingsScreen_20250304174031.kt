@@ -87,6 +87,9 @@ fun SettingsScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
     
+    // 获取当前上下文
+    val context = LocalContext.current
+    
     // API配置相关状态
     val siteUrl by viewModel.siteUrl.collectAsState()
     val consumerKey by viewModel.consumerKey.collectAsState()
@@ -291,9 +294,24 @@ fun SettingsScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
-                                    // 不再在这里使用LocalContext.current
+                                    // 获取当前上下文
+                                    val activityContext = LocalContext.current
+                                    // 设置语言
                                     viewModel.setAppLanguage(Locale.ENGLISH)
+                                    // 关闭对话框
                                     showLanguageDialog = false
+                                    
+                                    // 在延迟后重启Activity以确保语言设置被保存
+                                    coroutineScope.launch {
+                                        delay(100) // 短暂延迟以确保设置被保存
+                                        if (activityContext is Activity) {
+                                            Log.d("SettingsScreen", "重启Activity以应用英语")
+                                            val intent = activityContext.intent
+                                            activityContext.finish()
+                                            activityContext.startActivity(intent)
+                                            activityContext.overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+                                        }
+                                    }
                                 }
                                 .padding(vertical = 12.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -315,9 +333,24 @@ fun SettingsScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
-                                    // 不再在这里使用LocalContext.current
+                                    // 获取当前上下文
+                                    val activityContext = LocalContext.current
+                                    // 设置语言
                                     viewModel.setAppLanguage(Locale.SIMPLIFIED_CHINESE)
+                                    // 关闭对话框
                                     showLanguageDialog = false
+                                    
+                                    // 在延迟后重启Activity以确保语言设置被保存
+                                    coroutineScope.launch {
+                                        delay(100) // 短暂延迟以确保设置被保存
+                                        if (activityContext is Activity) {
+                                            Log.d("SettingsScreen", "重启Activity以应用中文")
+                                            val intent = activityContext.intent
+                                            activityContext.finish()
+                                            activityContext.startActivity(intent)
+                                            activityContext.overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+                                        }
+                                    }
                                 }
                                 .padding(vertical = 12.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,

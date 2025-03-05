@@ -2,7 +2,6 @@ package com.example.wooauto.presentation.screens.products
 
 import android.util.Log
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -31,8 +30,6 @@ import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Restaurant
-import androidx.compose.material.icons.filled.Fastfood
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -66,7 +63,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
@@ -87,6 +83,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.background
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -215,9 +212,9 @@ fun ProductsScreen(
     }
     
     val categoryOptions = if (categories.isEmpty()) {
-        listOf(null to stringResource(id = R.string.all_categories))
+        listOf(null to "全部分类")
     } else {
-        listOf(null to stringResource(id = R.string.all_categories)) + categories
+        listOf(null to "全部分类") + categories
     }
     
     // 使用key来防止Scaffold重组
@@ -571,7 +568,7 @@ fun ProductsContent(
                     } else {
                         Icon(
                             imageVector = Icons.Default.Refresh,
-                            contentDescription = stringResource(id = R.string.refresh),
+                            contentDescription = "刷新",
                             tint = MaterialTheme.colorScheme.primary
                         )
                     }
@@ -771,15 +768,15 @@ fun ProductGridItem(
                             placeholder = painterResource(id = R.drawable.ic_launcher_foreground)
                         )
                     } else {
-                        // 使用与列表项相同的占位符样式
+                        // 无图片时显示更美观的食品图标占位符
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .background(color = MaterialTheme.colorScheme.secondaryContainer),
+                                .background(MaterialTheme.colorScheme.secondaryContainer),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Restaurant,
+                                imageVector = Icons.Default.Info,
                                 contentDescription = product.name,
                                 modifier = Modifier.size(40.dp),
                                 tint = MaterialTheme.colorScheme.onSecondaryContainer
@@ -826,12 +823,12 @@ fun ProductGridItem(
                         .padding(vertical = 4.dp)
                         .height(1.dp)
                         .fillMaxWidth()
-                        .background(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f))
+                        .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f))
                 )
                 
                 // 价格
                 Text(
-                    text = "C$${product.regularPrice}",
+                    text = "¥${product.regularPrice}",
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.primary,
                     fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
@@ -888,40 +885,29 @@ fun ProductDetailDialog(
                 Spacer(modifier = Modifier.height(16.dp))
                 
                 // 产品图片
-                Box(
-                    modifier = Modifier
-                        .size(120.dp)
-                        .clip(RoundedCornerShape(4.dp)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (product.images.isNotEmpty()) {
-                        AsyncImage(
-                            model = ImageRequest.Builder(LocalContext.current)
-                                .data(product.images.first().src)
-                                .crossfade(true)
-                                .build(),
-                            contentDescription = product.name,
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop,
-                            error = painterResource(id = R.drawable.ic_launcher_foreground),
-                            placeholder = painterResource(id = R.drawable.ic_launcher_foreground)
-                        )
-                    } else {
-                        // 使用与列表项相同的占位符样式
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(color = MaterialTheme.colorScheme.secondaryContainer),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Restaurant,
-                                contentDescription = product.name,
-                                modifier = Modifier.size(48.dp),
-                                tint = MaterialTheme.colorScheme.onSecondaryContainer
-                            )
-                        }
-                    }
+                if (product.images.isNotEmpty()) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalContext.current)
+                            .data(product.images.first().src)
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = product.name,
+                        modifier = Modifier
+                            .size(120.dp)
+                            .clip(RoundedCornerShape(4.dp)),
+                        contentScale = ContentScale.Crop,
+                        error = painterResource(id = R.drawable.ic_launcher_foreground),
+                        placeholder = painterResource(id = R.drawable.ic_launcher_foreground)
+                    )
+                } else {
+                    Image(
+                        painter = painterResource(id = R.drawable.ic_launcher_foreground),
+                        contentDescription = product.name,
+                        modifier = Modifier
+                            .size(120.dp)
+                            .clip(RoundedCornerShape(4.dp)),
+                        contentScale = ContentScale.Crop
+                    )
                 }
                 
                 Spacer(modifier = Modifier.height(16.dp))

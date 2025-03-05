@@ -102,12 +102,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.TopAppBar
-import coil.compose.AsyncImage
-import coil.request.CachePolicy
-import coil.request.ImageRequest
-import com.example.wooauto.R
-import com.example.wooauto.utils.LocalAppLocale
-import com.example.wooauto.utils.LocaleManager
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -116,10 +110,6 @@ fun OrdersScreen(
     navController: NavController = rememberNavController()
 ) {
     Log.d("OrdersScreen", "订单屏幕初始化")
-    
-    // 获取当前语言环境
-    val locale = LocalAppLocale.current
-    val context = LocalContext.current
     
     val isConfigured by viewModel.isConfigured.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
@@ -153,34 +143,48 @@ fun OrdersScreen(
     var showOrderDetail by remember { mutableStateOf(false) }
     var statusFilter by remember { mutableStateOf("") }
     
-    // 根据当前语言环境提供状态选项
-    val statusOptions = if (locale.language == "zh") {
-        listOf(
-            "" to "全部状态",
-            "processing" to "处理中",
-            "pending" to "待处理",
-            "on-hold" to "保留",
-            "completed" to "已完成",
-            "cancelled" to "已取消",
-            "refunded" to "已退款",
-            "failed" to "失败"
-        )
-    } else {
-        listOf(
-            "" to "All Status",
-            "processing" to "Processing",
-            "pending" to "Pending",
-            "on-hold" to "On Hold",
-            "completed" to "Completed",
-            "cancelled" to "Cancelled",
-            "refunded" to "Refunded",
-            "failed" to "Failed"
-        )
-    }
+    val statusOptions = listOf(
+        "" to "全部状态",
+        "processing" to "处理中",
+        "pending" to "待处理",
+        "on-hold" to "保留",
+        "completed" to "已完成",
+        "cancelled" to "已取消",
+        "refunded" to "已退款",
+        "failed" to "失败"
+    )
     
     Scaffold(
-        // 删除顶部AppBar，使用WooAutoApp中的全局AppBar
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(id = R.string.orders)) },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    titleContentColor = MaterialTheme.colorScheme.onPrimary
+                ),
+                actions = {
+                    IconButton(
+                        onClick = { viewModel.refreshOrders() },
+                        enabled = !isRefreshing
+                    ) {
+                        if (isRefreshing) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.onPrimary
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = "刷新",
+                                tint = MaterialTheme.colorScheme.onPrimary
+                            )
+                        }
+                    }
+                }
+            )
+        }
     ) { paddingValues ->
         Box(
             modifier = Modifier
@@ -196,7 +200,7 @@ fun OrdersScreen(
                 ) {
                     CircularProgressIndicator()
                     Spacer(modifier = Modifier.height(16.dp))
-                    Text(if (locale.language == "zh") "正在加载..." else "Loading...")
+                    Text("正在加载...")
                 }
             } 
             // API 未配置状态
@@ -210,22 +214,19 @@ fun OrdersScreen(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Info,
-                        contentDescription = if (locale.language == "zh") "未配置" else "Not Configured",
+                        contentDescription = "未配置",
                         modifier = Modifier.size(64.dp),
                         tint = MaterialTheme.colorScheme.error
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = if (locale.language == "zh") "WooCommerce API 未配置" else "WooCommerce API Not Configured",
+                        text = "WooCommerce API 未配置",
                         style = MaterialTheme.typography.headlineMedium,
                         textAlign = TextAlign.Center
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = if (locale.language == "zh") 
-                            "请先在设置页面配置您的 WooCommerce API 连接信息，才能查看订单数据。" 
-                        else 
-                            "Please configure your WooCommerce API connection in the settings page to view order data.",
+                        text = "请先在设置页面配置您的 WooCommerce API 连接信息，才能查看订单数据。",
                         style = MaterialTheme.typography.bodyLarge,
                         textAlign = TextAlign.Center
                     )
@@ -238,10 +239,10 @@ fun OrdersScreen(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Settings,
-                            contentDescription = if (locale.language == "zh") "设置" else "Settings"
+                            contentDescription = "设置"
                         )
                         Spacer(modifier = Modifier.size(8.dp))
-                        Text(if (locale.language == "zh") "前往设置" else "Go to Settings")
+                        Text("前往设置")
                     }
                 }
             } 
@@ -251,85 +252,47 @@ fun OrdersScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(horizontal = 8.dp, vertical = 8.dp)
+                        .padding(horizontal = 8.dp)
                 ) {
-                    // 搜索框与刷新按钮行
-                    Row(
+                    // 搜索框与状态过滤器
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(bottom = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // 搜索框
-                        OutlinedTextField(
-                            value = searchQuery,
-                            onValueChange = { searchQuery = it },
-                            modifier = Modifier
-                                .weight(1f)
-                                .padding(end = 8.dp),
-                            placeholder = { Text(if (locale.language == "zh") "搜索订单..." else "Search orders...") },
-                            leadingIcon = { 
-                                Icon(
-                                    imageVector = Icons.Default.Search,
-                                    contentDescription = if (locale.language == "zh") "搜索" else "Search"
-                                )
-                            },
-                            trailingIcon = {
-                                if (searchQuery.isNotEmpty()) {
-                                    IconButton(
-                                        onClick = { searchQuery = "" },
-                                        modifier = Modifier.size(40.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Clear,
-                                            contentDescription = if (locale.language == "zh") "清除" else "Clear"
-                                        )
-                                    }
-                                }
-                            },
-                            singleLine = true,
-                            shape = RoundedCornerShape(8.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                unfocusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                            .padding(horizontal = 8.dp, vertical = 8.dp),
+                        placeholder = { Text("搜索订单...") },
+                        leadingIcon = { 
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = "搜索"
                             )
-                        )
-                        
-                        // 刷新按钮
-                        IconButton(
-                            onClick = { viewModel.refreshOrders() },
-                            enabled = !isRefreshing,
-                            modifier = Modifier
-                                .size(48.dp)
-                                .background(
-                                    color = MaterialTheme.colorScheme.primary,
-                                    shape = RoundedCornerShape(8.dp)
-                                )
-                                .padding(4.dp)
-                        ) {
-                            if (isRefreshing) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(24.dp),
-                                    strokeWidth = 2.dp,
-                                    color = MaterialTheme.colorScheme.onPrimary
-                                )
-                            } else {
-                                Icon(
-                                    imageVector = Icons.Default.Refresh,
-                                    contentDescription = stringResource(id = R.string.refresh),
-                                    tint = MaterialTheme.colorScheme.onPrimary
-                                )
+                        },
+                        trailingIcon = {
+                            if (searchQuery.isNotEmpty()) {
+                                IconButton(onClick = { searchQuery = "" }) {
+                                    Icon(
+                                        imageVector = Icons.Default.Clear,
+                                        contentDescription = "清除"
+                                    )
+                                }
                             }
-                        }
-                    }
+                        },
+                        singleLine = true,
+                        shape = RoundedCornerShape(8.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                        )
+                    )
                     
                     // 状态过滤器 - 水平滚动按钮样式
                     LazyRow(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(bottom = 8.dp),
+                            .padding(vertical = 8.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        contentPadding = PaddingValues(horizontal = 0.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp),
                         state = rememberLazyListState()
                     ) {
                         items(statusOptions) { (status, label) ->
@@ -373,13 +336,13 @@ fun OrdersScreen(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Error,
-                                contentDescription = if (locale.language == "zh") "无数据" else "No Data",
+                                contentDescription = "无数据",
                                 tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                                 modifier = Modifier.size(64.dp)
                             )
                             Spacer(modifier = Modifier.height(16.dp))
                             Text(
-                                text = if (locale.language == "zh") "暂无订单数据" else "No Order Data",
+                                text = "暂无订单数据",
                                 style = MaterialTheme.typography.titleLarge,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                             )
@@ -390,7 +353,7 @@ fun OrdersScreen(
                                 .fillMaxWidth()
                                 .weight(1f),
                             verticalArrangement = Arrangement.spacedBy(8.dp),
-                            contentPadding = PaddingValues(vertical = 0.dp)
+                            contentPadding = PaddingValues(vertical = 8.dp)
                         ) {
                             val filteredOrders = orders.filter {
                                 val orderNumber = it.number.lowercase(Locale.getDefault())
@@ -409,7 +372,7 @@ fun OrdersScreen(
                                         horizontalAlignment = Alignment.CenterHorizontally
                                     ) {
                                         Text(
-                                            text = if (locale.language == "zh") "未找到匹配的订单" else "No matching orders found",
+                                            text = "未找到匹配的订单",
                                             style = MaterialTheme.typography.titleLarge,
                                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                                         )

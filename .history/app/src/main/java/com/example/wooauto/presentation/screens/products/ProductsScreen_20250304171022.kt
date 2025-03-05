@@ -66,7 +66,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
@@ -215,9 +214,9 @@ fun ProductsScreen(
     }
     
     val categoryOptions = if (categories.isEmpty()) {
-        listOf(null to stringResource(id = R.string.all_categories))
+        listOf(null to "全部分类")
     } else {
-        listOf(null to stringResource(id = R.string.all_categories)) + categories
+        listOf(null to "全部分类") + categories
     }
     
     // 使用key来防止Scaffold重组
@@ -571,7 +570,7 @@ fun ProductsContent(
                     } else {
                         Icon(
                             imageVector = Icons.Default.Refresh,
-                            contentDescription = stringResource(id = R.string.refresh),
+                            contentDescription = "刷新",
                             tint = MaterialTheme.colorScheme.primary
                         )
                     }

@@ -16,7 +16,6 @@ import com.example.wooauto.domain.repositories.DomainOrderRepository
 import com.example.wooauto.domain.repositories.DomainProductRepository
 import com.example.wooauto.domain.repositories.DomainSettingRepository
 import com.example.wooauto.utils.LocaleHelper
-import com.example.wooauto.utils.LocaleManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -303,17 +302,34 @@ class SettingsViewModel @Inject constructor(
             try {
                 Log.d("SettingsViewModel", "语言切换开始: ${locale.language}")
                 
-                // 1. 使用 LocaleManager 设置和保存语言
-                LocaleManager.setAndSaveLocale(context, locale)
-                
-                // 2. 更新当前语言状态
+                // 1. 更新当前语言状态
                 _currentLocale.value = locale
                 
-                // 3. 额外尝试一次强制刷新 UI，确保语言变化生效
-                kotlinx.coroutines.delay(100)  // 短暂延迟以确保状态更新
-                LocaleManager.forceRefreshUI()
+                // 2. 使用LocaleHelper保存语言设置到SharedPreferences
+                LocaleHelper.saveLocalePreference(context, locale)
                 
-                Log.d("SettingsViewModel", "语言切换完成，UI 将立即更新")
+                // 3. 使用LocaleHelper设置应用语言
+                LocaleHelper.setLocale(locale)
+                
+                // 4. 重启应用以应用语言设置
+                // 使用新的Intent，确保完全重新创建Activity
+                val packageManager = context.packageManager
+                val intent = packageManager.getLaunchIntentForPackage(context.packageName)
+                if (intent != null) {
+                    // 使用FLAG_ACTIVITY_NEW_TASK和FLAG_ACTIVITY_CLEAR_TASK标志
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                    // 添加特定标志告知这是语言切换导致的重启
+                    intent.putExtra("LANGUAGE_SWITCH", true)
+                    context.startActivity(intent)
+                } else {
+                    // 如果获取不到启动意图，使用备用方法
+                    val mainActivityIntent = Intent(context, Class.forName("com.example.wooauto.MainActivity"))
+                    mainActivityIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                    mainActivityIntent.putExtra("LANGUAGE_SWITCH", true)
+                    context.startActivity(mainActivityIntent)
+                }
+                
+                Log.d("SettingsViewModel", "语言切换完成，应用将重启")
             } catch (e: Exception) {
                 Log.e("SettingsViewModel", "语言切换失败", e)
             }

@@ -20,9 +20,6 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.example.wooauto.presentation.WooAutoApp
 import com.example.wooauto.presentation.theme.WooAutoTheme
-import com.example.wooauto.utils.LocaleHelper
-import com.example.wooauto.utils.LocaleManager
-import java.util.Locale
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -96,10 +93,10 @@ class MainActivity : ComponentActivity() {
     }
     
     override fun onCreate(savedInstanceState: Bundle?) {
-        // 在super.onCreate之前初始化应用语言
-        initAppLanguage()
-        
         super.onCreate(savedInstanceState)
+        
+        // 初始化应用语言
+        initAppLanguage()
         
         // 请求所需权限
         requestRequiredPermissions()
@@ -121,35 +118,31 @@ class MainActivity : ComponentActivity() {
      */
     private fun initAppLanguage() {
         try {
-            // 初始化 LocaleManager
-            LocaleManager.initialize(this)
+            // 从SharedPreferences中获取保存的语言设置
+            val savedLanguageTag = getSharedPreferences("app_settings", MODE_PRIVATE)
+                .getString("app_locale", null)
             
-            // 从SharedPreferences加载保存的语言设置
-            val savedLocale = LocaleHelper.loadSavedLocale(this)
-            
-            if (savedLocale != null) {
-                // 找到保存的语言设置，应用它
-                Log.d(TAG, "从SharedPreferences加载语言设置: ${savedLocale.language}")
-                // 使用 LocaleManager 更新语言
-                LocaleManager.updateLocale(savedLocale)
+            if (savedLanguageTag != null) {
+                // 如果有保存的语言设置，则应用它
+                val locale = android.os.LocaleList.forLanguageTags(savedLanguageTag).get(0)
+                    ?: java.util.Locale.getDefault()
+                com.example.wooauto.utils.LocaleHelper.setLocale(locale)
+                Log.d(TAG, "已应用保存的语言设置: $savedLanguageTag")
             } else {
                 // 没有保存的语言设置，使用系统语言
-                val systemLocale = LocaleHelper.getSystemLocale(this)
+                val systemLocale = com.example.wooauto.utils.LocaleHelper.getSystemLocale(this)
                 // 确保使用的是我们支持的语言之一
-                val supportedLocale = LocaleHelper.SUPPORTED_LOCALES.find { 
+                val supportedLocale = com.example.wooauto.utils.LocaleHelper.SUPPORTED_LOCALES.find { 
                     it.language == systemLocale.language 
-                } ?: Locale.ENGLISH
+                } ?: java.util.Locale.ENGLISH
                 
-                Log.d(TAG, "没有保存的语言设置，使用系统语言: ${supportedLocale.language}")
-                // 使用 LocaleManager 更新语言
-                LocaleManager.updateLocale(supportedLocale)
-                // 保存语言设置
-                LocaleHelper.saveLocalePreference(this, supportedLocale)
+                com.example.wooauto.utils.LocaleHelper.setLocale(supportedLocale)
+                Log.d(TAG, "使用系统语言: ${supportedLocale.language}")
             }
         } catch (e: Exception) {
             Log.e(TAG, "初始化应用语言失败", e)
             // 如果初始化失败，使用英语作为默认语言
-            LocaleManager.updateLocale(Locale.ENGLISH)
+            com.example.wooauto.utils.LocaleHelper.setLocale(java.util.Locale.ENGLISH)
         }
     }
     

@@ -75,7 +75,6 @@ import com.example.wooauto.presentation.navigation.Screen
 import kotlinx.coroutines.launch
 import java.util.Locale
 import androidx.compose.material3.HorizontalDivider
-import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -86,6 +85,9 @@ fun SettingsScreen(
     val scrollState = rememberScrollState()
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
+    
+    // 获取当前上下文
+    val context = LocalContext.current
     
     // API配置相关状态
     val siteUrl by viewModel.siteUrl.collectAsState()
@@ -98,6 +100,20 @@ fun SettingsScreen(
     
     // 获取当前语言
     val currentLocale by viewModel.currentLocale.collectAsState()
+    
+    // 监听语言变化自动重启
+    LaunchedEffect(currentLocale) {
+        // 当语言变化时，重启Activity
+        if (context is Activity) {
+            Log.d("SettingsScreen", "检测到语言变化，准备重启Activity: ${currentLocale.language}")
+            val intent = context.intent
+            context.finish()
+            context.startActivity(intent)
+            if (context is Activity) {
+                context.overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+            }
+        }
+    }
     
     // 自动化任务状态
     var automaticOrderProcessing by remember { mutableStateOf(true) }
@@ -291,7 +307,6 @@ fun SettingsScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
-                                    // 不再在这里使用LocalContext.current
                                     viewModel.setAppLanguage(Locale.ENGLISH)
                                     showLanguageDialog = false
                                 }
@@ -315,7 +330,6 @@ fun SettingsScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
-                                    // 不再在这里使用LocalContext.current
                                     viewModel.setAppLanguage(Locale.SIMPLIFIED_CHINESE)
                                     showLanguageDialog = false
                                 }
@@ -737,5 +751,21 @@ fun SettingItem(
             tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
             modifier = Modifier.size(16.dp)
         )
+    }
+}
+
+@Composable
+private fun RestartActivity() {
+    val context = LocalContext.current
+    LaunchedEffect(Unit) {
+        if (context is Activity) {
+            Log.d("SettingsScreen", "重启Activity以应用语言变更")
+            val intent = context.intent
+            context.finish()
+            context.startActivity(intent)
+            context.overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+        } else {
+            Log.e("SettingsScreen", "无法重启Activity，提供的context不是Activity")
+        }
     }
 } 

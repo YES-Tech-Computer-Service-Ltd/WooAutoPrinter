@@ -64,7 +64,7 @@
     <string name="add_printer">Add Printer</string>
     <string name="bluetooth_printer">Bluetooth Printer</string>
     <string name="network_printer">Network Printer</string>
-    <string name="printer_name">Printer Name</string>
+    <string name="printer_name">打印机名称</string>
     <string name="printer_address">Printer Address</string>
     <string name="printer_port">Printer Port</string>
     <string name="printer_model">Printer Model</string>
@@ -129,7 +129,6 @@
     <string name="error">Error</string>
     <string name="success">Success</string>
     <string name="retry">Retry</string>
-    <string name="refresh">Refresh</string>
 
     <string name="delivery_method">Delivery Method</string>
     <string name="delivery_date">Delivery Date</string>
@@ -143,8 +142,8 @@
     <string name="fee_details">Fee Details</string>
 
     <!-- New additions from the code block -->
-    <string name="about">About</string>
-    <string name="version">Version</string>
-    <string name="error_network">Network Error</string>
-    <string name="error_server">Server Error</string>
+    <string name="about">关于</string>
+    <string name="version">版本</string>
+    <string name="error_network">网络连接错误</string>
+    <string name="error_server">服务器错误</string>
 </resources>

@@ -16,7 +16,6 @@ import com.example.wooauto.domain.repositories.DomainOrderRepository
 import com.example.wooauto.domain.repositories.DomainProductRepository
 import com.example.wooauto.domain.repositories.DomainSettingRepository
 import com.example.wooauto.utils.LocaleHelper
-import com.example.wooauto.utils.LocaleManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -300,22 +299,27 @@ class SettingsViewModel @Inject constructor(
 
     fun setAppLanguage(locale: Locale) {
         viewModelScope.launch {
+            _currentLocale.value = locale
+            // 使用LocaleHelper来设置应用程序的语言
+            LocaleHelper.setLocale(locale)
+            // 保存应用语言设置
             try {
-                Log.d("SettingsViewModel", "语言切换开始: ${locale.language}")
+                // 使用 Android 的 SharedPreferences 存储语言设置
+                context.getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+                    .edit()
+                    .putString("app_locale", locale.toLanguageTag())
+                    .apply()
+                Log.d("SettingsViewModel", "应用语言已更改为: ${locale.language}")
                 
-                // 1. 使用 LocaleManager 设置和保存语言
-                LocaleManager.setAndSaveLocale(context, locale)
+                // 由于我们使用ApplicationContext，无法直接重启Activity
+                // 创建intent来启动MainActivity，并添加FLAG_ACTIVITY_NEW_TASK标志
+                val intent = Intent(context, Class.forName("com.example.wooauto.MainActivity"))
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                context.startActivity(intent)
                 
-                // 2. 更新当前语言状态
-                _currentLocale.value = locale
-                
-                // 3. 额外尝试一次强制刷新 UI，确保语言变化生效
-                kotlinx.coroutines.delay(100)  // 短暂延迟以确保状态更新
-                LocaleManager.forceRefreshUI()
-                
-                Log.d("SettingsViewModel", "语言切换完成，UI 将立即更新")
+                // 注意：无法调用overridePendingTransition，因为它是Activity的方法
             } catch (e: Exception) {
-                Log.e("SettingsViewModel", "语言切换失败", e)
+                Log.e("SettingsViewModel", "保存语言设置失败: ${e.message}")
             }
         }
     }

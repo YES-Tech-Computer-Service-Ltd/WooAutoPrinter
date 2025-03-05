@@ -1,7 +1,5 @@
 package com.example.wooauto.presentation.screens.settings
 
-import android.app.Activity
-import android.content.Context
 import android.util.Log
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -75,7 +73,6 @@ import com.example.wooauto.presentation.navigation.Screen
 import kotlinx.coroutines.launch
 import java.util.Locale
 import androidx.compose.material3.HorizontalDivider
-import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -291,7 +288,6 @@ fun SettingsScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
-                                    // 不再在这里使用LocalContext.current
                                     viewModel.setAppLanguage(Locale.ENGLISH)
                                     showLanguageDialog = false
                                 }
@@ -309,13 +305,12 @@ fun SettingsScreen(
                             }
                         }
                         
-                        HorizontalDivider()
+                        Divider()
                         
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
-                                    // 不再在这里使用LocalContext.current
                                     viewModel.setAppLanguage(Locale.SIMPLIFIED_CHINESE)
                                     showLanguageDialog = false
                                 }
