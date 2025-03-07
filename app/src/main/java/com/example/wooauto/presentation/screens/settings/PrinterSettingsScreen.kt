@@ -218,6 +218,57 @@ fun PrinterSettingsScreen(
                 }
             }
             
+            // 打印模板设置卡片
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                )
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            // 导航到打印模板选择页面
+                            Log.d("PrinterSettingsScreen", "点击了打印模板卡片，导航到: ${Screen.PrintTemplates.route}")
+                            navController.navigate(Screen.PrintTemplates.route)
+                        }
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Print,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    
+                    Spacer(modifier = Modifier.width(16.dp))
+                    
+                    Column(
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            text = "打印模板",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "自定义订单打印格式和内容",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = "编辑打印模板",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+            
             // 显示错误消息（如果有）
             if (connectionErrorMessage != null) {
                 Card(

@@ -77,7 +77,9 @@ class WooAutoApplication : MultiDexApplication(), Configuration.Provider {
                 // 确保wooCommerceConfig已经被初始化
                 if (::wooCommerceConfig.isInitialized) {
                     Log.d("WooAutoApplication", "依赖注入已完成，正在检查配置")
-                    if (wooCommerceConfig.isConfigured.first()) {
+                    // 检查配置是否有效
+                    val isConfigValid = checkConfigurationValid()
+                    if (isConfigValid) {
                         startBackgroundPollingService()
                     } else {
                         Log.d("WooAutoApplication", "配置未完成，不启动服务")
@@ -88,6 +90,28 @@ class WooAutoApplication : MultiDexApplication(), Configuration.Provider {
             } catch (e: Exception) {
                 Log.e("WooAutoApplication", "检查配置时出错: ${e.message}", e)
             }
+        }
+    }
+    
+    /**
+     * 检查配置是否有效
+     */
+    private suspend fun checkConfigurationValid(): Boolean {
+        return try {
+            val siteUrl = wooCommerceConfig.siteUrl.first()
+            val consumerKey = wooCommerceConfig.consumerKey.first()
+            val consumerSecret = wooCommerceConfig.consumerSecret.first()
+            
+            val isValid = siteUrl.isNotBlank() && consumerKey.isNotBlank() && consumerSecret.isNotBlank()
+            if (isValid) {
+                Log.d("WooAutoApplication", "WooCommerce配置有效")
+            } else {
+                Log.w("WooAutoApplication", "WooCommerce配置无效: URL=${siteUrl.isNotBlank()}, Key=${consumerKey.isNotBlank()}, Secret=${consumerSecret.isNotBlank()}")
+            }
+            isValid
+        } catch (e: Exception) {
+            Log.e("WooAutoApplication", "检查配置有效性出错: ${e.message}", e)
+            false
         }
     }
 

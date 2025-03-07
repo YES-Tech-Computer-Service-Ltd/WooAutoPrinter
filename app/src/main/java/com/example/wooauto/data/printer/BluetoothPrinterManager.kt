@@ -615,6 +615,11 @@ class BluetoothPrinterManager @Inject constructor(
     }
     
     override suspend fun autoPrintNewOrder(order: Order): Boolean {
+        // 临时禁用自动打印功能
+        Log.d(TAG, "自动打印功能已临时禁用，跳过打印订单: ${order.number}")
+        return false
+        
+        /* 原代码暂时注释掉
         try {
             // 获取默认打印机
             val printerConfig = settingRepository.getDefaultPrinterConfig()
@@ -649,6 +654,7 @@ class BluetoothPrinterManager @Inject constructor(
             Log.e(TAG, "自动打印订单失败: ${e.message}", e)
             return false
         }
+        */
     }
     
     // 私有辅助方法

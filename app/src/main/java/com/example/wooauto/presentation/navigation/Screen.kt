@@ -10,6 +10,10 @@ sealed class Screen(val route: String) {
     object PrinterDetails : Screen("printer_details/{printerId}") {
         fun printerDetailsRoute(printerId: String) = "printer_details/$printerId"
     }
+    object PrintTemplates : Screen("print_templates")
+    object TemplatePreview : Screen("template_preview/{templateId}") {
+        fun templatePreviewRoute(templateId: String) = "template_preview/$templateId"
+    }
     
     fun createRoute(vararg args: String): String {
         return buildString {

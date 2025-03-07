@@ -2,6 +2,7 @@ package com.example.wooauto.presentation.screens.settings
 
 import android.util.Log
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -79,6 +80,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.example.wooauto.domain.models.PrinterConfig
 import com.example.wooauto.domain.printer.PrinterDevice
+import com.example.wooauto.presentation.navigation.Screen
 import kotlinx.coroutines.launch
 import java.util.UUID
 import androidx.compose.ui.platform.LocalContext
@@ -288,6 +290,57 @@ fun PrinterDetailsScreen(
                     modifier = Modifier
                         .clickable { type = PrinterConfig.PRINTER_TYPE_WIFI }
                         .padding(start = 4.dp)
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 打印模板设置 - 添加更明显的视觉效果
+            Text(
+                text = "打印模板",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold
+            )
+            
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(
+                        width = 2.dp,
+                        color = MaterialTheme.colorScheme.primary,
+                        shape = RoundedCornerShape(8.dp)
+                    )
+                    .background(
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        shape = RoundedCornerShape(8.dp)
+                    )
+                    .clickable {
+                        // 暂时不实现实际逻辑，仅UI展示
+                        Log.d("PrinterDetailsScreen", "点击了打印模板选项，导航到: ${Screen.PrintTemplates.route}")
+                        navController.navigate(Screen.PrintTemplates.route)
+                    }
+                    .padding(vertical = 16.dp, horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Check,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
+                Text(
+                    text = "选择打印模板",
+                    modifier = Modifier.padding(start = 8.dp),
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.weight(1f))
+                Icon(
+                    imageVector = Icons.Default.ArrowDropDown,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(28.dp)
                 )
             }
             

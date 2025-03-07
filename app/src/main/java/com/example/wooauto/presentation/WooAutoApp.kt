@@ -20,6 +20,8 @@ import com.example.wooauto.presentation.screens.settings.PrinterDetailsScreen
 import com.example.wooauto.presentation.screens.settings.PrinterSettingsScreen
 import com.example.wooauto.presentation.screens.settings.SettingsScreen
 import com.example.wooauto.presentation.screens.settings.WebsiteSettingsScreen
+import com.example.wooauto.presentation.screens.printTemplates.PrintTemplatesScreen
+import com.example.wooauto.presentation.screens.templatePreview.TemplatePreviewScreen
 import com.example.wooauto.presentation.theme.WooAutoTheme
 import com.example.wooauto.utils.LocalAppLocale
 import com.example.wooauto.utils.LocaleManager
@@ -128,21 +130,28 @@ fun AppContent() {
             }
             
             // 打印机详情页面
-            composable(
-                route = Screen.PrinterDetails.route,
-                arguments = listOf(
-                    navArgument("printerId") {
-                        type = NavType.StringType
-                        nullable = true
-                        defaultValue = null
-                    }
-                )
-            ) { backStackEntry ->
-                val printerId = backStackEntry.arguments?.getString("printerId")
-                Log.d(TAG, "导航到打印机详情页面: printerId=$printerId")
+            composable(Screen.PrinterDetails.route) { backStackEntry ->
+                Log.d(TAG, "导航到打印机详情页面")
+                val printerId = backStackEntry.arguments?.getString("printerId") ?: "new"
                 PrinterDetailsScreen(
                     navController = navController,
                     printerId = printerId
+                )
+            }
+            
+            // 打印模板页面
+            composable(Screen.PrintTemplates.route) {
+                Log.d(TAG, "导航到打印模板页面")
+                PrintTemplatesScreen(navController = navController)
+            }
+            
+            // 模板预览页面
+            composable(Screen.TemplatePreview.route) { backStackEntry ->
+                Log.d(TAG, "导航到模板预览页面")
+                val templateId = backStackEntry.arguments?.getString("templateId") ?: "default"
+                TemplatePreviewScreen(
+                    navController = navController,
+                    templateId = templateId
                 )
             }
         }

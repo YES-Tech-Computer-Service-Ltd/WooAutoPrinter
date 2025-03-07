@@ -2,6 +2,7 @@ package com.example.wooauto.domain.repositories
 
 import com.example.wooauto.data.remote.WooCommerceConfig
 import com.example.wooauto.domain.models.PrinterConfig
+import com.example.wooauto.domain.templates.TemplateType
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -237,4 +238,40 @@ interface DomainSettingRepository {
      * @return 货币符号的数据流
      */
     fun getCurrencySymbolFlow(): Flow<String>
+
+    /**
+     * 获取默认模板类型
+     * @return 默认模板类型
+     */
+    suspend fun getDefaultTemplateType(): TemplateType?
+    
+    /**
+     * 保存默认模板类型
+     * @param templateType 模板类型
+     */
+    suspend fun saveDefaultTemplateType(templateType: TemplateType)
+    
+    /**
+     * 获取自动打印开关状态
+     * @return 自动打印是否开启，如果未设置默认返回false
+     */
+    suspend fun getAutomaticPrintingEnabled(): Boolean?
+    
+    /**
+     * 设置自动打印开关状态
+     * @param enabled 是否开启自动打印
+     */
+    suspend fun setAutomaticPrintingEnabled(enabled: Boolean)
+    
+    /**
+     * 获取自动接单开关状态
+     * @return 自动接单是否开启，如果未设置默认返回false
+     */
+    suspend fun getAutomaticOrderProcessingEnabled(): Boolean?
+    
+    /**
+     * 设置自动接单开关状态
+     * @param enabled 是否开启自动接单
+     */
+    suspend fun setAutomaticOrderProcessingEnabled(enabled: Boolean)
 } 
