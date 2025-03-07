@@ -36,10 +36,6 @@ class OrdersViewModel @Inject constructor(
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
-    companion object {
-        private const val TAG = "OrdersViewModel"
-    }
-
     private val _isConfigured = MutableStateFlow(false)
     val isConfigured: StateFlow<Boolean> = _isConfigured.asStateFlow()
 
@@ -464,5 +460,9 @@ class OrdersViewModel @Inject constructor(
                 Log.e("OrdersViewModel", "打印订单时出错: ${e.message}", e)
             }
         }
+    }
+
+    companion object {
+        private const val TAG = "OrdersViewModel"
     }
 } 

@@ -36,10 +36,6 @@ class OrdersViewModel @Inject constructor(
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
-    companion object {
-        private const val TAG = "OrdersViewModel"
-    }
-
     private val _isConfigured = MutableStateFlow(false)
     val isConfigured: StateFlow<Boolean> = _isConfigured.asStateFlow()
 
@@ -114,45 +110,26 @@ class OrdersViewModel @Inject constructor(
     private fun checkConfiguration() {
         viewModelScope.launch {
             try {
-                Log.d(TAG, "正在检查API配置")
-                
-                // 首先从WooCommerceConfig获取配置状态
-                val configuredFromStatus = WooCommerceConfig.isConfigured.first()
-                Log.d(TAG, "从状态流获取的API配置状态: $configuredFromStatus")
-                
-                // 即使状态显示未配置，也尝试获取订单来验证API实际是否可用
-                val result = orderRepository.refreshOrders()
-                
-                // 如果API请求成功，强制设置isConfigured为true
-                if (result.isSuccess && result.getOrNull()?.isNotEmpty() == true) {
-                    Log.d(TAG, "API调用成功，确认API已配置")
-                    _isConfigured.value = true
-                    // 同时更新全局状态
-                    WooCommerceConfig.updateConfigurationStatus(true)
-                } else if (!configuredFromStatus) {
-                    Log.d(TAG, "API配置状态为未配置，且API调用未成功")
-                    _isConfigured.value = false
-                    _isLoading.value = false
+                Log.d("OrdersViewModel", "正在检查API配置")
+                // 从WooCommerceConfig的companion object获取配置状态
+                val configured = WooCommerceConfig.isConfigured.first()
+                Log.d("OrdersViewModel", "API配置状态: $configured")
+                _isConfigured.value = configured
+                if (configured) {
+                    refreshOrders()
                 } else {
-                    // 使用从状态流获取的配置
-                    Log.d(TAG, "使用从状态流获取的配置: $configuredFromStatus")
-                    _isConfigured.value = configuredFromStatus
-                    if (configuredFromStatus) {
-                        refreshOrders()
-                    } else {
-                        _isLoading.value = false
-                    }
+                    _isLoading.value = false
                 }
                 
                 // 监听配置变化
                 viewModelScope.launch {
                     WooCommerceConfig.isConfigured.collectLatest { configured ->
-                        Log.d(TAG, "API配置状态变更: $configured")
+                        Log.d("OrdersViewModel", "API配置状态变更: $configured")
                         _isConfigured.value = configured
                     }
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "检查配置时出错: ${e.message}", e)
+                Log.e("OrdersViewModel", "检查配置时出错: ${e.message}")
                 _isConfigured.value = false
                 _isLoading.value = false
                 _errorMessage.value = "无法检查API配置: ${e.message}"
@@ -464,5 +441,9 @@ class OrdersViewModel @Inject constructor(
                 Log.e("OrdersViewModel", "打印订单时出错: ${e.message}", e)
             }
         }
+    }
+
+    companion object {
+        private const val TAG = "OrdersViewModel"
     }
 } 
