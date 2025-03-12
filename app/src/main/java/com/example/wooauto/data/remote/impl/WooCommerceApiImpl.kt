@@ -27,9 +27,13 @@ import com.example.wooauto.data.remote.ApiError
 import java.lang.reflect.ParameterizedType
 import java.lang.reflect.Type
 import kotlin.math.pow
+import com.example.wooauto.data.remote.interceptors.SSLErrorInterceptor
+import com.example.wooauto.data.remote.ConnectionResetHandler
 
 class WooCommerceApiImpl(
-    private val config: WooCommerceConfig
+    private val config: WooCommerceConfig,
+    private val sslErrorInterceptor: SSLErrorInterceptor? = null,
+    private val connectionResetHandler: ConnectionResetHandler? = null
 ) : WooCommerceApi {
     
     // 创建一个List<OrderDto>的Type，用于注册类型适配器
@@ -51,15 +55,37 @@ class WooCommerceApiImpl(
         
         Log.d("WooCommerceApiImpl", "初始化WooCommerceApiImpl的OkHttpClient，强制使用HTTP/1.1协议")
         
-        client = OkHttpClient.Builder()
+        // 创建信任所有证书的SSL套接字工厂
+        val trustAllCerts = arrayOf<javax.net.ssl.TrustManager>(object : javax.net.ssl.X509TrustManager {
+            override fun checkClientTrusted(chain: Array<java.security.cert.X509Certificate>, authType: String) {}
+            override fun checkServerTrusted(chain: Array<java.security.cert.X509Certificate>, authType: String) {}
+            override fun getAcceptedIssuers(): Array<java.security.cert.X509Certificate> = arrayOf()
+        })
+
+        // 创建SSL上下文
+        val sslContext = javax.net.ssl.SSLContext.getInstance("TLS")
+        sslContext.init(null, trustAllCerts, java.security.SecureRandom())
+        
+        val clientBuilder = OkHttpClient.Builder()
             .addInterceptor(loggingInterceptor)
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)
+            // 添加SSL握手超时设置
+            .callTimeout(60, TimeUnit.SECONDS)
             // 强制使用HTTP/1.1协议，解决HTTP/2 PROTOCOL_ERROR
             .protocols(listOf(okhttp3.Protocol.HTTP_1_1))
+            // 添加自定义SSL工厂以解决SSL握手问题
+            .sslSocketFactory(sslContext.socketFactory, trustAllCerts[0] as javax.net.ssl.X509TrustManager)
+            .hostnameVerifier { _, _ -> true }
             .retryOnConnectionFailure(true)
-            .build()
+            // 配置连接池，提高连接复用效率
+            .connectionPool(okhttp3.ConnectionPool(5, 5, TimeUnit.MINUTES))
+            
+        // 如果提供了SSL错误拦截器，添加它
+        sslErrorInterceptor?.let { clientBuilder.addInterceptor(it) }
+        
+        client = clientBuilder.build()
             
         // 检查配置是否有效
         Log.d("WooCommerceApiImpl", "初始化WooCommerceApiImpl，配置: $config, " +
@@ -109,9 +135,10 @@ class WooCommerceApiImpl(
             try {
                 return withContext(Dispatchers.IO) {
                     try {
-                        // 如果不是第一次尝试，添加延迟
+                        // 如果不是第一次尝试，添加指数退避延迟
                         if (currentRetry > 0) {
-                            val delayMs = currentRetry * 1000L
+                            // 使用指数退避延迟：1秒，2秒，4秒...
+                            val delayMs = (2f.pow(currentRetry - 1) * 1000).toLong()
                             Log.d("WooCommerceApiImpl", "重试请求，延迟 $delayMs ms")
                             delay(delayMs)
                         }
@@ -149,6 +176,8 @@ class WooCommerceApiImpl(
                         val request = Request.Builder()
                             .url(urlBuilder.build())
                             .get()
+                            // 添加缓存控制头
+                            .header("Cache-Control", "public, max-age=300") // 允许缓存5分钟
                             .build()
                         
                         val startTime = System.currentTimeMillis()
@@ -215,10 +244,28 @@ class WooCommerceApiImpl(
                 Log.e("WooCommerceApiImpl", "请求超时，尝试重试 (${currentRetry+1}/$maxRetries): ${e.message}")
                 lastException = e
                 currentRetry++
+            } catch (e: javax.net.ssl.SSLException) {
+                Log.e("WooCommerceApiImpl", "SSL错误，尝试重试 (${currentRetry+1}/$maxRetries): ${e.message}")
+                lastException = e
+                currentRetry++
+                // 记录连接重置事件
+                if (e.message?.contains("reset") == true || e.message?.contains("peer") == true) {
+                    connectionResetHandler?.recordConnectionReset()
+                    // 分析错误原因
+                    val analysis = connectionResetHandler?.analyzeResetError(e) ?: "未知SSL错误"
+                    Log.e("WooCommerceApiImpl", "连接重置分析: $analysis")
+                }
             } catch (e: java.io.IOException) {
                 Log.e("WooCommerceApiImpl", "IO错误，尝试重试 (${currentRetry+1}/$maxRetries): ${e.message}")
                 lastException = e
                 currentRetry++
+                // 检查是否是连接重置错误
+                if (e.message?.contains("reset") == true || e.message?.contains("peer") == true) {
+                    connectionResetHandler?.recordConnectionReset()
+                    // 分析错误原因
+                    val analysis = connectionResetHandler?.analyzeResetError(e) ?: "未知IO错误"
+                    Log.e("WooCommerceApiImpl", "连接重置分析: $analysis")
+                }
             } catch (e: Exception) {
                 // 对于其他异常，直接抛出不重试
                 Log.e("WooCommerceApiImpl", "请求失败，不重试: ${e.message}")

@@ -1,6 +1,7 @@
 package com.wooauto.domain.usecases.settings
 
 import com.wooauto.domain.repositories.FakeSettingRepository
+import com.example.wooauto.domain.usecases.settings.NotificationSettingsUseCase
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals

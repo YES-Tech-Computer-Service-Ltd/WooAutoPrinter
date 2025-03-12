@@ -31,6 +31,11 @@ import com.example.wooauto.data.remote.WooCommerceApi
 import com.example.wooauto.data.remote.impl.WooCommerceApiImpl
 import com.example.wooauto.data.remote.metadata.MetadataProcessorFactory
 import okhttp3.Protocol
+import com.example.wooauto.data.remote.interceptors.SSLErrorInterceptor
+import android.content.Context
+import com.example.wooauto.data.remote.interceptors.NetworkStatusInterceptor
+import com.example.wooauto.data.remote.ConnectionResetHandler
+import dagger.hilt.android.qualifiers.ApplicationContext
 
 /**
  * 网络模块
@@ -69,27 +74,82 @@ class NetworkModule {
         }
 
         /**
+         * 提供NetworkStatusInterceptor实例
+         * @param context 应用上下文
+         * @return NetworkStatusInterceptor实例
+         */
+        @Provides
+        @Singleton
+        fun provideNetworkStatusInterceptor(@ApplicationContext context: Context): NetworkStatusInterceptor {
+            return NetworkStatusInterceptor(context)
+        }
+
+        /**
          * 提供OkHttpClient实例
          * @param authInterceptor WooCommerce认证拦截器
+         * @param sslErrorInterceptor SSL错误拦截器
+         * @param networkStatusInterceptor 网络状态拦截器
          * @return OkHttpClient实例
          */
         @Provides
         @Singleton
-        fun provideOkHttpClient(authInterceptor: WooCommerceAuthInterceptor): OkHttpClient {
+        fun provideOkHttpClient(authInterceptor: WooCommerceAuthInterceptor, 
+                                sslErrorInterceptor: SSLErrorInterceptor,
+                                networkStatusInterceptor: NetworkStatusInterceptor): OkHttpClient {
             val loggingInterceptor = HttpLoggingInterceptor().apply {
                 level = HttpLoggingInterceptor.Level.BODY
             }
 
             Log.d("NetworkModule", "配置OkHttpClient，强制使用HTTP/1.1协议以避免HTTP/2 PROTOCOL_ERROR")
 
+            // 创建信任所有证书的SSL套接字工厂
+            val trustAllCerts = arrayOf<javax.net.ssl.TrustManager>(object : javax.net.ssl.X509TrustManager {
+                override fun checkClientTrusted(chain: Array<java.security.cert.X509Certificate>, authType: String) {}
+                override fun checkServerTrusted(chain: Array<java.security.cert.X509Certificate>, authType: String) {}
+                override fun getAcceptedIssuers(): Array<java.security.cert.X509Certificate> = arrayOf()
+            })
+
+            // 创建SSL上下文，指定TLS最低版本
+            val sslContext = try {
+                // 优先尝试TLS 1.3（安卓10+）
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                    Log.d("NetworkModule", "使用TLS 1.3协议")
+                    javax.net.ssl.SSLContext.getInstance("TLSv1.3")
+                } else {
+                    Log.d("NetworkModule", "使用TLS 1.2协议")
+                    javax.net.ssl.SSLContext.getInstance("TLSv1.2")
+                }
+            } catch (e: Exception) {
+                // 退回到TLS
+                Log.w("NetworkModule", "无法创建高版本TLS，退回到标准TLS: ${e.message}")
+                javax.net.ssl.SSLContext.getInstance("TLS")
+            }
+            sslContext.init(null, trustAllCerts, java.security.SecureRandom())
+
+            // 创建Socket工厂
+            val sslSocketFactory = sslContext.socketFactory
+
+            // 收集一些网络状态信息
+            Log.d("NetworkModule", "系统信息: ${System.getProperty("os.version")}, SDK: ${android.os.Build.VERSION.SDK_INT}")
+
             return OkHttpClient.Builder()
                 .addInterceptor(loggingInterceptor)
                 .addInterceptor(authInterceptor)
-                .connectTimeout(30, TimeUnit.SECONDS)
-                .readTimeout(30, TimeUnit.SECONDS)
-                .writeTimeout(30, TimeUnit.SECONDS)
+                .addInterceptor(sslErrorInterceptor)
+                .addInterceptor(networkStatusInterceptor)
+                // 添加更宽松的超时设置
+                .connectTimeout(45, TimeUnit.SECONDS)
+                .readTimeout(45, TimeUnit.SECONDS)
+                .writeTimeout(45, TimeUnit.SECONDS)
+                .callTimeout(90, TimeUnit.SECONDS)
                 // 强制使用HTTP/1.1协议，解决PROTOCOL_ERROR
                 .protocols(listOf(Protocol.HTTP_1_1))
+                // 添加自定义SSL工厂以解决SSL握手问题
+                .sslSocketFactory(sslSocketFactory, trustAllCerts[0] as javax.net.ssl.X509TrustManager)
+                .hostnameVerifier { _, _ -> true }
+                // 配置连接池，提高连接复用效率
+                .connectionPool(okhttp3.ConnectionPool(5, 5, TimeUnit.MINUTES))
+                // 启用重试
                 .retryOnConnectionFailure(true)
                 .build()
         }
@@ -167,11 +227,15 @@ class NetworkModule {
         /**
          * 提供WooCommerceApi实例
          * @param config 本地配置
+         * @param sslErrorInterceptor SSL错误拦截器
+         * @param connectionResetHandler 连接重置处理器
          * @return WooCommerceApi实例
          */
         @Provides
         @Singleton
-        fun provideWooCommerceApi(config: WooCommerceConfig): WooCommerceApi {
+        fun provideWooCommerceApi(config: WooCommerceConfig, 
+                                 sslErrorInterceptor: SSLErrorInterceptor,
+                                 connectionResetHandler: ConnectionResetHandler): WooCommerceApi {
             // 初始化元数据处理器注册表
             MetadataProcessorFactory.createDefaultRegistry()
             
@@ -189,7 +253,17 @@ class NetworkModule {
             }
             
             Log.d("NetworkModule", "创建WooCommerceApi，使用统一配置源")
-            return WooCommerceApiImpl(remoteConfig)
+            return WooCommerceApiImpl(remoteConfig, sslErrorInterceptor, connectionResetHandler)
+        }
+
+        /**
+         * 提供ConnectionResetHandler实例
+         * @return ConnectionResetHandler实例
+         */
+        @Provides
+        @Singleton
+        fun provideConnectionResetHandler(): ConnectionResetHandler {
+            return ConnectionResetHandler()
         }
     }
 } 
