@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- 允许所有明文流量 -->
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <!-- 信任系统预装的CA证书 -->
+            <certificates src="system" />
+            <!-- 信任用户安装的CA证书 - 这对开发环境很有用 -->
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+    
+    <!-- 域名特定的配置 -->
+    <domain-config 
+        cleartextTrafficPermitted="true">
+        <!-- 对应您的WooCommerce站点 -->
+        <domain includeSubdomains="true">blanchedaimond-hamster-446110.hostingersite.com</domain>
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+        <!-- 支持老旧TLS版本，解决Android 7连接问题 -->
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+        <!-- 禁用SSL会话缓存，避免长连接问题 -->
+        <connection-config>
+            <session-cache enabled="false" />
+        </connection-config>
+    </domain-config>
+</network-security-config> 
