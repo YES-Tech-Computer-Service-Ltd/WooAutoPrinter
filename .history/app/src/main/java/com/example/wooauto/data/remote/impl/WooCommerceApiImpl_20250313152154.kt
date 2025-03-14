@@ -127,40 +127,9 @@ class WooCommerceApiImpl(
     
     private fun addAuthParams(urlBuilder: okhttp3.HttpUrl.Builder) {
         // 添加日志以检查认证信息
-        if (config.consumerKey.isBlank() || config.consumerSecret.isBlank()) {
-            Log.e("WooCommerceApiImpl", "错误: 认证凭据为空，consumer_key: ${config.consumerKey.isBlank()}, consumer_secret: ${config.consumerSecret.isBlank()}")
-        }
-        
-        // 安全地添加consumer_key
-        try {
-            val sanitizedKey = config.consumerKey.trim()
-            Log.d("WooCommerceApiImpl", "添加认证参数，使用Key: ${sanitizedKey}，Secret长度: ${config.consumerSecret.length}")
-            
-            // 检查是否是有效的consumer_key格式（通常以ck_开头）
-            if (!sanitizedKey.startsWith("ck_")) {
-                Log.w("WooCommerceApiImpl", "警告: consumer_key格式可能不正确，通常应以'ck_'开头")
-            }
-            
-            // 强制URL编码参数
-            urlBuilder.addEncodedQueryParameter("consumer_key", sanitizedKey)
-            urlBuilder.addEncodedQueryParameter("consumer_secret", config.consumerSecret.trim())
-            
-            // 验证参数是否正确添加
-            val url = urlBuilder.build()
-            val hasKey = url.queryParameterNames.contains("consumer_key")
-            val hasSecret = url.queryParameterNames.contains("consumer_secret")
-            
-            Log.d("WooCommerceApiImpl", "验证认证参数: consumer_key存在=${hasKey}, consumer_secret存在=${hasSecret}")
-            
-            if (!hasKey || !hasSecret) {
-                Log.e("WooCommerceApiImpl", "错误: 认证参数添加失败")
-            }
-        } catch (e: Exception) {
-            Log.e("WooCommerceApiImpl", "添加认证参数时出错: ${e.message}", e)
-            // 仍然尝试添加
-            urlBuilder.addQueryParameter("consumer_key", config.consumerKey)
-            urlBuilder.addQueryParameter("consumer_secret", config.consumerSecret)
-        }
+        Log.d("WooCommerceApiImpl", "添加认证参数，使用Key: ${config.consumerKey}，Secret长度: ${config.consumerSecret.length}")
+        urlBuilder.addQueryParameter("consumer_key", config.consumerKey)
+        urlBuilder.addQueryParameter("consumer_secret", config.consumerSecret)
     }
     
     private suspend inline fun <reified T> executeGetRequest(endpoint: String, queryParams: Map<String, String> = emptyMap()): T {

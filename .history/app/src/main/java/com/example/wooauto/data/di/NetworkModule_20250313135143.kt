@@ -36,7 +36,6 @@ import android.content.Context
 import com.example.wooauto.data.remote.interceptors.NetworkStatusInterceptor
 import com.example.wooauto.data.remote.ConnectionResetHandler
 import dagger.hilt.android.qualifiers.ApplicationContext
-import com.example.wooauto.data.remote.ssl.SslUtil
 
 /**
  * 网络模块
@@ -127,16 +126,13 @@ class NetworkModule {
             }
             sslContext.init(null, trustAllCerts, java.security.SecureRandom())
 
-            // 获取TrustManager
-            val trustManager = trustAllCerts[0] as javax.net.ssl.X509TrustManager
-            
             // 创建Socket工厂
             val sslSocketFactory = sslContext.socketFactory
 
             // 收集一些网络状态信息
             Log.d("NetworkModule", "系统信息: ${System.getProperty("os.version")}, SDK: ${android.os.Build.VERSION.SDK_INT}")
 
-            val builder = OkHttpClient.Builder()
+            return OkHttpClient.Builder()
                 .addInterceptor(loggingInterceptor)
                 .addInterceptor(authInterceptor)
                 .addInterceptor(sslErrorInterceptor)
@@ -149,17 +145,13 @@ class NetworkModule {
                 // 强制使用HTTP/1.1协议，解决PROTOCOL_ERROR
                 .protocols(listOf(Protocol.HTTP_1_1))
                 // 添加自定义SSL工厂以解决SSL握手问题
-                .sslSocketFactory(sslSocketFactory, trustManager)
+                .sslSocketFactory(sslSocketFactory, trustAllCerts[0] as javax.net.ssl.X509TrustManager)
                 .hostnameVerifier { _, _ -> true }
                 // 配置连接池，提高连接复用效率
                 .connectionPool(okhttp3.ConnectionPool(5, 5, TimeUnit.MINUTES))
                 // 启用重试
                 .retryOnConnectionFailure(true)
-                
-            // 配置TLS版本支持
-            SslUtil.configureTls(builder)
-                
-            return builder.build()
+                .build()
         }
 
         /**

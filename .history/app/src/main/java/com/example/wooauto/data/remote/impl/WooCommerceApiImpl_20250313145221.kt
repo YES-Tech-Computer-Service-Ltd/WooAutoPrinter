@@ -67,9 +67,6 @@ class WooCommerceApiImpl(
         val sslContext = javax.net.ssl.SSLContext.getInstance("TLS")
         sslContext.init(null, trustAllCerts, java.security.SecureRandom())
         
-        // 获取TrustManager
-        val trustManager = trustAllCerts[0] as javax.net.ssl.X509TrustManager
-        
         val clientBuilder = OkHttpClient.Builder()
             .addInterceptor(loggingInterceptor)
             .connectTimeout(30, TimeUnit.SECONDS)
@@ -79,8 +76,8 @@ class WooCommerceApiImpl(
             .callTimeout(60, TimeUnit.SECONDS)
             // 强制使用HTTP/1.1协议，解决HTTP/2 PROTOCOL_ERROR
             .protocols(listOf(okhttp3.Protocol.HTTP_1_1))
-            // 添加自定义SSL工厂以解决SSL握手问题 - 正确提供TrustManager
-            .sslSocketFactory(sslContext.socketFactory, trustManager)
+            // 添加自定义SSL工厂以解决SSL握手问题
+            .sslSocketFactory(sslContext.socketFactory, trustAllCerts[0] as javax.net.ssl.X509TrustManager)
             .hostnameVerifier { _, _ -> true }
             .retryOnConnectionFailure(true)
             // 配置连接池，提高连接复用效率
@@ -127,40 +124,9 @@ class WooCommerceApiImpl(
     
     private fun addAuthParams(urlBuilder: okhttp3.HttpUrl.Builder) {
         // 添加日志以检查认证信息
-        if (config.consumerKey.isBlank() || config.consumerSecret.isBlank()) {
-            Log.e("WooCommerceApiImpl", "错误: 认证凭据为空，consumer_key: ${config.consumerKey.isBlank()}, consumer_secret: ${config.consumerSecret.isBlank()}")
-        }
-        
-        // 安全地添加consumer_key
-        try {
-            val sanitizedKey = config.consumerKey.trim()
-            Log.d("WooCommerceApiImpl", "添加认证参数，使用Key: ${sanitizedKey}，Secret长度: ${config.consumerSecret.length}")
-            
-            // 检查是否是有效的consumer_key格式（通常以ck_开头）
-            if (!sanitizedKey.startsWith("ck_")) {
-                Log.w("WooCommerceApiImpl", "警告: consumer_key格式可能不正确，通常应以'ck_'开头")
-            }
-            
-            // 强制URL编码参数
-            urlBuilder.addEncodedQueryParameter("consumer_key", sanitizedKey)
-            urlBuilder.addEncodedQueryParameter("consumer_secret", config.consumerSecret.trim())
-            
-            // 验证参数是否正确添加
-            val url = urlBuilder.build()
-            val hasKey = url.queryParameterNames.contains("consumer_key")
-            val hasSecret = url.queryParameterNames.contains("consumer_secret")
-            
-            Log.d("WooCommerceApiImpl", "验证认证参数: consumer_key存在=${hasKey}, consumer_secret存在=${hasSecret}")
-            
-            if (!hasKey || !hasSecret) {
-                Log.e("WooCommerceApiImpl", "错误: 认证参数添加失败")
-            }
-        } catch (e: Exception) {
-            Log.e("WooCommerceApiImpl", "添加认证参数时出错: ${e.message}", e)
-            // 仍然尝试添加
-            urlBuilder.addQueryParameter("consumer_key", config.consumerKey)
-            urlBuilder.addQueryParameter("consumer_secret", config.consumerSecret)
-        }
+        Log.d("WooCommerceApiImpl", "添加认证参数，使用Key: ${config.consumerKey}，Secret长度: ${config.consumerSecret.length}")
+        urlBuilder.addQueryParameter("consumer_key", config.consumerKey)
+        urlBuilder.addQueryParameter("consumer_secret", config.consumerSecret)
     }
     
     private suspend inline fun <reified T> executeGetRequest(endpoint: String, queryParams: Map<String, String> = emptyMap()): T {
@@ -429,44 +395,54 @@ class WooCommerceApiImpl(
                     "已取消" to "cancelled",
                     "已退款" to "refunded",
                     "失败" to "failed",
-                    "延期" to "on-hold"
+                    "暂挂" to "on-hold"
                 )
                 
-                // 尝试映射中文状态
                 val mappedStatus = statusMap[requestedStatus]
-                if (mappedStatus != null) {
-                    Log.d("WooCommerceApiImpl", "【API请求】将中文状态 '$requestedStatus' 映射为 '$mappedStatus'")
+                if (mappedStatus != null && validStatuses.contains(mappedStatus)) {
+                    Log.d("WooCommerceApiImpl", "【API请求】将中文状态 '$requestedStatus' 映射为英文 '$mappedStatus'")
                     queryParams["status"] = mappedStatus
                 } else {
-                    Log.w("WooCommerceApiImpl", "【API请求】忽略无效的状态值: '$requestedStatus'")
+                    // 如果是无效状态，记录警告并使用"any"状态
+                    Log.w("WooCommerceApiImpl", "【API请求】警告: '$requestedStatus' 不是有效的WooCommerce状态，改用'any'")
+                    queryParams["status"] = "any"  // 使用"any"作为备选
                 }
             }
         }
-
-        // 添加调试日志，输出完整查询参数
-        Log.d("WooCommerceApiImpl", "【API请求】订单查询参数: $queryParams")
         
-        // 尝试不带过滤条件获取订单 - 测试用
-        if (requestedStatus != null && queryParams.containsKey("status")) {
-            try {
-                Log.d("WooCommerceApiImpl", "【API请求】尝试先不带状态过滤条件获取订单")
-                val basicParams = mutableMapOf(
-                    "page" to page.toString(),
-                    "per_page" to perPage.toString()
-                )
-                val result = executeGetRequest<List<OrderDto>>("orders", basicParams)
-                if (result.isNotEmpty()) {
-                    Log.d("WooCommerceApiImpl", "【API请求】不带状态参数成功获取到 ${result.size} 个订单")
-                    // 在本地过滤结果
-                    return result.filter { it.status == requestedStatus }
+        try {
+            // 发送请求获取订单
+            val result = executeGetRequest<List<OrderDto>>("orders", queryParams)
+            Log.d("WooCommerceApiImpl", "【API响应】获取到 ${result.size} 个订单")
+            
+            // 记录返回的订单状态分布
+            val statusDistribution = result.groupBy { it.status }.mapValues { it.value.size }
+            Log.d("WooCommerceApiImpl", "【API响应】状态分布: $statusDistribution")
+            
+            // 如果指定了状态但API没有正确过滤，在客户端进行过滤
+            if (!requestedStatus.isNullOrBlank() && result.isNotEmpty()) {
+                // 只在请求状态是有效状态时进行本地过滤
+                if (requestedStatus != "any") {
+                    val matchingOrders = result.filter { it.status == requestedStatus }
+                
+                    // 如果过滤后没有订单，记录并返回原始结果
+                    if (matchingOrders.isEmpty()) {
+                        Log.w("WooCommerceApiImpl", "【API警告】未找到状态为 '$requestedStatus' 的订单，服务器可能不支持此状态过滤")
+                        return result
+                    }
+                
+                    // 否则，返回过滤后的结果
+                    Log.d("WooCommerceApiImpl", "【API过滤】客户端过滤后，状态为 '$requestedStatus' 的订单数量: ${matchingOrders.size}")
+                    return matchingOrders
                 }
-            } catch (e: Exception) {
-                Log.w("WooCommerceApiImpl", "【API请求】不带状态过滤尝试失败: ${e.message}")
-                // 继续尝试原始请求
             }
+            
+            return result
+        } catch (e: Exception) {
+            // 记录详细错误信息
+            Log.e("WooCommerceApiImpl", "【API错误】获取订单失败: ${e.message}")
+            throw e
         }
-        
-        return executeGetRequest("orders", queryParams)
     }
     
     override suspend fun getOrder(id: Long): OrderDto {
