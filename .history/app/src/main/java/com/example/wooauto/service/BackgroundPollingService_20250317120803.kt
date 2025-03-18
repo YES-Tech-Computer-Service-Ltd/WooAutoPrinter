@@ -353,13 +353,6 @@ class BackgroundPollingService : Service() {
                                         }
                                     }
                                     
-                                    // 再次检查订单是否已经被标记为已打印（可能在轮询期间被手动打印）
-                                    val updatedOrder = orderRepository.getOrderById(order.id)
-                                    if (updatedOrder?.isPrinted == true) {
-                                        Log.d(TAG, "订单在轮询间隔内已被标记为已打印，跳过打印: #${order.number}")
-                                        return@launch
-                                    }
-                                    
                                     // 获取默认打印模板类型
                                     val defaultTemplateType = settingsRepository.getDefaultTemplateType() ?: TemplateType.FULL_DETAILS
                                     Log.d(TAG, "使用默认打印模板: $defaultTemplateType")

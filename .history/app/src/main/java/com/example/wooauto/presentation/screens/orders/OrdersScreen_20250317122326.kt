@@ -81,7 +81,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -121,12 +120,6 @@ import com.example.wooauto.domain.templates.TemplateType
 import androidx.compose.material3.Divider
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.material.icons.filled.AccountBalance
-import androidx.compose.material.icons.filled.Discount
-import androidx.compose.material.icons.filled.List
-import androidx.compose.material.icons.filled.AttachMoney
-import androidx.compose.material.icons.filled.Star
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -536,43 +529,30 @@ fun OrderCard(
                 
                 // 添加外卖配送信息显示
                 order.woofoodInfo?.let { woofoodInfo ->
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        if (woofoodInfo.isDelivery) {
+                    if (woofoodInfo.isDelivery) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Icon(
                                 imageVector = Icons.Default.LocalShipping,
                                 contentDescription = "外卖配送",
-                                modifier = Modifier.size(16.dp),
-                                tint = Color(0xFF2196F3) // 使用蓝色表示外卖
+                                modifier = Modifier.size(16.dp),  // 增大尺寸
+                                tint = MaterialTheme.colorScheme.primary
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
                                 text = woofoodInfo.deliveryTime ?: "外卖配送",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Color(0xFF2196F3),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        } else {
-                            Icon(
-                                imageVector = Icons.Default.Store,
-                                contentDescription = "自取订单",
-                                modifier = Modifier.size(16.dp),
-                                tint = Color(0xFF4CAF50) // 使用绿色表示自取
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = woofoodInfo.deliveryTime ?: "自取订单",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Color(0xFF4CAF50),
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontSize = 14.sp  // 增大字体尺寸
+                                ),
+                                color = MaterialTheme.colorScheme.primary,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
                         }
+                        
+                        Spacer(modifier = Modifier.height(4.dp))  // 增加间距
                     }
-                    
-                    Spacer(modifier = Modifier.height(4.dp))
                 }
                 
                 val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
@@ -920,56 +900,6 @@ fun OrderDetailDialog(
                     
                     // 显示WooFood信息（如果有）
                     displayOrder.woofoodInfo?.let { wooFoodInfo ->
-                        // 添加一个显眼的订单方式标签
-                        val orderMethodColor = if (wooFoodInfo.isDelivery) {
-                            Color(0xFF2196F3) // 蓝色用于外卖
-                        } else {
-                            Color(0xFF4CAF50) // 绿色用于自取
-                        }
-                        
-                        val orderMethodText = if (wooFoodInfo.isDelivery) "外卖订单" else "自取订单"
-                        
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .background(
-                                        color = orderMethodColor.copy(alpha = 0.1f),
-                                        shape = RoundedCornerShape(4.dp)
-                                    )
-                                    .padding(horizontal = 12.dp, vertical = 6.dp)
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Center
-                                ) {
-                                    Icon(
-                                        imageVector = if (wooFoodInfo.isDelivery) 
-                                            Icons.Default.LocalShipping 
-                                        else 
-                                            Icons.Default.Store,
-                                        contentDescription = orderMethodText,
-                                        modifier = Modifier.size(18.dp),
-                                        tint = orderMethodColor
-                                    )
-                                    
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    
-                                    Text(
-                                        text = orderMethodText,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = orderMethodColor
-                                    )
-                                }
-                            }
-                        }
-                        
-                        // 显示地址或者自取信息
                         if (wooFoodInfo.isDelivery) {
                             wooFoodInfo.deliveryAddress?.let { address ->
                                 OrderDetailRow(
@@ -985,35 +915,64 @@ fun OrderDetailDialog(
                                     }
                                 )
                             }
+                            
+                            wooFoodInfo.deliveryTime?.let { time ->
+                                OrderDetailRow(
+                                    label = "配送时间",
+                                    value = time,
+                                    icon = {
+                                        Icon(
+                                            imageVector = Icons.Default.Schedule,
+                                            contentDescription = "配送时间",
+                                            modifier = Modifier.size(16.dp),
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                )
+                            }
+                            
+                            wooFoodInfo.deliveryFee?.let { fee ->
+                                OrderDetailRow(
+                                    label = "配送费",
+                                    value = fee,
+                                    icon = {
+                                        Icon(
+                                            imageVector = Icons.Default.LocalShipping,
+                                            contentDescription = "配送费",
+                                            modifier = Modifier.size(16.dp),
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                )
+                            }
                         } else {
                             OrderDetailRow(
-                                label = "自取地点",
-                                value = displayOrder.billingInfo.split("\n").firstOrNull() ?: "店内自取",
+                                label = "订单方式",
+                                value = "自取",
                                 icon = {
                                     Icon(
-                                        imageVector = Icons.Default.LocationOn,
-                                        contentDescription = "自取地点",
+                                        imageVector = Icons.Default.Store,
+                                        contentDescription = "自取",
                                         modifier = Modifier.size(16.dp),
                                         tint = MaterialTheme.colorScheme.primary
                                     )
                                 }
                             )
-                        }
-                        
-                        // 统一显示预计时间（配送/自取）
-                        wooFoodInfo.deliveryTime?.let { time ->
-                            OrderDetailRow(
-                                label = if (wooFoodInfo.isDelivery) "配送时间" else "自取时间",
-                                value = time,
-                                icon = {
-                                    Icon(
-                                        imageVector = Icons.Default.Schedule,
-                                        contentDescription = "时间",
-                                        modifier = Modifier.size(16.dp),
-                                        tint = MaterialTheme.colorScheme.primary
-                                    )
-                                }
-                            )
+                            
+                            wooFoodInfo.deliveryTime?.let { time ->
+                                OrderDetailRow(
+                                    label = "自取时间",
+                                    value = time,
+                                    icon = {
+                                        Icon(
+                                            imageVector = Icons.Default.Schedule,
+                                            contentDescription = "自取时间",
+                                            modifier = Modifier.size(16.dp),
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                )
+                            }
                         }
                     }
                     
@@ -1044,128 +1003,29 @@ fun OrderDetailDialog(
                     
                     OrderDetailRow(
                         label = "小计",
-                        value = "¥${displayOrder.subtotal}",
-                        icon = {
-                            Icon(
-                                imageVector = Icons.Default.List,
-                                contentDescription = "小计",
-                                modifier = Modifier.size(16.dp),
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        }
+                        value = displayOrder.subtotal.ifEmpty { "¥0.00" }
                     )
                     
                     if (displayOrder.discountTotal.isNotEmpty() && displayOrder.discountTotal != "0.00") {
                         OrderDetailRow(
                             label = "折扣",
-                            value = "- ¥${displayOrder.discountTotal}",
-                            icon = {
-                                Icon(
-                                    imageVector = Icons.Default.AttachMoney,
-                                    contentDescription = "折扣",
-                                    modifier = Modifier.size(16.dp),
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                            }
+                            value = "- ¥${displayOrder.discountTotal}"
                         )
                     }
                     
-                    // 是否是外卖订单
-                    val isDelivery = displayOrder.woofoodInfo?.isDelivery ?: false
-                    
-                    // 获取外卖费 - 增强查找逻辑
-                    var deliveryFee = "0.00"
+                    // 显示额外费用
                     displayOrder.feeLines.forEach { feeLine ->
-                        if (feeLine.name.contains("配送费", ignoreCase = true) || 
-                            feeLine.name.contains("外卖费", ignoreCase = true) ||
-                            feeLine.name.contains("shipping", ignoreCase = true) || 
-                            feeLine.name.contains("delivery", ignoreCase = true)) {
-                            deliveryFee = feeLine.total
-                            // 打印日志 - 找到配送费
-                            println("找到配送费: ${feeLine.name} - ${feeLine.total}")
-                        }
-                    }
-                    
-                    // 获取小费 - 增强查找逻辑
-                    var tipAmount = "0.00"
-                    displayOrder.feeLines.forEach { feeLine ->
-                        if (feeLine.name.contains("小费", ignoreCase = true) || 
-                            feeLine.name.contains("tip", ignoreCase = true) || 
-                            feeLine.name.contains("gratuity", ignoreCase = true) ||
-                            feeLine.name.contains("appreciation", ignoreCase = true)) {
-                            tipAmount = feeLine.total
-                            // 打印日志 - 找到小费
-                            println("找到小费: ${feeLine.name} - ${feeLine.total}")
-                        }
-                    }
-                    
-                    // 打印所有费用行，帮助调试
-                    println("订单#${displayOrder.number}的所有费用行:")
-                    displayOrder.feeLines.forEach { feeLine ->
-                        println("  - ${feeLine.name}: ${feeLine.total}")
-                    }
-                    
-                    // 如果是外卖订单，显示外卖费（即使为0）
-                    if (isDelivery) {
                         OrderDetailRow(
-                            label = "外卖费",
-                            value = "¥${deliveryFee}",
-                            icon = {
-                                Icon(
-                                    imageVector = Icons.Default.LocalShipping,
-                                    contentDescription = "外卖费",
-                                    modifier = Modifier.size(16.dp),
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                            }
+                            label = feeLine.name,
+                            value = "¥${feeLine.total}"
                         )
-                    }
-                    
-                    // 无论是什么类型订单，都显示小费（即使为0）
-                    OrderDetailRow(
-                        label = "小费",
-                        value = "¥${tipAmount}",
-                        icon = {
-                            Icon(
-                                imageVector = Icons.Default.Star,
-                                contentDescription = "小费",
-                                modifier = Modifier.size(16.dp),
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    )
-                    
-                    // 显示其他额外费用（不是配送费或小费的其他费用）
-                    displayOrder.feeLines.forEach { feeLine ->
-                        if (feeLine.name != "配送费" && feeLine.name != "外卖费" && feeLine.name != "小费") {
-                            OrderDetailRow(
-                                label = feeLine.name,
-                                value = "¥${feeLine.total}",
-                                icon = {
-                                    Icon(
-                                        imageVector = Icons.Default.AttachMoney,
-                                        contentDescription = feeLine.name,
-                                        modifier = Modifier.size(16.dp),
-                                        tint = MaterialTheme.colorScheme.primary
-                                    )
-                                }
-                            )
-                        }
                     }
                     
                     // 显示税费
                     if (displayOrder.totalTax.isNotEmpty() && displayOrder.totalTax != "0.00") {
                         OrderDetailRow(
                             label = "税费",
-                            value = "¥${displayOrder.totalTax}",
-                            icon = {
-                                Icon(
-                                    imageVector = Icons.Default.Info,
-                                    contentDescription = "税费",
-                                    modifier = Modifier.size(16.dp),
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                            }
+                            value = "¥${displayOrder.totalTax}"
                         )
                     }
                     
@@ -1484,80 +1344,36 @@ fun TemplateSelectorDialog(
 }
 
 @Composable
-fun OrderItemsList(items: List<OrderItem>) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-    ) {
-        items.forEach { item ->
-            OrderItemRow(item)
-            if (items.indexOf(item) < items.size - 1) {
-                Divider(
-                    modifier = Modifier.padding(vertical = 4.dp),
-                    thickness = 0.5.dp,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
-                )
-            }
-        }
-    }
-}
-
-@Composable
 fun OrderItemRow(item: OrderItem) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        // 如果有商品图片，显示图片
-        if (item.image.isNotEmpty()) {
-            AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data(item.image)
-                    .crossfade(true)
-                    .build(),
-                contentDescription = item.name,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(RoundedCornerShape(4.dp))
-            )
-        }
-        Spacer(modifier = Modifier.width(8.dp))  // 增加间距
-        
-        // 商品信息（名称、选项、数量）
-        Column(
+        Text(
+            text = "${item.name} × ${item.quantity}",
+            style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.weight(1f)
-        ) {
-            Text(
-                text = item.name,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Bold
-            )
-            
-            // 显示商品选项
-            if (item.options.isNotEmpty()) {
-                Text(
-                    text = item.options.joinToString(", ") { "${it.name}: ${it.value}" },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                )
-            }
+        )
+        Text(
+            text = item.total,
+            style = MaterialTheme.typography.bodyMedium
+        )
+    }
+}
+
+@Composable
+fun OrderItemsList(items: List<OrderItem>) {
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxWidth()
+            .weight(1f),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        contentPadding = PaddingValues(vertical = 0.dp)
+    ) {
+        items(items) { item ->
+            OrderItemRow(item)
         }
-        
-        // 数量
-        Text(
-            text = "x${item.quantity}",
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.padding(horizontal = 8.dp)
-        )
-        
-        // 价格
-        Text(
-            text = "¥${item.total}",
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Bold
-        )
     }
 } 

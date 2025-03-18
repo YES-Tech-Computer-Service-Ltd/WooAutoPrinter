@@ -396,18 +396,7 @@ class OrdersViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 Log.d("OrdersViewModel", "正在标记订单为已打印: $orderId")
-                val success = orderRepository.markOrderAsPrinted(orderId)
-                if (success) {
-                    Log.d("OrdersViewModel", "成功标记订单为已打印")
-                    // 获取更新后的订单
-                    val updatedOrder = orderRepository.getOrderById(orderId)
-                    updatedOrder?.let {
-                        Log.d("OrdersViewModel", "订单已更新，打印状态: ${it.isPrinted}")
-                        _selectedOrder.value = it
-                    }
-                    // 刷新订单列表
-                    refreshOrders()
-                }
+                orderRepository.markOrderAsPrinted(orderId)
             } catch (e: Exception) {
                 Log.e("OrdersViewModel", "标记订单为已打印时出错: ${e.message}")
                 _errorMessage.value = "无法标记订单为已打印: ${e.message}"

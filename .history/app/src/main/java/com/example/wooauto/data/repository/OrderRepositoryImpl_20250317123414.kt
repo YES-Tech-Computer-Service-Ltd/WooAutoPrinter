@@ -563,30 +563,6 @@ class OrderRepositoryImpl @Inject constructor(
 
     // 添加辅助函数：将OrderEntity转换为Order模型
     private fun mapToOrderModel(entity: com.example.wooauto.data.local.entities.OrderEntity): Order {
-        // 计算小计金额：应该是商品总价，不包含税费和其他费用
-        val calculatedSubtotal = try {
-            // 尝试从订单行项目计算小计总额
-            val itemsSubtotal = entity.lineItems.sumOf { 
-                val price = it.price.toDoubleOrNull() ?: 0.0
-                val quantity = it.quantity
-                price * quantity
-            }
-            
-            // 格式化为保留两位小数
-            String.format("%.2f", itemsSubtotal)
-        } catch (e: Exception) {
-            // 如果计算失败，使用总价减去税费
-            try {
-                val total = entity.total.toDoubleOrNull() ?: 0.0
-                val tax = entity.totalTax.toDoubleOrNull() ?: 0.0
-                val subtotal = total - tax
-                String.format("%.2f", subtotal)
-            } catch (e: Exception) {
-                // 如果还是失败，使用total作为备选
-                entity.total
-            }
-        }
-
         return Order(
             id = entity.id,
             number = entity.number.toString(),
@@ -597,6 +573,7 @@ class OrderRepositoryImpl @Inject constructor(
             billingInfo = entity.billingAddress,
             paymentMethod = entity.paymentMethod,
             total = entity.total,
+            totalTax = entity.totalTax,
             items = entity.lineItems.map { item ->
                 OrderItem(
                     id = 0, // 行项目ID不可用，使用默认值
@@ -613,129 +590,8 @@ class OrderRepositoryImpl @Inject constructor(
             isPrinted = entity.isPrinted,
             notificationShown = entity.notificationShown,
             notes = entity.customerNote,
-            subtotal = calculatedSubtotal, // 使用正确计算的小计金额
-            totalTax = entity.totalTax, // 正确映射税费字段
-            // 解析WooFood信息（如果存在）
-            woofoodInfo = parseWooFoodInfo(entity)
+            subtotal = entity.total, // 使用total作为subtotal，因为OrderEntity没有subtotal字段
+            totalTax = entity.totalTax // 正确映射税费字段
         )
-    }
-    
-    /**
-     * 解析实体中的WooFood相关信息
-     */
-    private fun parseWooFoodInfo(entity: com.example.wooauto.data.local.entities.OrderEntity): com.example.wooauto.domain.models.WooFoodInfo? {
-        // 判断是否为外卖订单 - 检查shipping地址
-        val isDelivery = entity.shippingAddress.isNotEmpty()
-        
-        // 如果没有任何配送或自取相关信息，返回null
-        if (!isDelivery && entity.customerNote.isEmpty()) {
-            // 检查是否通过其他方式可以确定是自取订单
-            // 例如，检查订单备注中是否有"自取"或"pickup"关键词
-            val isPickup = entity.customerNote.contains("自取") || 
-                          entity.customerNote.lowercase().contains("pickup") ||
-                          entity.paymentMethodTitle.contains("自取")
-            
-            if (!isPickup) {
-                return null
-            }
-        }
-        
-        // 提取时间信息
-        val timeInfo = extractTimeInfo(entity.customerNote)
-        
-        // 从订单的customerNote中提取外卖费和小费信息
-        var deliveryFee: String? = null
-        var tipAmount: String? = null
-        
-        // 从备注中尝试提取外卖费信息
-        try {
-            // 外卖费可能以"外卖费:"、"配送费:"等形式存在于备注中
-            val deliveryFeeRegex = "(外卖费|配送费|运费|Shipping fee|Delivery fee)[:：]?\\s*([¥￥$]?\\s*\\d+(\\.\\d+)?)".toRegex(RegexOption.IGNORE_CASE)
-            val deliveryFeeMatch = deliveryFeeRegex.find(entity.customerNote)
-            
-            if (deliveryFeeMatch != null && deliveryFeeMatch.groupValues.size > 2) {
-                // 提取金额并删除货币符号
-                deliveryFee = deliveryFeeMatch.groupValues[2].replace("[¥￥$\\s]".toRegex(), "")
-            } else if (isDelivery) {
-                // 如果找不到具体的外卖费但确定是外卖订单，设一个默认值
-                deliveryFee = "10.00"
-            }
-        } catch (e: Exception) {
-            Log.e("OrderRepositoryImpl", "从备注提取外卖费失败: ${e.message}")
-            // 出错时使用默认值
-            if (isDelivery) deliveryFee = "10.00" 
-        }
-        
-        // 从备注中尝试提取小费信息
-        try {
-            // 小费可能以"小费:"、"小费金额:"、"Tip:"等形式存在于备注中
-            val tipRegex = "(小费|感谢费|Tip|gratuity|Show Your Appreciation)[:：]?\\s*([¥￥$]?\\s*\\d+(\\.\\d+)?)".toRegex(RegexOption.IGNORE_CASE)
-            val tipMatch = tipRegex.find(entity.customerNote)
-            
-            if (tipMatch != null && tipMatch.groupValues.size > 2) {
-                // 提取金额并删除货币符号
-                tipAmount = tipMatch.groupValues[2].replace("[¥￥$\\s]".toRegex(), "")
-            }
-        } catch (e: Exception) {
-            Log.e("OrderRepositoryImpl", "从备注提取小费失败: ${e.message}")
-        }
-        
-        // 创建WooFood信息对象
-        return com.example.wooauto.domain.models.WooFoodInfo(
-            orderMethod = if (isDelivery) "delivery" else "pickup",
-            deliveryTime = timeInfo,
-            deliveryAddress = if (isDelivery) entity.shippingAddress else null,
-            deliveryFee = deliveryFee,
-            tip = tipAmount,
-            isDelivery = isDelivery
-        )
-    }
-    
-    /**
-     * 从订单备注中提取时间信息
-     */
-    private fun extractTimeInfo(note: String): String? {
-        try {
-            // 匹配常见的时间格式
-            // 1. HH:MM 格式 (24小时制)
-            // 2. HH:MM AM/PM 格式 (12小时制)
-            // 3. 中文时间表示，如"下午3点30分"
-            
-            // 检查24小时制或12小时制时间
-            val timeRegex = "(\\d{1,2}:\\d{2}(\\s*[AaPp][Mm])?)".toRegex()
-            val timeMatch = timeRegex.find(note)
-            
-            if (timeMatch != null) {
-                return timeMatch.groupValues[1]
-            }
-            
-            // 检查中文时间表示
-            val chineseTimeRegex = "([上下]午\\s*\\d{1,2}\\s*[点时]\\s*(\\d{1,2}\\s*分钟?)?)".toRegex()
-            val chineseTimeMatch = chineseTimeRegex.find(note)
-            
-            if (chineseTimeMatch != null) {
-                return chineseTimeMatch.groupValues[1]
-            }
-        } catch (e: Exception) {
-            Log.e("OrderRepositoryImpl", "提取时间信息失败: ${e.message}")
-        }
-        
-        return null
-    }
-    
-    /**
-     * 提取外卖费
-     */
-    private fun extractDeliveryFee(entity: com.example.wooauto.data.local.entities.OrderEntity): String? {
-        // 此方法已移到parseWooFoodInfo中的内联代码
-        return null
-    }
-    
-    /**
-     * 提取小费
-     */
-    private fun extractTip(entity: com.example.wooauto.data.local.entities.OrderEntity): String? {
-        // 此方法已移到parseWooFoodInfo中的内联代码
-        return null
     }
 }

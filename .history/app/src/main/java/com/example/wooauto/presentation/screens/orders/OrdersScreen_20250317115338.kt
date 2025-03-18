@@ -46,10 +46,6 @@ import androidx.compose.material.icons.filled.Payment
 import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Restaurant
-import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.Comment
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -81,7 +77,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -120,13 +115,6 @@ import com.example.wooauto.utils.LocaleManager
 import com.example.wooauto.domain.templates.TemplateType
 import androidx.compose.material3.Divider
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.material.icons.filled.AccountBalance
-import androidx.compose.material.icons.filled.Discount
-import androidx.compose.material.icons.filled.List
-import androidx.compose.material.icons.filled.AttachMoney
-import androidx.compose.material.icons.filled.Star
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -536,43 +524,30 @@ fun OrderCard(
                 
                 // 添加外卖配送信息显示
                 order.woofoodInfo?.let { woofoodInfo ->
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        if (woofoodInfo.isDelivery) {
+                    if (woofoodInfo.isDelivery) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Icon(
                                 imageVector = Icons.Default.LocalShipping,
                                 contentDescription = "外卖配送",
-                                modifier = Modifier.size(16.dp),
-                                tint = Color(0xFF2196F3) // 使用蓝色表示外卖
+                                modifier = Modifier.size(16.dp),  // 增大尺寸
+                                tint = MaterialTheme.colorScheme.primary
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
                                 text = woofoodInfo.deliveryTime ?: "外卖配送",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Color(0xFF2196F3),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        } else {
-                            Icon(
-                                imageVector = Icons.Default.Store,
-                                contentDescription = "自取订单",
-                                modifier = Modifier.size(16.dp),
-                                tint = Color(0xFF4CAF50) // 使用绿色表示自取
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = woofoodInfo.deliveryTime ?: "自取订单",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Color(0xFF4CAF50),
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontSize = 14.sp  // 增大字体尺寸
+                                ),
+                                color = MaterialTheme.colorScheme.primary,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
                         }
+                        
+                        Spacer(modifier = Modifier.height(4.dp))  // 增加间距
                     }
-                    
-                    Spacer(modifier = Modifier.height(4.dp))
                 }
                 
                 val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
@@ -697,14 +672,6 @@ fun OrderDetailDialog(
     val viewModel: OrdersViewModel = hiltViewModel()
     val scrollState = rememberScrollState()
     
-    // 观察当前选中的订单，以便实时更新UI
-    val currentOrder by viewModel.selectedOrder.collectAsState()
-    
-    // 使用当前的订单信息（如果有更新）或者传入的订单
-    val displayOrder = currentOrder ?: order
-    
-    Log.d("OrderDetailDialog", "显示订单详情，订单ID: ${displayOrder.id}, 打印状态: ${displayOrder.isPrinted}")
-    
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(
@@ -724,7 +691,7 @@ fun OrderDetailDialog(
                     TopAppBar(
                         title = { 
                             Text(
-                                text = "订单详情 #${displayOrder.number}",
+                                text = "订单详情 #${order.number}",
                                 style = MaterialTheme.typography.titleMedium
                             )
                         },
@@ -772,7 +739,7 @@ fun OrderDetailDialog(
                 ) {
                     OrderDetailRow(
                         label = "订单号", 
-                        value = displayOrder.number,
+                        value = order.number,
                         icon = {
                             Icon(
                                 imageVector = Icons.Default.Numbers,
@@ -785,7 +752,7 @@ fun OrderDetailDialog(
                     
                     OrderDetailRow(
                         label = "订单ID", 
-                        value = displayOrder.id.toString(),
+                        value = order.id.toString(),
                         icon = {
                             Icon(
                                 imageVector = Icons.Default.Tag,
@@ -797,7 +764,7 @@ fun OrderDetailDialog(
                     )
                     
                     val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
-                    val formattedDate = dateFormat.format(displayOrder.dateCreated)
+                    val formattedDate = dateFormat.format(order.dateCreated)
                     OrderDetailRow(
                         label = "下单日期",
                         value = formattedDate,
@@ -813,7 +780,7 @@ fun OrderDetailDialog(
                     
                     OrderDetailRow(
                         label = "客户",
-                        value = displayOrder.customerName,
+                        value = order.customerName,
                         icon = {
                             Icon(
                                 imageVector = Icons.Default.Person,
@@ -827,7 +794,7 @@ fun OrderDetailDialog(
                     // 手机号
                     OrderDetailRow(
                         label = "联系方式",
-                        value = displayOrder.contactInfo.ifEmpty { "未提供" },
+                        value = order.contactInfo.ifEmpty { "未提供" },
                         icon = {
                             Icon(
                                 imageVector = Icons.Default.Phone,
@@ -839,8 +806,8 @@ fun OrderDetailDialog(
                     )
                     
                     // 添加打印状态显示
-                    val printStatusText = if (displayOrder.isPrinted) "已打印" else "未打印"
-                    val printStatusColor = if (displayOrder.isPrinted) Color(0xFF4CAF50) else Color(0xFFE53935)
+                    val printStatusText = if (order.isPrinted) "已打印" else "未打印"
+                    val printStatusColor = if (order.isPrinted) Color(0xFF4CAF50) else Color(0xFFE53935)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -857,7 +824,7 @@ fun OrderDetailDialog(
                         Spacer(modifier = Modifier.width(8.dp))
                         
                         Icon(
-                            imageVector = if (displayOrder.isPrinted) Icons.Default.CheckCircle else Icons.Default.Print,
+                            imageVector = if (order.isPrinted) Icons.Default.CheckCircle else Icons.Default.Print,
                             contentDescription = "打印状态",
                             modifier = Modifier.size(16.dp),
                             tint = printStatusColor
@@ -871,11 +838,11 @@ fun OrderDetailDialog(
                             color = printStatusColor
                         )
                         
-                        if (!displayOrder.isPrinted) {
+                        if (!order.isPrinted) {
                             Spacer(modifier = Modifier.width(16.dp))
                             
                             OutlinedButton(
-                                onClick = { onMarkAsPrinted(displayOrder.id) },
+                                onClick = { onMarkAsPrinted(order.id) },
                                 modifier = Modifier.height(28.dp),
                                 contentPadding = PaddingValues(horizontal = 8.dp)
                             ) {
@@ -885,312 +852,6 @@ fun OrderDetailDialog(
                                 )
                             }
                         }
-                    }
-                    
-                    if (displayOrder.billingInfo.isNotEmpty()) {
-                        OrderDetailRow(
-                            label = "账单地址",
-                            value = displayOrder.billingInfo,
-                            icon = {
-                                Icon(
-                                    imageVector = Icons.Default.LocationOn,
-                                    contentDescription = "账单地址",
-                                    modifier = Modifier.size(16.dp),
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                        )
-                    }
-                    
-                    // 显示订单备注信息
-                    if (displayOrder.notes.isNotEmpty()) {
-                        OrderDetailRow(
-                            label = "备注",
-                            value = displayOrder.notes,
-                            icon = {
-                                Icon(
-                                    imageVector = Icons.Default.Comment,
-                                    contentDescription = "备注",
-                                    modifier = Modifier.size(16.dp),
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                        )
-                    }
-                    
-                    // 显示WooFood信息（如果有）
-                    displayOrder.woofoodInfo?.let { wooFoodInfo ->
-                        // 添加一个显眼的订单方式标签
-                        val orderMethodColor = if (wooFoodInfo.isDelivery) {
-                            Color(0xFF2196F3) // 蓝色用于外卖
-                        } else {
-                            Color(0xFF4CAF50) // 绿色用于自取
-                        }
-                        
-                        val orderMethodText = if (wooFoodInfo.isDelivery) "外卖订单" else "自取订单"
-                        
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .background(
-                                        color = orderMethodColor.copy(alpha = 0.1f),
-                                        shape = RoundedCornerShape(4.dp)
-                                    )
-                                    .padding(horizontal = 12.dp, vertical = 6.dp)
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Center
-                                ) {
-                                    Icon(
-                                        imageVector = if (wooFoodInfo.isDelivery) 
-                                            Icons.Default.LocalShipping 
-                                        else 
-                                            Icons.Default.Store,
-                                        contentDescription = orderMethodText,
-                                        modifier = Modifier.size(18.dp),
-                                        tint = orderMethodColor
-                                    )
-                                    
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    
-                                    Text(
-                                        text = orderMethodText,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = orderMethodColor
-                                    )
-                                }
-                            }
-                        }
-                        
-                        // 显示地址或者自取信息
-                        if (wooFoodInfo.isDelivery) {
-                            wooFoodInfo.deliveryAddress?.let { address ->
-                                OrderDetailRow(
-                                    label = "配送地址",
-                                    value = address,
-                                    icon = {
-                                        Icon(
-                                            imageVector = Icons.Default.Home,
-                                            contentDescription = "配送地址",
-                                            modifier = Modifier.size(16.dp),
-                                            tint = MaterialTheme.colorScheme.primary
-                                        )
-                                    }
-                                )
-                            }
-                        } else {
-                            OrderDetailRow(
-                                label = "自取地点",
-                                value = displayOrder.billingInfo.split("\n").firstOrNull() ?: "店内自取",
-                                icon = {
-                                    Icon(
-                                        imageVector = Icons.Default.LocationOn,
-                                        contentDescription = "自取地点",
-                                        modifier = Modifier.size(16.dp),
-                                        tint = MaterialTheme.colorScheme.primary
-                                    )
-                                }
-                            )
-                        }
-                        
-                        // 统一显示预计时间（配送/自取）
-                        wooFoodInfo.deliveryTime?.let { time ->
-                            OrderDetailRow(
-                                label = if (wooFoodInfo.isDelivery) "配送时间" else "自取时间",
-                                value = time,
-                                icon = {
-                                    Icon(
-                                        imageVector = Icons.Default.Schedule,
-                                        contentDescription = "时间",
-                                        modifier = Modifier.size(16.dp),
-                                        tint = MaterialTheme.colorScheme.primary
-                                    )
-                                }
-                            )
-                        }
-                    }
-                    
-                    // 显示订单商品列表
-                    Text(
-                        text = "商品列表",
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
-                    )
-                    
-                    if (displayOrder.items.isNotEmpty()) {
-                        OrderItemsList(items = displayOrder.items)
-                    } else {
-                        Text(
-                            text = "无商品信息",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.padding(vertical = 8.dp)
-                        )
-                    }
-                    
-                    // 显示价格明细
-                    Text(
-                        text = "价格明细",
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
-                    )
-                    
-                    OrderDetailRow(
-                        label = "小计",
-                        value = "¥${displayOrder.subtotal}",
-                        icon = {
-                            Icon(
-                                imageVector = Icons.Default.List,
-                                contentDescription = "小计",
-                                modifier = Modifier.size(16.dp),
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    )
-                    
-                    if (displayOrder.discountTotal.isNotEmpty() && displayOrder.discountTotal != "0.00") {
-                        OrderDetailRow(
-                            label = "折扣",
-                            value = "- ¥${displayOrder.discountTotal}",
-                            icon = {
-                                Icon(
-                                    imageVector = Icons.Default.AttachMoney,
-                                    contentDescription = "折扣",
-                                    modifier = Modifier.size(16.dp),
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                        )
-                    }
-                    
-                    // 是否是外卖订单
-                    val isDelivery = displayOrder.woofoodInfo?.isDelivery ?: false
-                    
-                    // 获取外卖费 - 增强查找逻辑
-                    var deliveryFee = "0.00"
-                    displayOrder.feeLines.forEach { feeLine ->
-                        if (feeLine.name.contains("配送费", ignoreCase = true) || 
-                            feeLine.name.contains("外卖费", ignoreCase = true) ||
-                            feeLine.name.contains("shipping", ignoreCase = true) || 
-                            feeLine.name.contains("delivery", ignoreCase = true)) {
-                            deliveryFee = feeLine.total
-                            // 打印日志 - 找到配送费
-                            println("找到配送费: ${feeLine.name} - ${feeLine.total}")
-                        }
-                    }
-                    
-                    // 获取小费 - 增强查找逻辑
-                    var tipAmount = "0.00"
-                    displayOrder.feeLines.forEach { feeLine ->
-                        if (feeLine.name.contains("小费", ignoreCase = true) || 
-                            feeLine.name.contains("tip", ignoreCase = true) || 
-                            feeLine.name.contains("gratuity", ignoreCase = true) ||
-                            feeLine.name.contains("appreciation", ignoreCase = true)) {
-                            tipAmount = feeLine.total
-                            // 打印日志 - 找到小费
-                            println("找到小费: ${feeLine.name} - ${feeLine.total}")
-                        }
-                    }
-                    
-                    // 打印所有费用行，帮助调试
-                    println("订单#${displayOrder.number}的所有费用行:")
-                    displayOrder.feeLines.forEach { feeLine ->
-                        println("  - ${feeLine.name}: ${feeLine.total}")
-                    }
-                    
-                    // 如果是外卖订单，显示外卖费（即使为0）
-                    if (isDelivery) {
-                        OrderDetailRow(
-                            label = "外卖费",
-                            value = "¥${deliveryFee}",
-                            icon = {
-                                Icon(
-                                    imageVector = Icons.Default.LocalShipping,
-                                    contentDescription = "外卖费",
-                                    modifier = Modifier.size(16.dp),
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                        )
-                    }
-                    
-                    // 无论是什么类型订单，都显示小费（即使为0）
-                    OrderDetailRow(
-                        label = "小费",
-                        value = "¥${tipAmount}",
-                        icon = {
-                            Icon(
-                                imageVector = Icons.Default.Star,
-                                contentDescription = "小费",
-                                modifier = Modifier.size(16.dp),
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    )
-                    
-                    // 显示其他额外费用（不是配送费或小费的其他费用）
-                    displayOrder.feeLines.forEach { feeLine ->
-                        if (feeLine.name != "配送费" && feeLine.name != "外卖费" && feeLine.name != "小费") {
-                            OrderDetailRow(
-                                label = feeLine.name,
-                                value = "¥${feeLine.total}",
-                                icon = {
-                                    Icon(
-                                        imageVector = Icons.Default.AttachMoney,
-                                        contentDescription = feeLine.name,
-                                        modifier = Modifier.size(16.dp),
-                                        tint = MaterialTheme.colorScheme.primary
-                                    )
-                                }
-                            )
-                        }
-                    }
-                    
-                    // 显示税费
-                    if (displayOrder.totalTax.isNotEmpty() && displayOrder.totalTax != "0.00") {
-                        OrderDetailRow(
-                            label = "税费",
-                            value = "¥${displayOrder.totalTax}",
-                            icon = {
-                                Icon(
-                                    imageVector = Icons.Default.Info,
-                                    contentDescription = "税费",
-                                    modifier = Modifier.size(16.dp),
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                        )
-                    }
-                    
-                    Divider(modifier = Modifier.padding(vertical = 8.dp))
-                    
-                    // 显示总计
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "总计",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        
-                        Text(
-                            text = "¥${displayOrder.total}",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
                     }
                     
                     // 显示订单状态
@@ -1205,7 +866,7 @@ fun OrderDetailDialog(
                             style = MaterialTheme.typography.bodyLarge
                         )
                         
-                        val statusText = when(displayOrder.status) {
+                        val statusText = when(order.status) {
                             "processing" -> "处理中"
                             "pending" -> "待处理"
                             "on-hold" -> "保留"
@@ -1213,10 +874,10 @@ fun OrderDetailDialog(
                             "cancelled" -> "已取消"
                             "refunded" -> "已退款"
                             "failed" -> "失败"
-                            else -> displayOrder.status
+                            else -> order.status
                         }
                         
-                        val statusColor = when(displayOrder.status) {
+                        val statusColor = when(order.status) {
                             "completed" -> MaterialTheme.colorScheme.primary
                             "processing" -> Color(0xFF2196F3) // 蓝色
                             "pending" -> Color(0xFFFFA000) // 橙色
@@ -1257,7 +918,7 @@ fun OrderDetailDialog(
                     Button(
                         onClick = { showTemplateOptions = true }
                     ) {
-                        Text(if (displayOrder.isPrinted) "重新打印" else "打印订单")
+                        Text(if (order.isPrinted) "重新打印" else "打印订单")
                     }
                     
                     // 关闭按钮
@@ -1274,10 +935,10 @@ fun OrderDetailDialog(
     // 显示状态选择对话框
     if (showStatusOptions) {
         StatusChangeDialog(
-            currentStatus = displayOrder.status,
+            currentStatus = order.status,
             onDismiss = { showStatusOptions = false },
             onStatusSelected = { newStatus ->
-                onStatusChange(displayOrder.id, newStatus)
+                onStatusChange(order.id, newStatus)
                 showStatusOptions = false
             }
         )
@@ -1289,7 +950,7 @@ fun OrderDetailDialog(
             onDismiss = { showTemplateOptions = false },
             onTemplateSelected = { templateType ->
                 // 使用选定的模板打印
-                viewModel.printOrder(displayOrder.id, templateType)
+                viewModel.printOrder(order.id, templateType)
                 showTemplateOptions = false
             }
         )
@@ -1484,80 +1145,21 @@ fun TemplateSelectorDialog(
 }
 
 @Composable
-fun OrderItemsList(items: List<OrderItem>) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-    ) {
-        items.forEach { item ->
-            OrderItemRow(item)
-            if (items.indexOf(item) < items.size - 1) {
-                Divider(
-                    modifier = Modifier.padding(vertical = 4.dp),
-                    thickness = 0.5.dp,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
-                )
-            }
-        }
-    }
-}
-
-@Composable
 fun OrderItemRow(item: OrderItem) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        // 如果有商品图片，显示图片
-        if (item.image.isNotEmpty()) {
-            AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data(item.image)
-                    .crossfade(true)
-                    .build(),
-                contentDescription = item.name,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(RoundedCornerShape(4.dp))
-            )
-        }
-        Spacer(modifier = Modifier.width(8.dp))  // 增加间距
-        
-        // 商品信息（名称、选项、数量）
-        Column(
+        Text(
+            text = "${item.name} × ${item.quantity}",
+            style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.weight(1f)
-        ) {
-            Text(
-                text = item.name,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Bold
-            )
-            
-            // 显示商品选项
-            if (item.options.isNotEmpty()) {
-                Text(
-                    text = item.options.joinToString(", ") { "${it.name}: ${it.value}" },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                )
-            }
-        }
-        
-        // 数量
-        Text(
-            text = "x${item.quantity}",
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.padding(horizontal = 8.dp)
         )
-        
-        // 价格
         Text(
-            text = "¥${item.total}",
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Bold
+            text = item.total,
+            style = MaterialTheme.typography.bodyMedium
         )
     }
 } 

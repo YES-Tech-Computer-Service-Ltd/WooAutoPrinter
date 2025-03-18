@@ -402,11 +402,8 @@ class OrdersViewModel @Inject constructor(
                     // 获取更新后的订单
                     val updatedOrder = orderRepository.getOrderById(orderId)
                     updatedOrder?.let {
-                        Log.d("OrdersViewModel", "订单已更新，打印状态: ${it.isPrinted}")
                         _selectedOrder.value = it
                     }
-                    // 刷新订单列表
-                    refreshOrders()
                 }
             } catch (e: Exception) {
                 Log.e("OrdersViewModel", "标记订单为已打印时出错: ${e.message}")

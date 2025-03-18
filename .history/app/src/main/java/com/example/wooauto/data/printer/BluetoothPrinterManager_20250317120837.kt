@@ -588,24 +588,13 @@ class BluetoothPrinterManager @Inject constructor(
                 
                 // 如果打印成功，标记订单为已打印
                 if (success) {
-                    Log.d(TAG, "打印成功，检查订单 ${order.id} 当前打印状态")
-                    
-                    // 获取最新的订单信息
-                    val latestOrder = orderRepository.getOrderById(order.id)
-                    
-                    // 只有在订单未被标记为已打印时才进行标记
-                    if (latestOrder != null && !latestOrder.isPrinted) {
-                        Log.d(TAG, "标记订单 ${order.id} 为已打印")
-                        val markResult = orderRepository.markOrderAsPrinted(order.id)
-                        if (markResult) {
-                            Log.d(TAG, "成功标记订单 ${order.id} 为已打印")
-                        } else {
-                            Log.e(TAG, "标记订单 ${order.id} 为已打印失败")
-                        }
+                    Log.d(TAG, "打印成功，标记订单 ${order.id} 为已打印")
+                    val markResult = orderRepository.markOrderAsPrinted(order.id)
+                    if (markResult) {
+                        Log.d(TAG, "成功标记订单 ${order.id} 为已打印")
                     } else {
-                        Log.d(TAG, "订单 ${order.id} 已被标记为已打印，跳过重复标记")
+                        Log.e(TAG, "标记订单 ${order.id} 为已打印失败")
                     }
-                    
                     return@withContext true
                 } else {
                     Log.e(TAG, "打印内容失败，尝试重试...")
@@ -729,17 +718,12 @@ class BluetoothPrinterManager @Inject constructor(
             
             if (result) {
                 Log.d(TAG, "订单 #${order.number} 打印成功")
-                // 更新订单打印状态前再次检查订单状态
-                val latestOrder = orderRepository.getOrderById(order.id)
-                if (latestOrder != null && !latestOrder.isPrinted) {
-                    val markResult = orderRepository.markOrderAsPrinted(order.id)
-                    if (markResult) {
-                        Log.d(TAG, "已更新订单 #${order.number} 的打印状态为已打印")
-                    } else {
-                        Log.e(TAG, "更新订单 #${order.number} 的打印状态失败")
-                    }
+                // 更新订单打印状态
+                val markResult = orderRepository.markOrderAsPrinted(order.id)
+                if (markResult) {
+                    Log.d(TAG, "已更新订单 #${order.number} 的打印状态为已打印")
                 } else {
-                    Log.d(TAG, "订单 #${order.number} 已被标记为已打印，跳过重复标记")
+                    Log.e(TAG, "更新订单 #${order.number} 的打印状态失败")
                 }
                 return true
             } else {

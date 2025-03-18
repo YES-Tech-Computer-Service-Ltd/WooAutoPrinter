@@ -8,7 +8,6 @@ import com.example.wooauto.data.remote.WooCommerceConfig
 import com.example.wooauto.data.remote.dto.OrderDto
 import com.example.wooauto.data.remote.dto.toOrder
 import com.example.wooauto.domain.models.Order
-import com.example.wooauto.domain.models.OrderItem
 import com.example.wooauto.domain.repositories.DomainOrderRepository
 import com.example.wooauto.domain.repositories.DomainSettingRepository
 import kotlinx.coroutines.Dispatchers
@@ -23,9 +22,6 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import com.example.wooauto.data.remote.ApiError
 import com.example.wooauto.data.local.dao.OrderDao
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.SupervisorJob
 
 @Singleton
 class OrderRepositoryImpl @Inject constructor(
@@ -41,9 +37,6 @@ class OrderRepositoryImpl @Inject constructor(
     
     // 添加缺失的单个订单流映射
     private val _orderByIdFlow = mutableMapOf<Long, MutableStateFlow<Order?>>()
-    
-    // 添加协程作用域
-    private val repositoryScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     
     private suspend fun getApi(config: WooCommerceConfig? = null): WooCommerceApi {
         val actualConfig = config ?: settingsRepository.getWooCommerceConfig()
@@ -106,26 +99,6 @@ class OrderRepositoryImpl @Inject constructor(
         }
         
         return@withContext order
-    }
-
-    /**
-     * 获取特定订单的状态流，允许组件监听单个订单的变化
-     * @param orderId 订单ID
-     * @return 订单状态流
-     */
-    override fun getOrderByIdFlow(orderId: Long): Flow<Order?> {
-        // 如果Flow不存在，创建一个新的空Flow
-        if (!_orderByIdFlow.containsKey(orderId)) {
-            _orderByIdFlow[orderId] = MutableStateFlow(null)
-            
-            // 异步加载订单数据
-            repositoryScope.launch {
-                val order = getOrderById(orderId)
-                _orderByIdFlow[orderId]?.value = order
-            }
-        }
-        
-        return _orderByIdFlow[orderId]!!.asStateFlow()
     }
 
     override suspend fun updateOrderStatus(orderId: Long, newStatus: String): Result<Order> = withContext(Dispatchers.IO) {
@@ -240,43 +213,24 @@ class OrderRepositoryImpl @Inject constructor(
                 // 转换为领域模型
                 val orders = response.map { orderDto -> orderDto.toOrder() }
                 
-                // 更新数据库，但保留打印状态
-                val currentOrders = orderDao.getAllOrders().first()
-                val printedOrderIds = currentOrders.filter { it.isPrinted }.map { it.id }.toSet()
-                
-                // 更新缓存，保留已打印状态
-                val entitiesWithPrintStatus = orders.map { order -> 
-                    val entity = OrderMapper.mapDomainToEntity(order)
-                    // 如果订单之前已标记为已打印，保留该状态
-                    if (printedOrderIds.contains(entity.id)) {
-                        entity.copy(isPrinted = true)
-                    } else {
-                        entity
-                    }
-                }
-                
-                orderDao.deleteAllOrders() // 清除旧数据
-                orderDao.insertOrders(entitiesWithPrintStatus) // 插入保留打印状态的新数据
-                
-                // 同样更新缓存，保留已打印状态
-                cachedOrders = orders.map { order ->
-                    if (printedOrderIds.contains(order.id)) {
-                        order.copy(isPrinted = true)
-                    } else {
-                        order
-                    }
-                }
+                // 更新缓存
+                cachedOrders = orders
                 isOrdersCached = true
-                _ordersFlow.value = cachedOrders
+                _ordersFlow.value = orders
+                
+                // 更新数据库
+                val entities = orders.map { order -> OrderMapper.mapDomainToEntity(order) }
+                orderDao.deleteAllOrders() // 清除旧数据
+                orderDao.insertOrders(entities) // 插入新数据
                 
                 // 如果API没有正确过滤状态，在本地进行过滤
                 val finalOrders = if (status != null) {
                     // 再次进行本地过滤，确保只返回匹配状态的订单
-                    val filteredOrders = cachedOrders.filter { 
+                    val filteredOrders = orders.filter { 
                         val orderStatus = it.status
                         val matches = orderStatus == status || 
-                                      (statusMap[status] == orderStatus) || 
-                                      (statusMap.entries.find { entry -> entry.value == status }?.key == orderStatus)
+                                       (statusMap[status] == orderStatus) || 
+                                       (statusMap.entries.find { entry -> entry.value == status }?.key == orderStatus)
                         
                         if (!matches) {
                             Log.d("OrderRepositoryImpl", "【状态过滤】订单 ${it.id} 状态 '$orderStatus' 与请求状态 '$status' 不匹配")
@@ -288,7 +242,7 @@ class OrderRepositoryImpl @Inject constructor(
                     Log.d("OrderRepositoryImpl", "【状态过滤】本地过滤后，符合状态 '$status' 的订单数量: ${filteredOrders.size}")
                     filteredOrders
                 } else {
-                    cachedOrders
+                    orders
                 }
                 
                 // 更新状态分组
@@ -353,38 +307,17 @@ class OrderRepositoryImpl @Inject constructor(
                 // 转换为领域模型
                 val orders = response.map { orderDto -> orderDto.toOrder() }
                 
-                // 获取当前已打印的订单ID
-                val currentProcessingOrders = orderDao.getOrdersByStatus("processing").first()
-                val printedOrderIds = currentProcessingOrders.filter { it.isPrinted }.map { it.id }.toSet()
-                
-                // 更新数据库中的处理中订单，但保留打印状态
-                val entitiesWithPrintStatus = orders.map { order -> 
-                    val entity = OrderMapper.mapDomainToEntity(order)
-                    // 如果订单之前已标记为已打印，保留该状态
-                    if (printedOrderIds.contains(entity.id)) {
-                        entity.copy(isPrinted = true)
-                    } else {
-                        entity
-                    }
-                }
+                // 更新数据库中的处理中订单，但不影响当前缓存
+                val entities = orders.map { order -> OrderMapper.mapDomainToEntity(order) }
                 
                 // 注意：不同于普通刷新，这里只删除和添加processing状态的订单
                 orderDao.deleteOrdersByStatus("processing") 
-                orderDao.insertOrders(entitiesWithPrintStatus)
+                orderDao.insertOrders(entities)
                 
                 // 注意：这里特意不更新_ordersFlow，以避免影响UI显示
                 Log.d("OrderRepositoryImpl", "【轮询刷新】成功获取处理中订单，不影响UI状态")
                 
-                // 返回带有打印状态的订单
-                val ordersWithPrintStatus = orders.map { order ->
-                    if (printedOrderIds.contains(order.id)) {
-                        order.copy(isPrinted = true)
-                    } else {
-                        order
-                    }
-                }
-                
-                return@withContext Result.success(ordersWithPrintStatus)
+                return@withContext Result.success(orders)
             } catch (e: Exception) {
                 Log.e("OrderRepositoryImpl", "【轮询刷新】API调用异常: ${e.message}", e)
                 throw e
@@ -563,179 +496,32 @@ class OrderRepositoryImpl @Inject constructor(
 
     // 添加辅助函数：将OrderEntity转换为Order模型
     private fun mapToOrderModel(entity: com.example.wooauto.data.local.entities.OrderEntity): Order {
-        // 计算小计金额：应该是商品总价，不包含税费和其他费用
-        val calculatedSubtotal = try {
-            // 尝试从订单行项目计算小计总额
-            val itemsSubtotal = entity.lineItems.sumOf { 
-                val price = it.price.toDoubleOrNull() ?: 0.0
-                val quantity = it.quantity
-                price * quantity
-            }
-            
-            // 格式化为保留两位小数
-            String.format("%.2f", itemsSubtotal)
-        } catch (e: Exception) {
-            // 如果计算失败，使用总价减去税费
-            try {
-                val total = entity.total.toDoubleOrNull() ?: 0.0
-                val tax = entity.totalTax.toDoubleOrNull() ?: 0.0
-                val subtotal = total - tax
-                String.format("%.2f", subtotal)
-            } catch (e: Exception) {
-                // 如果还是失败，使用total作为备选
-                entity.total
-            }
-        }
-
         return Order(
             id = entity.id,
             number = entity.number.toString(),
             status = entity.status,
             dateCreated = Date(entity.dateCreated),
+            dateModified = Date(entity.dateModified),
             customerName = entity.customerName,
+            customerNote = entity.customerNote,
             contactInfo = entity.contactInfo,
-            billingInfo = entity.billingAddress,
-            paymentMethod = entity.paymentMethod,
             total = entity.total,
+            totalTax = entity.totalTax,
             items = entity.lineItems.map { item ->
-                OrderItem(
-                    id = 0, // 行项目ID不可用，使用默认值
-                    productId = item.productId,
+                Order.OrderItem(
+                    id = item.productId,
                     name = item.name,
                     quantity = item.quantity,
                     price = item.price,
                     total = item.total,
-                    subtotal = item.price, // 单项价格作为小计
-                    image = "", // 图片URL不可用，使用空字符串
-                    options = emptyList() // 选项不可用，使用空列表
+                    sku = item.sku
                 )
             },
+            billingInfo = entity.billingAddress,
+            shippingInfo = entity.shippingAddress,
+            paymentMethod = entity.paymentMethod,
             isPrinted = entity.isPrinted,
-            notificationShown = entity.notificationShown,
-            notes = entity.customerNote,
-            subtotal = calculatedSubtotal, // 使用正确计算的小计金额
-            totalTax = entity.totalTax, // 正确映射税费字段
-            // 解析WooFood信息（如果存在）
-            woofoodInfo = parseWooFoodInfo(entity)
+            notificationShown = entity.notificationShown
         )
-    }
-    
-    /**
-     * 解析实体中的WooFood相关信息
-     */
-    private fun parseWooFoodInfo(entity: com.example.wooauto.data.local.entities.OrderEntity): com.example.wooauto.domain.models.WooFoodInfo? {
-        // 判断是否为外卖订单 - 检查shipping地址
-        val isDelivery = entity.shippingAddress.isNotEmpty()
-        
-        // 如果没有任何配送或自取相关信息，返回null
-        if (!isDelivery && entity.customerNote.isEmpty()) {
-            // 检查是否通过其他方式可以确定是自取订单
-            // 例如，检查订单备注中是否有"自取"或"pickup"关键词
-            val isPickup = entity.customerNote.contains("自取") || 
-                          entity.customerNote.lowercase().contains("pickup") ||
-                          entity.paymentMethodTitle.contains("自取")
-            
-            if (!isPickup) {
-                return null
-            }
-        }
-        
-        // 提取时间信息
-        val timeInfo = extractTimeInfo(entity.customerNote)
-        
-        // 从订单的customerNote中提取外卖费和小费信息
-        var deliveryFee: String? = null
-        var tipAmount: String? = null
-        
-        // 从备注中尝试提取外卖费信息
-        try {
-            // 外卖费可能以"外卖费:"、"配送费:"等形式存在于备注中
-            val deliveryFeeRegex = "(外卖费|配送费|运费|Shipping fee|Delivery fee)[:：]?\\s*([¥￥$]?\\s*\\d+(\\.\\d+)?)".toRegex(RegexOption.IGNORE_CASE)
-            val deliveryFeeMatch = deliveryFeeRegex.find(entity.customerNote)
-            
-            if (deliveryFeeMatch != null && deliveryFeeMatch.groupValues.size > 2) {
-                // 提取金额并删除货币符号
-                deliveryFee = deliveryFeeMatch.groupValues[2].replace("[¥￥$\\s]".toRegex(), "")
-            } else if (isDelivery) {
-                // 如果找不到具体的外卖费但确定是外卖订单，设一个默认值
-                deliveryFee = "10.00"
-            }
-        } catch (e: Exception) {
-            Log.e("OrderRepositoryImpl", "从备注提取外卖费失败: ${e.message}")
-            // 出错时使用默认值
-            if (isDelivery) deliveryFee = "10.00" 
-        }
-        
-        // 从备注中尝试提取小费信息
-        try {
-            // 小费可能以"小费:"、"小费金额:"、"Tip:"等形式存在于备注中
-            val tipRegex = "(小费|感谢费|Tip|gratuity|Show Your Appreciation)[:：]?\\s*([¥￥$]?\\s*\\d+(\\.\\d+)?)".toRegex(RegexOption.IGNORE_CASE)
-            val tipMatch = tipRegex.find(entity.customerNote)
-            
-            if (tipMatch != null && tipMatch.groupValues.size > 2) {
-                // 提取金额并删除货币符号
-                tipAmount = tipMatch.groupValues[2].replace("[¥￥$\\s]".toRegex(), "")
-            }
-        } catch (e: Exception) {
-            Log.e("OrderRepositoryImpl", "从备注提取小费失败: ${e.message}")
-        }
-        
-        // 创建WooFood信息对象
-        return com.example.wooauto.domain.models.WooFoodInfo(
-            orderMethod = if (isDelivery) "delivery" else "pickup",
-            deliveryTime = timeInfo,
-            deliveryAddress = if (isDelivery) entity.shippingAddress else null,
-            deliveryFee = deliveryFee,
-            tip = tipAmount,
-            isDelivery = isDelivery
-        )
-    }
-    
-    /**
-     * 从订单备注中提取时间信息
-     */
-    private fun extractTimeInfo(note: String): String? {
-        try {
-            // 匹配常见的时间格式
-            // 1. HH:MM 格式 (24小时制)
-            // 2. HH:MM AM/PM 格式 (12小时制)
-            // 3. 中文时间表示，如"下午3点30分"
-            
-            // 检查24小时制或12小时制时间
-            val timeRegex = "(\\d{1,2}:\\d{2}(\\s*[AaPp][Mm])?)".toRegex()
-            val timeMatch = timeRegex.find(note)
-            
-            if (timeMatch != null) {
-                return timeMatch.groupValues[1]
-            }
-            
-            // 检查中文时间表示
-            val chineseTimeRegex = "([上下]午\\s*\\d{1,2}\\s*[点时]\\s*(\\d{1,2}\\s*分钟?)?)".toRegex()
-            val chineseTimeMatch = chineseTimeRegex.find(note)
-            
-            if (chineseTimeMatch != null) {
-                return chineseTimeMatch.groupValues[1]
-            }
-        } catch (e: Exception) {
-            Log.e("OrderRepositoryImpl", "提取时间信息失败: ${e.message}")
-        }
-        
-        return null
-    }
-    
-    /**
-     * 提取外卖费
-     */
-    private fun extractDeliveryFee(entity: com.example.wooauto.data.local.entities.OrderEntity): String? {
-        // 此方法已移到parseWooFoodInfo中的内联代码
-        return null
-    }
-    
-    /**
-     * 提取小费
-     */
-    private fun extractTip(entity: com.example.wooauto.data.local.entities.OrderEntity): String? {
-        // 此方法已移到parseWooFoodInfo中的内联代码
-        return null
     }
 }

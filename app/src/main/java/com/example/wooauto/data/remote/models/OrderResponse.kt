@@ -75,10 +75,15 @@ data class OrderResponse(
         get() = metaData.find { it.key == "exwfood_time_deli" }?.value?.toString()
 
     val tip: String?
-        get() = feeLines?.find { it.name == "Show Your Appreciation" }?.total
+        get() = feeLines?.find { it.name.equals("Show Your Appreciation", ignoreCase = true) }?.total 
+            ?: feeLines?.find { it.name.contains("tip", ignoreCase = true) }?.total
+            ?: feeLines?.find { it.name.contains("gratuity", ignoreCase = true) }?.total
+            ?: feeLines?.find { it.name.contains("小费", ignoreCase = true) }?.total
 
     val deliveryFee: String?
-        get() = feeLines?.find { it.name == "Shipping fee" }?.total
+        get() = feeLines?.find { it.name.equals("Shipping fee", ignoreCase = true) }?.total
+            ?: feeLines?.find { it.name.contains("delivery", ignoreCase = true) }?.total
+            ?: feeLines?.find { it.name.contains("配送费", ignoreCase = true) }?.total
 
     // 辅助方法
     fun getMetaValue(key: String): String? {

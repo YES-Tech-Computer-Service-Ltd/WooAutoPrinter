@@ -729,17 +729,12 @@ class BluetoothPrinterManager @Inject constructor(
             
             if (result) {
                 Log.d(TAG, "订单 #${order.number} 打印成功")
-                // 更新订单打印状态前再次检查订单状态
-                val latestOrder = orderRepository.getOrderById(order.id)
-                if (latestOrder != null && !latestOrder.isPrinted) {
-                    val markResult = orderRepository.markOrderAsPrinted(order.id)
-                    if (markResult) {
-                        Log.d(TAG, "已更新订单 #${order.number} 的打印状态为已打印")
-                    } else {
-                        Log.e(TAG, "更新订单 #${order.number} 的打印状态失败")
-                    }
+                // 更新订单打印状态
+                val markResult = orderRepository.markOrderAsPrinted(order.id)
+                if (markResult) {
+                    Log.d(TAG, "已更新订单 #${order.number} 的打印状态为已打印")
                 } else {
-                    Log.d(TAG, "订单 #${order.number} 已被标记为已打印，跳过重复标记")
+                    Log.e(TAG, "更新订单 #${order.number} 的打印状态失败")
                 }
                 return true
             } else {
