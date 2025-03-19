@@ -1,6 +1,5 @@
 package com.example.wooauto.presentation.screens.orders
 
-import android.app.Application
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -28,7 +27,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.util.Date
 import javax.inject.Inject
-import androidx.localbroadcastmanager.content.LocalBroadcastManager
 
 @HiltViewModel
 class OrdersViewModel @Inject constructor(
@@ -83,15 +81,8 @@ class OrdersViewModel @Inject constructor(
 
     init {
         Log.d(TAG, "OrdersViewModel 初始化")
-        
-        // 检查配置和注册广播
         checkConfiguration()
         registerBroadcastReceiver()
-        
-        // 注册接收刷新订单的广播
-        registerRefreshOrdersBroadcastReceiver()
-        
-        // 观察订单数据
         observeOrders()
     }
 
@@ -497,35 +488,6 @@ class OrdersViewModel @Inject constructor(
                 }
             } catch (e: Exception) {
                 Log.e("OrdersViewModel", "打印订单时出错: ${e.message}", e)
-            }
-        }
-    }
-
-    /**
-     * 注册接收刷新订单的广播接收器
-     */
-    private fun registerRefreshOrdersBroadcastReceiver() {
-        viewModelScope.launch {
-            try {
-                val context = getApplication<Application>()
-                
-                // 创建广播接收器
-                val receiver = object : BroadcastReceiver() {
-                    override fun onReceive(context: Context, intent: Intent) {
-                        Log.d("OrdersViewModel", "【轮询通知】收到刷新订单广播")
-                        refreshOrders()
-                    }
-                }
-                
-                // 注册广播接收器
-                LocalBroadcastManager.getInstance(context).registerReceiver(
-                    receiver,
-                    IntentFilter("com.example.wooauto.REFRESH_ORDERS")
-                )
-                
-                Log.d("OrdersViewModel", "已注册刷新订单广播接收器")
-            } catch (e: Exception) {
-                Log.e("OrdersViewModel", "注册刷新订单广播接收器失败: ${e.message}")
             }
         }
     }

@@ -2,10 +2,7 @@ package com.example.wooauto.presentation.screens.settings
 
 import android.app.Activity
 import android.content.Context
-import android.content.Intent
 import android.util.Log
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -77,8 +74,6 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.RadioButton
 import kotlinx.coroutines.runBlocking
 import androidx.compose.material3.IconButton
-import com.journeyapps.barcodescanner.ScanContract
-import com.journeyapps.barcodescanner.ScanOptions
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -89,7 +84,6 @@ fun SettingsScreen(
     val scrollState = rememberScrollState()
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
-    val context = LocalContext.current
     
     // API配置相关状态
     val siteUrl by viewModel.siteUrl.collectAsState()
@@ -132,29 +126,6 @@ fun SettingsScreen(
     var consumerSecretInput by remember { mutableStateOf(consumerSecret) }
     var pollingIntervalInput by remember { mutableStateOf(pollingInterval.toString()) }
     var useWooCommerceFoodInput by remember { mutableStateOf(useWooCommerceFood) }
-    
-    // 二维码扫描器
-    val barcodeLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
-        result.contents?.let { scanResult ->
-            // 不直接设置siteUrlInput，而是交给ViewModel处理
-            viewModel.handleQrCodeResult(scanResult)
-            coroutineScope.launch {
-                snackbarHostState.showSnackbar("扫描成功")
-            }
-        }
-    }
-    
-    // 处理二维码扫描事件
-    LaunchedEffect(viewModel) {
-        viewModel.scanQrCodeEvent.collect {
-            val options = ScanOptions().apply {
-                setPrompt("扫描WooCommerce站点URL二维码")
-                setBeepEnabled(true)
-                setOrientationLocked(false)
-            }
-            barcodeLauncher.launch(options)
-        }
-    }
     
     // 当配置发生变化时更新输入值
     LaunchedEffect(siteUrl, consumerKey, consumerSecret, pollingInterval, useWooCommerceFood) {

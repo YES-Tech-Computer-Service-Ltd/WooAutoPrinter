@@ -82,11 +82,7 @@ class OrdersViewModel @Inject constructor(
     }
 
     init {
-        Log.d(TAG, "OrdersViewModel 初始化")
-        
-        // 检查配置和注册广播
-        checkConfiguration()
-        registerBroadcastReceiver()
+        Log.d("OrdersViewModel", "初始化OrdersViewModel")
         
         // 注册接收刷新订单的广播
         registerRefreshOrdersBroadcastReceiver()

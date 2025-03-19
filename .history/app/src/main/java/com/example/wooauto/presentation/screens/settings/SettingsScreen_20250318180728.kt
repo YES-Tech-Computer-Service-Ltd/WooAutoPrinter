@@ -136,8 +136,7 @@ fun SettingsScreen(
     // 二维码扫描器
     val barcodeLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
         result.contents?.let { scanResult ->
-            // 不直接设置siteUrlInput，而是交给ViewModel处理
-            viewModel.handleQrCodeResult(scanResult)
+            siteUrlInput = scanResult
             coroutineScope.launch {
                 snackbarHostState.showSnackbar("扫描成功")
             }

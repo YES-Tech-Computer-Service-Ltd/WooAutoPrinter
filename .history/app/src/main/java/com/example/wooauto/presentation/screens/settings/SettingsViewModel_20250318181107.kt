@@ -896,48 +896,11 @@ class SettingsViewModel @Inject constructor(
      */
     fun handleQrCodeResult(result: String) {
         try {
-            Log.d(TAG, "处理二维码扫描结果: ${result.take(30)}...")
-            
-            // 检查是否是wooauto://开头的特定格式
-            if (result.startsWith("wooauto://")) {
-                // 提取JSON部分 (wooauto://之后的内容)
-                val jsonStr = result.substring("wooauto://".length)
-                
-                // 使用Gson解析JSON
-                val gson = com.google.gson.Gson()
-                try {
-                    val qrData = gson.fromJson(jsonStr, WooCommerceQrData::class.java)
-                    
-                    // 更新各字段值
-                    _siteUrl.value = qrData.url ?: ""
-                    _consumerKey.value = qrData.key ?: ""
-                    _consumerSecret.value = qrData.secret ?: ""
-                    
-                    // 保存设置
-                    saveSettings()
-                    
-                    Log.d(TAG, "二维码数据解析成功: URL=${qrData.url}, Key=${qrData.key?.take(10)}..., Secret=${qrData.secret?.take(10)}...")
-                } catch (e: Exception) {
-                    Log.e(TAG, "解析二维码JSON数据失败: ${e.message}")
-                    // 如果JSON解析失败，则直接使用整个结果作为URL
-                    _siteUrl.value = result
-                }
-            } else {
-                // 不是特定格式，直接作为URL使用
-                _siteUrl.value = result.trim()
-                Log.d(TAG, "使用普通URL格式: ${result.take(30)}...")
-            }
+            // 处理二维码结果，通常包含API URL信息
+            _siteUrl.value = result.trim()
+            Log.d(TAG, "二维码扫描结果处理成功: ${result.take(10)}...")
         } catch (e: Exception) {
             Log.e(TAG, "处理二维码扫描结果出错", e)
         }
     }
-
-    /**
-     * 二维码数据类
-     */
-    data class WooCommerceQrData(
-        val url: String? = null,
-        val key: String? = null,
-        val secret: String? = null
-    )
 } 

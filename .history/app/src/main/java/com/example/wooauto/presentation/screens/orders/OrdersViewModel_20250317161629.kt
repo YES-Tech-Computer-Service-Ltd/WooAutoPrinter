@@ -1,6 +1,5 @@
 package com.example.wooauto.presentation.screens.orders
 
-import android.app.Application
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -28,7 +27,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.util.Date
 import javax.inject.Inject
-import androidx.localbroadcastmanager.content.LocalBroadcastManager
 
 @HiltViewModel
 class OrdersViewModel @Inject constructor(
@@ -83,15 +81,8 @@ class OrdersViewModel @Inject constructor(
 
     init {
         Log.d(TAG, "OrdersViewModel 初始化")
-        
-        // 检查配置和注册广播
         checkConfiguration()
         registerBroadcastReceiver()
-        
-        // 注册接收刷新订单的广播
-        registerRefreshOrdersBroadcastReceiver()
-        
-        // 观察订单数据
         observeOrders()
     }
 
@@ -364,15 +355,102 @@ class OrdersViewModel @Inject constructor(
         }
     }
     
+    /**
+     * 获取订单详情
+     */
     fun getOrderDetails(orderId: Long) {
         viewModelScope.launch {
             try {
-                Log.d("OrdersViewModel", "正在获取订单详情: $orderId")
                 val order = orderRepository.getOrderById(orderId)
                 _selectedOrder.value = order
+                
+                // 调试打印订单详情 - 仅用于排查问题
+                if (order != null) {
+                    com.example.wooauto.utils.OrderDebugger.debugPrintOrderDetails(order)
+                }
             } catch (e: Exception) {
-                Log.e("OrdersViewModel", "获取订单详情时出错: ${e.message}")
-                _errorMessage.value = "无法获取订单详情: ${e.message}"
+                _errorMessage.value = e.message ?: "获取订单详情失败"
+                Log.e(TAG, "获取订单详情失败", e)
+            }
+        }
+    }
+    
+    /**
+     * 调试打印第一个订单的详情
+     * 这个方法仅用于调试，没有副作用
+     */
+    fun debugFirstOrder() {
+        viewModelScope.launch {
+            try {
+                val currentOrders = _orders.value
+                if (currentOrders.isNotEmpty()) {
+                    val firstOrder = currentOrders.first()
+                    val orderDetail = orderRepository.getOrderById(firstOrder.id)
+                    Log.d(TAG, "正在打印第一个订单 [ID=${firstOrder.id}] 的详细信息")
+                    com.example.wooauto.utils.OrderDebugger.debugPrintOrderDetails(orderDetail)
+                } else {
+                    Log.d(TAG, "没有可用的订单用于调试")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "调试打印订单失败", e)
+            }
+        }
+    }
+    
+    /**
+     * 增强调试 - 获取特定订单的完整信息
+     * 包括API原始数据和数据库实体的详细信息
+     */
+    fun debugOrderDeep(orderId: Long) {
+        viewModelScope.launch {
+            try {
+                Log.d(TAG, "开始深度调试订单: $orderId")
+                
+                // 1. 获取领域模型
+                val domainOrder = orderRepository.getOrderById(orderId)
+                
+                // 2. 获取数据库实体 - 这里需要转换repository实现类型以访问实体
+                var orderEntity: com.example.wooauto.data.db.entities.OrderEntity? = null
+                var apiResponse: com.example.wooauto.data.remote.models.OrderResponse? = null
+                
+                // 检查repository的实际类型
+                if (orderRepository is com.example.wooauto.data.repositories.OrderRepositoryImpl) {
+                    // 访问内部数据库实现获取实体
+                    orderEntity = (orderRepository as com.example.wooauto.data.repositories.OrderRepositoryImpl)
+                        .getOrderEntityById(orderId)
+                    
+                    // 尝试从API获取最新数据
+                    try {
+                        val result = (orderRepository as com.example.wooauto.data.repositories.OrderRepositoryImpl)
+                            .getOrderResponseFromApi(orderId)
+                        if (result.isSuccess) {
+                            apiResponse = result.getOrNull()
+                        } else {
+                            Log.e(TAG, "无法从API获取订单响应: ${result.exceptionOrNull()?.message}")
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "获取API响应时发生错误", e)
+                    }
+                }
+                
+                // 3. 打印领域模型和实体信息
+                com.example.wooauto.utils.OrderDebugger.debugPrintDetailedOrderInfo(domainOrder, orderEntity)
+                
+                // 4. 分析订单类型判断逻辑
+                if (domainOrder != null) {
+                    com.example.wooauto.utils.OrderDebugger.analyzeOrderTypeDetection(domainOrder)
+                }
+                
+                // 5. 如果有API响应，打印它
+                if (apiResponse != null) {
+                    com.example.wooauto.utils.OrderDebugger.debugPrintApiResponse(apiResponse)
+                } else {
+                    Log.d(TAG, "没有API响应数据可供分析")
+                }
+                
+                Log.d(TAG, "深度调试订单完成: $orderId")
+            } catch (e: Exception) {
+                Log.e(TAG, "深度调试订单失败", e)
             }
         }
     }
@@ -497,35 +575,6 @@ class OrdersViewModel @Inject constructor(
                 }
             } catch (e: Exception) {
                 Log.e("OrdersViewModel", "打印订单时出错: ${e.message}", e)
-            }
-        }
-    }
-
-    /**
-     * 注册接收刷新订单的广播接收器
-     */
-    private fun registerRefreshOrdersBroadcastReceiver() {
-        viewModelScope.launch {
-            try {
-                val context = getApplication<Application>()
-                
-                // 创建广播接收器
-                val receiver = object : BroadcastReceiver() {
-                    override fun onReceive(context: Context, intent: Intent) {
-                        Log.d("OrdersViewModel", "【轮询通知】收到刷新订单广播")
-                        refreshOrders()
-                    }
-                }
-                
-                // 注册广播接收器
-                LocalBroadcastManager.getInstance(context).registerReceiver(
-                    receiver,
-                    IntentFilter("com.example.wooauto.REFRESH_ORDERS")
-                )
-                
-                Log.d("OrdersViewModel", "已注册刷新订单广播接收器")
-            } catch (e: Exception) {
-                Log.e("OrdersViewModel", "注册刷新订单广播接收器失败: ${e.message}")
             }
         }
     }
