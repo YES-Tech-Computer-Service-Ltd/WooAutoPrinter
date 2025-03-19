@@ -59,13 +59,10 @@ class BluetoothPrinterManager @Inject constructor(
     // 创建协程作用域
     private val managerScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     
-    // 使用推荐的方式获取BluetoothAdapter
     private val bluetoothAdapter: BluetoothAdapter? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
         val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
         bluetoothManager.adapter
     } else {
-        // 兼容API 23以下的设备，尽管API已废弃但仍然可用
-        @Suppress("DEPRECATION")
         BluetoothAdapter.getDefaultAdapter()
     }
     
@@ -107,11 +104,9 @@ class BluetoothPrinterManager @Inject constructor(
         private const val CONNECT_TIMEOUT = 15000L
         // 最大重试次数
         private const val MAX_RETRY_COUNT = 5
-        // 心跳间隔 (毫秒) - 每15秒发送一次心跳，避免蓝牙断连
+        // 心跳间隔 (毫秒) - 每15秒
         private const val HEARTBEAT_INTERVAL = 15000L
-        // 连接检查间隔 (毫秒) - 每30秒检查一次连接状态
-        private const val CONNECTION_CHECK_INTERVAL = 30000L
-        // 连接重试间隔 (毫秒) - 断开连接后等待5秒再尝试重连
+        // 连接重试延迟
         private const val RECONNECT_DELAY = 5000L
         
         // 蓝牙权限问题的诊断信息
@@ -137,14 +132,8 @@ class BluetoothPrinterManager @Inject constructor(
         override fun onReceive(context: Context, intent: Intent) {
             when (intent.action) {
                 BluetoothDevice.ACTION_FOUND -> {
-                    // 获取找到的蓝牙设备 - 使用兼容方式获取BluetoothDevice
-                    val device = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE, BluetoothDevice::class.java)
-                    } else {
-                        @Suppress("DEPRECATION")
-                        intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE)
-                    }
-                    
+                    // 获取找到的蓝牙设备
+                    val device = intent.getParcelableExtra<BluetoothDevice>(BluetoothDevice.EXTRA_DEVICE)
                     device?.let {
                         // 增加详细日志帮助调试
                         val rssi = intent.getShortExtra(BluetoothDevice.EXTRA_RSSI, Short.MIN_VALUE).toInt()
@@ -172,13 +161,7 @@ class BluetoothPrinterManager @Inject constructor(
                 }
                 // 监听配对状态变化
                 BluetoothDevice.ACTION_BOND_STATE_CHANGED -> {
-                    val device = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE, BluetoothDevice::class.java)
-                    } else {
-                        @Suppress("DEPRECATION")
-                        intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE)
-                    }
-                    
+                    val device = intent.getParcelableExtra<BluetoothDevice>(BluetoothDevice.EXTRA_DEVICE)
                     val bondState = intent.getIntExtra(BluetoothDevice.EXTRA_BOND_STATE, BluetoothDevice.ERROR)
                     val prevBondState = intent.getIntExtra(BluetoothDevice.EXTRA_PREVIOUS_BOND_STATE, BluetoothDevice.ERROR)
                     
@@ -242,15 +225,19 @@ class BluetoothPrinterManager @Inject constructor(
         }
         
         // 取消当前的设备扫描，这对成功连接非常重要
-        if (this.bluetoothAdapter?.isDiscovering == true) {
+        val bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
+        if (bluetoothAdapter?.isDiscovering == true) {
             Log.d(TAG, "取消当前设备发现以提高连接成功率")
-            this.bluetoothAdapter.cancelDiscovery()
+            bluetoothAdapter.cancelDiscovery()
         }
         
         Log.d(TAG, "正在连接蓝牙打印机: ${config.name} (${config.address})")
         updatePrinterStatus(config.address, PrinterStatus.CONNECTING)
         
         try {
+            // 存储当前打印机配置，用于心跳检测
+            currentPrinterConfig = config
+            
             // 获取设备
             val device = getBluetoothDevice(config.address)
             if (device == null) {
@@ -298,17 +285,36 @@ class BluetoothPrinterManager @Inject constructor(
                         
                         // 创建蓝牙连接 - 注意库不支持传入UUID，这里只用于日志
                         val connection = BluetoothConnection(device)
-                        connection.connect()
+                        
+                        // 设置连接超时
+                        withTimeoutOrNull(CONNECT_TIMEOUT) {
+                            connection.connect()
+                        } ?: throw RuntimeException("连接超时")
                         
                         Log.d(TAG, "成功连接蓝牙设备 ${config.name}")
+                        
+                        // 确保之前的连接已关闭
+                        currentConnection?.disconnect()
+                        
                         currentConnection = connection
                         
                         // 创建打印机实例
                         val printer = EscPosPrinter(connection, 203, config.paperWidth.toFloat(), 48)
+                        
+                        // 确保之前的打印机已关闭
+                        currentPrinter?.disconnectPrinter()
+                        
                         currentPrinter = printer
                         
                         connected = true
                         updatePrinterStatus(config.address, PrinterStatus.CONNECTED)
+                        
+                        // 通知设置仓库更新打印机状态
+                        settingRepository.setPrinterConnection(true)
+                        
+                        // 启动心跳检测
+                        startHeartbeat(config)
+                        
                         break
                     } catch (e: Exception) {
                         lastException = e
@@ -341,9 +347,6 @@ class BluetoothPrinterManager @Inject constructor(
                 updatePrinterStatus(config.address, PrinterStatus.ERROR)
                 return false
             }
-            
-            // 启动心跳机制以保持连接
-            startHeartbeat(config)
             
             return true
         } catch (e: Exception) {
@@ -482,9 +485,9 @@ class BluetoothPrinterManager @Inject constructor(
     fun stopDiscovery() {
         try {
             if (isScanning) {
-                // 使用类实例中的bluetoothAdapter
-                if (this.bluetoothAdapter != null && this.bluetoothAdapter.isEnabled) {
-                    this.bluetoothAdapter.cancelDiscovery()
+                val bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
+                if (bluetoothAdapter != null && bluetoothAdapter.isEnabled) {
+                    bluetoothAdapter.cancelDiscovery()
                 }
                 
                 try {
@@ -600,21 +603,8 @@ class BluetoothPrinterManager @Inject constructor(
                     }
                 }
                 
-                // 进行连接测试确认
-                val testResult = testConnection(config)
-                if (!testResult) {
-                    Log.w(TAG, "打印机连接测试失败，尝试重连后再打印")
-                    reconnectPrinter(config)
-                    retryCount++
-                    delay(1000)
-                    continue
-                }
-                
                 // 打印订单
-                Log.d(TAG, "开始生成打印内容: 订单 ${order.number}")
                 val content = templateManager.generateOrderPrintContent(order, config)
-                Log.d(TAG, "生成打印内容完成，开始发送打印数据")
-                
                 val success = printContent(content, config)
                 
                 // 如果打印成功，标记订单为已打印
@@ -650,7 +640,6 @@ class BluetoothPrinterManager @Inject constructor(
                 if (e.message?.contains("Broken pipe") == true || 
                     e is EscPosConnectionException) {
                     try {
-                        Log.d(TAG, "检测到连接断开，尝试重新连接")
                         reconnectPrinter(config)
                     } catch (re: Exception) {
                         Log.e(TAG, "重新连接打印机失败: ${re.message}")
@@ -1160,39 +1149,63 @@ class BluetoothPrinterManager @Inject constructor(
         val order: Order? = null
     )
     
-    private suspend fun getBluetoothDevice(address: String): BluetoothDevice? {
-        return try {
-            Log.d(TAG, "尝试获取地址为 $address 的蓝牙设备")
-            
-            // 通过已保存的设备列表查找
-            discoveredDevices[address]?.let { 
-                Log.d(TAG, "在已发现设备中找到设备: ${it.name ?: "未知"}")
-                return it
-            }
-            
-            // 尝试通过地址获取设备对象
-            val device = this.bluetoothAdapter?.getRemoteDevice(address)
-            if (device != null) {
-                Log.d(TAG, "通过地址获取到设备: ${device.name ?: "未知"}")
-                return device
-            }
-            
-            // 如果找不到设备，执行扫描尝试发现它
-            Log.d(TAG, "未找到设备，开始扫描尝试发现")
-            val scanResult = withTimeoutOrNull(SCAN_TIMEOUT) {
-                scanForDevice(address)
-            }
-            
-            scanResult ?: run {
-                Log.e(TAG, "扫描超时，未找到设备: $address")
-                null
-            }
+    private fun getBluetoothDevice(address: String): BluetoothDevice? {
+        try {
+            val bluetoothAdapter = BluetoothAdapter.getDefaultAdapter() ?: return null
+            return bluetoothAdapter.getRemoteDevice(address)
         } catch (e: Exception) {
-            Log.e(TAG, "获取蓝牙设备失败: ${e.message}", e)
-            null
+            Log.e(TAG, "获取蓝牙设备失败: ${e.message}")
+            return null
         }
     }
-    
+
+    /**
+     * 尝试连接指定地址的蓝牙设备
+     * @param deviceAddress 蓝牙设备地址
+     * @return 连接结果
+     */
+    suspend fun tryConnectWithDevice(deviceAddress: String): Boolean {
+        Log.d(TAG, "尝试连接设备: $deviceAddress")
+        try {
+            // 停止搜索，以提高连接成功率
+            stopDiscovery()
+            
+            // 获取蓝牙适配器
+            val bluetoothAdapter = BluetoothAdapter.getDefaultAdapter() ?: run {
+                Log.e(TAG, "蓝牙适配器为空")
+                return false
+            }
+            
+            // 权限检查 - 只在高版本Android上强制要求
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (ActivityCompat.checkSelfPermission(context, android.Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+                    Log.e(TAG, "没有BLUETOOTH_CONNECT权限")
+                    return false
+                }
+            }
+            
+            // 获取蓝牙设备
+            val device = bluetoothAdapter.getRemoteDevice(deviceAddress) ?: run {
+                Log.e(TAG, "无法获取设备: $deviceAddress")
+                return false
+            }
+            
+            // 创建一个基本的打印机配置
+            val config = PrinterConfig(
+                name = device.name ?: "未知设备",
+                address = deviceAddress,
+                type = PrinterConfig.PRINTER_TYPE_BLUETOOTH,
+                paperWidth = PrinterConfig.PAPER_WIDTH_57MM
+            )
+            
+            // 调用现有的connect方法连接设备
+            return connect(config)
+        } catch (e: Exception) {
+            Log.e(TAG, "连接设备时发生异常: ${e.message}", e)
+            return false
+        }
+    }
+
     /**
      * 输出蓝牙诊断信息，帮助识别权限问题
      */
@@ -1251,145 +1264,126 @@ class BluetoothPrinterManager @Inject constructor(
     }
 
     /**
-     * 启动心跳机制，防止打印机自动断开连接
+     * 启动心跳检测机制
+     * 定期发送数据保持连接活跃
      */
     private fun startHeartbeat(config: PrinterConfig) {
-        // 停止现有心跳任务
+        // 停止现有的心跳任务
         stopHeartbeat()
-        
-        // 保存当前打印机配置
-        currentPrinterConfig = config
         
         // 启动新的心跳任务
         heartbeatJob = managerScope.launch {
             try {
-                Log.d(TAG, "启动打印机心跳机制，间隔: ${HEARTBEAT_INTERVAL/1000}秒")
-                var reconnectAttempts = 0
+                Log.d(TAG, "启动打印机心跳检测: ${config.name}")
                 
                 while (isActive && heartbeatEnabled) {
                     try {
-                        // 1. 检查打印机连接状态
-                        val status = getPrinterStatus(config)
+                        // 检查连接状态
+                        val isConnected = checkConnectionAlive()
                         
-                        if (status == PrinterStatus.CONNECTED && currentConnection != null) {
-                            // 2a. 如果已连接，发送心跳命令
-                            try {
-                                sendHeartbeatCommand()
-                                // 心跳成功不需要每次都记录日志，减少日志量
-                                if (reconnectAttempts > 0) {
-                                    // 只有之前有重连尝试时才记录，表示恢复正常
-                                    Log.d(TAG, "心跳成功，连接稳定")
-                                }
-                                // 心跳成功，重置重连尝试次数
-                                reconnectAttempts = 0
-                            } catch (e: Exception) {
-                                // 心跳发送失败，可能连接已断开
-                                Log.e(TAG, "心跳命令发送失败: ${e.message}")
-                                updatePrinterStatus(config.address, PrinterStatus.ERROR)
-                                throw e // 向上抛出异常以触发重连逻辑
-                            }
-                        } else if (status != PrinterStatus.CONNECTED) {
-                            // 2b. 如果未连接，尝试重新连接
-                            Log.d(TAG, "打印机未连接，尝试重新连接: ${config.name}")
-                            
-                            // 增加指数退避重试，避免频繁重连
-                            val backoffDelay = if (reconnectAttempts > 0) {
-                                // 最长延迟不超过2分钟
-                                minOf(RECONNECT_DELAY * (1 shl minOf(reconnectAttempts, 5)), 120000L)
-                            } else {
-                                0L
-                            }
-                            
-                            if (backoffDelay > 0) {
-                                Log.d(TAG, "等待重连延迟: ${backoffDelay}ms (尝试次数: ${reconnectAttempts})")
-                                delay(backoffDelay)
-                            }
-                            
-                            // 尝试重新连接
-                            val reconnected = reconnectPrinter(config)
-                            
-                            // 更新重连尝试次数
-                            if (reconnected) {
-                                reconnectAttempts = 0
-                                Log.d(TAG, "重连成功，重置重试计数")
-                            } else {
-                                reconnectAttempts++
-                                Log.d(TAG, "重连失败，增加重试计数: $reconnectAttempts")
-                            }
-                        }
-                    } catch (e: Exception) {
-                        // 捕获所有异常但继续心跳循环
-                        Log.e(TAG, "打印机心跳异常: ${e.message}")
-                        
-                        // 如果是连接断开的异常，尝试重新连接
-                        if (e.message?.contains("Broken pipe") == true || 
-                            e is EscPosConnectionException) {
-                            // 标记连接为断开
+                        if (isConnected) {
+                            // 连接正常，发送心跳数据
+                            sendHeartbeat()
+                            Log.d(TAG, "打印机心跳检测正常: ${config.name}")
+                        } else {
+                            // 连接已断开，尝试重新连接
+                            Log.w(TAG, "打印机连接已断开，尝试重新连接: ${config.name}")
                             updatePrinterStatus(config.address, PrinterStatus.DISCONNECTED)
                             
-                            reconnectAttempts++
-                            // 使用指数退避策略
-                            val backoffDelay = minOf(RECONNECT_DELAY * (1 shl minOf(reconnectAttempts, 5)), 120000L)
-                            
-                            Log.d(TAG, "连接断开，等待 ${backoffDelay}ms 后尝试重连 (尝试次数: $reconnectAttempts)")
-                            delay(backoffDelay)
-                            
                             // 尝试重新连接
-                            try {
-                                val reconnected = reconnectPrinter(config)
-                                if (reconnected) {
-                                    reconnectAttempts = 0
-                                }
-                            } catch (re: Exception) {
-                                Log.e(TAG, "重新连接打印机失败: ${re.message}")
-                            }
+                            delay(RECONNECT_DELAY) // 延迟一段时间再重连
+                            reconnectPrinter(config)
                         }
+                        
+                        // 等待下一次心跳
+                        delay(HEARTBEAT_INTERVAL)
+                    } catch (e: Exception) {
+                        if (e is CancellationException) throw e
+                        
+                        Log.e(TAG, "心跳检测过程中出错: ${e.message}")
+                        // 连接可能已中断，更新状态
+                        updatePrinterStatus(config.address, PrinterStatus.ERROR)
+                        
+                        // 尝试重新连接
+                        delay(RECONNECT_DELAY)
+                        reconnectPrinter(config)
+                        
+                        // 继续心跳循环
+                        delay(HEARTBEAT_INTERVAL)
                     }
-                    
-                    // 等待到下一个心跳周期
-                    delay(HEARTBEAT_INTERVAL)
                 }
+            } catch (e: CancellationException) {
+                // 心跳任务被取消，正常退出
+                Log.d(TAG, "打印机心跳检测已停止: ${config.name}")
             } catch (e: Exception) {
-                Log.e(TAG, "心跳任务异常: ${e.message}")
+                // 非预期异常
+                Log.e(TAG, "心跳检测任务异常: ${e.message}", e)
             }
         }
     }
     
     /**
-     * 停止心跳机制
+     * 停止心跳检测
      */
     private fun stopHeartbeat() {
         heartbeatJob?.cancel()
         heartbeatJob = null
-        Log.d(TAG, "停止打印机心跳机制")
+        Log.d(TAG, "已停止打印机心跳检测")
     }
     
     /**
-     * 发送心跳命令保持连接活跃
-     * 使用查询打印机状态等无影响命令
+     * 发送心跳数据保持连接
+     * 发送不可见的字符或查询打印机状态命令
      */
-    private fun sendHeartbeatCommand() {
+    private suspend fun sendHeartbeat() {
         try {
-            currentConnection?.let { connection ->
-                // 1. 发送一个空白字符作为心跳
-                val nulChar = byteArrayOf(0x00)  // NUL字符，不会导致打印机有实际输出
-                connection.write(nulChar)
-                
-                // 2. 或者发送一个初始化命令，不会产生可见输出
-                // val initCommand = byteArrayOf(0x1B, 0x40)  // ESC @
-                // connection.write(initCommand)
-            } ?: throw IllegalStateException("打印机未连接")
+            // 检查打印机是否已连接
+            if (currentPrinter == null || currentConnection == null) {
+                Log.w(TAG, "心跳检测: 打印机未连接")
+                return
+            }
+            
+            // 发送简单的查询命令，不会导致打印机有可见输出
+            // 使用单个LF字符，这通常是打印机支持的最小命令
+            withContext(Dispatchers.IO) {
+                currentConnection?.write(byteArrayOf(0x0A))
+            }
         } catch (e: Exception) {
-            Log.e(TAG, "发送心跳命令失败: ${e.message}", e)
-            throw e
+            Log.e(TAG, "发送心跳数据失败: ${e.message}", e)
+            throw e // 重新抛出异常，让调用者知道连接有问题
         }
     }
     
     /**
-     * 尝试重新连接打印机
-     * @return 是否成功重连
+     * 检查连接是否仍然活跃
      */
-    private suspend fun reconnectPrinter(config: PrinterConfig): Boolean {
+    private suspend fun checkConnectionAlive(): Boolean {
+        return try {
+            if (currentConnection == null) {
+                return false
+            }
+            
+            // 尝试发送测试数据，如果失败则表示连接已断开
+            withContext(Dispatchers.IO) {
+                try {
+                    // 发送一个简单的查询命令
+                    currentConnection?.write(byteArrayOf(0x0A))
+                    true
+                } catch (e: Exception) {
+                    Log.e(TAG, "连接检查失败: ${e.message}")
+                    false
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "检查连接状态失败: ${e.message}", e)
+            false
+        }
+    }
+    
+    /**
+     * 重新连接打印机
+     */
+    private suspend fun reconnectPrinter(config: PrinterConfig) {
         try {
             Log.d(TAG, "尝试重新连接打印机: ${config.name}")
             
@@ -1410,263 +1404,21 @@ class BluetoothPrinterManager @Inject constructor(
             updatePrinterStatus(config.address, PrinterStatus.CONNECTING)
             
             // 尝试建立新连接
-            delay(500) // 等待500毫秒确保之前的连接完全关闭
+            delay(1000) // 等待1秒确保之前的连接完全关闭
             
             val connected = connect(config)
             if (connected) {
                 Log.d(TAG, "打印机重新连接成功: ${config.name}")
-                // 发送一次测试命令确认连接
-                val testResult = testConnection(config)
-                if (!testResult) {
-                    Log.w(TAG, "连接测试未通过，标记连接为错误状态")
-                    updatePrinterStatus(config.address, PrinterStatus.ERROR)
-                    return false
-                }
-                return true
             } else {
                 Log.e(TAG, "打印机重新连接失败: ${config.name}")
                 // 更新状态为断开连接
                 updatePrinterStatus(config.address, PrinterStatus.DISCONNECTED)
-                return false
             }
         } catch (e: Exception) {
             Log.e(TAG, "重新连接过程中发生异常: ${e.message}", e)
             // 更新状态为断开连接
             updatePrinterStatus(config.address, PrinterStatus.DISCONNECTED)
-            return false
-        }
-    }
-
-    /**
-     * 测试打印机连接状态
-     * 发送一个简单的测试指令到打印机，验证连接是否正常
-     */
-    override suspend fun testConnection(config: PrinterConfig): Boolean {
-        return try {
-            Log.d(TAG, "测试打印机连接: ${config.name}")
-            
-            // 先检查状态
-            val status = getPrinterStatus(config)
-            if (status != PrinterStatus.CONNECTED) {
-                Log.w(TAG, "打印机未连接，无法测试连接")
-                return false
-            }
-            
-            // 尝试获取当前的BluetoothConnection
-            val connection = currentConnection ?: return false
-            
-            // 发送一个简单的ESC/POS初始化命令(ESC @)
-            // 这个命令通常用于初始化打印机，不会产生实际打印输出
-            val testCommand = byteArrayOf(0x1B, 0x40) // ESC @
-            
-            return withContext(Dispatchers.IO) {
-                try {
-                    // 如果连接已关闭，尝试重新打开
-                    if (!connection.isConnected()) {
-                        connection.connect()
-                    }
-                    
-                    // 发送测试命令
-                    connection.write(testCommand)
-                    
-                    // 如果命令成功发送，视为连接正常
-                    Log.d(TAG, "打印机连接测试成功")
-                    true
-                } catch (e: Exception) {
-                    Log.e(TAG, "打印机连接测试失败: ${e.message}", e)
-                    // 连接测试失败，更新状态为错误
-                    updatePrinterStatus(config.address, PrinterStatus.ERROR)
-                    false
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "测试打印机连接异常: ${e.message}", e)
-            updatePrinterStatus(config.address, PrinterStatus.ERROR)
-            false
-        }
-    }
-
-    /**
-     * 尝试连接指定地址的蓝牙设备
-     * @param deviceAddress 蓝牙设备地址
-     * @return 连接结果
-     */
-    suspend fun tryConnectWithDevice(deviceAddress: String): Boolean {
-        Log.d(TAG, "尝试连接设备: $deviceAddress")
-        try {
-            // 停止搜索，以提高连接成功率
-            stopDiscovery()
-            
-            // 检查蓝牙适配器
-            if (this.bluetoothAdapter == null) {
-                Log.e(TAG, "蓝牙适配器为空")
-                return false
-            }
-            
-            // 权限检查 - 只在高版本Android上强制要求
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                if (ActivityCompat.checkSelfPermission(context, android.Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
-                    Log.e(TAG, "没有BLUETOOTH_CONNECT权限")
-                    return false
-                }
-            }
-            
-            // 获取蓝牙设备
-            val device = getBluetoothDevice(deviceAddress) ?: run {
-                Log.e(TAG, "无法获取设备: $deviceAddress")
-                return false
-            }
-            
-            // 创建一个基本的打印机配置
-            val config = PrinterConfig(
-                id = UUID.randomUUID().toString(),
-                name = device.name ?: "未知设备",
-                address = deviceAddress,
-                type = PrinterConfig.PRINTER_TYPE_BLUETOOTH,
-                paperWidth = PrinterConfig.PAPER_WIDTH_57MM
-            )
-            
-            // 调用现有的connect方法连接设备
-            return connect(config)
-        } catch (e: Exception) {
-            Log.e(TAG, "连接设备时发生异常: ${e.message}", e)
-            return false
-        }
-    }
-
-    /**
-     * 获取已配对的蓝牙设备列表
-     */
-    private fun getPairedDevices(): Set<BluetoothDevice> {
-        return try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                if (ActivityCompat.checkSelfPermission(
-                        context,
-                        Manifest.permission.BLUETOOTH_CONNECT
-                    ) != PackageManager.PERMISSION_GRANTED
-                ) {
-                    Log.e(TAG, "缺少BLUETOOTH_CONNECT权限，无法获取已配对设备")
-                    emptySet()
-                } else {
-                    this.bluetoothAdapter?.bondedDevices ?: emptySet()
-                }
-            } else {
-                @Suppress("DEPRECATION")
-                this.bluetoothAdapter?.bondedDevices ?: emptySet()
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "获取已配对设备失败: ${e.message}")
-            emptySet()
-        }
-    }
-
-    // 扫描特定地址的设备
-    private suspend fun scanForDevice(targetAddress: String): BluetoothDevice? = suspendCancellableCoroutine { continuation ->
-        // 在外部定义变量引用，但不初始化
-        var receiver: BroadcastReceiver? = null
-        
-        try {
-            Log.d(TAG, "开始扫描特定地址的设备: $targetAddress")
-            
-            // 取消当前的扫描
-            if (this.bluetoothAdapter?.isDiscovering == true) {
-                this.bluetoothAdapter?.cancelDiscovery()
-            }
-            
-            // 尝试从已配对设备中找到目标设备
-            val pairedDevices = getPairedDevices()
-            val deviceFromPaired = pairedDevices.find { device -> device.address == targetAddress }
-            if (deviceFromPaired != null) {
-                Log.d(TAG, "在已配对设备中找到目标设备: ${deviceFromPaired.name}")
-                // 找到设备，恢复协程
-                continuation.resume(deviceFromPaired)
-                return@suspendCancellableCoroutine
-            }
-            
-            // 声明接收器变量并保存引用到外部变量
-            receiver = object : BroadcastReceiver() {
-                override fun onReceive(context: Context, intent: Intent) {
-                    when (intent.action) {
-                        BluetoothDevice.ACTION_FOUND -> {
-                            val device = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE, BluetoothDevice::class.java)
-                            } else {
-                                @Suppress("DEPRECATION")
-                                intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE)
-                            }
-                            
-                            device?.let {
-                                if (it.address == targetAddress) {
-                                    // 找到目标设备，停止扫描
-                                    Log.d(TAG, "在扫描中找到目标设备: ${it.name}")
-                                    this@BluetoothPrinterManager.bluetoothAdapter?.cancelDiscovery()
-                                    
-                                    // 解注册接收器
-                                    try {
-                                        context.unregisterReceiver(this)
-                                    } catch (e: Exception) {
-                                        Log.w(TAG, "解注册扫描接收器失败", e)
-                                    }
-                                    
-                                    // 恢复协程
-                                    if (continuation.isActive) {
-                                        continuation.resume(it)
-                                    }
-                                }
-                            }
-                        }
-                        BluetoothAdapter.ACTION_DISCOVERY_FINISHED -> {
-                            // 扫描完成但未找到目标设备
-                            Log.d(TAG, "蓝牙扫描完成，但未找到目标设备: $targetAddress")
-                            
-                            // 解注册接收器
-                            try {
-                                context.unregisterReceiver(this)
-                            } catch (e: Exception) {
-                                Log.w(TAG, "解注册扫描接收器失败", e)
-                            }
-                            
-                            // 没有找到设备，恢复协程为null
-                            if (continuation.isActive) {
-                                continuation.resume(null)
-                            }
-                        }
-                    }
-                }
-            }
-            
-            // 注册广播接收器
-            val intentFilter = IntentFilter().apply {
-                addAction(BluetoothDevice.ACTION_FOUND)
-                addAction(BluetoothAdapter.ACTION_DISCOVERY_FINISHED)
-            }
-            context.registerReceiver(receiver, intentFilter)
-            
-            // 开始扫描
-            this.bluetoothAdapter?.startDiscovery() ?: run {
-                Log.e(TAG, "蓝牙适配器为null，无法开始扫描")
-                context.unregisterReceiver(receiver)
-                continuation.resume(null)
-            }
-            
-            // 添加取消时的清理操作
-            continuation.invokeOnCancellation {
-                try {
-                    receiver?.let { context.unregisterReceiver(it) }
-                    this.bluetoothAdapter?.cancelDiscovery()
-                } catch (e: Exception) {
-                    Log.w(TAG, "取消扫描时清理异常", e)
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "扫描设备时发生异常: ${e.message}", e)
-            try {
-                // 使用外部保存的接收器引用
-                receiver?.let { context.unregisterReceiver(it) }
-            } catch (e2: Exception) {
-                Log.w(TAG, "解注册扫描接收器失败", e2)
-            }
-            continuation.resume(null)
+            throw e
         }
     }
 } 

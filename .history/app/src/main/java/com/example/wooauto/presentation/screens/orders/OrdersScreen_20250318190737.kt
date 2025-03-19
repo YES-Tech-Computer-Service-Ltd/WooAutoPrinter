@@ -1070,91 +1070,9 @@ fun OrderDetailDialog(
                         )
                     }
                     
-                    // 是否是外卖订单
-                    val isDelivery = displayOrder.woofoodInfo?.isDelivery ?: false
-                    
-                    // 获取外卖费 - 首先从WooFoodInfo中获取，再尝试从feeLines中寻找
-                    var deliveryFee = displayOrder.woofoodInfo?.deliveryFee ?: "0.00"
-                    
-                    // 如果WooFoodInfo中没有配送费或为0，则从feeLines中查找
-                    if (deliveryFee == "0.00" || deliveryFee.isEmpty()) {
-                        displayOrder.feeLines.forEach { feeLine ->
-                            if (feeLine.name.contains("配送费", ignoreCase = true) || 
-                                feeLine.name.contains("外卖费", ignoreCase = true) ||
-                                feeLine.name.contains("shipping", ignoreCase = true) || 
-                                feeLine.name.contains("delivery", ignoreCase = true)) {
-                                deliveryFee = feeLine.total
-                                Log.d("OrderDetailDialog", "从feeLines中找到外卖费: $deliveryFee")
-                            }
-                        }
-                    } else {
-                        Log.d("OrderDetailDialog", "从WooFoodInfo中找到外卖费: $deliveryFee")
-                    }
-                    
-                    // 获取小费 - 首先从WooFoodInfo中获取，再尝试从feeLines中寻找
-                    var tipAmount = displayOrder.woofoodInfo?.tip ?: "0.00"
-                    
-                    // 如果WooFoodInfo中没有小费或为0，则从feeLines中查找
-                    if (tipAmount == "0.00" || tipAmount.isEmpty()) {
-                        displayOrder.feeLines.forEach { feeLine ->
-                            if (feeLine.name.contains("小费", ignoreCase = true) || 
-                                feeLine.name.contains("tip", ignoreCase = true) || 
-                                feeLine.name.contains("gratuity", ignoreCase = true) ||
-                                feeLine.name.contains("appreciation", ignoreCase = true)) {
-                                tipAmount = feeLine.total
-                                Log.d("OrderDetailDialog", "从feeLines中找到小费: $tipAmount")
-                            }
-                        }
-                    } else {
-                        Log.d("OrderDetailDialog", "从WooFoodInfo中找到小费: $tipAmount")
-                    }
-                    
-                    // 如果是外卖订单，显示外卖费（即使为0）
-                    if (isDelivery || deliveryFee != "0.00") {
-                        OrderDetailRow(
-                            label = "外卖费",
-                            value = "¥${deliveryFee}",
-                            icon = {
-                                Icon(
-                                    imageVector = Icons.Default.LocalShipping,
-                                    contentDescription = "外卖费",
-                                    modifier = Modifier.size(16.dp),
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                        )
-                    }
-                    
-                    // 无论是什么类型订单，都显示小费（如果有）
-                    if (tipAmount != "0.00" && tipAmount.isNotEmpty()) {
-                        OrderDetailRow(
-                            label = "小费",
-                            value = "¥${tipAmount}",
-                            icon = {
-                                Icon(
-                                    imageVector = Icons.Default.Star,
-                                    contentDescription = "小费",
-                                    modifier = Modifier.size(16.dp),
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                        )
-                    }
-                    
                     // 显示其他额外费用（不是配送费或小费的其他费用）
                     displayOrder.feeLines.forEach { feeLine ->
-                        // 排除已经显示过的配送费和小费
-                        val isDeliveryFee = feeLine.name.contains("配送费", ignoreCase = true) || 
-                                           feeLine.name.contains("外卖费", ignoreCase = true) ||
-                                           feeLine.name.contains("shipping", ignoreCase = true) || 
-                                           feeLine.name.contains("delivery", ignoreCase = true)
-                        
-                        val isTip = feeLine.name.contains("小费", ignoreCase = true) || 
-                                   feeLine.name.contains("tip", ignoreCase = true) || 
-                                   feeLine.name.contains("gratuity", ignoreCase = true) ||
-                                   feeLine.name.contains("appreciation", ignoreCase = true)
-                        
-                        if (!isDeliveryFee && !isTip) {
+                        if (feeLine.name != "配送费" && feeLine.name != "外卖费" && feeLine.name != "小费") {
                             OrderDetailRow(
                                 label = feeLine.name,
                                 value = "¥${feeLine.total}",
@@ -1173,16 +1091,6 @@ fun OrderDetailDialog(
                     // 替换原来的税费显示为PST和GST分开显示
                     var hasPST = false
                     var hasGST = false
-                    
-                    // 记录一下所有税费行，方便调试
-                    if (displayOrder.taxLines.isNotEmpty()) {
-                        Log.d("OrderDetailDialog", "税费行数量: ${displayOrder.taxLines.size}")
-                        displayOrder.taxLines.forEach { taxLine ->
-                            Log.d("OrderDetailDialog", "税费: ${taxLine.label} (${taxLine.ratePercent}%) = ¥${taxLine.taxTotal}")
-                        }
-                    } else {
-                        Log.d("OrderDetailDialog", "无税费行信息")
-                    }
                     
                     // 遍历税费行，分别显示PST和GST
                     displayOrder.taxLines.forEach { taxLine ->
@@ -1235,14 +1143,14 @@ fun OrderDetailDialog(
                         }
                     }
                     
-                    // 如果没有具体税费行，但有总税费，显示总税费
-                    if (displayOrder.taxLines.isEmpty() && displayOrder.totalTax != "0.00" && displayOrder.totalTax.isNotEmpty()) {
+                    // 如果没有找到具体的税种但有总税费，作为合计显示
+                    if (!hasPST && !hasGST && displayOrder.totalTax.isNotEmpty() && displayOrder.totalTax != "0.00") {
                         OrderDetailRow(
-                            label = "税费",
+                            label = "税费合计",
                             value = "¥${displayOrder.totalTax}",
                             icon = {
                                 Icon(
-                                    imageVector = Icons.Default.AccountBalance,
+                                    imageVector = Icons.Default.Info,
                                     contentDescription = "税费",
                                     modifier = Modifier.size(16.dp),
                                     tint = MaterialTheme.colorScheme.primary

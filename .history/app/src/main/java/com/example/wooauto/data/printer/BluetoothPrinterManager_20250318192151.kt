@@ -242,9 +242,10 @@ class BluetoothPrinterManager @Inject constructor(
         }
         
         // 取消当前的设备扫描，这对成功连接非常重要
-        if (this.bluetoothAdapter?.isDiscovering == true) {
+        val bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
+        if (bluetoothAdapter?.isDiscovering == true) {
             Log.d(TAG, "取消当前设备发现以提高连接成功率")
-            this.bluetoothAdapter.cancelDiscovery()
+            bluetoothAdapter.cancelDiscovery()
         }
         
         Log.d(TAG, "正在连接蓝牙打印机: ${config.name} (${config.address})")
@@ -482,9 +483,9 @@ class BluetoothPrinterManager @Inject constructor(
     fun stopDiscovery() {
         try {
             if (isScanning) {
-                // 使用类实例中的bluetoothAdapter
-                if (this.bluetoothAdapter != null && this.bluetoothAdapter.isEnabled) {
-                    this.bluetoothAdapter.cancelDiscovery()
+                val bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
+                if (bluetoothAdapter != null && bluetoothAdapter.isEnabled) {
+                    bluetoothAdapter.cancelDiscovery()
                 }
                 
                 try {
@@ -1160,39 +1161,63 @@ class BluetoothPrinterManager @Inject constructor(
         val order: Order? = null
     )
     
-    private suspend fun getBluetoothDevice(address: String): BluetoothDevice? {
-        return try {
-            Log.d(TAG, "尝试获取地址为 $address 的蓝牙设备")
-            
-            // 通过已保存的设备列表查找
-            discoveredDevices[address]?.let { 
-                Log.d(TAG, "在已发现设备中找到设备: ${it.name ?: "未知"}")
-                return it
-            }
-            
-            // 尝试通过地址获取设备对象
-            val device = this.bluetoothAdapter?.getRemoteDevice(address)
-            if (device != null) {
-                Log.d(TAG, "通过地址获取到设备: ${device.name ?: "未知"}")
-                return device
-            }
-            
-            // 如果找不到设备，执行扫描尝试发现它
-            Log.d(TAG, "未找到设备，开始扫描尝试发现")
-            val scanResult = withTimeoutOrNull(SCAN_TIMEOUT) {
-                scanForDevice(address)
-            }
-            
-            scanResult ?: run {
-                Log.e(TAG, "扫描超时，未找到设备: $address")
-                null
-            }
+    private fun getBluetoothDevice(address: String): BluetoothDevice? {
+        try {
+            val bluetoothAdapter = BluetoothAdapter.getDefaultAdapter() ?: return null
+            return bluetoothAdapter.getRemoteDevice(address)
         } catch (e: Exception) {
-            Log.e(TAG, "获取蓝牙设备失败: ${e.message}", e)
-            null
+            Log.e(TAG, "获取蓝牙设备失败: ${e.message}")
+            return null
         }
     }
-    
+
+    /**
+     * 尝试连接指定地址的蓝牙设备
+     * @param deviceAddress 蓝牙设备地址
+     * @return 连接结果
+     */
+    suspend fun tryConnectWithDevice(deviceAddress: String): Boolean {
+        Log.d(TAG, "尝试连接设备: $deviceAddress")
+        try {
+            // 停止搜索，以提高连接成功率
+            stopDiscovery()
+            
+            // 获取蓝牙适配器
+            val bluetoothAdapter = BluetoothAdapter.getDefaultAdapter() ?: run {
+                Log.e(TAG, "蓝牙适配器为空")
+                return false
+            }
+            
+            // 权限检查 - 只在高版本Android上强制要求
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (ActivityCompat.checkSelfPermission(context, android.Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+                    Log.e(TAG, "没有BLUETOOTH_CONNECT权限")
+                    return false
+                }
+            }
+            
+            // 获取蓝牙设备
+            val device = bluetoothAdapter.getRemoteDevice(deviceAddress) ?: run {
+                Log.e(TAG, "无法获取设备: $deviceAddress")
+                return false
+            }
+            
+            // 创建一个基本的打印机配置
+            val config = PrinterConfig(
+                name = device.name ?: "未知设备",
+                address = deviceAddress,
+                type = PrinterConfig.PRINTER_TYPE_BLUETOOTH,
+                paperWidth = PrinterConfig.PAPER_WIDTH_57MM
+            )
+            
+            // 调用现有的connect方法连接设备
+            return connect(config)
+        } catch (e: Exception) {
+            Log.e(TAG, "连接设备时发生异常: ${e.message}", e)
+            return false
+        }
+    }
+
     /**
      * 输出蓝牙诊断信息，帮助识别权限问题
      */
@@ -1483,190 +1508,6 @@ class BluetoothPrinterManager @Inject constructor(
             Log.e(TAG, "测试打印机连接异常: ${e.message}", e)
             updatePrinterStatus(config.address, PrinterStatus.ERROR)
             false
-        }
-    }
-
-    /**
-     * 尝试连接指定地址的蓝牙设备
-     * @param deviceAddress 蓝牙设备地址
-     * @return 连接结果
-     */
-    suspend fun tryConnectWithDevice(deviceAddress: String): Boolean {
-        Log.d(TAG, "尝试连接设备: $deviceAddress")
-        try {
-            // 停止搜索，以提高连接成功率
-            stopDiscovery()
-            
-            // 检查蓝牙适配器
-            if (this.bluetoothAdapter == null) {
-                Log.e(TAG, "蓝牙适配器为空")
-                return false
-            }
-            
-            // 权限检查 - 只在高版本Android上强制要求
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                if (ActivityCompat.checkSelfPermission(context, android.Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
-                    Log.e(TAG, "没有BLUETOOTH_CONNECT权限")
-                    return false
-                }
-            }
-            
-            // 获取蓝牙设备
-            val device = getBluetoothDevice(deviceAddress) ?: run {
-                Log.e(TAG, "无法获取设备: $deviceAddress")
-                return false
-            }
-            
-            // 创建一个基本的打印机配置
-            val config = PrinterConfig(
-                id = UUID.randomUUID().toString(),
-                name = device.name ?: "未知设备",
-                address = deviceAddress,
-                type = PrinterConfig.PRINTER_TYPE_BLUETOOTH,
-                paperWidth = PrinterConfig.PAPER_WIDTH_57MM
-            )
-            
-            // 调用现有的connect方法连接设备
-            return connect(config)
-        } catch (e: Exception) {
-            Log.e(TAG, "连接设备时发生异常: ${e.message}", e)
-            return false
-        }
-    }
-
-    /**
-     * 获取已配对的蓝牙设备列表
-     */
-    private fun getPairedDevices(): Set<BluetoothDevice> {
-        return try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                if (ActivityCompat.checkSelfPermission(
-                        context,
-                        Manifest.permission.BLUETOOTH_CONNECT
-                    ) != PackageManager.PERMISSION_GRANTED
-                ) {
-                    Log.e(TAG, "缺少BLUETOOTH_CONNECT权限，无法获取已配对设备")
-                    emptySet()
-                } else {
-                    this.bluetoothAdapter?.bondedDevices ?: emptySet()
-                }
-            } else {
-                @Suppress("DEPRECATION")
-                this.bluetoothAdapter?.bondedDevices ?: emptySet()
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "获取已配对设备失败: ${e.message}")
-            emptySet()
-        }
-    }
-
-    // 扫描特定地址的设备
-    private suspend fun scanForDevice(targetAddress: String): BluetoothDevice? = suspendCancellableCoroutine { continuation ->
-        // 在外部定义变量引用，但不初始化
-        var receiver: BroadcastReceiver? = null
-        
-        try {
-            Log.d(TAG, "开始扫描特定地址的设备: $targetAddress")
-            
-            // 取消当前的扫描
-            if (this.bluetoothAdapter?.isDiscovering == true) {
-                this.bluetoothAdapter?.cancelDiscovery()
-            }
-            
-            // 尝试从已配对设备中找到目标设备
-            val pairedDevices = getPairedDevices()
-            val deviceFromPaired = pairedDevices.find { device -> device.address == targetAddress }
-            if (deviceFromPaired != null) {
-                Log.d(TAG, "在已配对设备中找到目标设备: ${deviceFromPaired.name}")
-                // 找到设备，恢复协程
-                continuation.resume(deviceFromPaired)
-                return@suspendCancellableCoroutine
-            }
-            
-            // 声明接收器变量并保存引用到外部变量
-            receiver = object : BroadcastReceiver() {
-                override fun onReceive(context: Context, intent: Intent) {
-                    when (intent.action) {
-                        BluetoothDevice.ACTION_FOUND -> {
-                            val device = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE, BluetoothDevice::class.java)
-                            } else {
-                                @Suppress("DEPRECATION")
-                                intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE)
-                            }
-                            
-                            device?.let {
-                                if (it.address == targetAddress) {
-                                    // 找到目标设备，停止扫描
-                                    Log.d(TAG, "在扫描中找到目标设备: ${it.name}")
-                                    this@BluetoothPrinterManager.bluetoothAdapter?.cancelDiscovery()
-                                    
-                                    // 解注册接收器
-                                    try {
-                                        context.unregisterReceiver(this)
-                                    } catch (e: Exception) {
-                                        Log.w(TAG, "解注册扫描接收器失败", e)
-                                    }
-                                    
-                                    // 恢复协程
-                                    if (continuation.isActive) {
-                                        continuation.resume(it)
-                                    }
-                                }
-                            }
-                        }
-                        BluetoothAdapter.ACTION_DISCOVERY_FINISHED -> {
-                            // 扫描完成但未找到目标设备
-                            Log.d(TAG, "蓝牙扫描完成，但未找到目标设备: $targetAddress")
-                            
-                            // 解注册接收器
-                            try {
-                                context.unregisterReceiver(this)
-                            } catch (e: Exception) {
-                                Log.w(TAG, "解注册扫描接收器失败", e)
-                            }
-                            
-                            // 没有找到设备，恢复协程为null
-                            if (continuation.isActive) {
-                                continuation.resume(null)
-                            }
-                        }
-                    }
-                }
-            }
-            
-            // 注册广播接收器
-            val intentFilter = IntentFilter().apply {
-                addAction(BluetoothDevice.ACTION_FOUND)
-                addAction(BluetoothAdapter.ACTION_DISCOVERY_FINISHED)
-            }
-            context.registerReceiver(receiver, intentFilter)
-            
-            // 开始扫描
-            this.bluetoothAdapter?.startDiscovery() ?: run {
-                Log.e(TAG, "蓝牙适配器为null，无法开始扫描")
-                context.unregisterReceiver(receiver)
-                continuation.resume(null)
-            }
-            
-            // 添加取消时的清理操作
-            continuation.invokeOnCancellation {
-                try {
-                    receiver?.let { context.unregisterReceiver(it) }
-                    this.bluetoothAdapter?.cancelDiscovery()
-                } catch (e: Exception) {
-                    Log.w(TAG, "取消扫描时清理异常", e)
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "扫描设备时发生异常: ${e.message}", e)
-            try {
-                // 使用外部保存的接收器引用
-                receiver?.let { context.unregisterReceiver(it) }
-            } catch (e2: Exception) {
-                Log.w(TAG, "解注册扫描接收器失败", e2)
-            }
-            continuation.resume(null)
         }
     }
 } 

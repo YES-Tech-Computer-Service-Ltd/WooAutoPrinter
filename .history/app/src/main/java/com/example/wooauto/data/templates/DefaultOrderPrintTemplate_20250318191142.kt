@@ -153,10 +153,16 @@ class DefaultOrderPrintTemplate @Inject constructor(
         
         sb.append(formatter.formatDivider(paperWidth))
         
-        // 支付信息
+        // 订单合计
+        sb.append(formatter.formatDivider(paperWidth))
+        
         // 先显示小计
         if (order.subtotal.isNotEmpty()) {
-            sb.append(formatter.formatLeftRightText("小计:", order.subtotal, paperWidth))
+            sb.append(formatter.formatLeftRightText(
+                "小计:", 
+                order.subtotal, 
+                paperWidth
+            ))
         }
         
         // 显示税费明细
@@ -168,31 +174,78 @@ class DefaultOrderPrintTemplate @Inject constructor(
                 else -> "${taxLine.label} (${taxLine.ratePercent}%):"
             }
             
-            sb.append(formatter.formatLeftRightText(taxLabel, taxLine.taxTotal, paperWidth))
+            sb.append(formatter.formatLeftRightText(
+                taxLabel, 
+                taxLine.taxTotal, 
+                paperWidth
+            ))
         }
         
-        // 如果没有税费明细但有总税费
+        // 如果taxLines为空但有totalTax，则显示总税费
         if (order.taxLines.isEmpty() && order.totalTax.isNotEmpty()) {
-            sb.append(formatter.formatLeftRightText("税费:", order.totalTax, paperWidth))
-        }
-        
-        // 显示外卖费用
-        if (order.woofoodInfo?.deliveryFee != null && order.woofoodInfo.deliveryFee.isNotEmpty()) {
-            sb.append(formatter.formatLeftRightText("外卖费用:", order.woofoodInfo.deliveryFee, paperWidth))
-        }
-        
-        // 显示小费
-        if (order.woofoodInfo?.tip != null && order.woofoodInfo.tip.isNotEmpty()) {
-            sb.append(formatter.formatLeftRightText("小费:", order.woofoodInfo.tip, paperWidth))
+            sb.append(formatter.formatLeftRightText(
+                "税费:", 
+                order.totalTax, 
+                paperWidth
+            ))
         }
         
         // 显示折扣
         if (order.discountTotal.isNotEmpty() && order.discountTotal != "0.00") {
-            sb.append(formatter.formatLeftRightText("折扣:", "-${order.discountTotal}", paperWidth))
+            sb.append(formatter.formatLeftRightText(
+                "折扣:", 
+                "-${order.discountTotal}", 
+                paperWidth
+            ))
         }
         
-        sb.append(formatter.formatLeftRightText("总计:", order.total, paperWidth))
-        sb.append(formatter.formatLeftRightText("支付方式:", order.paymentMethod, paperWidth))
+        // 显示外卖费用
+        if (order.woofoodInfo?.deliveryFee != null && order.woofoodInfo.deliveryFee.isNotEmpty()) {
+            sb.append(formatter.formatLeftRightText(
+                "外卖费用:", 
+                order.woofoodInfo.deliveryFee, 
+                paperWidth
+            ))
+        }
+        
+        // 显示小费
+        if (order.woofoodInfo?.tip != null && order.woofoodInfo.tip.isNotEmpty()) {
+            sb.append(formatter.formatLeftRightText(
+                "小费:", 
+                order.woofoodInfo.tip, 
+                paperWidth
+            ))
+        }
+        
+        // 显示其他费用
+        order.feeLines.forEach { feeLine ->
+            if (feeLine.name.contains("delivery", ignoreCase = true) || 
+                feeLine.name.contains("tip", ignoreCase = true)) {
+                // 已经在上面单独显示了，这里跳过
+                return@forEach
+            }
+            
+            sb.append(formatter.formatLeftRightText(
+                "${feeLine.name}:", 
+                feeLine.total, 
+                paperWidth
+            ))
+        }
+        
+        // 最后显示总计
+        sb.append(formatter.formatDivider(paperWidth))
+        sb.append(formatter.formatLeftRightText(
+            formatter.formatBold("总计:"), 
+            formatter.formatBold(order.total), 
+            paperWidth
+        ))
+        
+        // 支付方式
+        sb.append(formatter.formatLeftRightText(
+            "支付方式:", 
+            order.paymentMethod, 
+            paperWidth
+        ))
         
         // 订单备注
         if (config.printOrderNotes && order.notes.isNotEmpty()) {
@@ -288,45 +341,8 @@ class DefaultOrderPrintTemplate @Inject constructor(
         sb.append(formatter.formatDivider(paperWidth))
         
         // 支付信息
-        // 先显示小计
-        if (order.subtotal.isNotEmpty()) {
-            sb.append(formatter.formatLeftRightText("小计:", order.subtotal, paperWidth))
-        }
-        
-        // 显示税费明细
-        order.taxLines.forEach { taxLine ->
-            // 根据税费类型显示GST或PST
-            val taxLabel = when {
-                taxLine.label.contains("GST", ignoreCase = true) -> "GST:"
-                taxLine.label.contains("PST", ignoreCase = true) -> "PST:"
-                else -> "${taxLine.label} (${taxLine.ratePercent}%):"
-            }
-            
-            sb.append(formatter.formatLeftRightText(taxLabel, taxLine.taxTotal, paperWidth))
-        }
-        
-        // 如果没有税费明细但有总税费
-        if (order.taxLines.isEmpty() && order.totalTax.isNotEmpty()) {
-            sb.append(formatter.formatLeftRightText("税费:", order.totalTax, paperWidth))
-        }
-        
-        // 显示外卖费用
-        if (order.woofoodInfo?.deliveryFee != null && order.woofoodInfo.deliveryFee.isNotEmpty()) {
-            sb.append(formatter.formatLeftRightText("外卖费用:", order.woofoodInfo.deliveryFee, paperWidth))
-        }
-        
-        // 显示小费
-        if (order.woofoodInfo?.tip != null && order.woofoodInfo.tip.isNotEmpty()) {
-            sb.append(formatter.formatLeftRightText("小费:", order.woofoodInfo.tip, paperWidth))
-        }
-        
-        // 显示折扣
-        if (order.discountTotal.isNotEmpty() && order.discountTotal != "0.00") {
-            sb.append(formatter.formatLeftRightText("折扣:", "-${order.discountTotal}", paperWidth))
-        }
-        
-        sb.append(formatter.formatLeftRightText("总计:", order.total, paperWidth))
-        sb.append(formatter.formatLeftRightText("支付方式:", order.paymentMethod, paperWidth))
+        sb.append(formatter.formatLeftRightText("Total:", order.total, paperWidth))
+        sb.append(formatter.formatLeftRightText("Payment:", order.paymentMethod, paperWidth))
         
         // 订单备注 (配送说明很重要)
         if (order.notes.isNotEmpty()) {

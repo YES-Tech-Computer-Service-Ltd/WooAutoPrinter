@@ -510,7 +510,7 @@ class OrdersViewModel @Inject constructor(
     private fun registerRefreshOrdersBroadcastReceiver() {
         viewModelScope.launch {
             try {
-                // 使用已注入的context替代Application
+                val context = getApplication<Application>()
                 
                 // 创建广播接收器
                 val receiver = object : BroadcastReceiver() {

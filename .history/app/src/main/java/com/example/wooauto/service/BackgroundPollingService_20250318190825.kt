@@ -71,15 +71,10 @@ class BackgroundPollingService : Service() {
         createNotificationChannel()
         startForeground()
         
-        // 创建协程作用域
+        // 初始时记录当前轮询间隔
         serviceScope.launch {
-            try {
-                currentPollingInterval = wooCommerceConfig.pollingInterval.first()
-                Log.d(TAG, "服务初始化，当前轮询间隔: ${currentPollingInterval}秒")
-            } catch (e: Exception) {
-                Log.e(TAG, "初始化轮询间隔失败: ${e.message}")
-                currentPollingInterval = 30 // 使用默认值
-            }
+            currentPollingInterval = wooCommerceConfig.pollingInterval.first()
+            Log.d(TAG, "服务初始化，当前轮询间隔: ${currentPollingInterval}秒")
         }
     }
 
@@ -156,12 +151,100 @@ class BackgroundPollingService : Service() {
     }
 
     /**
+     * 执行一次轮询
+     */
+    private suspend fun pollOrders() {
+        try {
+            Log.d(TAG, "开始执行轮询周期，间隔: ${currentPollingInterval}秒")
+            
+            // 检查打印机连接状态 
+            checkPrinterConnection()
+            
+            Log.d(TAG, "开始轮询新订单...")
+            
+            // 记录上次轮询时间，用于日志
+            val lastPollTime = latestPolledDate
+            Log.d(TAG, "上次轮询时间: $lastPollTime")
+            
+            // 执行轮询
+            val result = orderRepository.refreshProcessingOrdersForPolling(lastPollTime)
+            
+            // 更新最新轮询时间为当前时间
+            latestPolledDate = Date()
+            
+            // 处理结果 
+            when (result) {
+                is DomainOrderRepository.PollingResult.Success -> {
+                    val newOrders = result.newOrders
+                    
+                    if (newOrders.isNotEmpty()) {
+                        Log.d(TAG, "发现${newOrders.size}个新订单")
+                        
+                        // 通知有新订单
+                        notifyNewOrders(newOrders)
+                        
+                        // 检查是否需要自动打印新订单
+                        checkAndPrintNewOrders(newOrders)
+                    } else {
+                        Log.d(TAG, "没有发现新订单")
+                    }
+                    
+                    // 发送广播通知UI刷新
+                    sendOrdersUpdatedBroadcast()
+                }
+                is DomainOrderRepository.PollingResult.Error -> {
+                    Log.e(TAG, "轮询订单失败: ${result.message}")
+                }
+            }
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "轮询过程中发生错误", e)
+        }
+    }
+    
+    /**
+     * 检查打印机连接状态并尝试重新连接
+     */
+    private suspend fun checkPrinterConnection() {
+        try {
+            // 获取默认打印机配置
+            val printerConfig = settingsRepository.getDefaultPrinterConfig()
+            if (printerConfig != null) {
+                // 检查打印机连接状态
+                val status = printerManager.getPrinterStatus(printerConfig)
+                Log.d(TAG, "当前打印机状态: $status")
+                
+                // 如果打印机未连接或处于错误状态，尝试重新连接
+                if (status == PrinterStatus.DISCONNECTED || status == PrinterStatus.ERROR) {
+                    Log.d(TAG, "打印机未连接，尝试重新连接...")
+                    // 尝试连接打印机
+                    val connected = printerManager.connect(printerConfig)
+                    if (connected) {
+                        Log.d(TAG, "成功重新连接打印机")
+                    } else {
+                        Log.e(TAG, "无法重新连接打印机")
+                    }
+                }
+            } else {
+                Log.d(TAG, "没有配置默认打印机")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "检查打印机连接状态失败", e)
+        }
+    }
+    
+    /**
      * 重启轮询任务
      * 用于配置更改后刷新
      */
     private fun restartPolling() {
         Log.d(TAG, "重启轮询任务")
         pollingJob?.cancel()
+        
+        // 重置最新轮询日期，以防错过更新
+        latestPolledDate = null
+        
+        // 重新开始轮询
         startPolling()
     }
 
@@ -198,36 +281,25 @@ class BackgroundPollingService : Service() {
                     val isValid = checkConfigurationValid()
                     if (isValid) {
                         Log.d(TAG, "开始执行轮询周期，间隔: ${currentPollingInterval}秒")
-                        
-                        // 先进行打印机状态检查
-                        checkPrinterConnection()
-                        
-                        // 记录轮询开始时间
-                        val pollStartTime = System.currentTimeMillis()
-                        
-                        // 执行轮询操作
                         pollOrders()
-                        
-                        // 计算轮询执行时间
-                        val pollExecutionTime = System.currentTimeMillis() - pollStartTime
-                        Log.d(TAG, "轮询执行耗时: ${pollExecutionTime}ms")
-                        
-                        // 计算需要等待的时间，确保按照用户设置的间隔精确轮询
-                        val waitTime = (currentPollingInterval * 1000L) - pollExecutionTime
-                        if (waitTime > 0) {
-                            Log.d(TAG, "等待下次轮询: ${waitTime}ms")
-                            delay(waitTime)
-                        } else {
-                            Log.w(TAG, "轮询执行时间超过间隔设置，无需等待立即开始下次轮询")
-                            delay(100) // 短暂等待以避免CPU占用过高
-                        }
                     } else {
-                        Log.d(TAG, "配置未完成，跳过轮询，等待${currentPollingInterval}秒后重试")
-                        delay(currentPollingInterval * 1000L)
+                        Log.d(TAG, "配置未完成，跳过轮询")
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "轮询周期执行出错: ${e.message}", e)
-                    delay(currentPollingInterval * 1000L) // 出错时仍然等待指定间隔
+                }
+                
+                // 使用当前轮询间隔，精确计时
+                val startTime = System.currentTimeMillis()
+                delay(currentPollingInterval * 1000L)
+                val endTime = System.currentTimeMillis()
+                val elapsedTime = endTime - startTime
+                
+                // 记录实际延迟时间，便于调试
+                val expectedDelay = currentPollingInterval * 1000L
+                if (Math.abs(elapsedTime - expectedDelay) > 1000) {
+                    // 如果实际延迟与预期相差超过1秒，记录警告
+                    Log.w(TAG, "轮询间隔异常: 预期=${expectedDelay}ms, 实际=${elapsedTime}ms, 差异=${elapsedTime - expectedDelay}ms")
                 }
             }
         }
@@ -250,98 +322,6 @@ class BackgroundPollingService : Service() {
         } catch (e: Exception) {
             Log.e(TAG, "检查配置有效性出错", e)
             false
-        }
-    }
-
-    /**
-     * 执行一次轮询
-     */
-    private suspend fun pollOrders() {
-        try {
-            // 记录上次轮询时间，用于日志
-            val lastPollTime = latestPolledDate
-            
-            // 执行轮询
-            val result = orderRepository.refreshProcessingOrdersForPolling(lastPollTime)
-            
-            // 更新最新轮询时间为当前时间
-            latestPolledDate = Date()
-            
-            // 处理结果
-            if (result.isSuccess) {
-                val orders = result.getOrDefault(emptyList())
-                
-                // 有新订单时记录日志
-                if (orders.isNotEmpty()) {
-                    Log.d(TAG, "轮询成功，获取了 ${orders.size} 个处理中订单")
-                    
-                    // 发送广播通知界面更新
-                    sendOrdersUpdatedBroadcast()
-                    
-                    // 过滤并处理新订单
-                    processNewOrders(orders)
-                    
-                    // 发送新订单广播
-                    sendNewOrdersBroadcast(orders.size)
-                    
-                    // 通知UI层刷新数据
-                    sendRefreshOrdersBroadcast()
-                }
-            } else {
-                // 处理错误
-                val error = result.exceptionOrNull()
-                Log.e(TAG, "轮询订单失败: ${error?.message}", error)
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "轮询过程中发生异常: ${e.message}", e)
-        }
-    }
-
-    /**
-     * 检查打印机连接状态并尝试重新连接
-     */
-    private suspend fun checkPrinterConnection() {
-        try {
-            // 获取默认打印机配置
-            val printerConfig = settingsRepository.getDefaultPrinterConfig()
-            if (printerConfig != null) {
-                // 检查打印机连接状态
-                val status = printerManager.getPrinterStatus(printerConfig)
-                Log.d(TAG, "当前打印机状态: $status")
-                
-                // 如果打印机未连接或处于错误状态，尝试重新连接
-                if (status == PrinterStatus.DISCONNECTED || status == PrinterStatus.ERROR) {
-                    Log.d(TAG, "打印机未连接，尝试重新连接...")
-                    // 尝试连接打印机
-                    val connected = printerManager.connect(printerConfig)
-                    if (connected) {
-                        Log.d(TAG, "成功重新连接打印机")
-                    } else {
-                        Log.e(TAG, "无法重新连接打印机")
-                        // 添加重试逻辑
-                        delay(3000) // 等待3秒后重试
-                        val retryConnect = printerManager.connect(printerConfig)
-                        if (retryConnect) {
-                            Log.d(TAG, "第二次尝试连接成功")
-                        } else {
-                            Log.e(TAG, "第二次尝试连接仍然失败")
-                        }
-                    }
-                } else if (status == PrinterStatus.CONNECTED) {
-                    // 即使显示已连接，也发送测试指令确认连接状态
-                    Log.d(TAG, "打印机显示已连接，发送测试指令确认状态")
-                    val testResult = printerManager.testConnection(printerConfig)
-                    if (!testResult) {
-                        Log.w(TAG, "打印机测试指令失败，尝试重新连接")
-                        val reconnected = printerManager.connect(printerConfig)
-                        Log.d(TAG, "重新连接结果: ${if (reconnected) "成功" else "失败"}")
-                    }
-                }
-            } else {
-                Log.d(TAG, "没有配置默认打印机")
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "检查打印机连接状态失败", e)
         }
     }
 

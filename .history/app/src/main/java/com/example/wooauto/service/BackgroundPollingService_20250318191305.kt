@@ -71,15 +71,10 @@ class BackgroundPollingService : Service() {
         createNotificationChannel()
         startForeground()
         
-        // 创建协程作用域
+        // 初始时记录当前轮询间隔
         serviceScope.launch {
-            try {
-                currentPollingInterval = wooCommerceConfig.pollingInterval.first()
-                Log.d(TAG, "服务初始化，当前轮询间隔: ${currentPollingInterval}秒")
-            } catch (e: Exception) {
-                Log.e(TAG, "初始化轮询间隔失败: ${e.message}")
-                currentPollingInterval = 30 // 使用默认值
-            }
+            currentPollingInterval = wooCommerceConfig.pollingInterval.first()
+            Log.d(TAG, "服务初始化，当前轮询间隔: ${currentPollingInterval}秒")
         }
     }
 
@@ -258,8 +253,16 @@ class BackgroundPollingService : Service() {
      */
     private suspend fun pollOrders() {
         try {
+            Log.d(TAG, "开始执行轮询周期，间隔: ${currentPollingInterval}秒")
+            
+            // 检查打印机连接状态 - 新增代码
+            checkPrinterConnection()
+            
+            Log.d(TAG, "开始轮询新订单...")
+            
             // 记录上次轮询时间，用于日志
             val lastPollTime = latestPolledDate
+            Log.d(TAG, "上次轮询时间: $lastPollTime")
             
             // 执行轮询
             val result = orderRepository.refreshProcessingOrdersForPolling(lastPollTime)
@@ -270,21 +273,19 @@ class BackgroundPollingService : Service() {
             // 处理结果
             if (result.isSuccess) {
                 val orders = result.getOrDefault(emptyList())
+                Log.d(TAG, "轮询成功，获取了 ${orders.size} 个处理中订单")
                 
-                // 有新订单时记录日志
+                // 发送广播通知界面更新（无论是否有新订单）
+                sendOrdersUpdatedBroadcast()
+                
+                // 过滤并处理新订单
                 if (orders.isNotEmpty()) {
-                    Log.d(TAG, "轮询成功，获取了 ${orders.size} 个处理中订单")
-                    
-                    // 发送广播通知界面更新
-                    sendOrdersUpdatedBroadcast()
-                    
-                    // 过滤并处理新订单
                     processNewOrders(orders)
                     
-                    // 发送新订单广播
+                    // 如果有新订单，发送专门的新订单广播
                     sendNewOrdersBroadcast(orders.size)
                     
-                    // 通知UI层刷新数据
+                    // 发送刷新订单的广播，通知UI层刷新数据
                     sendRefreshOrdersBroadcast()
                 }
             } else {

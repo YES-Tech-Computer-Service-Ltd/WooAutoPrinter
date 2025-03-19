@@ -186,11 +186,6 @@ class DefaultOrderPrintTemplate @Inject constructor(
             sb.append(formatter.formatLeftRightText("小费:", order.woofoodInfo.tip, paperWidth))
         }
         
-        // 显示折扣
-        if (order.discountTotal.isNotEmpty() && order.discountTotal != "0.00") {
-            sb.append(formatter.formatLeftRightText("折扣:", "-${order.discountTotal}", paperWidth))
-        }
-        
         sb.append(formatter.formatLeftRightText("总计:", order.total, paperWidth))
         sb.append(formatter.formatLeftRightText("支付方式:", order.paymentMethod, paperWidth))
         
@@ -318,11 +313,6 @@ class DefaultOrderPrintTemplate @Inject constructor(
         // 显示小费
         if (order.woofoodInfo?.tip != null && order.woofoodInfo.tip.isNotEmpty()) {
             sb.append(formatter.formatLeftRightText("小费:", order.woofoodInfo.tip, paperWidth))
-        }
-        
-        // 显示折扣
-        if (order.discountTotal.isNotEmpty() && order.discountTotal != "0.00") {
-            sb.append(formatter.formatLeftRightText("折扣:", "-${order.discountTotal}", paperWidth))
         }
         
         sb.append(formatter.formatLeftRightText("总计:", order.total, paperWidth))

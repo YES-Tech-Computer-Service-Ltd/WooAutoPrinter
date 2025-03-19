@@ -1562,9 +1562,6 @@ class BluetoothPrinterManager @Inject constructor(
 
     // 扫描特定地址的设备
     private suspend fun scanForDevice(targetAddress: String): BluetoothDevice? = suspendCancellableCoroutine { continuation ->
-        // 在外部定义变量引用，但不初始化
-        var receiver: BroadcastReceiver? = null
-        
         try {
             Log.d(TAG, "开始扫描特定地址的设备: $targetAddress")
             
@@ -1583,8 +1580,8 @@ class BluetoothPrinterManager @Inject constructor(
                 return@suspendCancellableCoroutine
             }
             
-            // 声明接收器变量并保存引用到外部变量
-            receiver = object : BroadcastReceiver() {
+            // 声明接收器变量在try块外部，使其在整个函数范围内可见
+            val scanReceiver = object : BroadcastReceiver() {
                 override fun onReceive(context: Context, intent: Intent) {
                     when (intent.action) {
                         BluetoothDevice.ACTION_FOUND -> {
@@ -1640,19 +1637,19 @@ class BluetoothPrinterManager @Inject constructor(
                 addAction(BluetoothDevice.ACTION_FOUND)
                 addAction(BluetoothAdapter.ACTION_DISCOVERY_FINISHED)
             }
-            context.registerReceiver(receiver, intentFilter)
+            context.registerReceiver(scanReceiver, intentFilter)
             
             // 开始扫描
             this.bluetoothAdapter?.startDiscovery() ?: run {
                 Log.e(TAG, "蓝牙适配器为null，无法开始扫描")
-                context.unregisterReceiver(receiver)
+                context.unregisterReceiver(scanReceiver)
                 continuation.resume(null)
             }
             
             // 添加取消时的清理操作
             continuation.invokeOnCancellation {
                 try {
-                    receiver?.let { context.unregisterReceiver(it) }
+                    context.unregisterReceiver(scanReceiver)
                     this.bluetoothAdapter?.cancelDiscovery()
                 } catch (e: Exception) {
                     Log.w(TAG, "取消扫描时清理异常", e)
@@ -1661,8 +1658,8 @@ class BluetoothPrinterManager @Inject constructor(
         } catch (e: Exception) {
             Log.e(TAG, "扫描设备时发生异常: ${e.message}", e)
             try {
-                // 使用外部保存的接收器引用
-                receiver?.let { context.unregisterReceiver(it) }
+                // 如果scanReceiver仍然在作用域中，则取消注册
+                context.unregisterReceiver(scanReceiver)
             } catch (e2: Exception) {
                 Log.w(TAG, "解注册扫描接收器失败", e2)
             }

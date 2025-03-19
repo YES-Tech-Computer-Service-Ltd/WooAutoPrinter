@@ -142,29 +142,7 @@ fun OrderDto.toOrder(): Order {
     
     // 转换费用行和税费行到领域模型
     val domainFeeLines = feeLines.map { it.toFeeLine() }.toMutableList()
-    
-    // 处理税费行，确保正确识别GST和PST
-    val domainTaxLines = taxLines.map { taxLineDto ->
-        // 根据label提取合适的标签名称
-        val label = when {
-            taxLineDto.label.contains("GST", ignoreCase = true) -> "GST"
-            taxLineDto.label.contains("PST", ignoreCase = true) -> "PST"
-            else -> taxLineDto.label
-        }
-        
-        // 提取正确的税率百分比
-        val ratePercent = taxLineDto.ratePercent
-        
-        // 创建领域模型税费行
-        TaxLine(
-            id = taxLineDto.id,
-            label = label,
-            ratePercent = ratePercent,
-            taxTotal = taxLineDto.taxTotal
-        ).also {
-            Log.d("OrderDto", "创建税费行: ${it.label} (${it.ratePercent}%) = ${it.taxTotal}")
-        }
-    }
+    val domainTaxLines = taxLines.map { it.toTaxLine() }
     
     // 如果没有费用行，但有WooFood信息中的小费和配送费，添加这些费用
     if (domainFeeLines.isEmpty()) {

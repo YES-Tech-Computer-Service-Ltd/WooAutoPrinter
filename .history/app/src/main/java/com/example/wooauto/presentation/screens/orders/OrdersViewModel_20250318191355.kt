@@ -260,8 +260,8 @@ class OrdersViewModel @Inject constructor(
      * @param toEnglish 是否从中文转换到英文
      * @return 映射后的状态字符串
      */
-    private fun mapStatusToChinese(status: String?, toEnglish: Boolean = false): String {
-        if (status == null) return "any" // 空值时返回默认值
+    private fun mapStatusToChinese(status: String?, toEnglish: Boolean = false): String? {
+        if (status == null) return null
         
         // 状态映射表
         val statusMap = mapOf(
@@ -510,7 +510,7 @@ class OrdersViewModel @Inject constructor(
     private fun registerRefreshOrdersBroadcastReceiver() {
         viewModelScope.launch {
             try {
-                // 使用已注入的context替代Application
+                val context = getApplication<Application>()
                 
                 // 创建广播接收器
                 val receiver = object : BroadcastReceiver() {
