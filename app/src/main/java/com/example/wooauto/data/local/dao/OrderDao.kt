@@ -73,4 +73,11 @@ interface OrderDao {
      */
     @Query("DELETE FROM orders WHERE status = :status")
     suspend fun deleteOrdersByStatus(status: String)
+
+    /**
+     * 根据ID删除订单
+     * @param orderId 要删除的订单ID
+     */
+    @Query("DELETE FROM orders WHERE id = :orderId")
+    suspend fun deleteOrderById(orderId: Long)
 } 
