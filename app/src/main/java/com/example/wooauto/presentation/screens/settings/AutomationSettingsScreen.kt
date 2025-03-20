@@ -10,10 +10,12 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.example.wooauto.R
 import com.example.wooauto.domain.templates.TemplateType
 import kotlinx.coroutines.launch
 
@@ -30,6 +32,9 @@ fun AutomationSettingsScreen(
     val scrollState = rememberScrollState()
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
+    
+    // 预先获取需要在非Composable上下文中使用的字符串资源
+    val settingsSavedText = stringResource(R.string.settings_saved)
     
     // 自动化任务状态
     var automaticOrderProcessing by remember { mutableStateOf(true) }
@@ -57,10 +62,10 @@ fun AutomationSettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("自动化任务设置") },
+                title = { Text(stringResource(R.string.automation_tasks)) },
                 navigationIcon = {
                     IconButton(onClick = { navController.navigateUp() }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -91,7 +96,7 @@ fun AutomationSettingsScreen(
                         .padding(16.dp)
                 ) {
                     Text(
-                        text = "订单处理",
+                        text = stringResource(R.string.order_processing),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
@@ -108,11 +113,11 @@ fun AutomationSettingsScreen(
                     ) {
                         Column {
                             Text(
-                                text = "自动接单",
+                                text = stringResource(R.string.automatic_order_processing),
                                 style = MaterialTheme.typography.bodyLarge
                             )
                             Text(
-                                text = "新订单自动接收处理",
+                                text = stringResource(R.string.automatic_order_processing_desc),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -135,11 +140,11 @@ fun AutomationSettingsScreen(
                     ) {
                         Column {
                             Text(
-                                text = "订单打印",
+                                text = stringResource(R.string.automatic_printing),
                                 style = MaterialTheme.typography.bodyLarge
                             )
                             Text(
-                                text = "新订单自动打印小票",
+                                text = stringResource(R.string.automatic_printing_desc),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -165,7 +170,7 @@ fun AutomationSettingsScreen(
                             .padding(16.dp)
                     ) {
                         Text(
-                            text = "打印模板",
+                            text = stringResource(R.string.print_templates),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
@@ -186,12 +191,7 @@ fun AutomationSettingsScreen(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Column {
-                                Text("完整订单详情")
-                                Text(
-                                    text = "包含所有订单信息",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                Text(stringResource(R.string.full_details_template))
                             }
                         }
                         
@@ -209,12 +209,7 @@ fun AutomationSettingsScreen(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Column {
-                                Text("配送信息")
-                                Text(
-                                    text = "突出显示配送信息和菜品",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                Text(stringResource(R.string.delivery_template))
                             }
                         }
                         
@@ -232,12 +227,7 @@ fun AutomationSettingsScreen(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Column {
-                                Text("厨房订单")
-                                Text(
-                                    text = "仅包含菜品和下单时间",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                Text(stringResource(R.string.kitchen_template))
                             }
                         }
                     }
@@ -256,7 +246,7 @@ fun AutomationSettingsScreen(
                         .padding(16.dp)
                 ) {
                     Text(
-                        text = "其他自动化",
+                        text = stringResource(R.string.other_automation),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
@@ -273,11 +263,11 @@ fun AutomationSettingsScreen(
                     ) {
                         Column {
                             Text(
-                                text = "库存提醒",
+                                text = stringResource(R.string.inventory_alerts),
                                 style = MaterialTheme.typography.bodyLarge
                             )
                             Text(
-                                text = "库存不足自动提醒",
+                                text = stringResource(R.string.inventory_alerts_desc),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -300,11 +290,11 @@ fun AutomationSettingsScreen(
                     ) {
                         Column {
                             Text(
-                                text = "定时备份",
+                                text = stringResource(R.string.daily_backup),
                                 style = MaterialTheme.typography.bodyLarge
                             )
                             Text(
-                                text = "每日自动备份数据",
+                                text = stringResource(R.string.daily_backup_desc),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -331,7 +321,7 @@ fun AutomationSettingsScreen(
                     
                     // 显示保存确认
                     coroutineScope.launch {
-                        snackbarHostState.showSnackbar("自动化设置已保存")
+                        snackbarHostState.showSnackbar(settingsSavedText)
                     }
                     
                     // 通知服务重启轮询，确保设置立即生效
@@ -344,7 +334,7 @@ fun AutomationSettingsScreen(
                     .fillMaxWidth()
                     .padding(vertical = 16.dp),
             ) {
-                Text("保存设置")
+                Text(stringResource(R.string.save_settings))
             }
         }
     }
