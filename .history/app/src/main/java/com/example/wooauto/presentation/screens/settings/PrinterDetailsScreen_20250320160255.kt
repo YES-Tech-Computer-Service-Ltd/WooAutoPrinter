@@ -39,9 +39,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.BluetoothSearching
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -75,12 +73,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.example.wooauto.domain.models.PrinterConfig
@@ -90,7 +85,6 @@ import kotlinx.coroutines.launch
 import java.util.UUID
 import androidx.compose.ui.platform.LocalContext
 import com.example.wooauto.MainActivity
-import androidx.compose.material3.Divider
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -380,14 +374,33 @@ fun PrinterDetailsScreen(
                             .padding(horizontal = 4.dp)
                     )
                     Text(
-                        text = "(有效宽度50mm)",
+                        text = "(宽度50mm)",
                         style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 2.dp)
                     )
                 }
                 
-                Spacer(modifier = Modifier.width(32.dp))
+                Spacer(modifier = Modifier.width(16.dp))
+                
+                // 72mm选项
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    RadioButton(
+                        selected = paperWidth.toIntOrNull() == PrinterConfig.PAPER_WIDTH_72MM,
+                        onClick = { paperWidth = PrinterConfig.PAPER_WIDTH_72MM.toString() }
+                    )
+                    Text(
+                        text = "72mm",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier
+                            .clickable { paperWidth = PrinterConfig.PAPER_WIDTH_72MM.toString() }
+                            .padding(horizontal = 4.dp)
+                    )
+                }
+                
+                Spacer(modifier = Modifier.width(16.dp))
                 
                 // 80mm选项
                 Column(
@@ -404,169 +417,6 @@ fun PrinterDetailsScreen(
                             .clickable { paperWidth = PrinterConfig.PAPER_WIDTH_80MM.toString() }
                             .padding(horizontal = 4.dp)
                     )
-                    Text(
-                        text = "(有效宽度72mm)",
-                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 2.dp)
-                    )
-                }
-            }
-            
-            // 添加纸张宽度预览功能
-            Spacer(modifier = Modifier.height(8.dp))
-            
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp),
-                shape = RoundedCornerShape(8.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-                )
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(12.dp)
-                ) {
-                    Text(
-                        text = "打印宽度预览",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
-                    // 预览区域
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(150.dp)
-                            .background(Color.White)
-                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(8.dp)
-                        ) {
-                            // 根据选择的打印宽度显示不同的预览
-                            val selectedWidth = paperWidth.toIntOrNull() ?: PrinterConfig.PAPER_WIDTH_57MM
-                            val previewText = when (selectedWidth) {
-                                PrinterConfig.PAPER_WIDTH_57MM -> "58mm打印纸(有效宽度50mm)\n一行可打印约28个英文字符\n或14个中文字符"
-                                PrinterConfig.PAPER_WIDTH_80MM -> "80mm打印纸(有效宽度72mm)\n一行可打印约42个英文字符\n或21个中文字符"
-                                else -> "默认58mm打印纸"
-                            }
-                            
-                            // 打印机标题示例
-                            Text(
-                                text = "示例标题",
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Bold,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            
-                            Spacer(modifier = Modifier.height(4.dp))
-                            
-                            // 分隔线
-                            Divider(
-                                color = Color.Black,
-                                thickness = 1.dp
-                            )
-                            
-                            Spacer(modifier = Modifier.height(4.dp))
-                            
-                            // 打印机内容示例
-                            Text(
-                                text = previewText,
-                                style = MaterialTheme.typography.bodySmall,
-                                fontFamily = FontFamily.Monospace
-                            )
-                            
-                            // 示例商品
-                            if (selectedWidth == PrinterConfig.PAPER_WIDTH_57MM) {
-                                Text(
-                                    text = "香辣鸡腿堡",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    fontFamily = FontFamily.Monospace
-                                )
-                                Text(
-                                    text = "  2 x ¥15.00",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    fontFamily = FontFamily.Monospace
-                                )
-                            } else {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Text(
-                                        text = "香辣鸡腿堡",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        fontFamily = FontFamily.Monospace,
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                    Text(
-                                        text = "2 x ¥15.00",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        fontFamily = FontFamily.Monospace
-                                    )
-                                }
-                            }
-                        }
-                    }
-                    
-                    Spacer(modifier = Modifier.height(4.dp))
-                    
-                    Text(
-                        text = "注意: 实际打印效果可能与预览略有差异，建议进行测试打印",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.outline,
-                        fontSize = 10.sp
-                    )
-                    
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
-                    // 添加测试打印按钮
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End
-                    ) {
-                        Button(
-                            onClick = {
-                                // 创建临时打印机配置用于测试
-                                val testConfig = printerConfig.copy(
-                                    paperWidth = paperWidth.toIntOrNull() ?: PrinterConfig.PAPER_WIDTH_57MM
-                                )
-                                coroutineScope.launch {
-                                    // 显示连接中提示
-                                    snackbarHostState.showSnackbar("正在连接打印机...")
-                                    
-                                    // 测试打印
-                                    val success = viewModel.testPrint(testConfig)
-                                    if (success) {
-                                        snackbarHostState.showSnackbar("测试打印成功")
-                                    } else {
-                                        snackbarHostState.showSnackbar("测试打印失败，请检查打印机连接")
-                                    }
-                                }
-                            },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.primary
-                            ),
-                            modifier = Modifier.padding(vertical = 4.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Print,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(text = "测试打印")
-                        }
-                    }
                 }
             }
             

@@ -80,7 +80,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.example.wooauto.domain.models.PrinterConfig
@@ -380,14 +379,33 @@ fun PrinterDetailsScreen(
                             .padding(horizontal = 4.dp)
                     )
                     Text(
-                        text = "(有效宽度50mm)",
+                        text = "(宽度50mm)",
                         style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 2.dp)
                     )
                 }
                 
-                Spacer(modifier = Modifier.width(32.dp))
+                Spacer(modifier = Modifier.width(16.dp))
+                
+                // 72mm选项
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    RadioButton(
+                        selected = paperWidth.toIntOrNull() == PrinterConfig.PAPER_WIDTH_72MM,
+                        onClick = { paperWidth = PrinterConfig.PAPER_WIDTH_72MM.toString() }
+                    )
+                    Text(
+                        text = "72mm",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier
+                            .clickable { paperWidth = PrinterConfig.PAPER_WIDTH_72MM.toString() }
+                            .padding(horizontal = 4.dp)
+                    )
+                }
+                
+                Spacer(modifier = Modifier.width(16.dp))
                 
                 // 80mm选项
                 Column(
@@ -403,12 +421,6 @@ fun PrinterDetailsScreen(
                         modifier = Modifier
                             .clickable { paperWidth = PrinterConfig.PAPER_WIDTH_80MM.toString() }
                             .padding(horizontal = 4.dp)
-                    )
-                    Text(
-                        text = "(有效宽度72mm)",
-                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 2.dp)
                     )
                 }
             }
@@ -455,8 +467,9 @@ fun PrinterDetailsScreen(
                             // 根据选择的打印宽度显示不同的预览
                             val selectedWidth = paperWidth.toIntOrNull() ?: PrinterConfig.PAPER_WIDTH_57MM
                             val previewText = when (selectedWidth) {
-                                PrinterConfig.PAPER_WIDTH_57MM -> "58mm打印纸(有效宽度50mm)\n一行可打印约28个英文字符\n或14个中文字符"
-                                PrinterConfig.PAPER_WIDTH_80MM -> "80mm打印纸(有效宽度72mm)\n一行可打印约42个英文字符\n或21个中文字符"
+                                PrinterConfig.PAPER_WIDTH_57MM -> "58mm打印纸(50mm有效宽度)\n一行可打印约28个英文字符\n或14个中文字符"
+                                PrinterConfig.PAPER_WIDTH_72MM -> "72mm打印纸\n一行可打印约42个英文字符\n或21个中文字符"
+                                PrinterConfig.PAPER_WIDTH_80MM -> "80mm打印纸\n一行可打印约48个英文字符\n或24个中文字符"
                                 else -> "默认58mm打印纸"
                             }
                             

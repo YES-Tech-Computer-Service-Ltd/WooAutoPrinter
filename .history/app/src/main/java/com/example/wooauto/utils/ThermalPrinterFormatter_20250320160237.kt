@@ -16,7 +16,8 @@ class ThermalPrinterFormatter {
         
         // 打印机字符数 - 不同纸张宽度的打印机能打印的字符数
         private const val CHAR_COUNT_58MM = 28  // 58mm打印机一行约28个英文字符(有效打印区域约50mm)
-        private const val CHAR_COUNT_80MM = 42  // 80mm打印机一行约42个英文字符(有效打印区域约72mm)
+        private const val CHAR_COUNT_72MM = 42  // 72mm打印机一行约42个英文字符
+        private const val CHAR_COUNT_80MM = 48  // 80mm打印机一行约48个英文字符
         
         /**
          * 获取打印机每行能打印的字符数
@@ -26,6 +27,7 @@ class ThermalPrinterFormatter {
         fun getCharsPerLine(paperWidth: Int): Int {
             return when (paperWidth) {
                 PrinterConfig.PAPER_WIDTH_80MM -> CHAR_COUNT_80MM
+                PrinterConfig.PAPER_WIDTH_72MM -> CHAR_COUNT_72MM
                 PrinterConfig.PAPER_WIDTH_57MM -> CHAR_COUNT_58MM
                 else -> CHAR_COUNT_58MM // 默认使用58mm
             }
@@ -204,13 +206,13 @@ class ThermalPrinterFormatter {
                 sb.append("[L]$name\n")
                 sb.append("[L]  ${quantity} x $price\n")
                 return sb.toString()
-            } else if (paperWidth == PrinterConfig.PAPER_WIDTH_80MM && name.length > 26) {
-                // 80mm打印机但有效打印宽度控制在72mm
+            } else if (paperWidth == PrinterConfig.PAPER_WIDTH_72MM && name.length > 26) {
                 val sb = StringBuilder()
                 sb.append("[L]$name\n")
                 sb.append("[L]  ${quantity} x $price\n")
                 return sb.toString()
             } else {
+                // 80mm打印机可以一行显示
                 return "[L]$name[R]${quantity} x $price\n"
             }
         }

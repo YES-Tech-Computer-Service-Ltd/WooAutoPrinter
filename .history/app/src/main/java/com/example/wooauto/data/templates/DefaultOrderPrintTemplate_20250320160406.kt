@@ -438,20 +438,28 @@ class DefaultOrderPrintTemplate @Inject constructor(
         // 根据不同的打印宽度显示不同的信息
         when (paperWidth) {
             PrinterConfig.PAPER_WIDTH_57MM -> {
-                sb.append(formatter.formatLeftText("纸张: 58mm (有效宽度50mm)", paperWidth))
+                sb.append(formatter.formatLeftText("纸张: 58mm (宽度50mm)", paperWidth))
                 sb.append(formatter.formatLeftText("字符数: 约28个英文字符/行", paperWidth))
                 sb.append(formatter.formatLeftText("中文: 约14个汉字/行", paperWidth))
                 // 展示字符边界
                 sb.append(formatter.formatLeftText("1234567890123456789012345678", paperWidth))
                 sb.append(formatter.formatLeftText("一二三四五六七八九十一二三四", paperWidth))
             }
-            PrinterConfig.PAPER_WIDTH_80MM -> {
-                sb.append(formatter.formatLeftText("纸张: 80mm (有效宽度72mm)", paperWidth))
+            PrinterConfig.PAPER_WIDTH_72MM -> {
+                sb.append(formatter.formatLeftText("纸张: 72mm", paperWidth))
                 sb.append(formatter.formatLeftText("字符数: 约42个英文字符/行", paperWidth))
                 sb.append(formatter.formatLeftText("中文: 约21个汉字/行", paperWidth))
                 // 展示字符边界
                 sb.append(formatter.formatLeftText("123456789012345678901234567890123456789012", paperWidth))
                 sb.append(formatter.formatLeftText("一二三四五六七八九十一二三四五六七八九十一", paperWidth))
+            }
+            PrinterConfig.PAPER_WIDTH_80MM -> {
+                sb.append(formatter.formatLeftText("纸张: 80mm", paperWidth))
+                sb.append(formatter.formatLeftText("字符数: 约48个英文字符/行", paperWidth))
+                sb.append(formatter.formatLeftText("中文: 约24个汉字/行", paperWidth))
+                // 展示字符边界
+                sb.append(formatter.formatLeftText("123456789012345678901234567890123456789012345678", paperWidth))
+                sb.append(formatter.formatLeftText("一二三四五六七八九十一二三四五六七八九十一二三四", paperWidth))
             }
             else -> {
                 sb.append(formatter.formatLeftText("纸张: 未知宽度", paperWidth))

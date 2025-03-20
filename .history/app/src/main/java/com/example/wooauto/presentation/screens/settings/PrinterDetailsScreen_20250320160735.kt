@@ -80,7 +80,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.example.wooauto.domain.models.PrinterConfig
@@ -455,8 +454,9 @@ fun PrinterDetailsScreen(
                             // 根据选择的打印宽度显示不同的预览
                             val selectedWidth = paperWidth.toIntOrNull() ?: PrinterConfig.PAPER_WIDTH_57MM
                             val previewText = when (selectedWidth) {
-                                PrinterConfig.PAPER_WIDTH_57MM -> "58mm打印纸(有效宽度50mm)\n一行可打印约28个英文字符\n或14个中文字符"
-                                PrinterConfig.PAPER_WIDTH_80MM -> "80mm打印纸(有效宽度72mm)\n一行可打印约42个英文字符\n或21个中文字符"
+                                PrinterConfig.PAPER_WIDTH_57MM -> "58mm打印纸(50mm有效宽度)\n一行可打印约28个英文字符\n或14个中文字符"
+                                PrinterConfig.PAPER_WIDTH_72MM -> "72mm打印纸\n一行可打印约42个英文字符\n或21个中文字符"
+                                PrinterConfig.PAPER_WIDTH_80MM -> "80mm打印纸\n一行可打印约48个英文字符\n或24个中文字符"
                                 else -> "默认58mm打印纸"
                             }
                             
