@@ -54,6 +54,13 @@ interface DomainOrderRepository {
     suspend fun markOrderAsPrinted(orderId: Long): Boolean
 
     /**
+     * 标记订单为未打印
+     * @param orderId 订单ID
+     * @return 是否成功标记
+     */
+    suspend fun markOrderAsUnprinted(orderId: Long): Boolean
+
+    /**
      * 标记订单通知为已显示
      * @param orderId 订单ID
      * @return 更新结果
