@@ -354,6 +354,24 @@ class BackgroundPollingService : Service() {
             if (!processedOrderIds.contains(order.id)) {
                 Log.d(TAG, "处理新订单: #${order.number}, ID: ${order.id}, 状态: ${order.status}, 已打印: ${order.isPrinted}")
                 
+                // 获取数据库中的打印状态
+                val latestOrder = orderRepository.getOrderById(order.id)
+                val isPrintedInDb = latestOrder?.isPrinted ?: false
+                
+                // 检查内存状态和数据库状态是否一致
+                if (isPrintedInDb != order.isPrinted) {
+                    Log.d(TAG, "订单 #${order.number} 打印状态不一致: 内存=${order.isPrinted}, 数据库=${isPrintedInDb}")
+                    
+                    // 以内存状态为准，更新数据库
+                    if (order.isPrinted && !isPrintedInDb) {
+                        Log.d(TAG, "以内存状态为准，将订单 #${order.number} 在数据库中标记为已打印")
+                        orderRepository.markOrderAsPrinted(order.id)
+                    } else if (!order.isPrinted && isPrintedInDb) {
+                        Log.d(TAG, "以内存状态为准，将订单 #${order.number} 在数据库中标记为未打印")
+                        orderRepository.markOrderAsUnprinted(order.id)
+                    }
+                }
+                
                 // 发送通知
                 sendNewOrderNotification(order)
                 
@@ -363,7 +381,7 @@ class BackgroundPollingService : Service() {
                 // 启用自动打印功能，并添加详细日志
                 Log.d(TAG, "====== 开始处理订单自动打印 ======")
                 
-                // 检查是否需要自动打印
+                // 使用内存中的打印状态
                 val shouldPrint = !order.isPrinted && order.status == "processing"
                 Log.d(TAG, "是否需要打印: $shouldPrint (isPrinted=${order.isPrinted}, status=${order.status})")
                 
