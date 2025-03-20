@@ -12,30 +12,37 @@ import androidx.compose.material.icons.automirrored.outlined.List
 // 导入产品相关图标
 import androidx.compose.material.icons.filled.Inventory
 import androidx.compose.material.icons.outlined.Inventory
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.stringResource
+import com.example.wooauto.R
 
 sealed class NavigationItem(
     val route: String,
-    val title: String,
+    val titleResId: Int,
     val selectedIcon: ImageVector,
     val unselectedIcon: ImageVector
 ) {
+    val title: String
+        @Composable
+        get() = stringResource(id = titleResId)
+        
     object Orders : NavigationItem(
         route = "orders",
-        title = "订单",
+        titleResId = R.string.nav_orders,
         selectedIcon = Icons.AutoMirrored.Filled.List,
         unselectedIcon = Icons.AutoMirrored.Outlined.List
     )
     
     object Products : NavigationItem(
         route = "products",
-        title = "产品",
+        titleResId = R.string.nav_products,
         selectedIcon = Icons.Filled.Inventory,
         unselectedIcon = Icons.Outlined.Inventory
     )
     
     object Settings : NavigationItem(
         route = "settings",
-        title = "设置",
+        titleResId = R.string.nav_settings,
         selectedIcon = Icons.Filled.Settings,
         unselectedIcon = Icons.Outlined.Settings
     )
