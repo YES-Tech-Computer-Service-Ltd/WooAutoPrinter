@@ -1,6 +1,8 @@
 package com.example.wooauto.data.repository
 
 import android.util.Log
+import com.example.wooauto.data.local.dao.OrderDao
+import com.example.wooauto.data.local.entities.OrderEntity
 import com.example.wooauto.data.mappers.OrderMapper
 import com.example.wooauto.data.remote.WooCommerceApi
 import com.example.wooauto.data.remote.WooCommerceApiFactory
@@ -22,7 +24,6 @@ import java.util.Date
 import javax.inject.Inject
 import javax.inject.Singleton
 import com.example.wooauto.data.remote.ApiError
-import com.example.wooauto.data.local.dao.OrderDao
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
@@ -240,32 +241,104 @@ class OrderRepositoryImpl @Inject constructor(
                 // 转换为领域模型
                 val orders = response.map { orderDto -> orderDto.toOrder() }
                 
-                // 更新数据库，但保留打印状态
+                // 获取当前所有订单，创建ID到实体的映射
                 val currentOrders = orderDao.getAllOrders().first()
-                val printedOrderIds = currentOrders.filter { it.isPrinted }.map { it.id }.toSet()
+                val currentOrderMap = currentOrders.associateBy { it.id }
                 
-                // 更新缓存，保留已打印状态
+                // 记录当前数据库中已打印订单的数量
+                val printedOrdersInDb = currentOrders.filter { it.isPrinted }
+                Log.d("OrderRepositoryImpl", "【状态刷新】当前数据库中已打印订单数量: ${printedOrdersInDb.size}")
+                
+                // 记录内存中的订单状态以便对比
+                val memoryOrderMap = cachedOrders.associateBy { it.id }
+                val printedOrdersInMemory = cachedOrders.filter { it.isPrinted }
+                Log.d("OrderRepositoryImpl", "【状态刷新】当前内存中已打印订单数量: ${printedOrdersInMemory.size}")
+                
+                // 检查内存和数据库的状态差异
+                if (printedOrdersInMemory.size != printedOrdersInDb.size) {
+                    Log.d("OrderRepositoryImpl", "【状态刷新】内存和数据库打印状态不一致，内存: ${printedOrdersInMemory.size}，数据库: ${printedOrdersInDb.size}")
+                }
+                
+                // 更新缓存，以内存状态为准
                 val entitiesWithPrintStatus = orders.map { order -> 
                     val entity = OrderMapper.mapDomainToEntity(order)
-                    // 如果订单之前已标记为已打印，保留该状态
-                    if (printedOrderIds.contains(entity.id)) {
-                        entity.copy(isPrinted = true)
+                    
+                    // 首先检查内存中是否存在该订单
+                    val memoryOrder = memoryOrderMap[entity.id]
+                    
+                    if (memoryOrder != null) {
+                        // 如果内存中存在，使用内存中的打印状态
+                        if (memoryOrder.isPrinted) {
+                            Log.d("OrderRepositoryImpl", "【状态刷新】使用内存中的状态，保留订单 #${entity.number} (ID: ${entity.id}) 的已打印状态")
+                            entity.copy(isPrinted = true)
+                        } else {
+                            entity
+                        }
                     } else {
-                        entity
+                        // 如果内存中不存在，检查数据库
+                        val existingOrder = currentOrderMap[entity.id]
+                        if (existingOrder?.isPrinted == true) {
+                            Log.d("OrderRepositoryImpl", "【状态刷新】订单在内存中不存在，但数据库标记为已打印，保留状态: #${entity.number}")
+                            entity.copy(isPrinted = true)
+                        } else {
+                            entity
+                        }
                     }
                 }
                 
-                orderDao.deleteAllOrders() // 清除旧数据
-                orderDao.insertOrders(entitiesWithPrintStatus) // 插入保留打印状态的新数据
+                // 使用更新策略而非删除再插入
+                // 1. 获取API返回的所有订单ID
+                val apiOrderIds = orders.map { it.id }.toSet()
                 
-                // 同样更新缓存，保留已打印状态
-                cachedOrders = orders.map { order ->
-                    if (printedOrderIds.contains(order.id)) {
-                        order.copy(isPrinted = true)
+                // 2. 如果是全量刷新（无状态过滤），找出需要删除的订单
+                if (status == null) {
+                    val idsToDelete = currentOrders
+                        .filter { !apiOrderIds.contains(it.id) }
+                        .map { it.id }
+                    
+                    if (idsToDelete.isNotEmpty()) {
+                        Log.d("OrderRepositoryImpl", "【状态刷新】删除不再存在的订单: $idsToDelete")
+                        // 处理需要删除的订单
+                        idsToDelete.forEach { id ->
+                            orderDao.deleteOrderById(id)
+                        }
+                    }
+                } else {
+                    // 只删除特定状态的订单，保留打印状态标记
+                    Log.d("OrderRepositoryImpl", "【状态刷新】只更新 $status 状态的订单")
+                    orderDao.deleteOrdersByStatus(status)
+                }
+                
+                // 插入或更新订单
+                Log.d("OrderRepositoryImpl", "【状态刷新】更新 ${entitiesWithPrintStatus.size} 个订单")
+                orderDao.insertOrders(entitiesWithPrintStatus)
+                
+                // 同样更新缓存，保留已打印状态，但确保以内存状态为准
+                val newCachedOrders = orders.map { order ->
+                    val memoryOrder = memoryOrderMap[order.id]
+                    
+                    if (memoryOrder != null) {
+                        // 如果内存中存在，保留内存中的打印状态
+                        if (memoryOrder.isPrinted != order.isPrinted) {
+                            // 只有在状态不同时才记录日志，避免日志过多
+                            Log.d("OrderRepositoryImpl", "【状态刷新】订单 #${order.number} 保留内存中的打印状态: ${memoryOrder.isPrinted}")
+                            order.copy(isPrinted = memoryOrder.isPrinted)
+                        } else {
+                            order
+                        }
                     } else {
-                        order
+                        // 内存中不存在，检查数据库
+                        val existingOrder = currentOrderMap[order.id]
+                        if (existingOrder?.isPrinted == true) {
+                            order.copy(isPrinted = true)
+                        } else {
+                            order
+                        }
                     }
                 }
+                
+                // 更新内存缓存
+                cachedOrders = newCachedOrders
                 isOrdersCached = true
                 _ordersFlow.value = cachedOrders
                 
@@ -353,23 +426,62 @@ class OrderRepositoryImpl @Inject constructor(
                 // 转换为领域模型
                 val orders = response.map { orderDto -> orderDto.toOrder() }
                 
-                // 获取当前已打印的订单ID
+                // 获取当前数据库中所有的processing订单
                 val currentProcessingOrders = orderDao.getOrdersByStatus("processing").first()
-                val printedOrderIds = currentProcessingOrders.filter { it.isPrinted }.map { it.id }.toSet()
+                val dbOrderMap = currentProcessingOrders.associateBy { it.id }
                 
-                // 更新数据库中的处理中订单，但保留打印状态
+                // 获取内存中的processing订单及其打印状态
+                val cachedProcessingOrders = cachedOrders.filter { it.status == "processing" }
+                val memoryOrderMap = cachedProcessingOrders.associateBy { it.id }
+                
+                Log.d("OrderRepositoryImpl", "【轮询刷新】数据库中处理中订单: ${currentProcessingOrders.size}个, 内存中: ${cachedProcessingOrders.size}个")
+                
+                // 记录内存中已打印的订单
+                val printedInMemory = cachedProcessingOrders.filter { it.isPrinted }.map { it.id }
+                Log.d("OrderRepositoryImpl", "【轮询刷新】内存中已打印订单ID: $printedInMemory")
+                
+                // 创建新的处理中订单实体，以内存状态为准
                 val entitiesWithPrintStatus = orders.map { order -> 
                     val entity = OrderMapper.mapDomainToEntity(order)
-                    // 如果订单之前已标记为已打印，保留该状态
-                    if (printedOrderIds.contains(entity.id)) {
-                        entity.copy(isPrinted = true)
+                    
+                    // 检查内存中是否存在该订单并获取其打印状态
+                    val cachedOrder = memoryOrderMap[entity.id]
+                    
+                    if (cachedOrder != null) {
+                        // 如果内存中存在，使用内存中的打印状态
+                        Log.d("OrderRepositoryImpl", "【轮询刷新】订单 #${entity.number} 在内存中存在，打印状态: ${cachedOrder.isPrinted}")
+                        entity.copy(isPrinted = cachedOrder.isPrinted)
                     } else {
-                        entity
+                        // 如果内存中不存在但数据库中存在，使用数据库打印状态
+                        val dbOrder = dbOrderMap[entity.id]
+                        if (dbOrder?.isPrinted == true) {
+                            Log.d("OrderRepositoryImpl", "【轮询刷新】订单 #${entity.number} 在内存中不存在，但数据库标记为已打印")
+                            entity.copy(isPrinted = true)
+                        } else {
+                            entity
+                        }
                     }
                 }
                 
-                // 注意：不同于普通刷新，这里只删除和添加processing状态的订单
-                orderDao.deleteOrdersByStatus("processing") 
+                // 修改为更新策略，而不是删除再插入
+                // 1. 获取API返回的所有订单ID
+                val apiOrderIds = orders.map { it.id }.toSet()
+                
+                // 2. 找出数据库中有但API返回中没有的订单（已经不是processing状态）
+                val idsToDelete = currentProcessingOrders
+                    .filter { !apiOrderIds.contains(it.id) }
+                    .map { it.id }
+                
+                if (idsToDelete.isNotEmpty()) {
+                    Log.d("OrderRepositoryImpl", "【轮询刷新】删除不再是processing状态的订单: $idsToDelete")
+                    // 处理需要删除的订单
+                    idsToDelete.forEach { id ->
+                        orderDao.deleteOrderById(id)
+                    }
+                }
+                
+                // 3. 使用insertOrders进行批量更新（Room的REPLACE策略）
+                Log.d("OrderRepositoryImpl", "【轮询刷新】更新 ${entitiesWithPrintStatus.size} 个processing订单")
                 orderDao.insertOrders(entitiesWithPrintStatus)
                 
                 // 注意：这里特意不更新_ordersFlow，以避免影响UI显示
@@ -377,10 +489,23 @@ class OrderRepositoryImpl @Inject constructor(
                 
                 // 返回带有打印状态的订单
                 val ordersWithPrintStatus = orders.map { order ->
-                    if (printedOrderIds.contains(order.id)) {
-                        order.copy(isPrinted = true)
+                    val cachedOrder = memoryOrderMap[order.id]
+                    if (cachedOrder != null) {
+                        // 使用内存状态
+                        if (cachedOrder.isPrinted != order.isPrinted) {
+                            Log.d("OrderRepositoryImpl", "【轮询刷新】使用内存中订单 #${order.number} 的打印状态: ${cachedOrder.isPrinted}")
+                            order.copy(isPrinted = cachedOrder.isPrinted)
+                        } else {
+                            order
+                        }
                     } else {
-                        order
+                        // 内存中不存在，检查数据库
+                        val dbOrder = dbOrderMap[order.id]
+                        if (dbOrder?.isPrinted == true) {
+                            order.copy(isPrinted = true)
+                        } else {
+                            order
+                        }
                     }
                 }
                 
@@ -404,8 +529,16 @@ class OrderRepositoryImpl @Inject constructor(
         Log.d("OrderRepositoryImpl", "标记订单为已打印: $orderId")
         
         try {
+            // 先获取订单当前状态并记录日志
+            val orderBefore = orderDao.getOrderById(orderId)
+            Log.d("OrderRepositoryImpl", "打印前订单状态: ID=$orderId, 已打印=${orderBefore?.isPrinted}, 状态=${orderBefore?.status}")
+            
             // 更新数据库
             orderDao.updateOrderPrintStatus(orderId, true)
+            
+            // 验证更新是否成功
+            val orderAfter = orderDao.getOrderById(orderId)
+            Log.d("OrderRepositoryImpl", "打印后订单状态: ID=$orderId, 已打印=${orderAfter?.isPrinted}, 状态=${orderAfter?.status}")
             
             // 更新缓存和流
             val updatedList = cachedOrders.map { 
@@ -427,6 +560,45 @@ class OrderRepositoryImpl @Inject constructor(
             return@withContext true
         } catch (e: Exception) {
             Log.e("OrderRepositoryImpl", "标记订单为已打印失败", e)
+            return@withContext false
+        }
+    }
+
+    override suspend fun markOrderAsUnprinted(orderId: Long): Boolean = withContext(Dispatchers.IO) {
+        Log.d("OrderRepositoryImpl", "标记订单为未打印: $orderId")
+        
+        try {
+            // 先获取订单当前状态并记录日志
+            val orderBefore = orderDao.getOrderById(orderId)
+            Log.d("OrderRepositoryImpl", "修改前订单状态: ID=$orderId, 已打印=${orderBefore?.isPrinted}, 状态=${orderBefore?.status}")
+            
+            // 更新数据库
+            orderDao.updateOrderPrintStatus(orderId, false)
+            
+            // 验证更新是否成功
+            val orderAfter = orderDao.getOrderById(orderId)
+            Log.d("OrderRepositoryImpl", "修改后订单状态: ID=$orderId, 已打印=${orderAfter?.isPrinted}, 状态=${orderAfter?.status}")
+            
+            // 更新缓存和流
+            val updatedList = cachedOrders.map { 
+                if (it.id == orderId) it.copy(isPrinted = false) else it 
+            }
+            cachedOrders = updatedList
+            _ordersFlow.value = updatedList
+            
+            // 更新状态分组
+            updateOrdersByStatus()
+            
+            // 获取并更新具体订单
+            val orderEntity = orderDao.getOrderById(orderId)
+            orderEntity?.let {
+                // 单独发送更新事件
+                _orderByIdFlow[orderId]?.emit(mapToOrderModel(it))
+            }
+            
+            return@withContext true
+        } catch (e: Exception) {
+            Log.e("OrderRepositoryImpl", "标记订单为未打印失败", e)
             return@withContext false
         }
     }
