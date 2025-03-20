@@ -27,6 +27,42 @@
     <string name="print_all_unprinted">打印全部未打印订单</string>
     <string name="no_orders_found">未找到订单</string>
     <string name="new_order_received">收到新订单</string>
+    <string name="order_id">订单ID: %1$s</string>
+    <string name="contact_info">联系方式: %1$s</string>
+    <string name="not_provided">未提供</string>
+    <string name="printed_status">打印状态</string>
+    <string name="printed_yes">已打印</string>
+    <string name="printed_no">未打印</string>
+    <string name="delivery_fee_text">外卖费</string>
+    <string name="tip_amount">小费</string>
+    
+    <!-- Order Detail Dialog -->
+    <string name="billing_address">账单地址</string>
+    <string name="order_note">备注</string>
+    <string name="delivery_order">外卖订单</string>
+    <string name="pickup_order">自取订单</string>
+    <string name="delivery_address">配送地址</string>
+    <string name="pickup_location">自取地点</string>
+    <string name="product_list">商品列表</string>
+    <string name="price_details">价格明细</string>
+    <string name="subtotal">小计</string>
+    <string name="discount">折扣</string>
+    <string name="tax">税费</string>
+    <string name="tax_pst">PST (%1$s%%)</string>
+    <string name="tax_gst">GST (%1$s%%)</string>
+    <string name="total">总计</string>
+    <string name="status">状态</string>
+    <string name="mark_as_printed">标记为已打印</string>
+    <string name="select_print_template">选择打印模板</string>
+    <string name="change_order_status">更改订单状态</string>
+    <string name="reprint">重新打印</string>
+    <string name="no_product_info">无商品信息</string>
+    <string name="in_store_pickup">店内自取</string>
+    
+    <!-- Print Template -->
+    <string name="full_details_template">完整订单详情 - 包含所有订单信息</string>
+    <string name="delivery_template">配送信息 - 突出显示配送信息和菜品</string>
+    <string name="kitchen_template">厨房订单 - 仅包含菜品和下单时间</string>
 
     <!-- Products -->
     <string name="product_details">产品详情</string>
@@ -47,6 +83,8 @@
     <string name="printer_setup">打印机设置</string>
     <string name="sound_setup">声音设置</string>
     <string name="app_settings">应用设置</string>
+    <string name="api_configuration">API配置</string>
+    <string name="automation_tasks">自动化任务</string>
 
     <!-- Website Setup -->
     <string name="website_url">网站 URL</string>
@@ -120,6 +158,9 @@
     <string name="order_status_processing">处理中</string>
     <string name="order_status_completed">已完成</string>
     <string name="order_status_cancelled">已取消</string>
+    <string name="order_status_on_hold">保留</string>
+    <string name="order_status_refunded">已退款</string>
+    <string name="order_status_failed">失败</string>
 
     <!-- Common -->
     <string name="save">保存</string>
@@ -141,10 +182,53 @@
     <string name="pickup">自取</string>
     <string name="delivery_details">配送详情</string>
     <string name="fee_details">费用详情</string>
+    <string name="pickup_time">自取时间</string>
 
     <!-- New additions from the code block -->
     <string name="about">关于</string>
     <string name="version">版本</string>
     <string name="error_network">网络错误</string>
     <string name="error_server">服务器错误</string>
+
+    <!-- Settings -->
+    <string name="api_configured">已配置</string>
+    <string name="api_not_configured">未配置</string>
+    <string name="printer_settings">打印设置</string>
+    <string name="sound_settings">声音设置</string>
+    <string name="store_settings">店铺信息设置</string>
+    <string name="auto_update">自动更新</string>
+    <string name="feature_coming_soon">此功能即将推出</string>
+    <string name="app_version">WooAuto - 版本 1.0.0</string>
+
+    <!-- API Settings -->
+    <string name="website_url_placeholder">https://your-site.com</string>
+    <string name="api_key_placeholder">如：ck_1234...</string>
+    <string name="api_secret_placeholder">如：cs_5678...</string>
+    <string name="save_and_test">保存并测试</string>
+    <string name="testing_connection">测试连接中...</string>
+    <string name="fill_all_fields">请填写所有必填字段</string>
+    <string name="scan_qr_code_prompt">扫描 WooCommerce 站点 URL 二维码</string>
+    <string name="scan_successful">扫描成功</string>
+
+    <!-- Automation Settings -->
+    <string name="automatic_order_processing">自动接单</string>
+    <string name="automatic_order_processing_desc">新订单自动接收处理</string>
+    <string name="automatic_printing">订单打印</string>
+    <string name="automatic_printing_desc">新订单自动打印小票</string>
+    <string name="select_default_template">选择默认打印模板</string>
+    <string name="inventory_alerts">库存提醒</string>
+    <string name="inventory_alerts_desc">库存低时获得通知</string>
+    <string name="daily_backup">每日备份</string>
+    <string name="daily_backup_desc">自动每天备份数据</string>
+    <string name="order_processing">订单处理</string>
+    <string name="print_templates">打印模板</string>
+    <string name="other_automation">其他自动化</string>
+    <string name="settings_saved">设置已保存</string>
+    <string name="save_settings">保存设置</string>
+
+    <string name="scan_qr_code">扫描二维码</string>
+    <string name="connection_test_success">连接测试成功！</string>
+    <string name="connection_test_failed">连接测试失败</string>
+    <string name="scan_woocommerce_site_url_qr">扫描WooCommerce站点URL二维码</string>
+    <string name="please_fill_all_required_fields">请填写所有必填字段</string>
 </resources>
