@@ -940,4 +940,10 @@ class SettingsViewModel @Inject constructor(
         val key: String? = null,
         val secret: String? = null
     )
+
+    fun handleQrCodeScan() {
+        viewModelScope.launch {
+            _scanQrCodeEvent.emit(Unit)
+        }
+    }
 } 

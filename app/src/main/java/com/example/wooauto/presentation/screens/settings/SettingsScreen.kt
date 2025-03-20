@@ -103,6 +103,15 @@ fun SettingsScreen(
     // 获取当前语言
     val currentLocale by viewModel.currentLocale.collectAsState()
     
+    // 预先获取需要在非Composable上下文中使用的字符串资源
+    val scanSuccessText = stringResource(R.string.scan_successful)
+    val scanQrCodePromptText = stringResource(R.string.scan_woocommerce_site_url_qr)
+    val connectionSuccessText = stringResource(R.string.connection_test_success)
+    val connectionFailedText = stringResource(R.string.connection_test_failed)
+    val featureComingSoonText = stringResource(R.string.feature_coming_soon)
+    val appVersionText = stringResource(R.string.app_version)
+    val fillAllFieldsText = stringResource(R.string.fill_all_fields)
+    
     // 自动化任务状态
     var automaticOrderProcessing by remember { mutableStateOf(true) }
     var automaticPrinting by remember { mutableStateOf(false) }
@@ -139,7 +148,7 @@ fun SettingsScreen(
             // 不直接设置siteUrlInput，而是交给ViewModel处理
             viewModel.handleQrCodeResult(scanResult)
             coroutineScope.launch {
-                snackbarHostState.showSnackbar("扫描成功")
+                snackbarHostState.showSnackbar(scanSuccessText)
             }
         }
     }
@@ -148,7 +157,7 @@ fun SettingsScreen(
     LaunchedEffect(viewModel) {
         viewModel.scanQrCodeEvent.collect {
             val options = ScanOptions().apply {
-                setPrompt("扫描WooCommerce站点URL二维码")
+                setPrompt(scanQrCodePromptText)
                 setBeepEnabled(true)
                 setOrientationLocked(false)
             }
@@ -171,12 +180,12 @@ fun SettingsScreen(
             when (it) {
                 is SettingsViewModel.ConnectionTestResult.Success -> {
                     coroutineScope.launch {
-                        snackbarHostState.showSnackbar("连接测试成功！")
+                        snackbarHostState.showSnackbar(connectionSuccessText)
                     }
                 }
                 is SettingsViewModel.ConnectionTestResult.Error -> {
                     coroutineScope.launch {
-                        snackbarHostState.showSnackbar("连接测试失败: ${it.message}")
+                        snackbarHostState.showSnackbar(connectionFailedText + ": " + it.message)
                     }
                 }
             }
@@ -195,7 +204,7 @@ fun SettingsScreen(
             .verticalScroll(scrollState)
     ) {
         Text(
-                text = "设置",
+                text = stringResource(R.string.settings),
             style = MaterialTheme.typography.headlineMedium,
             color = MaterialTheme.colorScheme.primary
         )
@@ -205,11 +214,11 @@ fun SettingsScreen(
             // API配置卡片
             SettingsCategoryCard {
                 SettingsNavigationItem(
-                    title = "WooCommerce API 配置",
+                    title = stringResource(R.string.api_configuration),
                     subTitle = if (siteUrl.isNotEmpty() && consumerKey.isNotEmpty() && consumerSecret.isNotEmpty()) {
-                        "已配置"
+                        stringResource(R.string.api_configured)
                     } else {
-                        "未配置"
+                        stringResource(R.string.api_not_configured)
                     },
             icon = Icons.Filled.Cloud,
                     onClick = {
@@ -224,8 +233,8 @@ fun SettingsScreen(
         // 自动化任务卡片
         SettingsCategoryCard {
             SettingsNavigationItem(
-                title = "自动化任务",
-                subTitle = "管理自动化任务",
+                title = stringResource(R.string.automation_tasks),
+                subTitle = stringResource(R.string.automatic_order_processing_desc),
                 icon = Icons.Filled.AutoAwesome,
                 onClick = {
                     Log.d("设置导航", "点击了自动化任务项")
@@ -239,7 +248,7 @@ fun SettingsScreen(
             // 其他设置卡片
             SettingsCategoryCard {
                 SettingsNavigationItem(
-                    title = "打印设置",
+                    title = stringResource(R.string.printer_settings),
                     icon = Icons.Filled.Print,
                     onClick = {
                         Log.d("设置导航", "点击了打印设置项")
@@ -252,7 +261,7 @@ fun SettingsScreen(
                 Spacer(modifier = Modifier.height(8.dp))
                 
                 SettingsNavigationItem(
-                    title = "声音设置",
+                    title = stringResource(R.string.sound_settings),
                     icon = Icons.Default.VolumeUp,
                     onClick = {
                         Log.d("设置导航", "点击了声音设置项")
@@ -265,13 +274,13 @@ fun SettingsScreen(
                 Spacer(modifier = Modifier.height(8.dp))
                 
                 SettingsNavigationItem(
-                    title = "店铺信息设置",
+                    title = stringResource(R.string.store_settings),
                     icon = Icons.Default.Store,
                     onClick = { 
                         /* 导航到店铺设置 */
                         Log.d("设置导航", "点击了店铺信息设置项")
                         coroutineScope.launch {
-                            snackbarHostState.showSnackbar("店铺信息设置功能即将推出")
+                            snackbarHostState.showSnackbar(featureComingSoonText)
                         }
                     }
                 )
@@ -298,11 +307,11 @@ fun SettingsScreen(
                 // 关于
                 SettingsNavigationItem(
                     icon = Icons.Outlined.Info,
-                    title = "关于",
+                    title = stringResource(R.string.about),
                     onClick = {
                         Log.d("设置", "点击了关于")
                         coroutineScope.launch {
-                            snackbarHostState.showSnackbar("WooAuto - 版本 1.0.0")
+                            snackbarHostState.showSnackbar(appVersionText)
                         }
                     }
                 )
@@ -319,7 +328,7 @@ fun SettingsScreen(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = "自动更新",
+                    text = stringResource(R.string.auto_update),
                     style = MaterialTheme.typography.bodyLarge
                 )
                 
@@ -392,258 +401,44 @@ fun SettingsScreen(
             )
         }
         
-        // 自动化任务对话框
-        if (showAutomationDialog) {
-            AlertDialog(
-                onDismissRequest = { showAutomationDialog = false },
-                title = { Text("自动化任务") },
-                text = {
-                    Column {
-                        // 自动接单
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column {
-                                Text(
-                                    text = "自动接单",
-                                    style = MaterialTheme.typography.bodyLarge
-                                )
-                                Text(
-                                    text = "新订单自动接收处理",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            Switch(
-                                checked = automaticOrderProcessing,
-                                onCheckedChange = { automaticOrderProcessing = it }
-                            )
-                        }
-                        
-                        HorizontalDivider()
-                        
-                        // 订单打印
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column {
-                                Text(
-                                    text = "订单打印",
-                                    style = MaterialTheme.typography.bodyLarge
-                                )
-                                Text(
-                                    text = "新订单自动打印小票",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            Switch(
-                                checked = automaticPrinting,
-                                onCheckedChange = { automaticPrinting = it }
-                            )
-                        }
-                        
-                        // 当自动打印开启时，显示模板选择
-                        if (automaticPrinting) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(start = 16.dp, end = 16.dp, bottom = 8.dp)
-                            ) {
-                                Text(
-                                    text = "选择默认打印模板",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(vertical = 8.dp)
-                                )
-                                
-                                // 完整订单模板
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 4.dp)
-                                        .clickable { selectedTemplate = TemplateType.FULL_DETAILS },
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    RadioButton(
-                                        selected = selectedTemplate == TemplateType.FULL_DETAILS,
-                                        onClick = { selectedTemplate = TemplateType.FULL_DETAILS }
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Column {
-                                        Text("完整订单详情")
-                                        Text(
-                                            text = "包含所有订单信息",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                }
-                                
-                                // 配送信息模板
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 4.dp)
-                                        .clickable { selectedTemplate = TemplateType.DELIVERY },
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    RadioButton(
-                                        selected = selectedTemplate == TemplateType.DELIVERY,
-                                        onClick = { selectedTemplate = TemplateType.DELIVERY }
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Column {
-                                        Text("配送信息")
-                                        Text(
-                                            text = "突出显示配送信息和菜品",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                }
-                                
-                                // 厨房订单模板
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 4.dp)
-                                        .clickable { selectedTemplate = TemplateType.KITCHEN },
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    RadioButton(
-                                        selected = selectedTemplate == TemplateType.KITCHEN,
-                                        onClick = { selectedTemplate = TemplateType.KITCHEN }
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Column {
-                                        Text("厨房订单")
-                                        Text(
-                                            text = "仅包含菜品和下单时间",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                        
-                        HorizontalDivider()
-                        
-                        // 库存提醒
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column {
-                                Text(
-                                    text = "库存提醒",
-                                    style = MaterialTheme.typography.bodyLarge
-                                )
-                                Text(
-                                    text = "库存不足自动提醒",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            Switch(
-                                checked = inventoryAlerts,
-                                onCheckedChange = { inventoryAlerts = it }
-                            )
-                        }
-                        
-                        HorizontalDivider()
-                        
-                        // 定时备份
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column {
-                                Text(
-                                    text = "定时备份",
-                                    style = MaterialTheme.typography.bodyLarge
-                                )
-                                Text(
-                                    text = "每日自动备份数据",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            Switch(
-                                checked = dailyBackup,
-                                onCheckedChange = { dailyBackup = it }
-                            )
-                        }
-                    }
-                },
-                confirmButton = {
-                    TextButton(onClick = { 
-                        // 保存自动化任务设置
-                        viewModel.saveAutomationSettings(
-                            automaticOrderProcessing = automaticOrderProcessing,
-                            automaticPrinting = automaticPrinting,
-                            inventoryAlerts = inventoryAlerts,
-                            dailyBackup = dailyBackup,
-                            defaultTemplateType = selectedTemplate
-                        )
-                        showAutomationDialog = false 
-                    }) {
-                        Text("确定")
-                    }
-                }
-            )
-        }
-        
         // API配置对话框
         if (showApiDialog) {
             AlertDialog(
                 onDismissRequest = { showApiDialog = false },
-                title = { Text("WooCommerce API 配置") },
+                title = { Text(stringResource(R.string.api_configuration)) },
                 text = {
-                    Column(
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        OutlinedTextField(
-                            value = siteUrlInput,
-                            onValueChange = { siteUrlInput = it },
-                            label = { Text("站点URL") },
-                            placeholder = { Text("") },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 8.dp),
-                            trailingIcon = {
-                                IconButton(onClick = {
-                                    // 启动二维码扫描器
-                                    viewModel.startQrCodeScanner()
-                                }) {
-                                    Icon(
-                                        imageVector = Icons.Filled.QrCodeScanner,
-                                        contentDescription = "扫描二维码"
-                                    )
-                                }
+                    Column {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            OutlinedTextField(
+                                value = siteUrlInput,
+                                onValueChange = { siteUrlInput = it },
+                                label = { Text(stringResource(R.string.website_url)) },
+                                placeholder = { Text(stringResource(R.string.website_url_placeholder)) },
+                                singleLine = true,
+                                modifier = Modifier.weight(1f),
+                                isError = !siteUrlInput.contains("http")
+                            )
+                            
+                            IconButton(
+                                onClick = { viewModel.handleQrCodeScan() }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.QrCodeScanner,
+                                    contentDescription = stringResource(R.string.scan_qr_code)
+                                )
                             }
-                        )
+                        }
+                        
+                        Spacer(modifier = Modifier.height(16.dp))
                         
                         OutlinedTextField(
                             value = consumerKeyInput,
                             onValueChange = { consumerKeyInput = it },
-                            label = { Text("Consumer Key") },
-                            placeholder = { Text("如：ck_1234...") },
+                            label = { Text(stringResource(R.string.api_key)) },
+                            placeholder = { Text(stringResource(R.string.api_key_placeholder)) },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
                             isError = consumerKeyInput.contains("http"),
@@ -658,8 +453,8 @@ fun SettingsScreen(
                         OutlinedTextField(
                             value = consumerSecretInput,
                             onValueChange = { consumerSecretInput = it },
-                            label = { Text("Consumer Secret") },
-                            placeholder = { Text("如：cs_5678...") },
+                            label = { Text(stringResource(R.string.api_secret)) },
+                            placeholder = { Text(stringResource(R.string.api_secret_placeholder)) },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
                             isError = consumerSecretInput.contains("http"),
@@ -677,7 +472,7 @@ fun SettingsScreen(
                                     pollingIntervalInput = it
                                 }
                             },
-                            label = { Text("轮询间隔 (秒)") },
+                            label = { Text(stringResource(R.string.polling_interval)) },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(vertical = 8.dp)
@@ -691,7 +486,7 @@ fun SettingsScreen(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text(
-                                text = "使用 WooCommerce Food 插件",
+                                text = stringResource(R.string.plugin_woocommerce_food),
                                 style = MaterialTheme.typography.bodyMedium
                             )
                             
@@ -714,7 +509,7 @@ fun SettingsScreen(
                                     strokeWidth = 2.dp
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text("测试连接中...")
+                                Text(stringResource(R.string.testing_connection))
                             }
                         }
                     }
@@ -739,17 +534,17 @@ fun SettingsScreen(
                                     showApiDialog = false
                                 } else {
                                     coroutineScope.launch {
-                                        snackbarHostState.showSnackbar("请填写所有必填字段")
+                                        snackbarHostState.showSnackbar(fillAllFieldsText)
                                     }
                                 }
                             },
                             enabled = !isTestingConnection
                         ) {
-                            Text("保存并测试")
+                            Text(stringResource(R.string.save_and_test))
                         }
                         
                         TextButton(onClick = { showApiDialog = false }) {
-                            Text("取消")
+                            Text(stringResource(R.string.cancel))
                         }
                     }
                 }
