@@ -21,6 +21,7 @@ import com.dantsu.escposprinter.exceptions.EscPosEncodingException
 import com.dantsu.escposprinter.exceptions.EscPosParserException
 import com.example.wooauto.domain.models.Order
 import com.example.wooauto.domain.models.PrinterConfig
+import com.example.wooauto.domain.printer.PrinterBrand
 import com.example.wooauto.domain.printer.PrinterDevice
 import com.example.wooauto.domain.printer.PrinterManager
 import com.example.wooauto.domain.printer.PrinterStatus
@@ -84,6 +85,9 @@ class BluetoothPrinterManager @Inject constructor(
     private val discoveredDevices = ConcurrentHashMap<String, BluetoothDevice>()
     private var isScanning = false
     private val scanResultFlow = MutableStateFlow<List<PrinterDevice>>(emptyList())
+    
+    // 添加打印机状态流
+    private val _printerStatus = MutableStateFlow<PrinterStatus>(PrinterStatus.DISCONNECTED)
     
     // 添加心跳相关变量
     private var heartbeatJob: Job? = null
@@ -234,30 +238,46 @@ class BluetoothPrinterManager @Inject constructor(
         }
     }
     
-    override suspend fun connect(config: PrinterConfig): Boolean {
-        if (config.type != PrinterConfig.PRINTER_TYPE_BLUETOOTH) {
-            Log.e(TAG, "错误: 尝试连接一个非蓝牙打印机")
-            updatePrinterStatus(config.address, PrinterStatus.ERROR)
-            return false
-        }
-        
-        // 取消当前的设备扫描，这对成功连接非常重要
-        if (this.bluetoothAdapter?.isDiscovering == true) {
-            Log.d(TAG, "取消当前设备发现以提高连接成功率")
-            this.bluetoothAdapter.cancelDiscovery()
-        }
-        
-        Log.d(TAG, "正在连接蓝牙打印机: ${config.name} (${config.address})")
-        updatePrinterStatus(config.address, PrinterStatus.CONNECTING)
-        
+    override suspend fun connect(config: PrinterConfig): Boolean = withContext(Dispatchers.IO) {
         try {
-            // 获取设备
+            Log.d(TAG, "尝试连接打印机: ${config.name} (${config.address})")
+            
+            // 如果已经连接了相同的打印机，则直接返回成功
+            if (currentConnection?.device?.address == config.address) {
+                Log.d(TAG, "打印机已经连接")
+                updatePrinterStatus(config, PrinterStatus.CONNECTED)
+                return@withContext true
+            }
+            
+            // 如果已连接其他打印机，先断开连接
+            if (currentConnection != null) {
+                disconnect(currentPrinterConfig ?: config)
+            }
+            
+            // 获取蓝牙设备对象
             val device = getBluetoothDevice(config.address)
             if (device == null) {
-                Log.e(TAG, "无法获取蓝牙设备: ${config.address}")
-                updatePrinterStatus(config.address, PrinterStatus.ERROR)
-                return false
+                Log.e(TAG, "未找到设备: ${config.address}")
+                updatePrinterStatus(config, PrinterStatus.ERROR)
+                return@withContext false
             }
+            
+            // 识别打印机品牌
+            val deviceName = device.name ?: config.name
+            val detectedBrand = PrinterBrand.identifyBrand(deviceName)
+            
+            // 创建打印机配置副本，包含识别的品牌
+            val updatedConfig = if (detectedBrand != PrinterBrand.UNKNOWN && detectedBrand != config.brand) {
+                val newConfig = config.copy(brand = detectedBrand)
+                // 保存更新后的配置
+                settingRepository.savePrinterConfig(newConfig)
+                newConfig
+            } else {
+                config
+            }
+            
+            // 设置当前打印机配置
+            currentPrinterConfig = updatedConfig
             
             // 检查配对状态
             if (device.bondState != BluetoothDevice.BOND_BONDED) {
@@ -281,8 +301,8 @@ class BluetoothPrinterManager @Inject constructor(
                 // 如果仍未配对，返回失败
                 if (device.bondState != BluetoothDevice.BOND_BONDED) {
                     Log.e(TAG, "设备配对失败")
-                    updatePrinterStatus(config.address, PrinterStatus.ERROR)
-                    return false
+                    updatePrinterStatus(config, PrinterStatus.ERROR)
+                    return@withContext false
                 }
             }
             
@@ -308,7 +328,7 @@ class BluetoothPrinterManager @Inject constructor(
                         currentPrinter = printer
                         
                         connected = true
-                        updatePrinterStatus(config.address, PrinterStatus.CONNECTED)
+                        updatePrinterStatus(config, PrinterStatus.CONNECTED)
                         break
                     } catch (e: Exception) {
                         lastException = e
@@ -338,18 +358,18 @@ class BluetoothPrinterManager @Inject constructor(
             
             if (!connected) {
                 Log.e(TAG, "所有连接尝试均失败: ${lastException?.message}")
-                updatePrinterStatus(config.address, PrinterStatus.ERROR)
-                return false
+                updatePrinterStatus(config, PrinterStatus.ERROR)
+                return@withContext false
             }
             
             // 启动心跳机制以保持连接
             startHeartbeat(config)
             
-            return true
+            return@withContext true
         } catch (e: Exception) {
             Log.e(TAG, "连接蓝牙打印机异常: ${e.message}")
-            updatePrinterStatus(config.address, PrinterStatus.ERROR)
-            return false
+            updatePrinterStatus(config, PrinterStatus.ERROR)
+            return@withContext false
         }
     }
     
@@ -560,7 +580,7 @@ class BluetoothPrinterManager @Inject constructor(
                 currentPrinter = null
                 currentConnection = null
                 
-                updatePrinterStatus(config.address, PrinterStatus.DISCONNECTED)
+                updatePrinterStatus(config, PrinterStatus.DISCONNECTED)
                 Log.d(TAG, "已断开打印机连接: ${config.getDisplayName()}")
                 
                 // 更新打印机连接状态
@@ -587,57 +607,29 @@ class BluetoothPrinterManager @Inject constructor(
             try {
                 Log.d(TAG, "准备打印订单: ${order.number} (尝试 ${retryCount + 1}/3)")
                 
-                // 检查打印机状态
-                val status = getPrinterStatus(config)
-                if (status != PrinterStatus.CONNECTED) {
-                    Log.d(TAG, "打印机未连接，尝试连接...")
-                    val connected = connect(config)
-                    if (!connected) {
-                        Log.e(TAG, "打印机连接失败，尝试重试...")
-                        retryCount++
-                        delay(1000)
-                        continue
-                    }
-                }
-                
-                // 进行连接测试确认
-                val testResult = testConnection(config)
-                if (!testResult) {
-                    Log.w(TAG, "打印机连接测试失败，尝试重连后再打印")
-                    reconnectPrinter(config)
+                // 1. 检查并确保连接
+                if (!ensurePrinterConnected(config)) {
+                    Log.e(TAG, "打印机连接失败，尝试重试...")
                     retryCount++
                     delay(1000)
                     continue
                 }
                 
-                // 打印订单
-                Log.d(TAG, "开始生成打印内容: 订单 ${order.number}")
-                val content = templateManager.generateOrderPrintContent(order, config)
-                Log.d(TAG, "生成打印内容完成，开始发送打印数据")
+                // 2. 进行连接测试确认
+                if (!testPrinterConnection(config)) {
+                    continue
+                }
                 
+                // 3. 生成打印内容
+                val content = generateOrderContent(order, config)
+                
+                // 4. 发送打印内容
                 val success = printContent(content, config)
                 
-                // 如果打印成功，标记订单为已打印
+                // 5. 处理打印结果
                 if (success) {
-                    Log.d(TAG, "打印成功，检查订单 ${order.id} 当前打印状态")
-                    
-                    // 获取最新的订单信息
-                    val latestOrder = orderRepository.getOrderById(order.id)
-                    
-                    // 只有在订单未被标记为已打印时才进行标记
-                    if (latestOrder != null && !latestOrder.isPrinted) {
-                        Log.d(TAG, "标记订单 ${order.id} 为已打印")
-                        val markResult = orderRepository.markOrderAsPrinted(order.id)
-                        if (markResult) {
-                            Log.d(TAG, "成功标记订单 ${order.id} 为已打印")
-                        } else {
-                            Log.e(TAG, "标记订单 ${order.id} 为已打印失败")
-                        }
-                    } else {
-                        Log.d(TAG, "订单 ${order.id} 已被标记为已打印，跳过重复标记")
-                    }
-                    
-                    return@withContext true
+                    // 成功打印后处理订单状态
+                    return@withContext handleSuccessfulPrint(order)
                 } else {
                     Log.e(TAG, "打印内容失败，尝试重试...")
                     retryCount++
@@ -649,12 +641,7 @@ class BluetoothPrinterManager @Inject constructor(
                 // 对于连接断开的异常，尝试重新连接
                 if (e.message?.contains("Broken pipe") == true || 
                     e is EscPosConnectionException) {
-                    try {
-                        Log.d(TAG, "检测到连接断开，尝试重新连接")
-                        reconnectPrinter(config)
-                    } catch (re: Exception) {
-                        Log.e(TAG, "重新连接打印机失败: ${re.message}")
-                    }
+                    handleConnectionError(config)
                 }
                 
                 retryCount++
@@ -666,118 +653,115 @@ class BluetoothPrinterManager @Inject constructor(
         return@withContext false
     }
     
-    override suspend fun printTest(config: PrinterConfig): Boolean = withContext(Dispatchers.IO) {
-        try {
-            Log.d(TAG, "执行测试打印")
-            
-            // 检查打印机状态
-            val status = getPrinterStatus(config)
-            if (status != PrinterStatus.CONNECTED) {
-                Log.d(TAG, "打印机未连接，尝试连接...")
-                val connected = connect(config)
-                if (!connected) {
-                    Log.e(TAG, "打印机连接失败，无法执行测试打印")
-                    return@withContext false
-                }
-            }
-            
-            // 生成测试打印内容
-            val testContent = templateManager.generateTestPrintContent(config)
-            val success = printContent(testContent, config)
-            
-            if (success) {
-                Log.d(TAG, "测试打印成功")
-                return@withContext true
-            } else {
-                Log.e(TAG, "测试打印失败")
-                return@withContext false
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "测试打印异常: ${e.message}", e)
-            return@withContext false
+    /**
+     * 测试打印机连接
+     * @param config 打印机配置
+     * @return 连接测试是否成功
+     */
+    private suspend fun testPrinterConnection(config: PrinterConfig): Boolean {
+        val testResult = testConnection(config)
+        if (!testResult) {
+            Log.w(TAG, "打印机连接测试失败，尝试重连后再打印")
+            reconnectPrinter(config)
+            return false
         }
+        return true
+    }
+    
+    /**
+     * 生成订单打印内容
+     * @param order 订单
+     * @param config 打印机配置
+     * @return 格式化后的打印内容
+     */
+    private fun generateOrderContent(order: Order, config: PrinterConfig): String {
+        Log.d(TAG, "开始生成打印内容: 订单 ${order.number}")
+        val content = templateManager.generateOrderPrintContent(order, config)
+        Log.d(TAG, "生成打印内容完成，准备发送打印数据")
+        return content
+    }
+    
+    /**
+     * 处理连接错误
+     * @param config 打印机配置
+     */
+    private fun handleConnectionError(config: PrinterConfig) {
+        try {
+            Log.d(TAG, "检测到连接断开，尝试重新连接")
+            managerScope.launch {
+                reconnectPrinter(config)
+            }
+        } catch (re: Exception) {
+            Log.e(TAG, "重新连接打印机失败: ${re.message}")
+        }
+    }
+    
+    /**
+     * 处理打印成功后的逻辑
+     * @param order 订单
+     * @return 是否成功处理
+     */
+    private suspend fun handleSuccessfulPrint(order: Order): Boolean {
+        Log.d(TAG, "打印成功，检查订单 ${order.id} 当前打印状态")
+        
+        // 获取最新的订单信息
+        val latestOrder = orderRepository.getOrderById(order.id)
+        
+        // 只有在订单未被标记为已打印时才进行标记
+        if (latestOrder != null && !latestOrder.isPrinted) {
+            Log.d(TAG, "标记订单 ${order.id} 为已打印")
+            val markResult = orderRepository.markOrderAsPrinted(order.id)
+            if (markResult) {
+                Log.d(TAG, "成功标记订单 ${order.id} 为已打印")
+            } else {
+                Log.e(TAG, "标记订单 ${order.id} 为已打印失败")
+            }
+        } else {
+            Log.d(TAG, "订单 ${order.id} 已被标记为已打印，跳过重复标记")
+        }
+        
+        return true
     }
     
     override suspend fun autoPrintNewOrder(order: Order): Boolean {
         Log.d(TAG, "========== 开始自动打印订单 #${order.number} ==========")
         try {
-            // 首先检查订单是否已经打印
-            if (order.isPrinted) {
-                Log.d(TAG, "订单 #${order.number} 已标记为已打印，跳过自动打印")
+            // 1. 检查订单状态
+            if (!validateOrderForPrinting(order)) {
                 return false
             }
             
-            // 检查订单状态
-            if (order.status != "processing") {
-                Log.d(TAG, "订单 #${order.number} 状态不是'处理中'(${order.status})，跳过自动打印")
-                return false
-            }
-            
-            // 获取最新的订单信息，确保数据是最新的
-            val latestOrder = orderRepository.getOrderById(order.id)
-            if (latestOrder == null) {
+            // 2. 获取最新订单信息
+            val latestOrder = orderRepository.getOrderById(order.id) ?: run {
                 Log.e(TAG, "无法获取订单最新信息: #${order.number}")
                 return false
             }
             
-            // 再次检查最新数据中订单是否已打印
+            // 3. 再次检查最新数据中订单是否已打印
             if (latestOrder.isPrinted) {
                 Log.d(TAG, "订单 #${order.number} 的最新状态已是已打印，跳过自动打印")
                 return false
             }
             
-            // 获取默认打印机配置
-            val printerConfig = settingRepository.getDefaultPrinterConfig()
-            if (printerConfig == null) {
-                Log.e(TAG, "未设置默认打印机，无法进行自动打印")
-                return false
-            }
+            // 4. 获取默认打印机配置
+            val printerConfig = getDefaultPrinterConfig() ?: return false
             
-            Log.d(TAG, "使用默认打印机: ${printerConfig.name} (${printerConfig.address})")
-            
-            // 检查自动打印设置
+            // 5. 检查自动打印设置
             if (!printerConfig.isAutoPrint) {
                 Log.d(TAG, "打印机 ${printerConfig.name} 未启用自动打印功能")
                 return false
             }
             
-            // 检查打印机连接状态
-            val status = getPrinterStatus(printerConfig)
-            Log.d(TAG, "打印机 ${printerConfig.name} 当前状态: $status")
-            
-            if (status != PrinterStatus.CONNECTED) {
-                Log.d(TAG, "尝试连接打印机 ${printerConfig.name}")
-                val connected = connect(printerConfig)
-                if (!connected) {
-                    Log.e(TAG, "无法连接打印机 ${printerConfig.name}，自动打印失败")
-                    return false
-                }
-                Log.d(TAG, "成功连接打印机 ${printerConfig.name}")
-            }
-            
-            // 执行打印
-            Log.d(TAG, "开始打印订单 #${order.number}")
-            val result = printOrder(order, printerConfig)
-            
-            if (result) {
-                Log.d(TAG, "订单 #${order.number} 打印成功")
-                // 更新订单打印状态前再次检查订单状态
-                val latestOrder = orderRepository.getOrderById(order.id)
-                if (latestOrder != null && !latestOrder.isPrinted) {
-                    val markResult = orderRepository.markOrderAsPrinted(order.id)
-                    if (markResult) {
-                        Log.d(TAG, "已更新订单 #${order.number} 的打印状态为已打印")
-                    } else {
-                        Log.e(TAG, "更新订单 #${order.number} 的打印状态失败")
-                    }
-                } else {
-                    Log.d(TAG, "订单 #${order.number} 已被标记为已打印，跳过重复标记")
-                }
-                return true
-            } else {
-                Log.e(TAG, "订单 #${order.number} 打印失败")
+            // 6. 连接打印机并打印
+            if (!ensurePrinterConnected(printerConfig)) {
+                Log.e(TAG, "无法连接打印机 ${printerConfig.name}，自动打印失败")
                 return false
             }
+            
+            // 7. 执行打印
+            Log.d(TAG, "开始打印订单 #${order.number}")
+            return printOrder(order, printerConfig)
+            
         } catch (e: Exception) {
             Log.e(TAG, "自动打印订单 #${order.number} 时发生异常: ${e.message}", e)
             return false
@@ -786,122 +770,94 @@ class BluetoothPrinterManager @Inject constructor(
         }
     }
     
-    // 私有辅助方法
-    
-    private fun updatePrinterStatus(printerId: String, status: PrinterStatus) {
-        printerStatusMap[printerId] = status
-        printerStatusFlows[printerId]?.update { status }
-    }
-    
-    private fun hasBluetoothPermission(): Boolean {
-        Log.d(TAG, "检查蓝牙权限，安卓版本: ${Build.VERSION.SDK_INT}")
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            // Android 12 及以上版本需要 BLUETOOTH_CONNECT 和 BLUETOOTH_SCAN 权限
-            val hasConnectPermission = ActivityCompat.checkSelfPermission(
-                context,
-                Manifest.permission.BLUETOOTH_CONNECT
-            ) == PackageManager.PERMISSION_GRANTED
-            
-            val hasScanPermission = ActivityCompat.checkSelfPermission(
-                context,
-                Manifest.permission.BLUETOOTH_SCAN
-            ) == PackageManager.PERMISSION_GRANTED
-            
-            if (!hasConnectPermission) {
-                Log.e(TAG, "缺少 BLUETOOTH_CONNECT 权限，蓝牙功能将受限")
-            }
-            
-            if (!hasScanPermission) {
-                Log.e(TAG, "缺少 BLUETOOTH_SCAN 权限，蓝牙扫描功能将受限")
-            }
-            
-            hasConnectPermission && hasScanPermission
-        } else {
-            // Android 11 及以下版本需要 BLUETOOTH 和 BLUETOOTH_ADMIN 权限
-            val hasBluetoothPermission = ActivityCompat.checkSelfPermission(
-                context,
-                Manifest.permission.BLUETOOTH
-            ) == PackageManager.PERMISSION_GRANTED
-            
-            val hasBluetoothAdminPermission = ActivityCompat.checkSelfPermission(
-                context,
-                Manifest.permission.BLUETOOTH_ADMIN
-            ) == PackageManager.PERMISSION_GRANTED
-            
-            // Android 6.0 - 11.0 还需要位置权限才能扫描蓝牙设备
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
-                Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
-                val granted = ActivityCompat.checkSelfPermission(
-                    context,
-                    Manifest.permission.ACCESS_FINE_LOCATION
-                ) == PackageManager.PERMISSION_GRANTED
-                
-                if (!granted) {
-                    Log.e(TAG, "缺少位置权限，蓝牙扫描功能将受限")
-                }
-            }
-            
-            // 低版本Android上，即使没有权限也尝试继续执行，因为许多操作可能默认允许
-            if (!hasBluetoothPermission) {
-                Log.w(TAG, "缺少 BLUETOOTH 权限，但在低版本Android上尝试继续")
-            }
-            
-            if (!hasBluetoothAdminPermission) {
-                Log.w(TAG, "缺少 BLUETOOTH_ADMIN 权限，但在低版本Android上尝试继续")
-            }
-            
-            // 在低版本Android上返回true继续执行
-            true
+    /**
+     * 验证订单是否满足打印条件
+     * @param order 订单
+     * @return 是否满足打印条件
+     */
+    private fun validateOrderForPrinting(order: Order): Boolean {
+        // 检查订单是否已经打印
+        if (order.isPrinted) {
+            Log.d(TAG, "订单 #${order.number} 已标记为已打印，跳过自动打印")
+            return false
         }
+        
+        // 检查订单状态
+        if (order.status != "processing") {
+            Log.d(TAG, "订单 #${order.number} 状态不是'处理中'(${order.status})，跳过自动打印")
+            return false
+        }
+        
+        return true
     }
     
-    private fun findBluetoothDevice(address: String): BluetoothDevice? {
-        return try {
-            // 只在Android 12及以上版本检查权限
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-                ActivityCompat.checkSelfPermission(
-                    context,
-                    Manifest.permission.BLUETOOTH_CONNECT
-                ) != PackageManager.PERMISSION_GRANTED
-            ) {
-                Log.e(TAG, "缺少蓝牙连接权限")
-                return null
+    /**
+     * 获取默认打印机配置
+     * @return 默认打印机配置，如果没有则返回null
+     */
+    private suspend fun getDefaultPrinterConfig(): PrinterConfig? {
+        val printerConfig = settingRepository.getDefaultPrinterConfig()
+        if (printerConfig == null) {
+            Log.e(TAG, "未设置默认打印机，无法进行自动打印")
+            return null
+        }
+        
+        Log.d(TAG, "使用默认打印机: ${printerConfig.name} (${printerConfig.address})")
+        return printerConfig
+    }
+    
+    override suspend fun printTest(config: PrinterConfig): Boolean = withContext(Dispatchers.IO) {
+        try {
+            Log.d(TAG, "执行测试打印")
+            
+            // 1. 检查并确保连接
+            if (!ensurePrinterConnected(config)) {
+                Log.e(TAG, "打印机连接失败，无法执行测试打印")
+                return@withContext false
             }
-            bluetoothAdapter?.getRemoteDevice(address)
+            
+            // 2. 生成测试打印内容
+            val testContent = templateManager.generateTestPrintContent(config)
+            
+            // 3. 执行打印
+            val success = printContent(testContent, config)
+            
+            if (success) {
+                Log.d(TAG, "测试打印成功")
+            } else {
+                Log.e(TAG, "测试打印失败")
+            }
+            
+            return@withContext success
         } catch (e: Exception) {
-            Log.e(TAG, "获取蓝牙设备失败: ${e.message}", e)
-            null
+            Log.e(TAG, "测试打印异常: ${e.message}", e)
+            return@withContext false
         }
     }
     
-    private fun createBluetoothConnection(device: BluetoothDevice): BluetoothConnection? {
-        return try {
-            BluetoothConnection(device)
-        } catch (e: Exception) {
-            Log.e(TAG, "创建蓝牙连接失败: ${e.message}", e)
-            null
+    /**
+     * 确保打印机已连接
+     * @param config 打印机配置
+     * @return 连接是否成功
+     */
+    suspend fun ensurePrinterConnected(config: PrinterConfig): Boolean {
+        // 检查打印机状态
+        val status = getPrinterStatus(config)
+        if (status != PrinterStatus.CONNECTED) {
+            Log.d(TAG, "打印机未连接，尝试连接...")
+            return connect(config)
         }
+        return true
     }
     
-    private fun createPrinter(connection: BluetoothConnection, config: PrinterConfig): EscPosPrinter? {
-        return try {
-            // 设置纸宽
-            val paperWidthMM = config.paperWidth
-            val charsPerLine = when (paperWidthMM) {
-                PrinterConfig.PAPER_WIDTH_57MM -> 32
-                PrinterConfig.PAPER_WIDTH_80MM -> 42
-                else -> 32 // 默认
-            }
-            
-            // 创建打印机实例
-            EscPosPrinter(connection, 203, paperWidthMM.toFloat(), charsPerLine)
-        } catch (e: Exception) {
-            Log.e(TAG, "创建打印机对象失败: ${e.message}", e)
-            null
-        }
-    }
-    
-    private suspend fun printContent(content: String, config: PrinterConfig): Boolean {
+    /**
+     * 打印内容到打印机
+     * 这个方法负责将格式化后的内容发送到打印机
+     * @param content 格式化后的打印内容
+     * @param config 打印机配置
+     * @return 打印是否成功
+     */
+    suspend fun printContent(content: String, config: PrinterConfig): Boolean {
         return try {
             // 检查内容是否为空或空字符串
             if (content.isNullOrBlank()) {
@@ -944,7 +900,7 @@ class BluetoothPrinterManager @Inject constructor(
             }
         } catch (e: EscPosConnectionException) {
             Log.e(TAG, "打印机连接异常: ${e.message}", e)
-            updatePrinterStatus(config.address, PrinterStatus.DISCONNECTED)
+            updatePrinterStatus(config, PrinterStatus.DISCONNECTED)
             false
         } catch (e: EscPosParserException) {
             Log.e(TAG, "打印内容解析异常: ${e.message}", e)
@@ -1285,7 +1241,7 @@ class BluetoothPrinterManager @Inject constructor(
                             } catch (e: Exception) {
                                 // 心跳发送失败，可能连接已断开
                                 Log.e(TAG, "心跳命令发送失败: ${e.message}")
-                                updatePrinterStatus(config.address, PrinterStatus.ERROR)
+                                updatePrinterStatus(config, PrinterStatus.ERROR)
                                 throw e // 向上抛出异常以触发重连逻辑
                             }
                         } else if (status != PrinterStatus.CONNECTED) {
@@ -1325,7 +1281,7 @@ class BluetoothPrinterManager @Inject constructor(
                         if (e.message?.contains("Broken pipe") == true || 
                             e is EscPosConnectionException) {
                             // 标记连接为断开
-                            updatePrinterStatus(config.address, PrinterStatus.DISCONNECTED)
+                            updatePrinterStatus(config, PrinterStatus.DISCONNECTED)
                             
                             reconnectAttempts++
                             // 使用指数退避策略
@@ -1407,7 +1363,7 @@ class BluetoothPrinterManager @Inject constructor(
             currentConnection = null
             
             // 更新状态为正在连接
-            updatePrinterStatus(config.address, PrinterStatus.CONNECTING)
+            updatePrinterStatus(config, PrinterStatus.CONNECTING)
             
             // 尝试建立新连接
             delay(500) // 等待500毫秒确保之前的连接完全关闭
@@ -1419,20 +1375,20 @@ class BluetoothPrinterManager @Inject constructor(
                 val testResult = testConnection(config)
                 if (!testResult) {
                     Log.w(TAG, "连接测试未通过，标记连接为错误状态")
-                    updatePrinterStatus(config.address, PrinterStatus.ERROR)
+                    updatePrinterStatus(config, PrinterStatus.ERROR)
                     return false
                 }
                 return true
             } else {
                 Log.e(TAG, "打印机重新连接失败: ${config.name}")
                 // 更新状态为断开连接
-                updatePrinterStatus(config.address, PrinterStatus.DISCONNECTED)
+                updatePrinterStatus(config, PrinterStatus.DISCONNECTED)
                 return false
             }
         } catch (e: Exception) {
             Log.e(TAG, "重新连接过程中发生异常: ${e.message}", e)
             // 更新状态为断开连接
-            updatePrinterStatus(config.address, PrinterStatus.DISCONNECTED)
+            updatePrinterStatus(config, PrinterStatus.DISCONNECTED)
             return false
         }
     }
@@ -1475,13 +1431,13 @@ class BluetoothPrinterManager @Inject constructor(
                 } catch (e: Exception) {
                     Log.e(TAG, "打印机连接测试失败: ${e.message}", e)
                     // 连接测试失败，更新状态为错误
-                    updatePrinterStatus(config.address, PrinterStatus.ERROR)
+                    updatePrinterStatus(config, PrinterStatus.ERROR)
                     false
                 }
             }
         } catch (e: Exception) {
             Log.e(TAG, "测试打印机连接异常: ${e.message}", e)
-            updatePrinterStatus(config.address, PrinterStatus.ERROR)
+            updatePrinterStatus(config, PrinterStatus.ERROR)
             false
         }
     }
@@ -1667,6 +1623,96 @@ class BluetoothPrinterManager @Inject constructor(
                 Log.w(TAG, "解注册扫描接收器失败", e2)
             }
             continuation.resume(null)
+        }
+    }
+
+    /**
+     * 更新打印机状态
+     * @param config 打印机配置
+     * @param status 新的打印机状态
+     */
+    private fun updatePrinterStatus(config: PrinterConfig, status: PrinterStatus) {
+        val address = config.address
+        
+        // 更新状态Map
+        printerStatusMap[address] = status
+        
+        // 更新Flow
+        val flow = printerStatusFlows.getOrPut(address) { 
+            MutableStateFlow(PrinterStatus.DISCONNECTED) 
+        }
+        flow.value = status
+        
+        // 如果是当前打印机，更新ViewModel中的状态
+        if (currentPrinterConfig?.address == address) {
+            currentPrinterConfig = config
+            _printerStatus.value = status
+        }
+    }
+
+    /**
+     * 检查是否有蓝牙权限
+     * @return 是否有蓝牙权限
+     */
+    private fun hasBluetoothPermission(): Boolean {
+        Log.d(TAG, "检查蓝牙权限，安卓版本: ${Build.VERSION.SDK_INT}")
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            // Android 12 及以上版本需要 BLUETOOTH_CONNECT 和 BLUETOOTH_SCAN 权限
+            val hasConnectPermission = ActivityCompat.checkSelfPermission(
+                context,
+                Manifest.permission.BLUETOOTH_CONNECT
+            ) == PackageManager.PERMISSION_GRANTED
+            
+            val hasScanPermission = ActivityCompat.checkSelfPermission(
+                context,
+                Manifest.permission.BLUETOOTH_SCAN
+            ) == PackageManager.PERMISSION_GRANTED
+            
+            if (!hasConnectPermission) {
+                Log.e(TAG, "缺少 BLUETOOTH_CONNECT 权限，蓝牙功能将受限")
+            }
+            
+            if (!hasScanPermission) {
+                Log.e(TAG, "缺少 BLUETOOTH_SCAN 权限，蓝牙扫描功能将受限")
+            }
+            
+            hasConnectPermission && hasScanPermission
+        } else {
+            // Android 11 及以下版本需要 BLUETOOTH 和 BLUETOOTH_ADMIN 权限
+            val hasBluetoothPermission = ActivityCompat.checkSelfPermission(
+                context,
+                Manifest.permission.BLUETOOTH
+            ) == PackageManager.PERMISSION_GRANTED
+            
+            val hasBluetoothAdminPermission = ActivityCompat.checkSelfPermission(
+                context,
+                Manifest.permission.BLUETOOTH_ADMIN
+            ) == PackageManager.PERMISSION_GRANTED
+            
+            // Android 6.0 - 11.0 还需要位置权限才能扫描蓝牙设备
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
+                Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+                val granted = ActivityCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.ACCESS_FINE_LOCATION
+                ) == PackageManager.PERMISSION_GRANTED
+                
+                if (!granted) {
+                    Log.e(TAG, "缺少位置权限，蓝牙扫描功能将受限")
+                }
+            }
+            
+            // 低版本Android上，即使没有权限也尝试继续执行，因为许多操作可能默认允许
+            if (!hasBluetoothPermission) {
+                Log.w(TAG, "缺少 BLUETOOTH 权限，但在低版本Android上尝试继续")
+            }
+            
+            if (!hasBluetoothAdminPermission) {
+                Log.w(TAG, "缺少 BLUETOOTH_ADMIN 权限，但在低版本Android上尝试继续")
+            }
+            
+            // 在低版本Android上返回true继续执行
+            true
         }
     }
 } 
