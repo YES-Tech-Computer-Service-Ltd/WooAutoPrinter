@@ -1,5 +1,6 @@
 package com.example.wooauto.presentation.screens.settings
 
+import android.bluetooth.BluetoothAdapter
 import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -33,6 +34,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Print
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -81,9 +83,12 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.example.wooauto.domain.models.PrinterConfig
+import com.example.wooauto.domain.printer.PrinterBrand
+import com.example.wooauto.domain.printer.PrinterStatus
 import com.example.wooauto.domain.printer.PrinterDevice
 import com.example.wooauto.presentation.navigation.Screen
 import kotlinx.coroutines.launch
@@ -91,6 +96,9 @@ import java.util.UUID
 import androidx.compose.ui.platform.LocalContext
 import com.example.wooauto.MainActivity
 import androidx.compose.material3.Divider
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.foundation.ScrollState
+import kotlinx.coroutines.CoroutineScope
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -101,13 +109,16 @@ fun PrinterDetailsScreen(
 ) {
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
-    val scrollState = rememberScrollState()
     
     val availablePrinters by viewModel.availablePrinters.collectAsState()
     val isScanning by viewModel.isScanning.collectAsState()
     
     // 判断是添加新打印机还是编辑现有打印机
     val isNewPrinter = printerId == null || printerId == "new"
+    
+    // 添加一个状态，用于跟踪是否已经选择了设备
+    var hasSelectedDevice by remember { mutableStateOf(!isNewPrinter) }
+    
     var printerConfig by remember {
         mutableStateOf(
             if (isNewPrinter) {
@@ -134,17 +145,6 @@ fun PrinterDetailsScreen(
     var type by remember { mutableStateOf(printerConfig.type) }
     var paperWidth by remember { mutableStateOf(printerConfig.paperWidth.toString()) }
     var isDefault by remember { mutableStateOf(printerConfig.isDefault) }
-    var isAutoPrint by remember { mutableStateOf(printerConfig.isAutoPrint) }
-    var printCopies by remember { mutableStateOf(printerConfig.printCopies.toString()) }
-    
-    // 打印设置
-    var printStoreInfo by remember { mutableStateOf(printerConfig.printStoreInfo) }
-    var printCustomerInfo by remember { mutableStateOf(printerConfig.printCustomerInfo) }
-    var printItemDetails by remember { mutableStateOf(printerConfig.printItemDetails) }
-    var printOrderNotes by remember { mutableStateOf(printerConfig.printOrderNotes) }
-    var printFooter by remember { mutableStateOf(printerConfig.printFooter) }
-    
-    var showScanDialog by remember { mutableStateOf(false) }
     
     // 页面加载时扫描打印机列表
     LaunchedEffect(key1 = Unit) {
@@ -156,9 +156,22 @@ fun PrinterDetailsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (isNewPrinter) "添加打印机" else "编辑打印机") },
+                title = { 
+                    Text(
+                        if (isNewPrinter) {
+                            if (hasSelectedDevice) "设置打印机" else "添加打印机"
+                        } else "编辑打印机"
+                    ) 
+                },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
+                    IconButton(onClick = { 
+                        if (isNewPrinter && hasSelectedDevice) {
+                            // 如果是在新建打印机的设置页面，返回到设备选择页面
+                            hasSelectedDevice = false
+                        } else {
+                            navController.popBackStack()
+                        }
+                    }) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "返回"
@@ -171,16 +184,36 @@ fun PrinterDetailsScreen(
                 )
             )
         },
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = {
+        snackbarHost = { SnackbarHost(snackbarHostState) }
+    ) { paddingValues ->
+        if (isNewPrinter && !hasSelectedDevice) {
+            // 新建打印机时显示设备列表
+            DeviceSelectionScreen(
+                paddingValues = paddingValues,
+                availablePrinters = availablePrinters,
+                isScanning = isScanning,
+                onScanClick = { viewModel.scanPrinters() },
+                onDeviceSelected = { device ->
+                    // 选择设备后更新配置
+                    name = device.name
+                    address = device.address
+                    hasSelectedDevice = true
+                }
+            )
+        } else {
+            // 编辑打印机或已选择设备时显示配置表单
+            ConfigurationScreen(
+                paperWidth = paperWidth,
+                onPaperWidthChange = { paperWidth = it },
+                isDefault = isDefault,
+                onIsDefaultChange = { isDefault = it },
+                onSave = {
                     // 验证必填字段
                     if (name.isBlank() || address.isBlank()) {
                         coroutineScope.launch {
                             snackbarHostState.showSnackbar("请填写打印机名称和地址")
                         }
-                        return@FloatingActionButton
+                        return@ConfigurationScreen
                     }
                     
                     // 保存打印机配置
@@ -190,13 +223,7 @@ fun PrinterDetailsScreen(
                         type = type,
                         paperWidth = paperWidth.toIntOrNull() ?: PrinterConfig.PAPER_WIDTH_57MM,
                         isDefault = isDefault,
-                        isAutoPrint = isAutoPrint,
-                        printCopies = printCopies.toIntOrNull() ?: 1,
-                        printStoreInfo = printStoreInfo,
-                        printCustomerInfo = printCustomerInfo,
-                        printItemDetails = printItemDetails,
-                        printOrderNotes = printOrderNotes,
-                        printFooter = printFooter
+                        brand = printerConfig.brand
                     )
                     
                     viewModel.savePrinterConfig(updatedConfig)
@@ -206,684 +233,349 @@ fun PrinterDetailsScreen(
                     
                     // 返回上一页
                     navController.popBackStack()
-                }
-            ) {
-                Icon(Icons.Default.Save, contentDescription = "保存")
-            }
+                },
+                viewModel = viewModel,
+                snackbarHostState = snackbarHostState,
+                paddingValues = paddingValues
+            )
         }
-    ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(16.dp)
-                .verticalScroll(scrollState)
+    }
+}
+
+@Composable
+private fun DeviceSelectionScreen(
+    paddingValues: PaddingValues,
+    availablePrinters: List<PrinterDevice>,
+    isScanning: Boolean,
+    onScanClick: () -> Unit,
+    onDeviceSelected: (PrinterDevice) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(paddingValues)
+            .padding(16.dp)
+    ) {
+        // 头部说明
+        Text(
+            text = "选择蓝牙打印机",
+            style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.primary
+        )
+        
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        Text(
+            text = "请从下列设备中选择您的打印机，选择后可进行详细设置",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        // 刷新按钮
+        Button(
+            onClick = onScanClick,
+            modifier = Modifier.fillMaxWidth()
         ) {
-            // 打印机基本信息
-            Text(
-                text = "基本信息",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary
+            Icon(
+                imageVector = Icons.Default.Refresh,
+                contentDescription = "刷新"
             )
-            
-            Spacer(modifier = Modifier.height(8.dp))
-            
-            // 打印机名称
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it },
-                label = { Text("打印机名称") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            // 打印机地址
-            OutlinedTextField(
-                value = address,
-                onValueChange = { address = it },
-                label = { Text("打印机地址") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                trailingIcon = {
-                    if (type == PrinterConfig.PRINTER_TYPE_BLUETOOTH) {
-                        IconButton(
-                            onClick = { showScanDialog = true }
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(if (isScanning) "扫描中..." else "刷新设备列表")
+        }
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        // 设备列表或加载状态
+        if (isScanning) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    CircularProgressIndicator()
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text("正在扫描蓝牙设备...")
+                }
+            }
+        } else if (availablePrinters.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.BluetoothSearching,
+                        contentDescription = null,
+                        modifier = Modifier.size(64.dp),
+                        tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "未找到蓝牙设备",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "请确保蓝牙已开启并已与打印机配对",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
+                    RequestPermissionButton()
+                }
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+            ) {
+                items(availablePrinters) { device ->
+                    val isPaired = isPairedDevice(device)
+                    
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp)
+                            .clickable { onDeviceSelected(device) },
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surface
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
+                            // 设备状态指示器
+                            Box(
+                                modifier = Modifier
+                                    .size(12.dp)
+                                    .background(
+                                        when (device.status) {
+                                            PrinterStatus.CONNECTED -> MaterialTheme.colorScheme.primary
+                                            PrinterStatus.ERROR -> MaterialTheme.colorScheme.error
+                                            else -> MaterialTheme.colorScheme.surfaceVariant
+                                        },
+                                        shape = CircleShape
+                                    )
+                            )
+                            
+                            Spacer(modifier = Modifier.width(16.dp))
+                            
+                            Column(
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = device.name,
+                                        style = MaterialTheme.typography.titleMedium
+                                    )
+                                    if (isPaired) {
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = "(已配对)",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                }
+                                Text(
+                                    text = device.address,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            
                             Icon(
-                                imageVector = Icons.AutoMirrored.Filled.BluetoothSearching,
-                                contentDescription = "扫描蓝牙设备"
+                                imageVector = Icons.Default.ArrowDropDown,
+                                contentDescription = "选择",
+                                tint = MaterialTheme.colorScheme.primary
                             )
                         }
                     }
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
                 }
-            )
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            // 打印机类型
-            Text(
-                text = "打印机类型",
-                style = MaterialTheme.typography.bodyMedium
-            )
-            
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                RadioButton(
-                    selected = type == PrinterConfig.PRINTER_TYPE_BLUETOOTH,
-                    onClick = { type = PrinterConfig.PRINTER_TYPE_BLUETOOTH }
-                )
-                Text(
-                    text = "蓝牙打印机",
-                    modifier = Modifier
-                        .clickable { type = PrinterConfig.PRINTER_TYPE_BLUETOOTH }
-                        .padding(start = 4.dp)
-                )
-                
-                Spacer(modifier = Modifier.width(16.dp))
-                
-                RadioButton(
-                    selected = type == PrinterConfig.PRINTER_TYPE_WIFI,
-                    onClick = { type = PrinterConfig.PRINTER_TYPE_WIFI }
-                )
-                Text(
-                    text = "网络打印机",
-                    modifier = Modifier
-                        .clickable { type = PrinterConfig.PRINTER_TYPE_WIFI }
-                        .padding(start = 4.dp)
-                )
             }
-            
-            Spacer(modifier = Modifier.height(16.dp))
+        }
+        
+        // 底部提示
+        Text(
+            text = "提示: 请确保打印机已开启并处于可发现状态。对于Android 7设备，可能需要先在系统蓝牙设置中配对打印机。",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
 
-            // 打印模板设置 - 添加更明显的视觉效果
+/**
+ * 检查设备是否已配对
+ */
+private fun isPairedDevice(device: PrinterDevice): Boolean {
+    val bluetoothAdapter = BluetoothAdapter.getDefaultAdapter() ?: return false
+    try {
+        @Suppress("DEPRECATION")
+        val pairedDevices = bluetoothAdapter.bondedDevices
+        return pairedDevices?.any { it.address == device.address } ?: false
+    } catch (e: Exception) {
+        Log.e("PrinterDetailsScreen", "检查设备配对状态失败", e)
+        return false
+    }
+}
+
+@Composable
+fun ConfigurationScreen(
+    paperWidth: String,
+    onPaperWidthChange: (String) -> Unit,
+    isDefault: Boolean,
+    onIsDefaultChange: (Boolean) -> Unit,
+    onSave: () -> Unit,
+    viewModel: SettingsViewModel,
+    snackbarHostState: SnackbarHostState,
+    paddingValues: PaddingValues
+) {
+    val connectionErrorMessage by viewModel.connectionErrorMessage.collectAsState()
+    
+    LaunchedEffect(connectionErrorMessage) {
+        connectionErrorMessage?.let {
+            snackbarHostState.showSnackbar(it)
+        }
+    }
+    
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(paddingValues)
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        // 标题
+        Text(
+            text = "打印机配置",
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold
+        )
+        
+        HorizontalDivider()
+        
+        // 纸张宽度设置
+        Column {
             Text(
-                text = "打印模板",
+                text = "纸张宽度设置",
                 style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary,
                 fontWeight = FontWeight.Bold
             )
             
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(
-                        width = 2.dp,
-                        color = MaterialTheme.colorScheme.primary,
-                        shape = RoundedCornerShape(8.dp)
-                    )
-                    .background(
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        shape = RoundedCornerShape(8.dp)
-                    )
-                    .clickable {
-                        // 暂时不实现实际逻辑，仅UI展示
-                        Log.d("PrinterDetailsScreen", "点击了打印模板选项，导航到: ${Screen.PrintTemplates.route}")
-                        navController.navigate(Screen.PrintTemplates.route)
-                    }
-                    .padding(vertical = 16.dp, horizontal = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Check,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(24.dp)
-                )
-                Text(
-                    text = "选择打印模板",
-                    modifier = Modifier.padding(start = 8.dp),
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.weight(1f))
-                Icon(
-                    imageVector = Icons.Default.ArrowDropDown,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(28.dp)
-                )
-            }
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            // 纸张宽度
-            Text(
-                text = "纸张宽度",
-                style = MaterialTheme.typography.bodyMedium
-            )
-            
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // 58mm选项
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    RadioButton(
-                        selected = paperWidth.toIntOrNull() == PrinterConfig.PAPER_WIDTH_57MM,
-                        onClick = { paperWidth = PrinterConfig.PAPER_WIDTH_57MM.toString() }
-                    )
-                    Text(
-                        text = "58mm",
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier
-                            .clickable { paperWidth = PrinterConfig.PAPER_WIDTH_57MM.toString() }
-                            .padding(horizontal = 4.dp)
-                    )
-                    Text(
-                        text = "(有效宽度50mm)",
-                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 2.dp)
-                    )
-                }
-                
-                Spacer(modifier = Modifier.width(32.dp))
-                
-                // 80mm选项
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    RadioButton(
-                        selected = paperWidth.toIntOrNull() == PrinterConfig.PAPER_WIDTH_80MM,
-                        onClick = { paperWidth = PrinterConfig.PAPER_WIDTH_80MM.toString() }
-                    )
-                    Text(
-                        text = "80mm",
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier
-                            .clickable { paperWidth = PrinterConfig.PAPER_WIDTH_80MM.toString() }
-                            .padding(horizontal = 4.dp)
-                    )
-                    Text(
-                        text = "(有效宽度72mm)",
-                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 2.dp)
-                    )
-                }
-            }
-            
-            // 添加纸张宽度预览功能
             Spacer(modifier = Modifier.height(8.dp))
             
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp),
-                shape = RoundedCornerShape(8.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+            var expanded by remember { mutableStateOf(false) }
+            
+            Box(modifier = Modifier.fillMaxWidth()) {
+                OutlinedTextField(
+                    value = when(paperWidth) {
+                        "80" -> "80mm (72mm有效宽度)"
+                        else -> "58mm (50mm有效宽度)"
+                    },
+                    onValueChange = { },
+                    label = { Text("纸张宽度") },
+                    readOnly = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    trailingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.ArrowDropDown,
+                            contentDescription = "选择纸张宽度",
+                            modifier = Modifier.clickable { expanded = true }
+                        )
+                    }
                 )
-            ) {
-                Column(
+                
+                // 点击整个文本框时展开下拉菜单
+                Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(12.dp)
+                        .matchParentSize()
+                        .clickable { expanded = true },
+                )
+                
+                DropdownMenu(
+                    expanded = expanded,
+                    onDismissRequest = { expanded = false },
+                    modifier = Modifier.fillMaxWidth(0.9f)
                 ) {
-                    Text(
-                        text = "打印宽度预览",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
-                    // 预览区域
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(150.dp)
-                            .background(Color.White)
-                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(8.dp)
-                        ) {
-                            // 根据选择的打印宽度显示不同的预览
-                            val selectedWidth = paperWidth.toIntOrNull() ?: PrinterConfig.PAPER_WIDTH_57MM
-                            val previewText = when (selectedWidth) {
-                                PrinterConfig.PAPER_WIDTH_57MM -> "58mm打印纸(有效宽度50mm)\n一行可打印约28个英文字符\n或14个中文字符"
-                                PrinterConfig.PAPER_WIDTH_80MM -> "80mm打印纸(有效宽度72mm)\n一行可打印约42个英文字符\n或21个中文字符"
-                                else -> "默认58mm打印纸"
-                            }
-                            
-                            // 打印机标题示例
-                            Text(
-                                text = "示例标题",
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Bold,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            
-                            Spacer(modifier = Modifier.height(4.dp))
-                            
-                            // 分隔线
-                            Divider(
-                                color = Color.Black,
-                                thickness = 1.dp
-                            )
-                            
-                            Spacer(modifier = Modifier.height(4.dp))
-                            
-                            // 打印机内容示例
-                            Text(
-                                text = previewText,
-                                style = MaterialTheme.typography.bodySmall,
-                                fontFamily = FontFamily.Monospace
-                            )
-                            
-                            // 示例商品
-                            if (selectedWidth == PrinterConfig.PAPER_WIDTH_57MM) {
-                                Text(
-                                    text = "香辣鸡腿堡",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    fontFamily = FontFamily.Monospace
-                                )
-                                Text(
-                                    text = "  2 x ¥15.00",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    fontFamily = FontFamily.Monospace
-                                )
-                            } else {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Text(
-                                        text = "香辣鸡腿堡",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        fontFamily = FontFamily.Monospace,
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                    Text(
-                                        text = "2 x ¥15.00",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        fontFamily = FontFamily.Monospace
-                                    )
-                                }
-                            }
+                    DropdownMenuItem(
+                        text = { Text("58mm (50mm有效宽度)") },
+                        onClick = {
+                            onPaperWidthChange("58")
+                            expanded = false
                         }
-                    }
-                    
-                    Spacer(modifier = Modifier.height(4.dp))
-                    
-                    Text(
-                        text = "注意: 实际打印效果可能与预览略有差异，建议进行测试打印",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.outline,
-                        fontSize = 10.sp
                     )
-                    
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
-                    // 添加测试打印按钮
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End
-                    ) {
-                        Button(
-                            onClick = {
-                                // 创建临时打印机配置用于测试
-                                val testConfig = printerConfig.copy(
-                                    paperWidth = paperWidth.toIntOrNull() ?: PrinterConfig.PAPER_WIDTH_57MM
-                                )
-                                coroutineScope.launch {
-                                    // 显示连接中提示
-                                    snackbarHostState.showSnackbar("正在连接打印机...")
-                                    
-                                    // 测试打印
-                                    val success = viewModel.testPrint(testConfig)
-                                    if (success) {
-                                        snackbarHostState.showSnackbar("测试打印成功")
-                                    } else {
-                                        snackbarHostState.showSnackbar("测试打印失败，请检查打印机连接")
-                                    }
-                                }
-                            },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.primary
-                            ),
-                            modifier = Modifier.padding(vertical = 4.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Print,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(text = "测试打印")
+                    DropdownMenuItem(
+                        text = { Text("80mm (72mm有效宽度)") },
+                        onClick = {
+                            onPaperWidthChange("80")
+                            expanded = false
                         }
-                    }
+                    )
                 }
             }
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            // 打印份数
-            OutlinedTextField(
-                value = printCopies,
-                onValueChange = { 
-                    if (it.isEmpty() || it.toIntOrNull() != null) {
-                        printCopies = it 
-                    }
-                },
-                label = { Text("打印份数") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
-            
-            Spacer(modifier = Modifier.height(24.dp))
-            
-            // 打印内容设置
-            Text(
-                text = "打印内容设置",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary
-            )
-            
-            Spacer(modifier = Modifier.height(8.dp))
-            
-            // 打印店铺信息
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "打印店铺信息",
-                    modifier = Modifier.weight(1f)
-                )
-                
-                Switch(
-                    checked = printStoreInfo,
-                    onCheckedChange = { printStoreInfo = it }
-                )
-            }
-            
-            // 打印客户信息
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "打印客户信息",
-                    modifier = Modifier.weight(1f)
-                )
-                
-                Switch(
-                    checked = printCustomerInfo,
-                    onCheckedChange = { printCustomerInfo = it }
-                )
-            }
-            
-            // 打印订单详情
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "打印商品详情",
-                    modifier = Modifier.weight(1f)
-                )
-                
-                Switch(
-                    checked = printItemDetails,
-                    onCheckedChange = { printItemDetails = it }
-                )
-            }
-            
-            // 打印订单备注
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "打印订单备注",
-                    modifier = Modifier.weight(1f)
-                )
-                
-                Switch(
-                    checked = printOrderNotes,
-                    onCheckedChange = { printOrderNotes = it }
-                )
-            }
-            
-            // 打印页脚信息
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "打印页脚信息",
-                    modifier = Modifier.weight(1f)
-                )
-                
-                Switch(
-                    checked = printFooter,
-                    onCheckedChange = { printFooter = it }
-                )
-            }
-            
-            Spacer(modifier = Modifier.height(24.dp))
-            
-            // 其他设置
-            Text(
-                text = "其他设置",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary
-            )
-            
-            Spacer(modifier = Modifier.height(8.dp))
-            
-            // 是否设为默认打印机
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "设为默认打印机",
-                    modifier = Modifier.weight(1f)
-                )
-                
-                Switch(
-                    checked = isDefault,
-                    onCheckedChange = { isDefault = it }
-                )
-            }
-            
-            // 自动打印新订单
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "自动打印新订单",
-                    modifier = Modifier.weight(1f)
-                )
-                
-                Switch(
-                    checked = isAutoPrint,
-                    onCheckedChange = { isAutoPrint = it }
-                )
-            }
-            
-            // 添加额外的空间确保浮动按钮不会遮挡内容
-            Spacer(modifier = Modifier.height(80.dp))
         }
         
-        // 扫描蓝牙设备对话框
-        if (showScanDialog) {
-            AlertDialog(
-                onDismissRequest = { showScanDialog = false },
-                title = { Text("选择蓝牙打印机") },
-                text = {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 8.dp)
-                    ) {
-                        if (isScanning) {
-                            // 显示加载指示器
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(200.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    CircularProgressIndicator()
-                                    
-                                    Spacer(modifier = Modifier.height(16.dp))
-                                    
-                                    Text("正在扫描蓝牙设备...")
-                                }
-                            }
-                        } else if (availablePrinters.isEmpty()) {
-                            // 显示空状态
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(200.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    Text("未找到蓝牙设备")
-                                    Text(
-                                        "请确保蓝牙已开启并已与打印机配对",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.error,
-                                        modifier = Modifier.padding(8.dp)
-                                    )
-                                    
-                                    Spacer(modifier = Modifier.height(16.dp))
-                                    
-                                    Button(
-                                        onClick = { viewModel.scanPrinters() }
-                                    ) {
-                                        Text("重新扫描")
-                                    }
-                                }
-                            }
-                        } else {
-                            Text(
-                                "请选择一个已配对的蓝牙打印机:",
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.padding(bottom = 8.dp)
-                            )
-                            
-                            // 设备列表
-                            LazyColumn(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(300.dp)
-                            ) {
-                                items(availablePrinters) { printer ->
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable {
-                                                name = printer.name
-                                                address = printer.address
-                                                showScanDialog = false
-                                            }
-                                            .padding(vertical = 12.dp, horizontal = 8.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Column(
-                                            modifier = Modifier.weight(1f)
-                                        ) {
-                                            Text(
-                                                text = printer.name,
-                                                style = MaterialTheme.typography.bodyLarge,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                            
-                                            Text(
-                                                text = printer.address,
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                                            )
-                                        }
-                                        
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        
-                                        Icon(
-                                            imageVector = Icons.Default.Check,
-                                            contentDescription = "选择",
-                                            tint = if (printer.address == address) 
-                                                MaterialTheme.colorScheme.primary
-                                            else 
-                                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.0f)
-                                        )
-                                    }
-                                    
-                                    if (printer != availablePrinters.last()) {
-                                        HorizontalDivider(
-                                            modifier = Modifier.padding(horizontal = 16.dp),
-                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                        
-                        if (availablePrinters.isEmpty() && !isScanning) {
-                            Text(
-                                text = "未找到蓝牙设备，可能是权限问题",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.error,
-                                modifier = Modifier.padding(vertical = 8.dp)
-                            )
-                            RequestPermissionButton()
-                        }
-                    }
-                },
-                confirmButton = {
-                    Button(
-                        onClick = { viewModel.scanPrinters() }
-                    ) {
-                        Text(if (isScanning) "扫描中..." else "刷新")
-                    }
-                },
-                dismissButton = {
-                    TextButton(
-                        onClick = { showScanDialog = false }
-                    ) {
-                        Text("取消")
-                    }
-                }
+        HorizontalDivider()
+        
+        // 打印机选项
+        Column {
+            Text(
+                text = "打印机选项",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
             )
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Checkbox(
+                    checked = isDefault,
+                    onCheckedChange = onIsDefaultChange
+                )
+                Text(
+                    text = "设为默认打印机",
+                    modifier = Modifier.clickable { onIsDefaultChange(!isDefault) }
+                )
+            }
+        }
+        
+        Spacer(modifier = Modifier.weight(1f))
+        
+        // 保存按钮
+        Button(
+            onClick = onSave,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Icon(
+                imageVector = Icons.Default.Save,
+                contentDescription = "保存"
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("保存打印机配置")
         }
     }
 }
