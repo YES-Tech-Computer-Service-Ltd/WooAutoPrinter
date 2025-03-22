@@ -532,8 +532,25 @@ class SettingsViewModel @Inject constructor(
     fun savePrinterConfig(config: PrinterConfig) {
         viewModelScope.launch {
             try {
+                // 如果设置了该打印机为默认打印机，则将其他打印机设为非默认
+                if (config.isDefault) {
+                    // 先获取所有现有打印机
+                    val allPrinters = _printerConfigs.value
+                    
+                    // 将其他默认打印机改为非默认
+                    allPrinters.forEach { printer ->
+                        if (printer.id != config.id && printer.isDefault) {
+                            // 更新其他打印机为非默认
+                            val updatedPrinter = printer.copy(isDefault = false)
+                            settingsRepository.savePrinterConfig(updatedPrinter)
+                            Log.d("SettingsViewModel", "将打印机 ${printer.name} 设置为非默认")
+                        }
+                    }
+                }
+                
+                // 保存当前打印机配置
                 settingsRepository.savePrinterConfig(config)
-                Log.d("SettingsViewModel", "保存打印机配置: ${config.name}")
+                Log.d("SettingsViewModel", "保存打印机配置: ${config.name}, 默认: ${config.isDefault}")
                 
                 // 刷新打印机列表
                 loadPrinterConfigs()
@@ -573,67 +590,136 @@ class SettingsViewModel @Inject constructor(
         return _printerConfigs.value.find { it.id == printerId }
     }
     
+    /**
+     * 执行测试打印
+     * 将打印流程拆分为多个步骤，每个步骤都有明确的职责
+     * @param config 打印机配置
+     * @return 打印结果，成功返回true
+     */
     suspend fun testPrint(config: PrinterConfig): Boolean {
+        // 1. 准备阶段 - 设置UI状态
+        prepareForPrinting()
+        
+        // 2. 连接打印机
+        if (!await(::connectToPrinter, config)) {
+            return false
+        }
+        
+        // 3. 执行打印并处理结果
+        return executePrintingAndHandleResult(config)
+    }
+    
+    /**
+     * 准备打印
+     * 设置打印相关UI状态
+     */
+    private fun prepareForPrinting() {
+        _isPrinting.value = true
+        _connectionErrorMessage.value = null
+        Log.d(TAG, "准备打印，状态已重置")
+    }
+    
+    /**
+     * 连接到打印机
+     * @param config 打印机配置
+     * @return 连接结果，连接成功返回true
+     */
+    private suspend fun connectToPrinter(config: PrinterConfig): Boolean {
         try {
-            _isPrinting.value = true
-            _connectionErrorMessage.value = null
+            Log.d(TAG, "检查打印机连接状态")
             
-            Log.d(TAG, "开始执行测试打印，打印机：${config.name}")
-            
-            // 首先确保已连接
-            if (_printerStatus.value != PrinterStatus.CONNECTED) {
-                Log.d(TAG, "打印机未连接，尝试连接")
-                val connected = connectPrinter(config)
-                if (!connected) {
-                    _connectionErrorMessage.value = "打印机连接失败，请检查打印机状态后再试"
-                    Log.e(TAG, "测试打印前连接失败")
-                    _isPrinting.value = false
-                    return false
-                }
+            // 如果打印机已连接，则直接返回成功
+            if (_printerStatus.value == PrinterStatus.CONNECTED) {
+                Log.d(TAG, "打印机已连接")
+                return true
             }
+            
+            // 尝试连接打印机
+            Log.d(TAG, "打印机未连接，尝试连接: ${config.name}")
+            val connected = printerManager.connect(config)
+            
+            if (!connected) {
+                Log.e(TAG, "打印机连接失败")
+                _connectionErrorMessage.value = "打印机连接失败，请检查打印机状态后再试"
+                _isPrinting.value = false
+                return false
+            }
+            
+            Log.d(TAG, "打印机连接成功")
+            return true
+        } catch (e: Exception) {
+            Log.e(TAG, "连接打印机异常", e)
+            _connectionErrorMessage.value = "连接异常: ${e.message ?: "未知错误"}"
+            _isPrinting.value = false
+            return false
+        }
+    }
+    
+    /**
+     * 执行打印并处理结果
+     * @param config 打印机配置
+     * @return 打印结果，成功返回true
+     */
+    private suspend fun executePrintingAndHandleResult(config: PrinterConfig): Boolean {
+        return try {
+            Log.d(TAG, "执行测试打印内容生成")
             
             // 执行测试打印
-            return withContext(Dispatchers.IO) {
-                try {
-                    Log.d(TAG, "执行测试打印内容生成")
-                    val success = printerManager.printTest(config)
-                    if (success) {
-                        Log.d(TAG, "测试打印成功完成")
-                        withContext(Dispatchers.Main) {
-                            _connectionErrorMessage.value = null
-                        }
-                        true
-                    } else {
-                        Log.e(TAG, "测试打印返回失败结果")
-                        withContext(Dispatchers.Main) {
-                            _connectionErrorMessage.value = "测试打印失败，请检查打印机状态和连接"
-                        }
-                        false
-                    }
-                } catch (e: Exception) {
-                    val errorMsg = when {
-                        e is StringIndexOutOfBoundsException -> "打印内容格式错误，可能与打印机不兼容"
-                        e.message?.contains("connection") == true -> "打印机连接中断"
-                        e.message?.contains("timeout") == true -> "打印机响应超时"
-                        else -> "打印出错: ${e.message ?: "未知错误"}"
-                    }
-                    
-                    Log.e(TAG, "测试打印过程中异常: $errorMsg", e)
-                    withContext(Dispatchers.Main) {
-                        _connectionErrorMessage.value = errorMsg
-                    }
-                    false
-                }
+            val success = withContext(Dispatchers.IO) {
+                printerManager.printTest(config)
+            }
+            
+            // 处理打印结果
+            if (success) {
+                Log.d(TAG, "测试打印成功完成")
+                _connectionErrorMessage.value = null
+                true
+            } else {
+                Log.e(TAG, "测试打印返回失败结果")
+                _connectionErrorMessage.value = "测试打印失败，请检查打印机状态和连接"
+                false
             }
         } catch (e: Exception) {
-            Log.e(TAG, "测试打印总体异常", e)
-            _connectionErrorMessage.value = "打印过程发生异常: ${e.message ?: "未知错误"}"
-            return false
+            handlePrintingException(e)
+            false
         } finally {
             _isPrinting.value = false
         }
     }
     
+    /**
+     * 处理打印过程中的异常
+     * @param e 捕获的异常
+     */
+    private suspend fun handlePrintingException(e: Exception) {
+        val errorMsg = when {
+            e is StringIndexOutOfBoundsException -> "打印内容格式错误，可能与打印机不兼容"
+            e.message?.contains("connection") == true -> "打印机连接中断"
+            e.message?.contains("timeout") == true -> "打印机响应超时"
+            else -> "打印出错: ${e.message ?: "未知错误"}"
+        }
+        
+        Log.e(TAG, "测试打印过程中异常: $errorMsg", e)
+        withContext(Dispatchers.Main) {
+            _connectionErrorMessage.value = errorMsg
+        }
+    }
+    
+    /**
+     * 通用的异步操作辅助函数，用于简化异常处理
+     * @param operation 要执行的操作
+     * @param param 操作参数
+     * @return 操作结果
+     */
+    private suspend fun <T, R> await(operation: suspend (T) -> R, param: T): R {
+        return try {
+            operation(param)
+        } catch (e: Exception) {
+            Log.e(TAG, "操作执行异常: ${e.message}", e)
+            throw e
+        }
+    }
+
     // 商店信息相关方法
     fun loadStoreInfo() {
         viewModelScope.launch {

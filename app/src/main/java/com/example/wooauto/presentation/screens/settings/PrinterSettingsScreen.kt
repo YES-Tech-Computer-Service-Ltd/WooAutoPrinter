@@ -72,6 +72,7 @@ import androidx.navigation.NavController
 import com.example.wooauto.domain.models.PrinterConfig
 import com.example.wooauto.domain.printer.PrinterStatus
 import com.example.wooauto.domain.printer.PrinterDevice
+import com.example.wooauto.domain.printer.PrinterBrand
 import com.example.wooauto.data.printer.BluetoothPrinterManager
 import com.example.wooauto.presentation.navigation.Screen
 import kotlinx.coroutines.launch
@@ -138,27 +139,14 @@ fun PrinterSettingsScreen(
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
-            Row {
-                // 添加扫描蓝牙设备按钮
-                FloatingActionButton(
-                    onClick = {
-                        showScanDialog = true
-                        viewModel.scanPrinters()
-                    },
-                    modifier = Modifier.padding(end = 16.dp)
-                ) {
-                    Icon(Icons.Filled.BluetoothSearching, contentDescription = "扫描打印机")
+            // 只保留添加新打印机按钮
+            FloatingActionButton(
+                onClick = {
+                    // 导航到添加新打印机页面
+                    navController.navigate(Screen.PrinterDetails.printerDetailsRoute("new"))
                 }
-                
-                // 添加新打印机按钮
-                FloatingActionButton(
-                    onClick = {
-                        // 导航到添加新打印机页面
-                        navController.navigate(Screen.PrinterDetails.printerDetailsRoute("new"))
-                    }
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = "添加打印机")
-                }
+            ) {
+                Icon(Icons.Default.Add, contentDescription = "添加打印机")
             }
         }
     ) { paddingValues ->
@@ -169,54 +157,6 @@ fun PrinterSettingsScreen(
                 .padding(16.dp)
         ) {
             Spacer(modifier = Modifier.height(16.dp))
-            
-            // 显示可选操作
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                )
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Bluetooth,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                    
-                    Spacer(modifier = Modifier.width(16.dp))
-                    
-                    Column(
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(
-                            text = "蓝牙打印机",
-                            style = MaterialTheme.typography.titleMedium
-                        )
-                        Text(
-                            text = "扫描并连接蓝牙打印机设备",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    
-                    TextButton(
-                        onClick = {
-                            showScanDialog = true
-                            viewModel.scanPrinters()
-                        }
-                    ) {
-                        Text("扫描设备")
-                    }
-                }
-            }
             
             // 打印模板设置卡片
             Card(
@@ -384,8 +324,21 @@ fun PrinterSettingsScreen(
                             },
                             onTestPrint = {
                                 coroutineScope.launch {
+                                    // 显示连接中提示
+                                    snackbarHostState.showSnackbar("正在连接打印机...")
+                                    
                                     // 测试打印
-                                    viewModel.testPrint(printer)
+                                    try {
+                                        val success = viewModel.testPrint(printer)
+                                        if (success) {
+                                            snackbarHostState.showSnackbar("测试打印成功")
+                                        } else {
+                                            val errorMsg = viewModel.connectionErrorMessage.value ?: "测试打印失败，请检查打印机连接"
+                                            snackbarHostState.showSnackbar(errorMsg)
+                                        }
+                                    } catch (e: Exception) {
+                                        snackbarHostState.showSnackbar("打印过程出现异常: ${e.message ?: "未知错误"}")
+                                    }
                                 }
                             },
                             onSetDefault = { isDefault ->
@@ -734,6 +687,14 @@ fun PrinterConfigItem(
                 text = "地址: ${printerConfig.address}",
                 style = MaterialTheme.typography.bodyMedium
             )
+            
+            if (printerConfig.brand != null && printerConfig.brand != PrinterBrand.UNKNOWN) {
+                Text(
+                    text = "品牌: ${printerConfig.brand.displayName} (${printerConfig.brand.commandLanguage})",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
+                )
+            }
             
             Text(
                 text = "纸张宽度: ${printerConfig.paperWidth}mm",
