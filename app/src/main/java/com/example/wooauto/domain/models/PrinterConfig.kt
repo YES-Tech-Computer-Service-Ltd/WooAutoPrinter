@@ -1,5 +1,6 @@
 package com.example.wooauto.domain.models
 
+import com.example.wooauto.domain.printer.PrinterBrand
 import java.io.Serializable
 import java.util.UUID
 
@@ -22,6 +23,9 @@ data class PrinterConfig(
     
     // 纸张宽度（毫米）
     val paperWidth: Int = PAPER_WIDTH_57MM,
+    
+    // 打印机品牌
+    val brand: PrinterBrand = PrinterBrand.UNKNOWN,
     
     // 是否为默认打印机
     val isDefault: Boolean = false,
@@ -72,8 +76,8 @@ data class PrinterConfig(
         const val PRINTER_TYPE_USB = "usb"
         
         // 纸张宽度
-        const val PAPER_WIDTH_57MM = 57
-        const val PAPER_WIDTH_80MM = 80
+        const val PAPER_WIDTH_57MM = 58 // 58mm 打印机，有效打印宽度为50mm
+        const val PAPER_WIDTH_80MM = 80 // 80mm 打印机，有效打印宽度为72mm
         
         // 字体大小
         const val FONT_SIZE_SMALL = 0
