@@ -12,6 +12,7 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -54,6 +55,7 @@ class MainActivity : ComponentActivity() {
         }
     
     // 权限请求回调
+    @RequiresApi(Build.VERSION_CODES.S)
     private val requestPermissionsLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
@@ -95,6 +97,7 @@ class MainActivity : ComponentActivity() {
         }
     }
     
+    @RequiresApi(Build.VERSION_CODES.S)
     override fun onCreate(savedInstanceState: Bundle?) {
         // 在super.onCreate之前初始化应用语言
         initAppLanguage()
@@ -159,25 +162,14 @@ class MainActivity : ComponentActivity() {
             }
             
             // 应用当前语言到上下文
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                // API 24+, 使用createConfigurationContext方法
-                val locale = LocaleManager.currentLocale
-                val localeList = android.os.LocaleList(locale)
-                val config = resources.configuration.apply {
-                    setLocales(localeList)
-                }
-                createConfigurationContext(config)
-            } else {
-                // API 23及以下
-                val locale = LocaleManager.currentLocale
-                val config = resources.configuration.apply {
-                    @Suppress("DEPRECATION")
-                    setLocale(locale)
-                }
-                @Suppress("DEPRECATION")
-                resources.updateConfiguration(config, resources.displayMetrics)
+            // API 24+, 使用createConfigurationContext方法
+            val locale = LocaleManager.currentLocale
+            val localeList = android.os.LocaleList(locale)
+            val config = resources.configuration.apply {
+                setLocales(localeList)
             }
-            
+            createConfigurationContext(config)
+
             Log.d(TAG, "应用语言初始化完成: ${LocaleManager.currentLocale.language}")
         } catch (e: Exception) {
             Log.e(TAG, "初始化应用语言失败", e)
@@ -194,6 +186,7 @@ class MainActivity : ComponentActivity() {
     /**
      * 请求应用所需权限
      */
+    @RequiresApi(Build.VERSION_CODES.S)
     private fun requestRequiredPermissions() {
         val permissionsToRequest = mutableListOf<String>()
         val missingPermissions = mutableListOf<String>()
@@ -246,6 +239,7 @@ class MainActivity : ComponentActivity() {
      * 提供给外部组件的方法，用于重新请求所有权限
      * 可以在扫描蓝牙等功能失败时调用
      */
+    @RequiresApi(Build.VERSION_CODES.S)
     fun requestAllPermissions() {
         Log.d(TAG, "外部组件请求权限")
         requestRequiredPermissions()
