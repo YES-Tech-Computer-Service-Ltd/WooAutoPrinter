@@ -248,151 +248,95 @@ class BluetoothPrinterManager @Inject constructor(
     
     override suspend fun connect(config: PrinterConfig): Boolean = withContext(Dispatchers.IO) {
         try {
-            Log.d(TAG, "尝试连接打印机: ${config.name} (${config.address})")
+            Log.d(TAG, "开始连接打印机: ${config.name} (${config.address})")
             
-            // 如果已经连接了相同的打印机，则直接返回成功
-            if (currentConnection?.device?.address == config.address) {
-                Log.d(TAG, "打印机已经连接")
-                updatePrinterStatus(config, PrinterStatus.CONNECTED)
-                return@withContext true
-            }
-            
-            // 如果已连接其他打印机，先断开连接
+            // 先检查当前是否有连接
             if (currentConnection != null) {
-                disconnect(currentPrinterConfig ?: config)
+                // 如果正在连接的是同一台打印机，复用连接
+                val connectedAddress = currentConnection?.device?.address
+                if (connectedAddress == config.address) {
+                    Log.d(TAG, "打印机已连接，复用现有连接")
+                    
+                    // 检查并更新打印机状态
+                    testPrinterConnection(config)
+                    return@withContext true
+                } else {
+                    // 如果连接的是不同打印机，先断开当前连接
+                    Log.d(TAG, "断开现有打印机连接: $connectedAddress")
+                    disconnect(config)
+                }
             }
             
-            // 获取蓝牙设备对象
+            // 获取蓝牙设备
             val device = getBluetoothDevice(config.address)
             if (device == null) {
-                Log.e(TAG, "未找到设备: ${config.address}")
+                Log.e(TAG, "未找到打印机设备: ${config.address}")
                 updatePrinterStatus(config, PrinterStatus.ERROR)
                 return@withContext false
             }
             
-            // 识别打印机品牌
-            val deviceName = device.name ?: config.name
-            val detectedBrand = PrinterBrand.identifyBrand(deviceName)
+            // 创建蓝牙连接
+            Log.d(TAG, "创建打印机连接: ${device.name} (${device.address})")
+            val connection = BluetoothConnection(device)
             
-            // 创建打印机配置副本，包含识别的品牌
-            val updatedConfig = if (detectedBrand != PrinterBrand.UNKNOWN && detectedBrand != config.brand) {
-                val newConfig = config.copy(brand = detectedBrand)
-                // 保存更新后的配置
-                settingRepository.savePrinterConfig(newConfig)
-                newConfig
-            } else {
-                config
-            }
+            // 连接到打印机
+            updatePrinterStatus(config, PrinterStatus.CONNECTING)
             
-            // 设置当前打印机配置
-            currentPrinterConfig = updatedConfig
-            
-            // 检查配对状态
-            if (device.bondState != BluetoothDevice.BOND_BONDED) {
-                Log.d(TAG, "设备未配对，尝试配对...")
-                // 尝试创建配对
-                val method = device.javaClass.getMethod("createBond")
-                val success = method.invoke(device) as Boolean
-                
-                if (success) {
-                    // 等待配对完成 - 最多20秒
-                    for (i in 1..20) {
-                        if (device.bondState == BluetoothDevice.BOND_BONDED) {
-                            Log.d(TAG, "配对成功")
-                            break
-                        }
-                        delay(1000)
-                        Log.d(TAG, "等待配对完成... ${device.bondState}")
-                    }
-                }
-                
-                // 如果仍未配对，返回失败
-                if (device.bondState != BluetoothDevice.BOND_BONDED) {
-                    Log.e(TAG, "设备配对失败")
-                    updatePrinterStatus(config, PrinterStatus.ERROR)
-                    return@withContext false
-                }
-            }
-            
-            // 对于其他打印机使用标准连接流程
-            // 循环尝试所有UUID
-            var connected = false
-            var lastException: Exception? = null
-            
-            for (uuid in PRINTER_UUIDS) {
-                // 记录当前尝试的UUID类型
-                val uuidType = if (uuid.toString().contains("00001101-0000-1000-8000-00805")) "SPP协议" else "其他协议"
-                Log.d(TAG, "【蓝牙协议】尝试使用 $uuidType UUID: $uuid")
-                
-                // 使用递增的重试次数
-                for (attempt in 1..MAX_RETRY_COUNT) {
-                    try {
-                        Log.d(TAG, "尝试连接 UUID $uuid (尝试 $attempt/${MAX_RETRY_COUNT})")
-                        
-                        // 创建蓝牙连接 - 注意库不支持传入UUID，这里只用于日志
-                        val connection = BluetoothConnection(device)
-                        connection.connect()
-                        
-                        Log.d(TAG, "成功连接蓝牙设备 ${config.name}")
-                        Log.d(TAG, "【蓝牙协议】成功使用 $uuidType 连接")
-                        currentConnection = connection
-                        
-                        // 创建打印机实例 - 为Star打印机适配参数
-                        val dpi = 203 // 标准DPI
-                        val paperWidthMm = 72f // 根据配置截图设置为72mm
-                        val nbCharPerLine = 42 // 根据配置截图设置为42字符每行
-                        Log.d(TAG, "【打印机初始化】使用参数: DPI=$dpi, 宽度=${paperWidthMm}mm, 字符数=$nbCharPerLine")
-
-                        
-                        val printer = EscPosPrinter(connection, dpi, paperWidthMm, nbCharPerLine)
-                        currentPrinter = printer
-                        
-                        // 等待一段时间确保打印机初始化完成
-                        delay(500)
-                        
-                        connected = true
-                        updatePrinterStatus(config, PrinterStatus.CONNECTED)
-                        break
-                    } catch (e: Exception) {
-                        lastException = e
-                        Log.e(TAG, "连接失败 (UUID: $uuid, 尝试: $attempt): ${e.message}")
-                        
-                        // 在重试之前断开连接
-                        try {
-                            currentConnection?.disconnect()
-                        } catch (e2: Exception) {
-                            Log.e(TAG, "断开连接失败: ${e2.message}")
-                        }
-                        
-                        currentConnection = null
-                        currentPrinter = null
-                        
-                        // 在重试之前添加延迟，每次尝试增加延迟
-                        if (attempt < MAX_RETRY_COUNT) {
-                            val delayTime = 1000L * attempt
-                            Log.d(TAG, "延迟 ${delayTime}ms 后重试")
-                            delay(delayTime)
-                        }
-                    }
-                }
-                
-                if (connected) break
-            }
-            
-            if (!connected) {
-                Log.e(TAG, "所有连接尝试均失败: ${lastException?.message}")
+            // 尝试连接
+            val isConnected = try {
+                connection.connect()
+                Log.d(TAG, "打印机连接成功: ${config.name}")
+                true
+            } catch (e: Exception) {
+                Log.e(TAG, "打印机连接失败: ${e.message}", e)
                 updatePrinterStatus(config, PrinterStatus.ERROR)
                 return@withContext false
             }
             
-            // 启动心跳机制以保持连接
-            startHeartbeat(config)
+            if (!isConnected) {
+                Log.e(TAG, "无法建立打印机连接")
+                updatePrinterStatus(config, PrinterStatus.DISCONNECTED)
+                return@withContext false
+            }
             
-            return@withContext true
+            // 保存当前连接信息
+            currentConnection = connection
+            
+            // 创建打印机实例
+            try {
+                val dpi = 203 // 通用值
+                val paperWidthMm = config.paperWidth.toFloat() // 转换为Float类型
+                val nbCharPerLine = when(config.paperWidth) {
+                    PrinterConfig.PAPER_WIDTH_57MM -> 32
+                    PrinterConfig.PAPER_WIDTH_80MM -> 42
+                    else -> 32
+                }
+                
+                // 创建打印机实例，不指定字符编码（使用默认编码）
+                val printer = EscPosPrinter(connection, dpi, paperWidthMm, nbCharPerLine)
+                currentPrinter = printer
+                
+                // 启动心跳检测
+                startHeartbeat(config)
+                
+                // 更新状态为已连接
+                updatePrinterStatus(config, PrinterStatus.CONNECTED)
+                
+                // 保存当前打印机配置
+                currentPrinterConfig = config
+                
+                true
+            } catch (e: Exception) {
+                Log.e(TAG, "创建打印机实例失败: ${e.message}", e)
+                updatePrinterStatus(config, PrinterStatus.ERROR)
+                currentConnection?.disconnect()
+                currentConnection = null
+                false
+            }
         } catch (e: Exception) {
-            Log.e(TAG, "连接蓝牙打印机异常: ${e.message}")
+            Log.e(TAG, "连接打印机异常: ${e.message}", e)
             updatePrinterStatus(config, PrinterStatus.ERROR)
-            return@withContext false
+            false
         }
     }
 
@@ -741,18 +685,13 @@ class BluetoothPrinterManager @Inject constructor(
                     continue
                 }
                 
-                // 2. 进行连接测试确认
-                if (!testPrinterConnection(config)) {
-                    continue
-                }
-                
-                // 3. 生成打印内容
+                // 2. 生成打印内容
                 val content = generateOrderContent(order, config)
                 
-                // 4. 发送打印内容
+                // 3. 发送打印内容
                 val success = printContent(content, config)
                 
-                // 5. 处理打印结果
+                // 4. 处理打印结果
                 if (success) {
                     // 成功打印后处理订单状态
                     return@withContext handleSuccessfulPrint(order)
@@ -1116,13 +1055,16 @@ class BluetoothPrinterManager @Inject constructor(
      * 确保打印内容有正确的结束（多个换行）
      */
     private fun ensureProperEnding(content: String): String {
-        // 确保内容以多个换行结束，促使走纸
-        var result = content.trimEnd()
+        // 如果内容已经有足够的换行符结尾，不需要添加
+        if (content.endsWith("\n\n")) {
+            return content
+        }
         
-        // 添加至少6个换行，确保内容完全打印并走纸
-        result += "\n[L] \n[L] \n[L] \n[L] \n[L] \n[L] "
+        // 确保内容以换行结束
+        val contentWithNewLine = if (content.endsWith("\n")) content else "$content\n"
         
-        return result
+        // 只添加一个额外的换行，减少底部留白
+        return "$contentWithNewLine\n"
     }
     
     /**
@@ -1141,37 +1083,22 @@ class BluetoothPrinterManager @Inject constructor(
             // 1. 清除缓冲区，确保之前的命令都被处理
             val clearCommand = byteArrayOf(0x18)  // CAN - 清除缓冲区
             currentConnection?.write(clearCommand)
+            Thread.sleep(100)
+            
+            // 2. 发送少量换行 (LF)，减少之前的行数
+            val lfCommand = byteArrayOf(0x0A, 0x0A)  // 只保留2个换行符，减少留白
+            currentConnection?.write(lfCommand)
+            Thread.sleep(100)
+            
+            // 3. 走纸命令 (ESC d n) - 走纸行数减少到4行（之前是12行）
+            val feedCommand = byteArrayOf(0x1B, 0x64, 0x04)
+            currentConnection?.write(feedCommand)
             Thread.sleep(200)
             
-            // 2. 打印并进纸命令 (ESC J n) - 强制打印缓冲区内容并进纸
-            val printAndFeedCommand = byteArrayOf(0x1B, 0x4A, 0x10)  // 进纸16点行
-            currentConnection?.write(printAndFeedCommand)
-            Thread.sleep(300)
-            
-            // 3. 发送换页命令 (FF) - 表单走纸
-            val formFeedCommand = byteArrayOf(0x0C)  // FF - Form Feed
-            currentConnection?.write(formFeedCommand)
-            Thread.sleep(300)
-            
-            // 4. 发送GS FF命令 - 在某些打印机上是进纸到切纸位置
-            val gsFfCommand = byteArrayOf(0x1D, 0x0C)  // GS FF
-            currentConnection?.write(gsFfCommand)
-            Thread.sleep(300)
-            
-            // 5. 发送多个换行 (LF)，比之前增加更多行
-            val lfCommand = byteArrayOf(0x0A, 0x0A, 0x0A, 0x0A, 0x0A, 0x0A, 0x0A, 0x0A)
-            currentConnection?.write(lfCommand)
-            Thread.sleep(300)
-            
-            // 6. 走纸命令 (ESC d n) - 走12行（比之前增加）
-            val feedCommand = byteArrayOf(0x1B, 0x64, 0x0C)
-            currentConnection?.write(feedCommand)
-            Thread.sleep(300)
-            
-            // 7. 部分切纸命令 (GS V m) - 仅适用于支持切纸的打印机
+            // 4. 部分切纸命令 (GS V m) - 仅适用于支持切纸的打印机
             val cutCommand = byteArrayOf(0x1D, 0x56, 0x01)
             currentConnection?.write(cutCommand)
-            Thread.sleep(200)
+            Thread.sleep(100)
             
             Log.d(TAG, "【打印机】额外命令发送完成")
         } catch (e: Exception) {
