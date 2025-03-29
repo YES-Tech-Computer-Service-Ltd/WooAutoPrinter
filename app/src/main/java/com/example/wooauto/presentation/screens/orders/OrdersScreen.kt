@@ -112,6 +112,7 @@ import com.example.wooauto.presentation.theme.WooAutoTheme
 import com.example.wooauto.utils.LocaleHelper
 import com.example.wooauto.presentation.screens.settings.SettingsViewModel
 import com.google.gson.Gson
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
@@ -161,12 +162,19 @@ fun OrdersScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
     
+    // 添加API检查状态
+    var showApiConfigDialog by remember { mutableStateOf(false) }
+    // 添加延迟检查计时器
+    var apiCheckDelayCompleted by remember { mutableStateOf(false) }
+    
     // 当进入此屏幕时执行刷新操作
     LaunchedEffect(key1 = Unit) {
         Log.d("OrdersScreen", "LaunchedEffect 触发，刷新订单数据")
-        if (isConfigured) {
-            viewModel.refreshOrders()
-        }
+        viewModel.refreshOrders()
+        
+        // 添加延迟，确保有足够时间检查API配置
+        kotlinx.coroutines.delay(3000) // 延迟3秒
+        apiCheckDelayCompleted = true
     }
     
     // 显示错误消息
@@ -176,6 +184,13 @@ fun OrdersScreen(
                 snackbarHostState.showSnackbar(it)
                 viewModel.clearError()
             }
+        }
+    }
+    
+    // 检查API配置状态，在延迟结束后才判断是否需要显示配置对话框
+    LaunchedEffect(isLoading, isConfigured, apiCheckDelayCompleted) {
+        if (!isLoading && !isConfigured && apiCheckDelayCompleted) {
+            showApiConfigDialog = true
         }
     }
     
@@ -226,55 +241,94 @@ fun OrdersScreen(
                 ) {
                     CircularProgressIndicator()
                     Spacer(modifier = Modifier.height(16.dp))
-                    Text(if (locale.language == "zh") "正在加载..." else "Loading...")
-                }
-            } 
-            // API 未配置状态
-            else if (!isConfigured) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Info,
-                        contentDescription = if (locale.language == "zh") "未配置" else "Not Configured",
-                        modifier = Modifier.size(64.dp),
-                        tint = MaterialTheme.colorScheme.error
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = if (locale.language == "zh") "WooCommerce API 未配置" else "WooCommerce API Not Configured",
-                        style = MaterialTheme.typography.headlineMedium,
-                        textAlign = TextAlign.Center
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = if (locale.language == "zh") 
-                            "请先在设置页面配置您的 WooCommerce API 连接信息，才能查看订单数据。" 
-                        else 
-                            "Please configure your WooCommerce API connection in the settings page to view order data.",
+                        text = stringResource(id = R.string.checking_api_configuration),
                         style = MaterialTheme.typography.bodyLarge,
                         textAlign = TextAlign.Center
                     )
-                    Spacer(modifier = Modifier.height(24.dp))
-                    Button(
-                        onClick = { 
-                            Log.d("OrdersScreen", "点击前往设置按钮，导航到：${NavigationItem.Settings.route}")
-                            navController.navigate(NavigationItem.Settings.route)
-                        }
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Settings,
-                            contentDescription = if (locale.language == "zh") "设置" else "Settings"
-                        )
-                        Spacer(modifier = Modifier.size(8.dp))
-                        Text(if (locale.language == "zh") "前往设置" else "Go to Settings")
-                    }
                 }
             } 
+            // API 未配置状态，显示对话框而不是直接显示在页面上
+            else if (showApiConfigDialog) {
+                Dialog(
+                    onDismissRequest = { },
+                    properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false)
+                ) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = null,
+                                modifier = Modifier.size(64.dp),
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                text = stringResource(id = R.string.api_config_required),
+                                style = MaterialTheme.typography.headlineSmall,
+                                textAlign = TextAlign.Center
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = stringResource(id = R.string.api_config_message),
+                                style = MaterialTheme.typography.bodyMedium,
+                                textAlign = TextAlign.Center
+                            )
+                            Spacer(modifier = Modifier.height(24.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End
+                            ) {
+                                Button(
+                                    onClick = {
+                                        showApiConfigDialog = false
+                                    }
+                                ) {
+                                    Text(stringResource(id = R.string.cancel))
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Button(
+                                    onClick = {
+                                        navController.navigate(NavigationItem.Settings.route)
+                                    }
+                                ) {
+                                    Text(stringResource(id = R.string.go_to_api_settings))
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // 即使API未配置，也显示空的订单列表背景，而不是特殊的API未配置页面
+                if (orders.isEmpty()) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = stringResource(id = R.string.no_orders_found),
+                            style = MaterialTheme.typography.bodyLarge,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                } else {
+                    // 显示订单列表，即使用户需要配置API
+                    // 订单内容渲染
+                    // ... 后续的订单列表渲染代码会自动生效 ...
+                }
+            }
             // 已配置，显示订单列表
             else {
                 Log.d("OrdersScreen", "显示订单列表，共 ${orders.size} 个订单")

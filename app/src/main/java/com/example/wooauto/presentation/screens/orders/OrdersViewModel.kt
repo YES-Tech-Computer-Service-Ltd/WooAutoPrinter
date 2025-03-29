@@ -129,44 +129,92 @@ class OrdersViewModel @Inject constructor(
                 val configuredFromStatus = WooCommerceConfig.isConfigured.first()
                 Log.d(TAG, "从状态流获取的API配置状态: $configuredFromStatus")
                 
-                // 即使状态显示未配置，也尝试获取订单来验证API实际是否可用
-                val result = orderRepository.refreshOrders()
+                // 初始设置为加载中
+                _isLoading.value = true
                 
-                // 处理API请求结果
-                if (result.isSuccess) {
-                    val orders = result.getOrNull() ?: emptyList()
-                    // 如果成功获取了订单，强制设置配置状态为true
-                    if (orders.isNotEmpty()) {
-                        Log.d(TAG, "API调用成功返回了 ${orders.size} 个订单，强制更新API配置状态为true")
+                // 先检查是否有缓存的订单数据
+                val cachedOrders = orderRepository.getCachedOrders()
+                if (cachedOrders.isNotEmpty()) {
+                    Log.d(TAG, "存在缓存订单数据 ${cachedOrders.size} 个，临时显示缓存数据")
+                    _orders.value = cachedOrders
+                }
+                
+                // 设置API调用超时
+                var apiCallCompleted = false
+                var apiCallSuccess = false
+                
+                // 启动API调用
+                val apiCallJob = viewModelScope.launch {
+                    try {
+                        // 执行API调用，尝试获取订单
+                        val result = orderRepository.refreshOrders()
+                        
+                        // 处理API请求结果
+                        if (result.isSuccess) {
+                            val orders = result.getOrNull() ?: emptyList()
+                            // 如果成功获取了订单，强制设置配置状态为true
+                            if (orders.isNotEmpty()) {
+                                Log.d(TAG, "API调用成功返回了 ${orders.size} 个订单，更新API配置状态为true")
+                                _isConfigured.value = true
+                                // 同时更新全局状态
+                                WooCommerceConfig.updateConfigurationStatus(true)
+                                com.example.wooauto.data.remote.WooCommerceConfig.updateConfigurationStatus(true)
+                                apiCallSuccess = true
+                            } else {
+                                Log.d(TAG, "API调用成功但未返回订单，保持当前配置状态: $configuredFromStatus")
+                                _isConfigured.value = configuredFromStatus
+                                apiCallSuccess = configuredFromStatus
+                            }
+                        } else {
+                            Log.d(TAG, "API调用失败")
+                            _isConfigured.value = false
+                            apiCallSuccess = false
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "API调用过程中发生异常: ${e.message}", e)
+                        _isConfigured.value = false
+                        apiCallSuccess = false
+                    } finally {
+                        apiCallCompleted = true
+                    }
+                }
+                
+                // 等待API调用完成或超时(5秒)
+                kotlinx.coroutines.withTimeoutOrNull(5000) {
+                    while (!apiCallCompleted) {
+                        kotlinx.coroutines.delay(100)
+                    }
+                }
+                
+                // 如果API调用已完成，使用其结果
+                if (apiCallCompleted) {
+                    Log.d(TAG, "API配置检查完成，配置状态: ${_isConfigured.value}")
+                } else {
+                    // API调用超时，取消并使用默认设置
+                    apiCallJob.cancel()
+                    Log.d(TAG, "API调用超时，使用默认设置")
+                    // 如果有缓存数据，假设API配置是正常的，减少用户干扰
+                    if (cachedOrders.isNotEmpty()) {
+                        Log.d(TAG, "有缓存数据，假设API配置正常")
                         _isConfigured.value = true
-                        // 同时更新全局状态
-                        WooCommerceConfig.updateConfigurationStatus(true)
-                        com.example.wooauto.data.remote.WooCommerceConfig.updateConfigurationStatus(true)
                     } else {
-                        Log.d(TAG, "API调用成功但未返回订单，保持当前配置状态: $configuredFromStatus")
                         _isConfigured.value = configuredFromStatus
                     }
-                } else if (!configuredFromStatus) {
-                    Log.d(TAG, "API配置状态为未配置，且API调用失败")
-                    _isConfigured.value = false
-                    _isLoading.value = false
-                } else {
-                    // 使用从状态流获取的配置
-                    Log.d(TAG, "使用从状态流获取的配置: $configuredFromStatus")
-                    _isConfigured.value = configuredFromStatus
                 }
-                
-                if (_isConfigured.value) {
-                    refreshOrders()
-                } else {
-                    _isLoading.value = false
-                }
+
+                // 请求完成后，无论结果如何，都标记为非加载状态
+                _isLoading.value = false
                 
                 // 监听配置变化
                 viewModelScope.launch {
                     WooCommerceConfig.isConfigured.collectLatest { configured ->
                         Log.d(TAG, "API配置状态变更: $configured")
                         _isConfigured.value = configured
+                        
+                        // 如果配置状态变为已配置，尝试刷新订单
+                        if (configured) {
+                            refreshOrders()
+                        }
                     }
                 }
             } catch (e: Exception) {
