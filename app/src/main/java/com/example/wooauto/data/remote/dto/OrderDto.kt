@@ -162,7 +162,7 @@ fun OrderDto.toOrder(): Order {
             ratePercent = ratePercent,
             taxTotal = taxLineDto.taxTotal
         ).also {
-            Log.d("OrderDto", "创建税费行: ${it.label} (${it.ratePercent}%) = ${it.taxTotal}")
+//            Log.d("OrderDto", "创建税费行: ${it.label} (${it.ratePercent}%) = ${it.taxTotal}")
         }
     }
     
@@ -180,7 +180,7 @@ fun OrderDto.toOrder(): Order {
                             totalTax = "0.00" // 默认不含税
                         )
                     )
-                    Log.d("OrderDto", "【添加到费用行】从woofoodInfo添加小费: $tipAmount")
+//                    Log.d("OrderDto", "【添加到费用行】从woofoodInfo添加小费: $tipAmount")
                 }
             }
             
@@ -196,7 +196,7 @@ fun OrderDto.toOrder(): Order {
                                 totalTax = "0.00" // 默认不含税
                             )
                         )
-                        Log.d("OrderDto", "【添加到费用行】从woofoodInfo添加配送费: $feeAmount")
+//                        Log.d("OrderDto", "【添加到费用行】从woofoodInfo添加配送费: $feeAmount")
                     }
                 }
             }
@@ -230,7 +230,7 @@ fun OrderDto.toOrder(): Order {
                     totalTax = "0.00" // 默认不含税
                 )
             )
-            Log.d("OrderDto", "【检查完成后添加】添加小费到feeLines: $tipAmount")
+//            Log.d("OrderDto", "【检查完成后添加】添加小费到feeLines: $tipAmount")
         }
     }
 
@@ -246,14 +246,14 @@ fun OrderDto.toOrder(): Order {
                     totalTax = "0.00" // 默认不含税
                 )
             )
-            Log.d("OrderDto", "【检查完成后添加】添加配送费到feeLines: $feeAmount")
+//            Log.d("OrderDto", "【检查完成后添加】添加配送费到feeLines: $feeAmount")
         }
     }
 
     // 记录最终的feeLines数量
-    Log.d("OrderDto", "【转换完成】订单#$number 最终feeLines数量: ${domainFeeLines.size}")
+//    Log.d("OrderDto", "【转换完成】订单#$number 最终feeLines数量: ${domainFeeLines.size}")
     domainFeeLines.forEach { feeLine ->
-        Log.d("OrderDto", "【转换完成】费用行: ${feeLine.name} = ${feeLine.total}")
+//        Log.d("OrderDto", "【转换完成】费用行: ${feeLine.name} = ${feeLine.total}")
     }
     
     // 如果没有税费行，但有总税费，创建一个默认税费行
@@ -297,7 +297,7 @@ fun OrderDto.toOrder(): Order {
 fun OrderDto.processWooFoodInfo(): WooFoodInfo? {
     // 仅保留关键日志
     if (BuildConfig.DEBUG) {
-        Log.d("OrderDto", "处理订单#$number 的WooFood信息和费用信息")
+//        Log.d("OrderDto", "处理订单#$number 的WooFood信息和费用信息")
     }
     
     if (this.metaData == null) {
@@ -315,7 +315,7 @@ fun OrderDto.processWooFoodInfo(): WooFoodInfo? {
                 feeLine.name.contains("appreciation", ignoreCase = true) ||
                 feeLine.name.contains("gratuity", ignoreCase = true) -> {
                     tipFromFee = feeLine.total
-                    Log.d("OrderDto", "【提取feeLines】找到小费: ${feeLine.name} = ${feeLine.total}")
+//                    Log.d("OrderDto", "【提取feeLines】找到小费: ${feeLine.name} = ${feeLine.total}")
                 }
                 feeLine.name.equals("Shipping fee", ignoreCase = true) ||
                 feeLine.name.equals("shipping fee", ignoreCase = true) ||
@@ -326,7 +326,7 @@ fun OrderDto.processWooFoodInfo(): WooFoodInfo? {
                 feeLine.name.contains("配送", ignoreCase = true) ||
                 feeLine.name.contains("运费", ignoreCase = true) -> {
                     deliveryFeeFromFee = feeLine.total
-                    Log.d("OrderDto", "【提取feeLines】找到配送费: ${feeLine.name} = ${feeLine.total}")
+//                    Log.d("OrderDto", "【提取feeLines】找到配送费: ${feeLine.name} = ${feeLine.total}")
                 }
             }
         }
@@ -343,7 +343,7 @@ fun OrderDto.processWooFoodInfo(): WooFoodInfo? {
             deliveryFee = deliveryFeeFromFee,
             tip = tipFromFee
         )
-        Log.d("OrderDto", "【从fee_lines创建】WooFoodInfo: $result")
+//        Log.d("OrderDto", "【从fee_lines创建】WooFoodInfo: $result")
         return result
     }
     
@@ -356,17 +356,17 @@ fun OrderDto.processWooFoodInfo(): WooFoodInfo? {
     
     // 从元数据中提取WooFood信息
     val orderMethod = findMetadataValue(orderMethodKeys)?.toString()
-    Log.d("OrderDto", "订单#$number 订单方式: $orderMethod")
+//    Log.d("OrderDto", "订单#$number 订单方式: $orderMethod")
     
     val deliveryTime = findMetadataValue(deliveryTimeKeys)?.toString()
-    Log.d("OrderDto", "订单#$number 配送时间: $deliveryTime")
+//    Log.d("OrderDto", "订单#$number 配送时间: $deliveryTime")
     
     val deliveryAddress = findMetadataValue(deliveryAddressKeys)?.toString()
     
     // 直接从元数据提取配送费和小费，明确记录日志
     var deliveryFee = findMetadataValue(deliveryFeeKeys)?.toString()
     var tip = findMetadataValue(tipKeys)?.toString()
-    Log.d("OrderDto", "从元数据中提取: 配送费=$deliveryFee, 小费=$tip")
+//    Log.d("OrderDto", "从元数据中提取: 配送费=$deliveryFee, 小费=$tip")
     
     // 如果在元数据中未找到，尝试从fee_lines提取配送费
     if ((deliveryFee == null || deliveryFee == "0.00") && 
@@ -402,7 +402,7 @@ fun OrderDto.processWooFoodInfo(): WooFoodInfo? {
             it.name.contains("delivery charge", ignoreCase = true)
         }
         deliveryFee = deliveryFeeLine?.total
-        Log.d("OrderDto", "从fee_lines中提取到配送费: $deliveryFee")
+//        Log.d("OrderDto", "从fee_lines中提取到配送费: $deliveryFee")
     }
     
     // 从客户备注中尝试提取配送费信息
@@ -413,7 +413,7 @@ fun OrderDto.processWooFoodInfo(): WooFoodInfo? {
         if (deliveryFeeMatch != null && deliveryFeeMatch.groupValues.size > 2) {
             // 提取金额并删除货币符号
             deliveryFee = deliveryFeeMatch.groupValues[2].replace("[¥￥$\\s]".toRegex(), "")
-            Log.d("OrderDto", "从客户备注中提取到配送费: $deliveryFee")
+//            Log.d("OrderDto", "从客户备注中提取到配送费: $deliveryFee")
         }
     }
     
@@ -435,7 +435,7 @@ fun OrderDto.processWooFoodInfo(): WooFoodInfo? {
             it.name.contains("appreciation", ignoreCase = true)
         }
         tip = tipLine?.total
-        Log.d("OrderDto", "从fee_lines中提取到小费: $tip (${tipLine?.name})")
+//        Log.d("OrderDto", "从fee_lines中提取到小费: $tip (${tipLine?.name})")
     }
     
     // 计算是否为配送订单
@@ -477,14 +477,14 @@ fun OrderDto.processWooFoodInfo(): WooFoodInfo? {
         
         if (possibleDeliveryFee != null && possibleDeliveryFee != "0.00") {
             deliveryFee = possibleDeliveryFee
-            Log.d("OrderDto", "外卖订单设置可能的配送费: $deliveryFee")
+//            Log.d("OrderDto", "外卖订单设置可能的配送费: $deliveryFee")
         }
     }
     
-    Log.d("OrderDto", "订单#$number 是否为配送订单: $isDelivery, 配送费: $deliveryFee, 小费: $tip")
+//    Log.d("OrderDto", "订单#$number 是否为配送订单: $isDelivery, 配送费: $deliveryFee, 小费: $tip")
 
     // 添加额外日志帮助调试
-    Log.d("OrderDto", "【数据传递】创建WooFoodInfo - 配送费:$deliveryFee, 小费:$tip, 是否外卖:$isDelivery")
+//    Log.d("OrderDto", "【数据传递】创建WooFoodInfo - 配送费:$deliveryFee, 小费:$tip, 是否外卖:$isDelivery")
 
     // 创建并返回WooFoodInfo
     return WooFoodInfo(

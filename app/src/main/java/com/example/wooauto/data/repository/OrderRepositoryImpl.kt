@@ -84,7 +84,7 @@ class OrderRepositoryImpl @Inject constructor(
     }
 
     override suspend fun getOrderById(orderId: Long): Order? = withContext(Dispatchers.IO) {
-        Log.d("OrderRepositoryImpl", "按ID获取订单: $orderId")
+//        Log.d("OrderRepositoryImpl", "按ID获取订单: $orderId")
         
         // 首先检查缓存
         if (!isOrdersCached) {
@@ -130,7 +130,7 @@ class OrderRepositoryImpl @Inject constructor(
     }
 
     override suspend fun updateOrderStatus(orderId: Long, newStatus: String): Result<Order> = withContext(Dispatchers.IO) {
-        Log.d("OrderRepositoryImpl", "更新订单状态: $orderId -> $newStatus")
+//        Log.d("OrderRepositoryImpl", "更新订单状态: $orderId -> $newStatus")
         
         try {
             val api = getApi()
@@ -156,7 +156,7 @@ class OrderRepositoryImpl @Inject constructor(
     }
 
     override suspend fun refreshOrders(status: String?, afterDate: Date?): Result<List<Order>> = withContext(Dispatchers.IO) {
-        Log.d("OrderRepositoryImpl", "【状态刷新】开始刷新订单，状态: ${status ?: "全部"}")
+//        Log.d("OrderRepositoryImpl", "【状态刷新】开始刷新订单，状态: ${status ?: "全部"}")
         
         try {
             val config = settingsRepository.getWooCommerceConfig()
@@ -200,7 +200,7 @@ class OrderRepositoryImpl @Inject constructor(
                 // 直接判断输入是否已经是有效的API状态
                 if (validApiStatuses.contains(cleanStatus)) {
                     // 如果已经是有效的API状态，直接使用
-                    Log.d("OrderRepositoryImpl", "【状态刷新】直接使用有效状态: '$cleanStatus'")
+//                    Log.d("OrderRepositoryImpl", "【状态刷新】直接使用有效状态: '$cleanStatus'")
                     cleanStatus
                 } else {
                     // 如果不是有效API状态，尝试从中文映射到英文
@@ -208,7 +208,7 @@ class OrderRepositoryImpl @Inject constructor(
                     
                     if (mappedStatus != null && validApiStatuses.contains(mappedStatus)) {
                         // 映射成功且是有效状态
-                        Log.d("OrderRepositoryImpl", "【状态刷新】状态映射成功: '$cleanStatus' -> '$mappedStatus'")
+//                        Log.d("OrderRepositoryImpl", "【状态刷新】状态映射成功: '$cleanStatus' -> '$mappedStatus'")
                         mappedStatus
                     } else {
                         // 无法映射或映射结果不是有效状态，使用"any"
@@ -222,16 +222,16 @@ class OrderRepositoryImpl @Inject constructor(
             
             try {
                 // 清晰地记录完整的API调用信息
-                Log.d("OrderRepositoryImpl", "【状态刷新】调用API: getOrders(page=1, perPage=100, status=$apiStatus)")
+//                Log.d("OrderRepositoryImpl", "【状态刷新】调用API: getOrders(page=1, perPage=100, status=$apiStatus)")
                 
                 // 使用API状态值调用API
                 val response = api.getOrders(1, 100, apiStatus)
                 
-                Log.d("OrderRepositoryImpl", "【状态刷新】API返回 ${response.size} 个订单")
+//                Log.d("OrderRepositoryImpl", "【状态刷新】API返回 ${response.size} 个订单")
                 
                 // 记录返回订单的状态分布
                 val statusCounts = response.groupBy { order -> order.status }.mapValues { entry -> entry.value.size }
-                Log.d("OrderRepositoryImpl", "【状态刷新】状态分布: $statusCounts")
+//                Log.d("OrderRepositoryImpl", "【状态刷新】状态分布: $statusCounts")
                 
                 // 如果请求了特定状态，但返回的订单中没有该状态的订单，记录警告
                 if (apiStatus != null && !statusCounts.containsKey(apiStatus)) {
@@ -247,16 +247,16 @@ class OrderRepositoryImpl @Inject constructor(
                 
                 // 记录当前数据库中已打印订单的数量
                 val printedOrdersInDb = currentOrders.filter { it.isPrinted }
-                Log.d("OrderRepositoryImpl", "【状态刷新】当前数据库中已打印订单数量: ${printedOrdersInDb.size}")
+//                Log.d("OrderRepositoryImpl", "【状态刷新】当前数据库中已打印订单数量: ${printedOrdersInDb.size}")
                 
                 // 记录内存中的订单状态以便对比
                 val memoryOrderMap = cachedOrders.associateBy { it.id }
                 val printedOrdersInMemory = cachedOrders.filter { it.isPrinted }
-                Log.d("OrderRepositoryImpl", "【状态刷新】当前内存中已打印订单数量: ${printedOrdersInMemory.size}")
+//                Log.d("OrderRepositoryImpl", "【状态刷新】当前内存中已打印订单数量: ${printedOrdersInMemory.size}")
                 
                 // 检查内存和数据库的状态差异
                 if (printedOrdersInMemory.size != printedOrdersInDb.size) {
-                    Log.d("OrderRepositoryImpl", "【状态刷新】内存和数据库打印状态不一致，内存: ${printedOrdersInMemory.size}，数据库: ${printedOrdersInDb.size}")
+//                    Log.d("OrderRepositoryImpl", "【状态刷新】内存和数据库打印状态不一致，内存: ${printedOrdersInMemory.size}，数据库: ${printedOrdersInDb.size}")
                 }
                 
                 // 更新缓存，以内存状态为准
@@ -269,7 +269,7 @@ class OrderRepositoryImpl @Inject constructor(
                     if (memoryOrder != null) {
                         // 如果内存中存在，使用内存中的打印状态
                         if (memoryOrder.isPrinted) {
-                            Log.d("OrderRepositoryImpl", "【状态刷新】使用内存中的状态，保留订单 #${entity.number} (ID: ${entity.id}) 的已打印状态")
+//                            Log.d("OrderRepositoryImpl", "【状态刷新】使用内存中的状态，保留订单 #${entity.number} (ID: ${entity.id}) 的已打印状态")
                             entity.copy(isPrinted = true)
                         } else {
                             entity
@@ -278,7 +278,7 @@ class OrderRepositoryImpl @Inject constructor(
                         // 如果内存中不存在，检查数据库
                         val existingOrder = currentOrderMap[entity.id]
                         if (existingOrder?.isPrinted == true) {
-                            Log.d("OrderRepositoryImpl", "【状态刷新】订单在内存中不存在，但数据库标记为已打印，保留状态: #${entity.number}")
+//                            Log.d("OrderRepositoryImpl", "【状态刷新】订单在内存中不存在，但数据库标记为已打印，保留状态: #${entity.number}")
                             entity.copy(isPrinted = true)
                         } else {
                             entity
@@ -297,7 +297,7 @@ class OrderRepositoryImpl @Inject constructor(
                         .map { it.id }
                     
                     if (idsToDelete.isNotEmpty()) {
-                        Log.d("OrderRepositoryImpl", "【状态刷新】删除不再存在的订单: $idsToDelete")
+//                        Log.d("OrderRepositoryImpl", "【状态刷新】删除不再存在的订单: $idsToDelete")
                         // 处理需要删除的订单
                         idsToDelete.forEach { id ->
                             orderDao.deleteOrderById(id)
@@ -305,12 +305,12 @@ class OrderRepositoryImpl @Inject constructor(
                     }
                 } else {
                     // 只删除特定状态的订单，保留打印状态标记
-                    Log.d("OrderRepositoryImpl", "【状态刷新】只更新 $status 状态的订单")
+//                    Log.d("OrderRepositoryImpl", "【状态刷新】只更新 $status 状态的订单")
                     orderDao.deleteOrdersByStatus(status)
                 }
                 
                 // 插入或更新订单
-                Log.d("OrderRepositoryImpl", "【状态刷新】更新 ${entitiesWithPrintStatus.size} 个订单")
+//                Log.d("OrderRepositoryImpl", "【状态刷新】更新 ${entitiesWithPrintStatus.size} 个订单")
                 orderDao.insertOrders(entitiesWithPrintStatus)
                 
                 // 同样更新缓存，保留已打印状态，但确保以内存状态为准
@@ -321,7 +321,7 @@ class OrderRepositoryImpl @Inject constructor(
                         // 如果内存中存在，保留内存中的打印状态
                         if (memoryOrder.isPrinted != order.isPrinted) {
                             // 只有在状态不同时才记录日志，避免日志过多
-                            Log.d("OrderRepositoryImpl", "【状态刷新】订单 #${order.number} 保留内存中的打印状态: ${memoryOrder.isPrinted}")
+//                            Log.d("OrderRepositoryImpl", "【状态刷新】订单 #${order.number} 保留内存中的打印状态: ${memoryOrder.isPrinted}")
                             order.copy(isPrinted = memoryOrder.isPrinted)
                         } else {
                             order
@@ -352,13 +352,13 @@ class OrderRepositoryImpl @Inject constructor(
                                       (statusMap.entries.find { entry -> entry.value == status }?.key == orderStatus)
                         
                         if (!matches) {
-                            Log.d("OrderRepositoryImpl", "【状态过滤】订单 ${it.id} 状态 '$orderStatus' 与请求状态 '$status' 不匹配")
+//                            Log.d("OrderRepositoryImpl", "【状态过滤】订单 ${it.id} 状态 '$orderStatus' 与请求状态 '$status' 不匹配")
                         }
                         
                         matches
                     }
                     
-                    Log.d("OrderRepositoryImpl", "【状态过滤】本地过滤后，符合状态 '$status' 的订单数量: ${filteredOrders.size}")
+//                    Log.d("OrderRepositoryImpl", "【状态过滤】本地过滤后，符合状态 '$status' 的订单数量: ${filteredOrders.size}")
                     filteredOrders
                 } else {
                     cachedOrders
@@ -399,7 +399,7 @@ class OrderRepositoryImpl @Inject constructor(
      * 此方法不会修改_ordersFlow，因此不会干扰用户当前的筛选状态
      */
     override suspend fun refreshProcessingOrdersForPolling(afterDate: Date?): Result<List<Order>> = withContext(Dispatchers.IO) {
-        Log.d("OrderRepositoryImpl", "【轮询刷新】开始查询处理中订单(UI安全)")
+//        Log.d("OrderRepositoryImpl", "【轮询刷新】开始查询处理中订单(UI安全)")
         
         try {
             val config = settingsRepository.getWooCommerceConfig()
@@ -412,16 +412,16 @@ class OrderRepositoryImpl @Inject constructor(
             
             try {
                 // 使用固定的"processing"状态，确保只查询处理中的订单
-                Log.d("OrderRepositoryImpl", "【轮询刷新】调用API: getOrders(page=1, perPage=100, status=processing)")
+//                Log.d("OrderRepositoryImpl", "【轮询刷新】调用API: getOrders(page=1, perPage=100, status=processing)")
                 
                 // 调用API获取处理中订单
                 val response = api.getOrders(1, 100, "processing")
                 
-                Log.d("OrderRepositoryImpl", "【轮询刷新】API返回 ${response.size} 个处理中订单")
+//                Log.d("OrderRepositoryImpl", "【轮询刷新】API返回 ${response.size} 个处理中订单")
                 
                 // 记录返回订单的状态分布
                 val statusCounts = response.groupBy { order -> order.status }.mapValues { entry -> entry.value.size }
-                Log.d("OrderRepositoryImpl", "【轮询刷新】状态分布: $statusCounts")
+//                Log.d("OrderRepositoryImpl", "【轮询刷新】状态分布: $statusCounts")
                 
                 // 转换为领域模型
                 val orders = response.map { orderDto -> orderDto.toOrder() }
@@ -434,11 +434,11 @@ class OrderRepositoryImpl @Inject constructor(
                 val cachedProcessingOrders = cachedOrders.filter { it.status == "processing" }
                 val memoryOrderMap = cachedProcessingOrders.associateBy { it.id }
                 
-                Log.d("OrderRepositoryImpl", "【轮询刷新】数据库中处理中订单: ${currentProcessingOrders.size}个, 内存中: ${cachedProcessingOrders.size}个")
+//                Log.d("OrderRepositoryImpl", "【轮询刷新】数据库中处理中订单: ${currentProcessingOrders.size}个, 内存中: ${cachedProcessingOrders.size}个")
                 
                 // 记录内存中已打印的订单
                 val printedInMemory = cachedProcessingOrders.filter { it.isPrinted }.map { it.id }
-                Log.d("OrderRepositoryImpl", "【轮询刷新】内存中已打印订单ID: $printedInMemory")
+//                Log.d("OrderRepositoryImpl", "【轮询刷新】内存中已打印订单ID: $printedInMemory")
                 
                 // 创建新的处理中订单实体，以内存状态为准
                 val entitiesWithPrintStatus = orders.map { order -> 
@@ -449,13 +449,13 @@ class OrderRepositoryImpl @Inject constructor(
                     
                     if (cachedOrder != null) {
                         // 如果内存中存在，使用内存中的打印状态
-                        Log.d("OrderRepositoryImpl", "【轮询刷新】订单 #${entity.number} 在内存中存在，打印状态: ${cachedOrder.isPrinted}")
+//                        Log.d("OrderRepositoryImpl", "【轮询刷新】订单 #${entity.number} 在内存中存在，打印状态: ${cachedOrder.isPrinted}")
                         entity.copy(isPrinted = cachedOrder.isPrinted)
                     } else {
                         // 如果内存中不存在但数据库中存在，使用数据库打印状态
                         val dbOrder = dbOrderMap[entity.id]
                         if (dbOrder?.isPrinted == true) {
-                            Log.d("OrderRepositoryImpl", "【轮询刷新】订单 #${entity.number} 在内存中不存在，但数据库标记为已打印")
+//                            Log.d("OrderRepositoryImpl", "【轮询刷新】订单 #${entity.number} 在内存中不存在，但数据库标记为已打印")
                             entity.copy(isPrinted = true)
                         } else {
                             entity
@@ -473,7 +473,7 @@ class OrderRepositoryImpl @Inject constructor(
                     .map { it.id }
                 
                 if (idsToDelete.isNotEmpty()) {
-                    Log.d("OrderRepositoryImpl", "【轮询刷新】删除不再是processing状态的订单: $idsToDelete")
+//                    Log.d("OrderRepositoryImpl", "【轮询刷新】删除不再是processing状态的订单: $idsToDelete")
                     // 处理需要删除的订单
                     idsToDelete.forEach { id ->
                         orderDao.deleteOrderById(id)
@@ -481,11 +481,11 @@ class OrderRepositoryImpl @Inject constructor(
                 }
                 
                 // 3. 使用insertOrders进行批量更新（Room的REPLACE策略）
-                Log.d("OrderRepositoryImpl", "【轮询刷新】更新 ${entitiesWithPrintStatus.size} 个processing订单")
+//                Log.d("OrderRepositoryImpl", "【轮询刷新】更新 ${entitiesWithPrintStatus.size} 个processing订单")
                 orderDao.insertOrders(entitiesWithPrintStatus)
                 
                 // 注意：这里特意不更新_ordersFlow，以避免影响UI显示
-                Log.d("OrderRepositoryImpl", "【轮询刷新】成功获取处理中订单，不影响UI状态")
+//                Log.d("OrderRepositoryImpl", "【轮询刷新】成功获取处理中订单，不影响UI状态")
                 
                 // 返回带有打印状态的订单
                 val ordersWithPrintStatus = orders.map { order ->
@@ -493,7 +493,7 @@ class OrderRepositoryImpl @Inject constructor(
                     if (cachedOrder != null) {
                         // 使用内存状态
                         if (cachedOrder.isPrinted != order.isPrinted) {
-                            Log.d("OrderRepositoryImpl", "【轮询刷新】使用内存中订单 #${order.number} 的打印状态: ${cachedOrder.isPrinted}")
+//                            Log.d("OrderRepositoryImpl", "【轮询刷新】使用内存中订单 #${order.number} 的打印状态: ${cachedOrder.isPrinted}")
                             order.copy(isPrinted = cachedOrder.isPrinted)
                         } else {
                             order
@@ -526,19 +526,19 @@ class OrderRepositoryImpl @Inject constructor(
     }
 
     override suspend fun markOrderAsPrinted(orderId: Long): Boolean = withContext(Dispatchers.IO) {
-        Log.d("OrderRepositoryImpl", "标记订单为已打印: $orderId")
+//        Log.d("OrderRepositoryImpl", "标记订单为已打印: $orderId")
         
         try {
             // 先获取订单当前状态并记录日志
             val orderBefore = orderDao.getOrderById(orderId)
-            Log.d("OrderRepositoryImpl", "打印前订单状态: ID=$orderId, 已打印=${orderBefore?.isPrinted}, 状态=${orderBefore?.status}")
+//            Log.d("OrderRepositoryImpl", "打印前订单状态: ID=$orderId, 已打印=${orderBefore?.isPrinted}, 状态=${orderBefore?.status}")
             
             // 更新数据库
             orderDao.updateOrderPrintStatus(orderId, true)
             
             // 验证更新是否成功
             val orderAfter = orderDao.getOrderById(orderId)
-            Log.d("OrderRepositoryImpl", "打印后订单状态: ID=$orderId, 已打印=${orderAfter?.isPrinted}, 状态=${orderAfter?.status}")
+//            Log.d("OrderRepositoryImpl", "打印后订单状态: ID=$orderId, 已打印=${orderAfter?.isPrinted}, 状态=${orderAfter?.status}")
             
             // 更新缓存和流
             val updatedList = cachedOrders.map { 
@@ -565,19 +565,19 @@ class OrderRepositoryImpl @Inject constructor(
     }
 
     override suspend fun markOrderAsUnprinted(orderId: Long): Boolean = withContext(Dispatchers.IO) {
-        Log.d("OrderRepositoryImpl", "标记订单为未打印: $orderId")
+//        Log.d("OrderRepositoryImpl", "标记订单为未打印: $orderId")
         
         try {
             // 先获取订单当前状态并记录日志
             val orderBefore = orderDao.getOrderById(orderId)
-            Log.d("OrderRepositoryImpl", "修改前订单状态: ID=$orderId, 已打印=${orderBefore?.isPrinted}, 状态=${orderBefore?.status}")
+//            Log.d("OrderRepositoryImpl", "修改前订单状态: ID=$orderId, 已打印=${orderBefore?.isPrinted}, 状态=${orderBefore?.status}")
             
             // 更新数据库
             orderDao.updateOrderPrintStatus(orderId, false)
             
             // 验证更新是否成功
             val orderAfter = orderDao.getOrderById(orderId)
-            Log.d("OrderRepositoryImpl", "修改后订单状态: ID=$orderId, 已打印=${orderAfter?.isPrinted}, 状态=${orderAfter?.status}")
+//            Log.d("OrderRepositoryImpl", "修改后订单状态: ID=$orderId, 已打印=${orderAfter?.isPrinted}, 状态=${orderAfter?.status}")
             
             // 更新缓存和流
             val updatedList = cachedOrders.map { 
@@ -604,7 +604,7 @@ class OrderRepositoryImpl @Inject constructor(
     }
 
     override suspend fun markOrderNotificationShown(orderId: Long): Result<Unit> = withContext(Dispatchers.IO) {
-        Log.d("OrderRepositoryImpl", "标记订单通知为已显示: $orderId")
+//        Log.d("OrderRepositoryImpl", "标记订单通知为已显示: $orderId")
         
         try {
             // 更新数据库
@@ -637,7 +637,7 @@ class OrderRepositoryImpl @Inject constructor(
     }
 
     override fun getOrdersByStatusFlow(status: String): Flow<List<Order>> {
-        Log.d("OrderRepositoryImpl", "【状态调试】获取状态为 '$status' 的订单流")
+//        Log.d("OrderRepositoryImpl", "【状态调试】获取状态为 '$status' 的订单流")
         
         // 创建中英文状态映射表
         val statusMap = mapOf(
@@ -671,19 +671,19 @@ class OrderRepositoryImpl @Inject constructor(
                 val matches = matchesDirect || matchesViaChinese || matchesViaEnglish
                 
                 if (!matches) {
-                    Log.d("OrderRepositoryImpl", "【状态过滤】订单 ${order.id} 状态 '${order.status}' 与请求状态 '$status' 不匹配")
+//                    Log.d("OrderRepositoryImpl", "【状态过滤】订单 ${order.id} 状态 '${order.status}' 与请求状态 '$status' 不匹配")
                 }
                 
                 matches
             }
             
-            Log.d("OrderRepositoryImpl", "【状态调试】过滤后找到 ${filteredOrders.size} 个 '$status' 状态的订单")
+//            Log.d("OrderRepositoryImpl", "【状态调试】过滤后找到 ${filteredOrders.size} 个 '$status' 状态的订单")
             filteredOrders
         }
     }
 
     override suspend fun searchOrders(query: String): List<Order> = withContext(Dispatchers.IO) {
-        Log.d("OrderRepositoryImpl", "搜索订单: $query")
+//        Log.d("OrderRepositoryImpl", "搜索订单: $query")
         
         if (!isOrdersCached) {
             refreshOrders()
@@ -700,7 +700,7 @@ class OrderRepositoryImpl @Inject constructor(
     }
 
     override suspend fun testConnection(config: WooCommerceConfig?): Boolean = withContext(Dispatchers.IO) {
-        Log.d("OrderRepositoryImpl", "测试API连接")
+//        Log.d("OrderRepositoryImpl", "测试API连接")
         
         return@withContext try {
             val api = getApi(config)
@@ -715,11 +715,11 @@ class OrderRepositoryImpl @Inject constructor(
 
     private fun updateOrdersByStatus() {
         val groupedOrders = cachedOrders.groupBy { it.status }
-        Log.d("OrderRepositoryImpl", "【状态分组】所有状态: ${groupedOrders.keys.joinToString()}")
+//        Log.d("OrderRepositoryImpl", "【状态分组】所有状态: ${groupedOrders.keys.joinToString()}")
         
         // 记录每个状态的订单数量
         groupedOrders.forEach { (status, orders) ->
-            Log.d("OrderRepositoryImpl", "【状态分组】'$status' 状态有 ${orders.size} 个订单")
+//            Log.d("OrderRepositoryImpl", "【状态分组】'$status' 状态有 ${orders.size} 个订单")
         }
         
         _ordersByStatusFlow.value = groupedOrders
@@ -760,9 +760,9 @@ class OrderRepositoryImpl @Inject constructor(
         }
         
         // 记录日志用于调试
-        Log.d("OrderRepositoryImpl", "订单#${entity.number} - 映射实体到模型，feeLines数量: ${entity.feeLines.size}")
+//        Log.d("OrderRepositoryImpl", "订单#${entity.number} - 映射实体到模型，feeLines数量: ${entity.feeLines.size}")
         entity.feeLines.forEach { feeLine ->
-            Log.d("OrderRepositoryImpl", "订单#${entity.number} - 费用行: ${feeLine.name} = ${feeLine.total}")
+//            Log.d("OrderRepositoryImpl", "订单#${entity.number} - 费用行: ${feeLine.name} = ${feeLine.total}")
         }
         
         // 将实体中的费用行转换为领域模型费用行
@@ -868,7 +868,7 @@ class OrderRepositoryImpl @Inject constructor(
             if (deliveryFeeMatch != null && deliveryFeeMatch.groupValues.size > 2) {
                 // 提取金额并删除货币符号
                 deliveryFee = deliveryFeeMatch.groupValues[2].replace("[¥￥$\\s]".toRegex(), "")
-                Log.d("OrderRepositoryImpl", "从备注提取到外卖费: $deliveryFee")
+//                Log.d("OrderRepositoryImpl", "从备注提取到外卖费: $deliveryFee")
             } else if (isDelivery) {
                 // 如果找不到具体的外卖费但确定是外卖订单，尝试从其他方式检测
                 // 检查订单备注中是否有与外卖相关的其他信息
@@ -879,7 +879,7 @@ class OrderRepositoryImpl @Inject constructor(
                                      entity.paymentMethodTitle.contains("货到付款")
                 
                 if (hasDeliveryInfo) {
-                    Log.d("OrderRepositoryImpl", "订单备注中包含外卖相关信息，设置默认值")
+//                    Log.d("OrderRepositoryImpl", "订单备注中包含外卖相关信息，设置默认值")
                     // 仍然设置为0，但记录该订单确实是外卖订单
                     deliveryFee = "0.00"
                 }
@@ -946,22 +946,7 @@ class OrderRepositoryImpl @Inject constructor(
         
         return null
     }
-    
-    /**
-     * 提取外卖费
-     */
-    private fun extractDeliveryFee(entity: com.example.wooauto.data.local.entities.OrderEntity): String? {
-        // 此方法已移到parseWooFoodInfo中的内联代码
-        return null
-    }
-    
-    /**
-     * 提取小费
-     */
-    private fun extractTip(entity: com.example.wooauto.data.local.entities.OrderEntity): String? {
-        // 此方法已移到parseWooFoodInfo中的内联代码
-        return null
-    }
+
 
     /**
      * 获取缓存的订单数据（不触发API请求）
@@ -984,7 +969,7 @@ class OrderRepositoryImpl @Inject constructor(
             cachedOrders = orders
             isOrdersCached = true
             
-            Log.d("OrderRepositoryImpl", "从数据库加载了${orders.size}个订单")
+//            Log.d("OrderRepositoryImpl", "从数据库加载了${orders.size}个订单")
             return@withContext orders
         } catch (e: Exception) {
             Log.e("OrderRepositoryImpl", "从数据库加载缓存订单失败: ${e.message}")
@@ -998,7 +983,7 @@ class OrderRepositoryImpl @Inject constructor(
      * @return 刷新结果
      */
     override suspend fun refreshOrdersByStatus(status: String): Result<List<Order>> = withContext(Dispatchers.IO) {
-        Log.d("OrderRepositoryImpl", "刷新特定状态订单: $status")
+//        Log.d("OrderRepositoryImpl", "刷新特定状态订单: $status")
         
         try {
             // 重用现有的refreshOrders方法，只传入状态参数
