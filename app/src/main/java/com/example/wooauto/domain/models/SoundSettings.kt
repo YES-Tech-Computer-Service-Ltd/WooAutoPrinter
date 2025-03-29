@@ -33,15 +33,15 @@ data class SoundSettings(
             )
         }
         
-        // 获取声音类型的显示名称
+        // 获取声音类型的显示名称 - 返回空字符串，让调用者决定如何展示
         fun getSoundTypeDisplayName(type: String): String {
             return when (type) {
-                SOUND_TYPE_DEFAULT -> "默认提示音"
-                SOUND_TYPE_BELL -> "铃声"
-                SOUND_TYPE_CASH -> "收银音效"
-                SOUND_TYPE_ALERT -> "警报音"
-                SOUND_TYPE_CHIME -> "风铃声"
-                else -> "未知声音"
+                SOUND_TYPE_DEFAULT -> ""
+                SOUND_TYPE_BELL -> ""
+                SOUND_TYPE_CASH -> ""
+                SOUND_TYPE_ALERT -> ""
+                SOUND_TYPE_CHIME -> ""
+                else -> ""
             }
         }
     }

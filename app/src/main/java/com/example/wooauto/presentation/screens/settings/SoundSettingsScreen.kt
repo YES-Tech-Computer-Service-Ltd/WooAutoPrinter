@@ -21,10 +21,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.example.wooauto.R
 import com.example.wooauto.domain.models.SoundSettings
 import kotlinx.coroutines.launch
 
@@ -44,13 +46,16 @@ fun SoundSettingsScreen(
     
     val scrollState = rememberScrollState()
     
+    // 在Composable函数中提前获取字符串资源
+    val savedMessage = stringResource(id = R.string.sound_settings_saved)
+    
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("声音设置") },
+                title = { Text(stringResource(id = R.string.sound_settings)) },
                 navigationIcon = {
                     IconButton(onClick = { navController.navigateUp() }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(id = R.string.back))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -71,7 +76,7 @@ fun SoundSettingsScreen(
                     onClick = {
                         coroutineScope.launch {
                             viewModel.saveSettings()
-                            snackbarHostState.showSnackbar("声音设置已保存")
+                            snackbarHostState.showSnackbar(savedMessage)
                         }
                         navController.navigateUp()
                     },
@@ -84,7 +89,7 @@ fun SoundSettingsScreen(
                         contentDescription = null,
                         modifier = Modifier.padding(end = 8.dp)
                     )
-                    Text("保存设置")
+                    Text(stringResource(id = R.string.save_settings))
                 }
             }
         }
@@ -110,7 +115,7 @@ fun SoundSettingsScreen(
             
             // 音量调节部分
             Text(
-                text = "通知音量",
+                text = stringResource(id = R.string.notification_volume),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
@@ -118,7 +123,7 @@ fun SoundSettingsScreen(
             Spacer(modifier = Modifier.height(8.dp))
             
             Text(
-                text = "调整提示音量大小，不影响系统音量",
+                text = stringResource(id = R.string.notification_volume_desc),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -139,7 +144,7 @@ fun SoundSettingsScreen(
             
             // 声音类型选择部分
             Text(
-                text = "提示音类型",
+                text = stringResource(id = R.string.sound_type_title),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
@@ -147,7 +152,7 @@ fun SoundSettingsScreen(
             Spacer(modifier = Modifier.height(8.dp))
             
             Text(
-                text = "选择新订单提示音",
+                text = stringResource(id = R.string.sound_type_desc),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -190,11 +195,11 @@ fun SoundEnabledSwitch(
             modifier = Modifier.weight(1f)
         ) {
             Text(
-                text = "启用声音",
+                text = stringResource(id = R.string.enable_sound),
                 style = MaterialTheme.typography.titleMedium
             )
             Text(
-                text = "控制是否播放新订单提示音",
+                text = stringResource(id = R.string.enable_sound_desc),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -223,18 +228,18 @@ fun VolumeSlider(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(
-                text = "0%",
+                text = stringResource(id = R.string.volume_min),
                 style = MaterialTheme.typography.bodySmall,
                 color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
             )
             Text(
-                text = "${value}%",
+                text = "$value%",
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Bold,
                 color = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
             )
             Text(
-                text = "100%",
+                text = stringResource(id = R.string.volume_max),
                 style = MaterialTheme.typography.bodySmall,
                 color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
             )
@@ -261,7 +266,15 @@ fun SoundTypeSelector(
         modifier = Modifier.fillMaxWidth()
     ) {
         SoundSettings.getAllSoundTypes().forEach { type ->
-            val displayName = SoundSettings.getSoundTypeDisplayName(type)
+            val displayTextResId = when(type) {
+                SoundSettings.SOUND_TYPE_DEFAULT -> R.string.sound_type_default
+                SoundSettings.SOUND_TYPE_BELL -> R.string.sound_type_bell
+                SoundSettings.SOUND_TYPE_CASH -> R.string.sound_type_cash
+                SoundSettings.SOUND_TYPE_ALERT -> R.string.sound_type_alert
+                SoundSettings.SOUND_TYPE_CHIME -> R.string.sound_type_chime
+                else -> R.string.sound_type_unknown
+            }
+            
             val isSelected = type == selectedType
             
             Row(
@@ -290,7 +303,7 @@ fun SoundTypeSelector(
                 )
                 
                 Text(
-                    text = displayName,
+                    text = stringResource(id = displayTextResId),
                     style = MaterialTheme.typography.bodyLarge,
                     modifier = Modifier
                         .padding(start = 16.dp)
