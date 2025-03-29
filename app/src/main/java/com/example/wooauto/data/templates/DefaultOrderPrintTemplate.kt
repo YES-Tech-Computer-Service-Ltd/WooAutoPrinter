@@ -156,7 +156,7 @@ class DefaultOrderPrintTemplate @Inject constructor(
         // 支付信息
         // 先显示小计
         if (order.subtotal.isNotEmpty()) {
-            sb.append(formatter.formatLeftRightText("小计:", order.subtotal, paperWidth))
+            sb.append(formatter.formatLeftRightText("subtotal:", order.subtotal, paperWidth))
         }
         
         // 显示税费明细
@@ -173,26 +173,26 @@ class DefaultOrderPrintTemplate @Inject constructor(
         
         // 如果没有税费明细但有总税费
         if (order.taxLines.isEmpty() && order.totalTax.isNotEmpty()) {
-            sb.append(formatter.formatLeftRightText("税费:", order.totalTax, paperWidth))
+            sb.append(formatter.formatLeftRightText("tax:", order.totalTax, paperWidth))
         }
         
         // 显示外卖费用
         if (order.woofoodInfo?.deliveryFee != null && order.woofoodInfo.deliveryFee.isNotEmpty()) {
-            sb.append(formatter.formatLeftRightText("外卖费用:", order.woofoodInfo.deliveryFee, paperWidth))
+            sb.append(formatter.formatLeftRightText("delivery fee:", order.woofoodInfo.deliveryFee, paperWidth))
         }
         
         // 显示小费
         if (order.woofoodInfo?.tip != null && order.woofoodInfo.tip.isNotEmpty()) {
-            sb.append(formatter.formatLeftRightText("小费:", order.woofoodInfo.tip, paperWidth))
+            sb.append(formatter.formatLeftRightText("tips:", order.woofoodInfo.tip, paperWidth))
         }
         
         // 显示折扣
         if (order.discountTotal.isNotEmpty() && order.discountTotal != "0.00") {
-            sb.append(formatter.formatLeftRightText("折扣:", "-${order.discountTotal}", paperWidth))
+            sb.append(formatter.formatLeftRightText("discount:", "-${order.discountTotal}", paperWidth))
         }
         
-        sb.append(formatter.formatLeftRightText("总计:", order.total, paperWidth))
-        sb.append(formatter.formatLeftRightText("支付方式:", order.paymentMethod, paperWidth))
+        sb.append(formatter.formatLeftRightText("total:", order.total, paperWidth))
+        sb.append(formatter.formatLeftRightText("payment method:", order.paymentMethod, paperWidth))
         
         // 订单备注
         if (config.printOrderNotes && order.notes.isNotEmpty()) {
@@ -290,7 +290,7 @@ class DefaultOrderPrintTemplate @Inject constructor(
         // 支付信息
         // 先显示小计
         if (order.subtotal.isNotEmpty()) {
-            sb.append(formatter.formatLeftRightText("小计:", order.subtotal, paperWidth))
+            sb.append(formatter.formatLeftRightText("subtotal:", order.subtotal, paperWidth))
         }
         
         // 显示税费明细
@@ -307,26 +307,26 @@ class DefaultOrderPrintTemplate @Inject constructor(
         
         // 如果没有税费明细但有总税费
         if (order.taxLines.isEmpty() && order.totalTax.isNotEmpty()) {
-            sb.append(formatter.formatLeftRightText("税费:", order.totalTax, paperWidth))
+            sb.append(formatter.formatLeftRightText("tax:", order.totalTax, paperWidth))
         }
         
         // 显示外卖费用
         if (order.woofoodInfo?.deliveryFee != null && order.woofoodInfo.deliveryFee.isNotEmpty()) {
-            sb.append(formatter.formatLeftRightText("外卖费用:", order.woofoodInfo.deliveryFee, paperWidth))
+            sb.append(formatter.formatLeftRightText("delivery fee:", order.woofoodInfo.deliveryFee, paperWidth))
         }
         
         // 显示小费
         if (order.woofoodInfo?.tip != null && order.woofoodInfo.tip.isNotEmpty()) {
-            sb.append(formatter.formatLeftRightText("小费:", order.woofoodInfo.tip, paperWidth))
+            sb.append(formatter.formatLeftRightText("tips:", order.woofoodInfo.tip, paperWidth))
         }
         
         // 显示折扣
         if (order.discountTotal.isNotEmpty() && order.discountTotal != "0.00") {
-            sb.append(formatter.formatLeftRightText("折扣:", "-${order.discountTotal}", paperWidth))
+            sb.append(formatter.formatLeftRightText("discount:", "-${order.discountTotal}", paperWidth))
         }
         
-        sb.append(formatter.formatLeftRightText("总计:", order.total, paperWidth))
-        sb.append(formatter.formatLeftRightText("支付方式:", order.paymentMethod, paperWidth))
+        sb.append(formatter.formatLeftRightText("Total:", order.total, paperWidth))
+        sb.append(formatter.formatLeftRightText("paymentMethod:", order.paymentMethod, paperWidth))
         
         // 订单备注 (配送说明很重要)
         if (order.notes.isNotEmpty()) {
@@ -424,66 +424,41 @@ class DefaultOrderPrintTemplate @Inject constructor(
         
         // 标题
         sb.append(formatter.formatTitle(storeName, paperWidth))
-        sb.append(formatter.formatTitle("测试打印", paperWidth))
+        sb.append(formatter.formatTitle("printing test", paperWidth))
         sb.append(formatter.addEmptyLines(1))
         
         // 打印机信息
         sb.append(formatter.formatDivider(paperWidth))
-        sb.append(formatter.formatLabelValue("打印机", config.name, paperWidth))
-        sb.append(formatter.formatLabelValue("地址", config.address, paperWidth))
+        sb.append(formatter.formatLabelValue("printer name", config.name, paperWidth))
+        sb.append(formatter.formatLabelValue("printer address", config.address, paperWidth))
+        sb.append(formatter.formatLabelValue("printer brand", config.brand.displayName, paperWidth))
         
-        // 打印规格
-        sb.append(formatter.formatDivider(paperWidth))
         
         // 根据不同的打印宽度显示不同的信息
-        when (paperWidth) {
-            PrinterConfig.PAPER_WIDTH_57MM -> {
-                sb.append(formatter.formatLeftText("纸张: 58mm (有效宽度50mm)", paperWidth))
-                sb.append(formatter.formatLeftText("字符数: 约28个英文字符/行", paperWidth))
-                sb.append(formatter.formatLeftText("中文: 约14个汉字/行", paperWidth))
-                // 展示字符边界
-                sb.append(formatter.formatLeftText("1234567890123456789012345678", paperWidth))
-                sb.append(formatter.formatLeftText("一二三四五六七八九十一二三四", paperWidth))
-            }
-            PrinterConfig.PAPER_WIDTH_80MM -> {
-                sb.append(formatter.formatLeftText("纸张: 80mm (有效宽度72mm)", paperWidth))
-                sb.append(formatter.formatLeftText("字符数: 约42个英文字符/行", paperWidth))
-                sb.append(formatter.formatLeftText("中文: 约21个汉字/行", paperWidth))
-                // 展示字符边界
-                sb.append(formatter.formatLeftText("123456789012345678901234567890123456789012", paperWidth))
-                sb.append(formatter.formatLeftText("一二三四五六七八九十一二三四五六七八九十一", paperWidth))
-            }
-            else -> {
-                sb.append(formatter.formatLeftText("纸张: 未知宽度", paperWidth))
-                sb.append(formatter.formatLeftText("默认使用58mm规格", paperWidth))
-            }
+        val paperWidthInfo = when (paperWidth) {
+            PrinterConfig.PAPER_WIDTH_57MM -> "57mm"
+            PrinterConfig.PAPER_WIDTH_80MM -> "80mm"
+            else -> "${paperWidth}mm"
         }
         
-        // 显示样本商品
+        sb.append(formatter.formatLabelValue("paper width", paperWidthInfo, paperWidth))
+        
+        // 测试各种格式
         sb.append(formatter.formatDivider(paperWidth))
-        sb.append(formatter.formatLeftText("商品示例:", paperWidth))
+        sb.append(formatter.formatLeftText("left check", paperWidth))
+        sb.append(formatter.formatCenteredText("middle check", paperWidth))
+        sb.append(formatter.formatRightText("right check", paperWidth))
         
-        // 商品示例 - 短商品名
-        sb.append(formatter.formatItemPriceLine("香辣鸡腿堡", 2, "¥15.00", paperWidth))
-        
-        // 商品示例 - 长商品名
-        sb.append(formatter.formatItemPriceLine("超级豪华巨无霸芝士牛肉汉堡", 1, "¥28.00", paperWidth))
-        
-        // 分隔线
+        // 测试商品格式
         sb.append(formatter.formatDivider(paperWidth))
+        sb.append(formatter.formatItemPriceLine("Ginger Beef", 2, "38.00", paperWidth))
+        sb.append(formatter.formatItemPriceLine("Spicy Tofu", 1, "28.00", paperWidth))
+        sb.append(formatter.formatLeftRightText("total:", "66.00", paperWidth))
         
-        // 金额示例
-        sb.append(formatter.formatLeftRightText("小计:", "¥58.00", paperWidth))
-        sb.append(formatter.formatLeftRightText("税费:", "¥5.80", paperWidth))
-        sb.append(formatter.formatLeftRightText("总计:", "¥63.80", paperWidth))
-        
-        // 页脚
+        // 结尾
         sb.append(formatter.formatDivider(paperWidth))
-        sb.append(formatter.formatCenteredText("打印时间: " + formatter.formatDateTime(Date()), paperWidth))
-        sb.append(formatter.formatCenteredText("谢谢惠顾", paperWidth))
-        
-        // 添加额外的空行，方便撕纸
-        sb.append(formatter.addEmptyLines(3))
+        sb.append(formatter.formatCenteredText("printing test finished", paperWidth))
+        sb.append(formatter.addEmptyLines(1))
         
         return sb.toString()
     }
