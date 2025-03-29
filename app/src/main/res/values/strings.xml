@@ -296,4 +296,10 @@
     <string name="connection_test_failed">Connection test failed</string>
     <string name="scan_woocommerce_site_url_qr">Scan WooCommerce Site URL QR Code</string>
     <string name="please_fill_all_required_fields">Please fill all required fields</string>
+
+    <!-- API Configuration Check -->
+    <string name="checking_api_configuration">Checking API configuration...</string>
+    <string name="api_config_required">API Configuration Required</string>
+    <string name="api_config_message">Your WooCommerce API is not configured properly. Please check your settings.</string>
+    <string name="go_to_api_settings">Go to API Settings</string>
 </resources>

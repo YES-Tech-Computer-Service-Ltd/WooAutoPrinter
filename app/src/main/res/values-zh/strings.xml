@@ -295,4 +295,10 @@
     <string name="connection_test_failed">连接测试失败</string>
     <string name="scan_woocommerce_site_url_qr">扫描WooCommerce站点URL二维码</string>
     <string name="please_fill_all_required_fields">请填写所有必填字段</string>
+
+    <!-- API Configuration Check -->
+    <string name="checking_api_configuration">正在检查API配置...</string>
+    <string name="api_config_required">需要配置API</string>
+    <string name="api_config_message">您的WooCommerce API未正确配置。请检查您的设置。</string>
+    <string name="go_to_api_settings">前往API设置</string>
 </resources>
