@@ -335,7 +335,7 @@ fun UnconfiguredView(
         Spacer(modifier = Modifier.height(16.dp))
         
         Text(
-            text = "未配置WooCommerce API",
+            text = stringResource(id = R.string.error_api_not_configured),
             style = MaterialTheme.typography.headlineSmall,
             textAlign = TextAlign.Center
         )
@@ -361,7 +361,7 @@ fun UnconfiguredView(
                 modifier = Modifier.size(ButtonDefaults.IconSize)
             )
             Spacer(modifier = Modifier.width(ButtonDefaults.IconSpacing))
-            Text(text = "前往设置")
+            Text(text = stringResource(id = R.string.go_to_settings))
         }
     }
 }
@@ -389,7 +389,7 @@ fun ErrorView(
         Spacer(modifier = Modifier.height(16.dp))
         
         Text(
-            text = "获取产品数据失败",
+            text = stringResource(id = R.string.error_loading_products),
             style = MaterialTheme.typography.headlineSmall,
             textAlign = TextAlign.Center
         )
@@ -419,7 +419,7 @@ fun ErrorView(
                     modifier = Modifier.size(ButtonDefaults.IconSize)
                 )
                 Spacer(modifier = Modifier.width(ButtonDefaults.IconSpacing))
-                Text(text = "重试")
+                Text(text = stringResource(id = R.string.retry))
             }
             
             Button(
@@ -432,7 +432,7 @@ fun ErrorView(
                     modifier = Modifier.size(ButtonDefaults.IconSize)
                 )
                 Spacer(modifier = Modifier.width(ButtonDefaults.IconSpacing))
-                Text(text = "检查设置")
+                Text(text = stringResource(id = R.string.check_settings))
             }
         }
     }
@@ -455,7 +455,7 @@ fun LoadingProductsView() {
         Spacer(modifier = Modifier.height(16.dp))
         
         Text(
-            text = "正在加载产品...",
+            text = stringResource(id = R.string.loading_products),
             style = MaterialTheme.typography.headlineSmall,
             textAlign = TextAlign.Center
         )
@@ -463,7 +463,7 @@ fun LoadingProductsView() {
         Spacer(modifier = Modifier.height(8.dp))
         
         Text(
-            text = "稍等片刻，正在从您的WooCommerce商店获取最新数据",
+            text = stringResource(id = R.string.loading_message),
             style = MaterialTheme.typography.bodyMedium,
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -553,7 +553,7 @@ fun ProductsContent(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = "产品列表",
+                    text = stringResource(id = R.string.product_list_title),
                     style = MaterialTheme.typography.headlineMedium,
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -590,11 +590,11 @@ fun ProductsContent(
                     value = searchQuery,
                     onValueChange = onSearchChange,
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("搜索产品...") },
+                    placeholder = { Text(stringResource(id = R.string.search_products_hint)) },
                     leadingIcon = { 
                         Icon(
                             imageVector = Icons.Default.Search,
-                            contentDescription = "搜索"
+                            contentDescription = stringResource(id = R.string.search_products)
                         )
                     },
                     trailingIcon = {
@@ -711,7 +711,7 @@ fun ProductsContent(
                                 )
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Text(
-                                    text = if (isSwitchingCategory) "正在切换分类..." else "正在加载商品...",
+                                    text = if (isSwitchingCategory) stringResource(id = R.string.switching_category) else stringResource(id = R.string.loading_products),
                                     style = MaterialTheme.typography.bodyMedium
                                 )
                             }
@@ -839,7 +839,10 @@ fun ProductGridItem(
                 
                 // 库存
                 Text(
-                    text = if (product.stockStatus == "instock") "有库存" else "无库存",
+                    text = if (product.stockStatus == "instock") 
+                             stringResource(id = R.string.stock_status_in_stock)
+                           else 
+                             stringResource(id = R.string.stock_status_out_of_stock),
                     style = MaterialTheme.typography.bodySmall,
                     color = if (product.stockStatus == "instock") 
                         MaterialTheme.colorScheme.primary 
@@ -879,7 +882,7 @@ fun ProductDetailDialog(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "产品详情",
+                    text = stringResource(id = R.string.product_details),
                     style = MaterialTheme.typography.titleLarge,
                     modifier = Modifier.fillMaxWidth(),
                     textAlign = TextAlign.Center
@@ -934,7 +937,7 @@ fun ProductDetailDialog(
                 
                 if (product.categories.isNotEmpty()) {
                     Text(
-                        text = "分类: ${product.categories.joinToString(", ") { it.name }}",
+                        text = stringResource(id = R.string.product_category, product.categories.joinToString(", ") { it.name }),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                     )
@@ -960,13 +963,13 @@ fun ProductDetailDialog(
                 ) {
                     OutlinedTextField(
                         value = when(stockStatus) {
-                            "instock" -> "有库存"
-                            "outofstock" -> "无库存"
+                            "instock" -> stringResource(id = R.string.stock_status_in_stock)
+                            "outofstock" -> stringResource(id = R.string.stock_status_out_of_stock)
                             else -> stockStatus
                         },
                         onValueChange = {},
                         readOnly = true,
-                        label = { Text("库存状态") },
+                        label = { Text(stringResource(id = R.string.status)) },
                         modifier = Modifier
                             .menuAnchor()
                             .fillMaxWidth(),
@@ -978,14 +981,14 @@ fun ProductDetailDialog(
                         onDismissRequest = { stockStatusExpanded = false }
                     ) {
                         DropdownMenuItem(
-                            text = { Text("有库存") },
+                            text = { Text(stringResource(id = R.string.stock_status_in_stock)) },
                             onClick = {
                                 stockStatus = "instock"
                                 stockStatusExpanded = false
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text("无库存") },
+                            text = { Text(stringResource(id = R.string.stock_status_out_of_stock)) },
                             onClick = {
                                 stockStatus = "outofstock"
                                 stockStatusExpanded = false
@@ -1015,13 +1018,13 @@ fun ProductDetailDialog(
                             onUpdate(updatedProduct)
                         }
                     ) {
-                        Text("保存")
+                        Text(stringResource(id = R.string.save))
                     }
                     
                     Button(
                         onClick = onDismiss
                     ) {
-                        Text("取消")
+                        Text(stringResource(id = R.string.cancel))
                     }
                 }
             }

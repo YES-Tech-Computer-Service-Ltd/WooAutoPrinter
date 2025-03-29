@@ -64,11 +64,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.example.wooauto.R
 import com.example.wooauto.domain.models.PrinterConfig
 import com.example.wooauto.domain.printer.PrinterStatus
 import com.example.wooauto.domain.printer.PrinterDevice
@@ -105,6 +107,17 @@ fun PrinterSettingsScreen(
     // 添加蓝牙设备扫描对话框状态
     var showScanDialog by remember { mutableStateOf(false) }
 
+    // 预先获取所有字符串资源
+    val printerConnectedSuccessText = stringResource(id = R.string.printer_connected_success)
+    val printerDisconnectedText = stringResource(id = R.string.printer_disconnected)
+    val printerConnectionFailedText = stringResource(id = R.string.printer_connection_failed)
+    val connectingPrinterText = stringResource(id = R.string.connecting_printer)
+    val testPrintSuccessText = stringResource(id = R.string.test_print_success)
+    val testPrintFailedText = stringResource(id = R.string.test_print_failed)
+    val printerErrorText = stringResource(id = R.string.printer_error)
+    val setAsDefaultSuccessText = stringResource(id = R.string.set_as_default_success)
+    val printerDeletedText = stringResource(id = R.string.printer_deleted)
+
     // 页面加载时刷新打印机列表
     LaunchedEffect(key1 = Unit) {
         viewModel.loadPrinterConfigs()
@@ -115,19 +128,19 @@ fun PrinterSettingsScreen(
         if (printerStatus == PrinterStatus.CONNECTED && showScanDialog) {
             // 连接成功时关闭对话框
             showScanDialog = false
-            snackbarHostState.showSnackbar("打印机连接成功")
+            snackbarHostState.showSnackbar(printerConnectedSuccessText)
         }
     }
     
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("打印机设置") },
+                title = { Text(stringResource(id = R.string.printer_settings_title)) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(
                             imageVector = Icons.Filled.ArrowBack,
-                            contentDescription = "返回"
+                            contentDescription = stringResource(id = R.string.back)
                         )
                     }
                 },
@@ -146,7 +159,7 @@ fun PrinterSettingsScreen(
                     navController.navigate(Screen.PrinterDetails.printerDetailsRoute("new"))
                 }
             ) {
-                Icon(Icons.Default.Add, contentDescription = "添加打印机")
+                Icon(Icons.Default.Add, contentDescription = stringResource(id = R.string.add_printer))
             }
         }
     ) { paddingValues ->
@@ -190,12 +203,12 @@ fun PrinterSettingsScreen(
                         modifier = Modifier.weight(1f)
                     ) {
                         Text(
-                            text = "打印模板",
+                            text = stringResource(id = R.string.printer_templates),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "自定义订单打印格式和内容",
+                            text = stringResource(id = R.string.printer_templates_desc),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -203,7 +216,7 @@ fun PrinterSettingsScreen(
                     
                     Icon(
                         imageVector = Icons.Default.Edit,
-                        contentDescription = "编辑打印模板",
+                        contentDescription = stringResource(id = R.string.edit),
                         tint = MaterialTheme.colorScheme.primary
                     )
                 }
@@ -245,7 +258,7 @@ fun PrinterSettingsScreen(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Close,
-                                contentDescription = "关闭",
+                                contentDescription = stringResource(id = R.string.close),
                                 tint = MaterialTheme.colorScheme.error
                             )
                         }
@@ -275,7 +288,7 @@ fun PrinterSettingsScreen(
                         Spacer(modifier = Modifier.height(16.dp))
                         
                         Text(
-                            text = "暂无打印机",
+                            text = stringResource(id = R.string.no_printers),
                             style = MaterialTheme.typography.titleLarge,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                         )
@@ -283,7 +296,7 @@ fun PrinterSettingsScreen(
                         Spacer(modifier = Modifier.height(8.dp))
                         
                         Text(
-                            text = "点击下方按钮添加打印机",
+                            text = stringResource(id = R.string.add_printer_hint),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                         )
@@ -302,14 +315,14 @@ fun PrinterSettingsScreen(
                                     if (printerStatus == PrinterStatus.CONNECTED && currentPrinterConfig?.id == printer.id) {
                                         // 断开连接
                                         viewModel.disconnectPrinter(printer)
-                                        snackbarHostState.showSnackbar("已断开打印机连接")
+                                        snackbarHostState.showSnackbar(printerDisconnectedText)
                                     } else {
                                         // 连接打印机
                                         val connected = viewModel.connectPrinter(printer)
                                         if (connected) {
-                                            snackbarHostState.showSnackbar("打印机连接成功")
+                                            snackbarHostState.showSnackbar(printerConnectedSuccessText)
                                         } else {
-                                            snackbarHostState.showSnackbar("打印机连接失败")
+                                            snackbarHostState.showSnackbar(printerConnectionFailedText)
                                         }
                                     }
                                 }
@@ -325,19 +338,19 @@ fun PrinterSettingsScreen(
                             onTestPrint = {
                                 coroutineScope.launch {
                                     // 显示连接中提示
-                                    snackbarHostState.showSnackbar("正在连接打印机...")
+                                    snackbarHostState.showSnackbar(connectingPrinterText)
                                     
                                     // 测试打印
                                     try {
                                         val success = viewModel.testPrint(printer)
                                         if (success) {
-                                            snackbarHostState.showSnackbar("测试打印成功")
+                                            snackbarHostState.showSnackbar(testPrintSuccessText)
                                         } else {
-                                            val errorMsg = viewModel.connectionErrorMessage.value ?: "测试打印失败，请检查打印机连接"
+                                            val errorMsg = viewModel.connectionErrorMessage.value ?: testPrintFailedText
                                             snackbarHostState.showSnackbar(errorMsg)
                                         }
                                     } catch (e: Exception) {
-                                        snackbarHostState.showSnackbar("打印过程出现异常: ${e.message ?: "未知错误"}")
+                                        snackbarHostState.showSnackbar("$printerErrorText ${e.message ?: ""}")
                                     }
                                 }
                             },
@@ -347,7 +360,7 @@ fun PrinterSettingsScreen(
                                     val updatedConfig = printer.copy(isDefault = true)
                                     viewModel.savePrinterConfig(updatedConfig)
                                     coroutineScope.launch {
-                                        snackbarHostState.showSnackbar("已设置为默认打印机")
+                                        snackbarHostState.showSnackbar(setAsDefaultSuccessText)
                                     }
                                 }
                             }
@@ -368,28 +381,28 @@ fun PrinterSettingsScreen(
             if (showDeleteDialog) {
                 AlertDialog(
                     onDismissRequest = { showDeleteDialog = false },
-                    title = { Text("删除打印机") },
-                    text = { Text("确定要删除打印机 '${printerToDelete?.getDisplayName()}' 吗？此操作无法撤销。") },
+                    title = { Text(stringResource(id = R.string.delete_printer)) },
+                    text = { Text(stringResource(id = R.string.delete_printer_confirm, printerToDelete?.getDisplayName() ?: "")) },
                     confirmButton = {
                         Button(
                             onClick = {
                                 printerToDelete?.let { printer ->
                                     viewModel.deletePrinterConfig(printer.id)
                                     coroutineScope.launch {
-                                        snackbarHostState.showSnackbar("打印机已删除")
+                                        snackbarHostState.showSnackbar(printerDeletedText)
                                     }
                                 }
                                 showDeleteDialog = false
                             }
                         ) {
-                            Text("删除")
+                            Text(stringResource(id = R.string.delete))
                         }
                     },
                     dismissButton = {
                         TextButton(
                             onClick = { showDeleteDialog = false }
                         ) {
-                            Text("取消")
+                            Text(stringResource(id = R.string.cancel))
                         }
                     }
                 )
@@ -399,7 +412,7 @@ fun PrinterSettingsScreen(
             if (showScanDialog) {
                 AlertDialog(
                     onDismissRequest = { showScanDialog = false },
-                    title = { Text("蓝牙设备") },
+                    title = { Text(stringResource(id = R.string.bluetooth_devices)) },
                     text = { 
                         Column {
                             if (isScanning) {
@@ -415,7 +428,7 @@ fun PrinterSettingsScreen(
                                         strokeWidth = 2.dp
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
-                                    Text("正在扫描蓝牙设备...")
+                                    Text(stringResource(id = R.string.scanning_bluetooth))
                                 }
                             } else {
                                 Row(
@@ -426,7 +439,10 @@ fun PrinterSettingsScreen(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
-                                        text = if (availablePrinters.isEmpty()) "未找到蓝牙设备" else "选择一个蓝牙设备连接",
+                                        text = if (availablePrinters.isEmpty()) 
+                                                 stringResource(id = R.string.no_bluetooth_devices) 
+                                               else 
+                                                 stringResource(id = R.string.select_bluetooth_device),
                                         style = MaterialTheme.typography.titleSmall
                                     )
                                     
@@ -435,7 +451,7 @@ fun PrinterSettingsScreen(
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.Refresh,
-                                            contentDescription = "重新扫描"
+                                            contentDescription = stringResource(id = R.string.rescan)
                                         )
                                     }
                                 }
@@ -443,7 +459,7 @@ fun PrinterSettingsScreen(
                             
                             // 提示说明 - 特别是对Android 7用户
                             Text(
-                                text = "提示: 请确保打印机已开启并处于可发现状态。对于Android 7设备，可能需要先在系统蓝牙设置中配对打印机。",
+                                text = stringResource(id = R.string.bluetooth_tip),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(bottom = 12.dp)
@@ -451,7 +467,7 @@ fun PrinterSettingsScreen(
                             
                             if (availablePrinters.isEmpty() && !isScanning) {
                                 Text(
-                                    text = "没有找到蓝牙设备，请确保设备已开启并处于可发现状态，然后重新扫描",
+                                    text = stringResource(id = R.string.no_bluetooth_tip),
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -507,7 +523,7 @@ fun PrinterSettingsScreen(
                                                     if (isPaired) {
                                                         Spacer(modifier = Modifier.width(8.dp))
                                                         Text(
-                                                            text = "(已配对)",
+                                                            text = stringResource(id = R.string.device_paired),
                                                             style = MaterialTheme.typography.bodySmall,
                                                             color = MaterialTheme.colorScheme.primary
                                                         )
@@ -523,7 +539,7 @@ fun PrinterSettingsScreen(
                                             if (device.status == PrinterStatus.CONNECTED) {
                                                 Icon(
                                                     imageVector = Icons.Default.Check,
-                                                    contentDescription = "已连接",
+                                                    contentDescription = stringResource(id = R.string.connected),
                                                     tint = MaterialTheme.colorScheme.primary
                                                 )
                                             }
@@ -543,7 +559,7 @@ fun PrinterSettingsScreen(
                         TextButton(
                             onClick = { showScanDialog = false }
                         ) {
-                            Text("关闭")
+                            Text(stringResource(id = R.string.close))
                         }
                     },
                     dismissButton = {
@@ -557,7 +573,7 @@ fun PrinterSettingsScreen(
                                     viewModel.stopScanning()
                                 }
                             ) {
-                                Text("停止扫描")
+                                Text(stringResource(id = R.string.stop_scanning))
                             }
                         }
                     }
@@ -635,7 +651,7 @@ fun PrinterConfigItem(
                     )
                     
                     Text(
-                        text = if (printerConfig.isDefault) "默认打印机" else printerConfig.type,
+                        text = stringResource(id = R.string.is_default_printer),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                     )
@@ -673,7 +689,7 @@ fun PrinterConfigItem(
                         )
                     } else {
                         Text(
-                            text = if (isConnected) "断开" else "连接",
+                            text = if (isConnected) stringResource(id = R.string.disconnect) else stringResource(id = R.string.connect),
                             color = if (isConnected) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
                         )
                     }
@@ -684,20 +700,20 @@ fun PrinterConfigItem(
             
             // 打印机地址和其他信息
             Text(
-                text = "地址: ${printerConfig.address}",
+                text = stringResource(id = R.string.printer_address_label, printerConfig.address),
                 style = MaterialTheme.typography.bodyMedium
             )
             
             if (printerConfig.brand != null && printerConfig.brand != PrinterBrand.UNKNOWN) {
                 Text(
-                    text = "品牌: ${printerConfig.brand.displayName} (${printerConfig.brand.commandLanguage})",
+                    text = stringResource(id = R.string.printer_brand_label, printerConfig.brand.displayName, printerConfig.brand.commandLanguage),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
                 )
             }
             
             Text(
-                text = "纸张宽度: ${printerConfig.paperWidth}mm",
+                text = stringResource(id = R.string.printer_paper_width, printerConfig.paperWidth),
                 style = MaterialTheme.typography.bodyMedium
             )
             
@@ -714,7 +730,7 @@ fun PrinterConfigItem(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Edit,
-                        contentDescription = "编辑",
+                        contentDescription = stringResource(id = R.string.edit),
                         tint = MaterialTheme.colorScheme.primary
                     )
                 }
@@ -726,11 +742,11 @@ fun PrinterConfigItem(
                 ) {
                     Icon(
                         imageVector = Icons.Filled.Print,
-                        contentDescription = "测试打印",
+                        contentDescription = stringResource(id = R.string.test_print),
                         tint = MaterialTheme.colorScheme.primary
                     )
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("测试打印")
+                    Text(stringResource(id = R.string.test_print_action))
                 }
                 
                 // 删除按钮
@@ -739,12 +755,12 @@ fun PrinterConfigItem(
                 ) {
                     Icon(
                         imageVector = Icons.Filled.Delete,
-                        contentDescription = "删除",
+                        contentDescription = stringResource(id = R.string.delete),
                         tint = MaterialTheme.colorScheme.error
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = "删除",
+                        text = stringResource(id = R.string.delete),
                         color = MaterialTheme.colorScheme.error
                     )
                 }
@@ -763,7 +779,7 @@ fun PrinterConfigItem(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "设为默认打印机",
+                        text = stringResource(id = R.string.set_as_default),
                         style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.weight(1f)
                     )
@@ -789,7 +805,7 @@ fun PrinterConfigItem(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "自动打印新订单",
+                        text = stringResource(id = R.string.auto_print_new_orders),
                         style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.weight(1f)
                     )
