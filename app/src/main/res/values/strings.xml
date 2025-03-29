@@ -67,6 +67,7 @@
     <!-- Products -->
     <string name="product_details">Product Details</string>
     <string name="search_products">Search Products</string>
+    <string name="search_products_hint">Search Products...</string>
     <string name="categories">Categories</string>
     <string name="all_categories">All Categories</string>
     <string name="product_name">Name: %1$s</string>
@@ -75,8 +76,14 @@
     <string name="stock_quantity">Stock: %1$d</string>
     <string name="product_status">Status: %1$s</string>
     <string name="product_category">Category: %1$s</string>
+    <string name="product_list_title">Product List</string>
+    <string name="stock_status_in_stock">In Stock</string>
+    <string name="stock_status_out_of_stock">Out of Stock</string>
     <string name="save_changes">Save Changes</string>
     <string name="no_products_found">No products found</string>
+    <string name="loading_products">Loading Products...</string>
+    <string name="switching_category">Switching Category...</string>
+    <string name="loading_message">Please wait, fetching the latest data from your WooCommerce store</string>
 
     <!-- Settings -->
     <string name="website_setup">Website Setup</string>
@@ -120,6 +127,43 @@
     <string name="printer_status">printer status</string>
     <string name="test_print">test print</string>
     <string name="printed">Printed</string>
+    <string name="printer_settings_title">Printer Settings</string>
+    <string name="printer_templates">Print Templates</string>
+    <string name="printer_templates_desc">Customize order print format and content</string>
+    <string name="no_printers">No Printers</string>
+    <string name="add_printer_hint">Click the button below to add a printer</string>
+    <string name="delete_printer">Delete Printer</string>
+    <string name="delete_printer_confirm">Are you sure you want to delete printer \'%1$s\'? This action cannot be undone.</string>
+    <string name="delete">Delete</string>
+    <string name="bluetooth_devices">Bluetooth Devices</string>
+    <string name="scanning_bluetooth">Scanning for Bluetooth devices...</string>
+    <string name="no_bluetooth_devices">No Bluetooth devices found</string>
+    <string name="select_bluetooth_device">Select a Bluetooth device to connect</string>
+    <string name="bluetooth_tip">Tip: Make sure the printer is turned on and discoverable. For Android 7 devices, you may need to pair the printer in system Bluetooth settings first.</string>
+    <string name="no_bluetooth_tip">No Bluetooth devices found. Make sure the device is turned on and discoverable, then scan again</string>
+    <string name="device_paired">Paired</string>
+    <string name="connected">Connected</string>
+    <string name="stop_scanning">Stop Scanning</string>
+    <string name="connect">Connect</string>
+    <string name="disconnect">Disconnect</string>
+    <string name="rescan">Rescan</string>
+    <string name="printer_address_label">Address: %1$s</string>
+    <string name="printer_brand_label">Brand: %1$s (%2$s)</string>
+    <string name="printer_paper_width">Paper Width: %1$smm</string>
+    <string name="edit">Edit</string>
+    <string name="test_print_action">Test Print</string>
+    <string name="set_as_default">Set as default printer</string>
+    <string name="auto_print_new_orders">Auto print new orders</string>
+    <string name="is_default_printer">Default Printer</string>
+    <string name="printer_connected_success">Printer connected successfully</string>
+    <string name="printer_disconnected">Printer disconnected</string>
+    <string name="printer_connection_failed">Printer connection failed</string>
+    <string name="connecting_printer">Connecting printer...</string>
+    <string name="test_print_success">Test print successful</string>
+    <string name="test_print_failed">Test print failed, check printer connection</string>
+    <string name="printer_error">Printer error: %1$s</string>
+    <string name="printer_deleted">Printer deleted</string>
+    <string name="set_as_default_success">Set as default printer</string>
 
     <!-- Sound Setup -->
     <string name="sound_type">Sound Type</string>
@@ -132,11 +176,29 @@
     <string name="test_sound">Test Sound</string>
     <string name="male_voice">Male Voice</string>
     <string name="female_voice">Female Voice</string>
+    <string name="sound_settings">Sound Settings</string>
+    <string name="sound_settings_saved">Sound settings saved</string>
+    <string name="save_settings">Save Settings</string>
+    <string name="notification_volume">Notification Volume</string>
+    <string name="notification_volume_desc">Adjust notification sound volume without affecting system volume</string>
+    <string name="enable_sound">Enable Sound</string>
+    <string name="enable_sound_desc">Control whether to play notification sound for new orders</string>
+    <string name="sound_type_title">Notification Sound Type</string>
+    <string name="sound_type_desc">Select sound for new order notifications</string>
+    <string name="volume_min">0%</string>
+    <string name="volume_max">100%</string>
+    <!-- Sound Types -->
+    <string name="sound_type_default">Default Notification</string>
+    <string name="sound_type_bell">Bell Sound</string>
+    <string name="sound_type_cash">Cash Register Sound</string>
+    <string name="sound_type_alert">Alert Sound</string>
+    <string name="sound_type_chime">Wind Chime Sound</string>
+    <string name="sound_type_unknown">Unknown Sound</string>
 
     <!-- App Settings -->
-    <string name="language">Language</string>
+    <string name="language">Language（语言）</string>
     <string name="english">English</string>
-    <string name="chinese">Chinese</string>
+    <string name="chinese">中文</string>
     <string name="auto_close_notification">Auto Close Notification (seconds)</string>
 
     <!-- Setup Wizard -->
@@ -152,6 +214,10 @@
     <string name="error_printer">Printer error</string>
     <string name="error_permission">Permission denied</string>
     <string name="error_general">Something went wrong</string>
+    <string name="error_api_not_configured">WooCommerce API not configured</string>
+    <string name="error_loading_products">Failed to load products</string>
+    <string name="go_to_settings">Go to Settings</string>
+    <string name="check_settings">Check Settings</string>
 
     <!-- Order Status -->
     <string name="order_status_pending">Pending</string>
@@ -195,7 +261,6 @@
     <string name="api_configured">Configured</string>
     <string name="api_not_configured">Not Configured</string>
     <string name="printer_settings">Printer Settings</string>
-    <string name="sound_settings">Sound Settings</string>
     <string name="store_settings">Store Settings</string>
     <string name="auto_update">Auto Update</string>
     <string name="feature_coming_soon">This feature is coming soon</string>
@@ -225,7 +290,6 @@
     <string name="print_templates">Print Templates</string>
     <string name="other_automation">Other Automation</string>
     <string name="settings_saved">Settings have been saved</string>
-    <string name="save_settings">Save Settings</string>
 
     <string name="scan_qr_code">Scan QR Code</string>
     <string name="connection_test_success">Connection test successful!</string>

@@ -67,6 +67,7 @@
     <!-- Products -->
     <string name="product_details">产品详情</string>
     <string name="search_products">搜索产品</string>
+    <string name="search_products_hint">搜索产品...</string>
     <string name="categories">分类</string>
     <string name="all_categories">所有分类</string>
     <string name="product_name">名称: %1$s</string>
@@ -75,8 +76,14 @@
     <string name="stock_quantity">库存: %1$d</string>
     <string name="product_status">状态: %1$s</string>
     <string name="product_category">分类: %1$s</string>
+    <string name="product_list_title">产品列表</string>
+    <string name="stock_status_in_stock">有库存</string>
+    <string name="stock_status_out_of_stock">无库存</string>
     <string name="save_changes">保存更改</string>
     <string name="no_products_found">未找到产品</string>
+    <string name="loading_products">正在加载产品...</string>
+    <string name="switching_category">正在切换分类...</string>
+    <string name="loading_message">稍等片刻，正在从您的WooCommerce商店获取最新数据</string>
 
     <!-- Settings -->
     <string name="website_setup">网站设置</string>
@@ -120,6 +127,43 @@
     <string name="printer_status">打印机状态</string>
     <string name="test_print">测试打印</string>
     <string name="printed">已打印</string>
+    <string name="printer_settings_title">打印机设置</string>
+    <string name="printer_templates">打印模板</string>
+    <string name="printer_templates_desc">自定义订单打印格式和内容</string>
+    <string name="no_printers">暂无打印机</string>
+    <string name="add_printer_hint">点击下方按钮添加打印机</string>
+    <string name="delete_printer">删除打印机</string>
+    <string name="delete_printer_confirm">确定要删除打印机 \'%1$s\' 吗？此操作无法撤销。</string>
+    <string name="delete">删除</string>
+    <string name="bluetooth_devices">蓝牙设备</string>
+    <string name="scanning_bluetooth">正在扫描蓝牙设备...</string>
+    <string name="no_bluetooth_devices">未找到蓝牙设备</string>
+    <string name="select_bluetooth_device">选择一个蓝牙设备连接</string>
+    <string name="bluetooth_tip">提示: 请确保打印机已开启并处于可发现状态。对于Android 7设备，可能需要先在系统蓝牙设置中配对打印机。</string>
+    <string name="no_bluetooth_tip">没有找到蓝牙设备，请确保设备已开启并处于可发现状态，然后重新扫描</string>
+    <string name="device_paired">已配对</string>
+    <string name="connected">已连接</string>
+    <string name="stop_scanning">停止扫描</string>
+    <string name="connect">连接</string>
+    <string name="disconnect">断开</string>
+    <string name="rescan">重新扫描</string>
+    <string name="printer_address_label">地址: %1$s</string>
+    <string name="printer_brand_label">品牌: %1$s (%2$s)</string>
+    <string name="printer_paper_width">纸张宽度: %1$smm</string>
+    <string name="edit">编辑</string>
+    <string name="test_print_action">测试打印</string>
+    <string name="set_as_default">设为默认打印机</string>
+    <string name="auto_print_new_orders">自动打印新订单</string>
+    <string name="is_default_printer">默认打印机</string>
+    <string name="printer_connected_success">打印机连接成功</string>
+    <string name="printer_disconnected">已断开打印机连接</string>
+    <string name="printer_connection_failed">打印机连接失败</string>
+    <string name="connecting_printer">正在连接打印机...</string>
+    <string name="test_print_success">测试打印成功</string>
+    <string name="test_print_failed">测试打印失败，请检查打印机连接</string>
+    <string name="printer_error">打印机错误: %1$s</string>
+    <string name="printer_deleted">打印机已删除</string>
+    <string name="set_as_default_success">已设置为默认打印机</string>
 
     <!-- Sound Setup -->
     <string name="sound_type">声音类型</string>
@@ -132,10 +176,28 @@
     <string name="test_sound">测试声音</string>
     <string name="male_voice">男声</string>
     <string name="female_voice">女声</string>
+    <string name="sound_settings">声音设置</string>
+    <string name="sound_settings_saved">声音设置已保存</string>
+    <string name="save_settings">保存设置</string>
+    <string name="notification_volume">通知音量</string>
+    <string name="notification_volume_desc">调整提示音量大小，不影响系统音量</string>
+    <string name="enable_sound">启用声音</string>
+    <string name="enable_sound_desc">控制是否播放新订单提示音</string>
+    <string name="sound_type_title">提示音类型</string>
+    <string name="sound_type_desc">选择新订单提示音</string>
+    <string name="volume_min">0%</string>
+    <string name="volume_max">100%</string>
+    <!-- Sound Types -->
+    <string name="sound_type_default">默认提示音</string>
+    <string name="sound_type_bell">铃声</string>
+    <string name="sound_type_cash">收银音效</string>
+    <string name="sound_type_alert">警报音</string>
+    <string name="sound_type_chime">风铃声</string>
+    <string name="sound_type_unknown">未知声音</string>
 
     <!-- App Settings -->
-    <string name="language">语言</string>
-    <string name="english">英文</string>
+    <string name="language">语言(Language)</string>
+    <string name="english">English</string>
     <string name="chinese">中文</string>
     <string name="auto_close_notification">自动关闭通知 (秒)</string>
 
@@ -152,6 +214,10 @@
     <string name="error_printer">打印机错误</string>
     <string name="error_permission">权限被拒绝</string>
     <string name="error_general">出现错误</string>
+    <string name="error_api_not_configured">未配置WooCommerce API</string>
+    <string name="error_loading_products">获取产品数据失败</string>
+    <string name="go_to_settings">前往设置</string>
+    <string name="check_settings">检查设置</string>
 
     <!-- Order Status -->
     <string name="order_status_pending">待处理</string>
@@ -194,7 +260,6 @@
     <string name="api_configured">已配置</string>
     <string name="api_not_configured">未配置</string>
     <string name="printer_settings">打印设置</string>
-    <string name="sound_settings">声音设置</string>
     <string name="store_settings">店铺信息设置</string>
     <string name="auto_update">自动更新</string>
     <string name="feature_coming_soon">此功能即将推出</string>
@@ -224,7 +289,6 @@
     <string name="print_templates">打印模板</string>
     <string name="other_automation">其他自动化</string>
     <string name="settings_saved">设置已保存</string>
-    <string name="save_settings">保存设置</string>
 
     <string name="scan_qr_code">扫描二维码</string>
     <string name="connection_test_success">连接测试成功！</string>
