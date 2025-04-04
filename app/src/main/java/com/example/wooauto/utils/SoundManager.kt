@@ -6,6 +6,7 @@ import android.media.AudioManager
 import android.media.MediaPlayer
 import android.media.RingtoneManager
 import android.media.SoundPool
+import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.util.Log
@@ -14,6 +15,7 @@ import com.example.wooauto.domain.models.SoundSettings
 import com.example.wooauto.domain.repositories.DomainSettingRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -72,11 +74,24 @@ class SoundManager @Inject constructor(
     // 已加载的声音ID映射
     private val loadedSounds = mutableMapOf<String, Int>()
     
+    // 系统通知音效
+    private var systemNotificationUri: Uri? = null
+    private var useSystemSound = false
+    
     // 默认音效ID，如果找不到指定的音效，则使用此ID
     private var defaultSoundId = -1
 
     // 表示是否已成功加载任何声音
     private var anySoundLoaded = false
+    
+    // 防止短时间内重复播放声音
+    private var lastPlayTime = 0L
+    private val MIN_PLAY_INTERVAL = 1000L // 最小播放间隔，单位毫秒
+    
+    // 批量通知处理
+    private var pendingNotifications = 0
+    private val notificationLock = Any()
+    private val BATCH_NOTIFICATION_DELAY = 500L // 批量通知延迟，单位毫秒
     
     // 初始化声音资源
     init {
@@ -89,12 +104,14 @@ class SoundManager @Inject constructor(
      */
     private fun initializeSoundResources() {
         try {
+            // 初始化系统通知音效URI
+            systemNotificationUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+            
             // 注意：这里假设资源可能不存在，我们提供合理的默认值
             // 实际项目中应在 res/raw 目录下添加这些音效文件
             
             // 将资源类型映射到对应的资源ID
             // 如果在项目中没有这些资源，这些值将为0或无效ID
-            // 临时使用系统音效资源ID
             soundResources[SoundSettings.SOUND_TYPE_DEFAULT] = R.raw.notification_default
             soundResources[SoundSettings.SOUND_TYPE_BELL] = R.raw.notification_bell
             soundResources[SoundSettings.SOUND_TYPE_CASH] = R.raw.notification_cash
@@ -234,7 +251,45 @@ class SoundManager @Inject constructor(
      * 播放订单提示音
      */
     fun playOrderNotificationSound() {
-        playSound(_currentSoundType.value)
+        synchronized(notificationLock) {
+            val currentTime = System.currentTimeMillis()
+            
+            // 检查是否在短时间内连续播放
+            if (currentTime - lastPlayTime < MIN_PLAY_INTERVAL) {
+                // 仅增加待处理通知计数，不立即播放
+                pendingNotifications++
+                Log.d(TAG, "检测到短时间内连续通知，延迟播放，当前待处理通知: $pendingNotifications")
+                
+                // 如果是第一个待处理通知，启动延迟处理
+                if (pendingNotifications == 1) {
+                    CoroutineScope(Dispatchers.Main).launch {
+                        delay(BATCH_NOTIFICATION_DELAY)
+                        processPendingNotifications()
+                    }
+                }
+                return
+            }
+            
+            // 正常播放声音
+            lastPlayTime = currentTime
+            pendingNotifications = 0
+            playSound(_currentSoundType.value)
+        }
+    }
+    
+    /**
+     * 处理待处理的批量通知
+     */
+    private fun processPendingNotifications() {
+        synchronized(notificationLock) {
+            if (pendingNotifications > 0) {
+                Log.d(TAG, "处理 $pendingNotifications 个批量通知")
+                // 无论多少个通知，只播放一次声音
+                playSound(_currentSoundType.value)
+                pendingNotifications = 0
+                lastPlayTime = System.currentTimeMillis()
+            }
+        }
     }
     
     /**
@@ -248,17 +303,25 @@ class SoundManager @Inject constructor(
         }
         
         try {
+            // 默认音效使用系统通知音
+            if (type == SoundSettings.SOUND_TYPE_DEFAULT) {
+                playSystemNotificationSound()
+                return
+            }
+            
             if (!anySoundLoaded) {
-                Log.w(TAG, "没有可用的声音资源")
+                Log.w(TAG, "没有可用的声音资源，使用系统默认通知音")
+                playSystemNotificationSound()
                 return
             }
             
             // 尝试获取指定类型的声音ID，如果不存在则使用默认声音ID
             val soundId = loadedSounds[type] ?: loadedSounds[SoundSettings.SOUND_TYPE_DEFAULT] ?: defaultSoundId
             
-            // 如果没有有效的声音ID，则直接返回
+            // 如果没有有效的声音ID，则使用系统通知音
             if (soundId <= 0) {
-                Log.w(TAG, "找不到有效的声音资源，无法播放")
+                Log.w(TAG, "找不到有效的声音资源，使用系统默认通知音")
+                playSystemNotificationSound()
                 return
             }
             
@@ -271,6 +334,34 @@ class SoundManager @Inject constructor(
             Log.d(TAG, "播放声音: 类型=$type, 音量=$volume, 声音ID=$soundId")
         } catch (e: Exception) {
             Log.e(TAG, "播放声音失败", e)
+            // 出错时尝试播放系统音效
+            playSystemNotificationSound()
+        }
+    }
+    
+    /**
+     * 播放系统默认通知音效
+     */
+    private fun playSystemNotificationSound() {
+        try {
+            val notificationUri = systemNotificationUri ?: 
+                RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+            val ringtone = RingtoneManager.getRingtone(context, notificationUri)
+            
+            // 尝试设置音量 (部分设备可能不支持)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                try {
+                    val volume = _currentVolume.value / 100f
+                    ringtone.volume = volume
+                } catch (e: Exception) {
+                    Log.w(TAG, "设置系统通知音效音量失败: ${e.message}")
+                }
+            }
+            
+            ringtone.play()
+            Log.d(TAG, "播放系统默认通知音效")
+        } catch (e: Exception) {
+            Log.e(TAG, "播放系统默认通知音效失败", e)
         }
     }
     

@@ -408,349 +408,138 @@ fun NewOrderPopup(
                             Icon(
                                 imageVector = Icons.Default.Notifications,
                                 contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onPrimary
+                                tint = Color.White,
+                                modifier = Modifier.size(28.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "新订单 #${order.number}",
-                                color = MaterialTheme.colorScheme.onPrimary,
-                                style = MaterialTheme.typography.titleMedium.copy(
-                                    fontWeight = FontWeight.Bold
-                                )
+                                text = stringResource(id = R.string.new_order_received),
+                                style = MaterialTheme.typography.titleLarge,
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold
                             )
                         }
-                        
-                        // 未读标记
-                        if (!order.isRead) {
-                            Box(
-                                modifier = Modifier
-                                    .size(12.dp)
-                                    .background(unreadBadgeColor, RoundedCornerShape(6.dp))
+                        IconButton(onClick = onDismiss) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "关闭",
+                                tint = Color.White
                             )
                         }
                     }
                 }
                 
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                // 订单基本信息区域
+                // 订单摘要信息
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .verticalScroll(scrollState)
-                        .weight(1f, fill = false)
+                        .padding(vertical = 16.dp)
                 ) {
-                    // 客户信息卡片
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 8.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
-                        ),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp)
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Person,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = order.customerName,
-                                    style = MaterialTheme.typography.titleSmall
-                                )
-                            }
-                            
-                            if (order.contactInfo.isNotEmpty()) {
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Phone,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = order.contactInfo,
-                                        style = MaterialTheme.typography.bodyMedium
-                                    )
-                                }
-                            }
-                        }
-                    }
-                    
-                    // 订单信息卡片
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 8.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-                        ),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp)
-                        ) {
-                            // 订单日期
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.DateRange,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = formattedDate,
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                            }
-                            
-                            Spacer(modifier = Modifier.height(4.dp))
-                            
-                            // 订单状态
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Info,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                val statusText = when(order.status) {
-                                    "processing" -> "处理中"
-                                    "pending" -> "待付款"
-                                    "completed" -> "已完成"
-                                    "cancelled" -> "已取消"
-                                    "refunded" -> "已退款"
-                                    "failed" -> "失败"
-                                    "on-hold" -> "暂挂"
-                                    else -> order.status
-                                }
-                                Text(
-                                    text = "状态: $statusText",
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                            }
-                            
-                            Spacer(modifier = Modifier.height(4.dp))
-                            
-                            // 支付方式
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Payment,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = order.paymentMethod,
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                            }
-                            
-                            Spacer(modifier = Modifier.height(4.dp))
-                            
-                            // 订单总金额
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.AttachMoney,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = "总金额: ${order.total}",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
-                    }
-                    
-                    // 商品摘要卡片
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.3f)
-                        ),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.ShoppingCart,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = "商品 ($totalItems)",
-                                    style = MaterialTheme.typography.titleSmall
-                                )
-                            }
-                            
-                            Spacer(modifier = Modifier.height(8.dp))
-                            
-                            // 显示前三个商品和总数
-                            val displayItems = if (order.items.size > 3) {
-                                order.items.take(3)
-                            } else {
-                                order.items
-                            }
-                            
-                            displayItems.forEach { item ->
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 2.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text(
-                                        text = "${item.quantity} x ${item.name}",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                    Text(
-                                        text = "¥${item.total}",
-                                        style = MaterialTheme.typography.bodySmall
-                                    )
-                                }
-                            }
-                            
-                            if (order.items.size > 3) {
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "...还有 ${order.items.size - 3} 个商品",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    textAlign = TextAlign.Center,
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                            }
-                        }
-                    }
-                    
-                    // 已读/未读状态
+                    // 订单号和日期
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        val readStatusText = if (order.isRead) "已读" else "未读"
-                        val readStatusIcon = if (order.isRead) Icons.Default.Check else Icons.Default.RemoveRedEye
-                        val readStatusColor = if (order.isRead) 
-                            MaterialTheme.colorScheme.primary 
-                        else 
-                            MaterialTheme.colorScheme.error
-                        
-                        Icon(
-                            imageVector = readStatusIcon,
-                            contentDescription = null,
-                            tint = readStatusColor,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = readStatusText,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = readStatusColor
+                            text = "订单 #${order.number}",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
                         )
-                        
-                        Spacer(modifier = Modifier.weight(1f))
-                        
-                        // 打印状态
-                        val printStatusText = if (order.isPrinted) "已打印" else "未打印"
-                        val printStatusIcon = if (order.isPrinted) Icons.Default.Print else Icons.Default.Print
-                        val printStatusColor = if (order.isPrinted) 
-                            MaterialTheme.colorScheme.primary 
-                        else 
-                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                        
-                        Icon(
-                            imageVector = printStatusIcon,
-                            contentDescription = null,
-                            tint = printStatusColor,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = printStatusText,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = printStatusColor
+                            text = formattedDate,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    // 显示可能有多个订单的提示
+                    // 只显示最新订单，但提示用户可能有多个
+                    Text(
+                        text = "提示：可能有多个新订单，这里仅显示最新一个",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    )
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    // 订单金额
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "订单金额:",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                        Text(
+                            text = order.total,
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    
+                    // 订单商品数
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "商品数量:",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                        Text(
+                            text = "$totalItems 件",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    
+                    // 订单状态
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "订单状态:",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                        val statusText = when(order.status) {
+                            "processing" -> "处理中"
+                            "pending" -> "待付款"
+                            "completed" -> "已完成"
+                            "cancelled" -> "已取消"
+                            "refunded" -> "已退款"
+                            "failed" -> "失败"
+                            "on-hold" -> "暂挂"
+                            else -> order.status
+                        }
+                        Text(
+                            text = statusText,
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Bold
                         )
                     }
                 }
                 
+                // 按钮区域
                 Spacer(modifier = Modifier.height(16.dp))
-                
-                // 底部按钮区域
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    // 打印按钮
-                    Button(
-                        onClick = onPrintOrder,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                        ),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Print,
-                            contentDescription = null
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(if (order.isPrinted) "重新打印" else "打印订单")
-                    }
-                    
-                    Spacer(modifier = Modifier.width(8.dp))
-                    
-                    // 查看详情按钮
                     Button(
                         onClick = onViewDetails,
+                        modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.primaryContainer,
                             contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                        ),
-                        modifier = Modifier.weight(1f)
+                        )
                     ) {
                         Icon(
                             imageVector = Icons.Default.Info,
@@ -762,21 +551,20 @@ fun NewOrderPopup(
                     
                     Spacer(modifier = Modifier.width(8.dp))
                     
-                    // 关闭按钮
                     Button(
-                        onClick = onDismiss,
+                        onClick = onPrintOrder,
+                        modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        ),
-                        modifier = Modifier.weight(1f)
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Close,
+                            imageVector = Icons.Default.Print,
                             contentDescription = null
                         )
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("关闭")
+                        Text("打印订单")
                     }
                 }
             }

@@ -357,8 +357,31 @@ class BackgroundPollingService : Service() {
         
         Log.d(TAG, "处理新订单，共 ${orders.size} 个")
         
+        // 确定应用启动后的首次轮询
+        val isFirstPolling = latestPolledDate == null
+        Log.d(TAG, "是否首次轮询: $isFirstPolling")
+        
+        // 获取当前时间
+        val currentTime = System.currentTimeMillis()
+        // 计算5分钟前的时间戳，用于过滤旧订单
+        val fiveMinutesAgo = currentTime - (5 * 60 * 1000)
+        
         orders.forEach { order ->
-            if (!processedOrderIds.contains(order.id)) {
+            // 检查是否处理过此订单
+            val isNewOrder = !processedOrderIds.contains(order.id)
+            
+            // 首次轮询时，只处理5分钟内的新订单，避免处理历史订单
+            val isRecentOrder = if (isFirstPolling) {
+                order.dateCreated.time > fiveMinutesAgo
+            } else {
+                true // 非首次轮询时，所有未处理订单都视为新订单
+            }
+            
+            // 记录订单时间与当前时间的差距
+            val timeDiff = (currentTime - order.dateCreated.time) / 1000 // 秒
+            Log.d(TAG, "订单 #${order.number} 创建于 ${timeDiff}秒前, 首次轮询: $isFirstPolling, 是否新订单: $isNewOrder, 是否最近订单: $isRecentOrder")
+            
+            if (isNewOrder && isRecentOrder) {
                 Log.d(TAG, "处理新订单: #${order.number}, ID: ${order.id}, 状态: ${order.status}, 已打印: ${order.isPrinted}")
                 
                 // 获取数据库中的打印状态
@@ -404,7 +427,8 @@ class BackgroundPollingService : Service() {
                 // 标记订单通知已显示
                 orderRepository.markOrderNotificationShown(order.id)
             } else {
-                Log.d(TAG, "订单已处理过，跳过: #${order.number}")
+                val skipReason = if (!isNewOrder) "已处理过" else "非最近订单"
+                Log.d(TAG, "订单跳过处理，原因: $skipReason: #${order.number}")
             }
         }
         
@@ -442,10 +466,12 @@ class BackgroundPollingService : Service() {
     private fun playOrderSound() {
         // 使用声音管理器播放订单提示音
         try {
-            val soundManager = SoundManager(applicationContext, settingsRepository)
-            soundManager.playOrderNotificationSound()
+            // 注意：现在声音由OrderNotificationManager统一管理
+            // 我们不再需要在这里直接播放声音
+            // 保留这个方法只是为了兼容性，但不执行任何操作
+            Log.d(TAG, "声音播放已移至OrderNotificationManager处理")
         } catch (e: Exception) {
-            Log.e(TAG, "播放订单声音失败", e)
+            Log.e(TAG, "处理订单声音失败", e)
         }
     }
 

@@ -16,7 +16,7 @@ data class SoundSettings(
 ) {
     companion object {
         // 提示音类型常量
-        const val SOUND_TYPE_DEFAULT = "default"
+        const val SOUND_TYPE_DEFAULT = "default" // 默认 - 使用系统通知音效
         const val SOUND_TYPE_BELL = "bell"
         const val SOUND_TYPE_CASH = "cash_register"
         const val SOUND_TYPE_ALERT = "alert"
