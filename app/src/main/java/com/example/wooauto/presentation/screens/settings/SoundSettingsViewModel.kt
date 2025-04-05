@@ -120,6 +120,7 @@ class SoundSettingsViewModel @Inject constructor(
                 
                 // 实时应用到SoundManager并播放测试音效
                 if (_soundEnabled.value) {
+                    // 只播放一次测试音效
                     soundManager.setSoundType(type)
                 }
             }
@@ -137,11 +138,6 @@ class SoundSettingsViewModel @Inject constructor(
             
             // 实时应用到SoundManager
             soundManager.setSoundEnabled(enabled)
-            
-            // 如果启用声音，播放当前类型的测试音效
-            if (enabled) {
-                soundManager.playSound(_soundType.value)
-            }
         } catch (e: Exception) {
             Log.e(TAG, "设置声音启用状态失败", e)
         }

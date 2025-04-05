@@ -15,32 +15,32 @@ data class SoundSettings(
     val soundEnabled: Boolean = true
 ) {
     companion object {
-        // 提示音类型常量
-        const val SOUND_TYPE_DEFAULT = "default" // 默认 - 使用系统通知音效
-        const val SOUND_TYPE_BELL = "bell"
-        const val SOUND_TYPE_CASH = "cash_register"
-        const val SOUND_TYPE_ALERT = "alert"
-        const val SOUND_TYPE_CHIME = "chime"
+        // 提示音类型常量 - 全部使用系统声音，兼容安卓7
+        const val SOUND_TYPE_DEFAULT = "default"           // 系统默认通知音
+        const val SOUND_TYPE_ALARM = "system_alarm"        // 系统闹钟声音 - 最响亮
+        const val SOUND_TYPE_RINGTONE = "system_ringtone"  // 系统电话铃声 - 较响亮
+        const val SOUND_TYPE_EVENT = "system_event"        // 系统事件声音
+        const val SOUND_TYPE_EMAIL = "system_email"        // 系统邮件声音
         
         // 获取所有可用的提示音类型
         fun getAllSoundTypes(): List<String> {
             return listOf(
                 SOUND_TYPE_DEFAULT,
-                SOUND_TYPE_BELL,
-                SOUND_TYPE_CASH,
-                SOUND_TYPE_ALERT,
-                SOUND_TYPE_CHIME
+                SOUND_TYPE_ALARM,
+                SOUND_TYPE_RINGTONE,
+                SOUND_TYPE_EVENT,
+                SOUND_TYPE_EMAIL
             )
         }
         
-        // 获取声音类型的显示名称 - 返回空字符串，让调用者决定如何展示
+        // 获取声音类型的显示名称
         fun getSoundTypeDisplayName(type: String): String {
             return when (type) {
                 SOUND_TYPE_DEFAULT -> ""
-                SOUND_TYPE_BELL -> ""
-                SOUND_TYPE_CASH -> ""
-                SOUND_TYPE_ALERT -> ""
-                SOUND_TYPE_CHIME -> ""
+                SOUND_TYPE_ALARM -> ""
+                SOUND_TYPE_RINGTONE -> ""
+                SOUND_TYPE_EVENT -> ""
+                SOUND_TYPE_EMAIL -> ""
                 else -> ""
             }
         }

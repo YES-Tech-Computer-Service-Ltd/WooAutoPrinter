@@ -188,12 +188,12 @@
     <string name="volume_min">0%</string>
     <string name="volume_max">100%</string>
     <!-- Sound Types -->
-    <string name="sound_type_default">Default Notification</string>
-    <string name="sound_type_bell">Bell Sound</string>
-    <string name="sound_type_cash">Cash Register Sound</string>
-    <string name="sound_type_alert">Alert Sound</string>
-    <string name="sound_type_chime">Wind Chime Sound</string>
-    <string name="sound_type_unknown">Unknown Sound</string>
+    <string name="sound_type_default">system default</string>
+    <string name="sound_type_alarm">system alarm</string>
+    <string name="sound_type_ringtone">system ringtone</string>
+    <string name="sound_type_event">system event</string>
+    <string name="sound_type_email">system email</string>
+    <string name="sound_test">test sound</string>
 
     <!-- App Settings -->
     <string name="language">Language（语言）</string>
