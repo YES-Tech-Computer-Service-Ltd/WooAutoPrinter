@@ -195,9 +195,6 @@ class SoundManager @Inject constructor(
      */
     suspend fun setSoundType(type: String) {
         if (SoundSettings.getAllSoundTypes().contains(type)) {
-            // 先停止当前可能正在播放的声音
-            stopCurrentSound()
-            
             _currentSoundType.value = type
             saveSettings()
             
@@ -243,13 +240,41 @@ class SoundManager @Inject constructor(
                 return
             }
             
-            // 正常播放订单通知声音
+            // 正常播放一次性订单通知声音
             lastPlayTime = currentTime
             pendingNotifications = 0
             
-            // 直接使用playSound方法确保声音类型一致性
-            playSound(_currentSoundType.value)
-            Log.d(TAG, "播放订单通知声音: 类型=${_currentSoundType.value}")
+            try {
+                val ringtoneType = when(_currentSoundType.value) {
+                    SoundSettings.SOUND_TYPE_ALARM -> RingtoneManager.TYPE_ALARM
+                    SoundSettings.SOUND_TYPE_RINGTONE -> RingtoneManager.TYPE_RINGTONE
+                    else -> RingtoneManager.TYPE_NOTIFICATION
+                }
+                
+                val notificationUri = RingtoneManager.getDefaultUri(ringtoneType)
+                val ringtone = RingtoneManager.getRingtone(context, notificationUri)
+                
+                // 尝试设置音量
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    try {
+                        ringtone.volume = _currentVolume.value / 100f
+                    } catch (e: Exception) {
+                        Log.w(TAG, "设置通知音量失败: ${e.message}")
+                    }
+                }
+                
+                ringtone.play()
+                Log.d(TAG, "播放订单通知声音: 类型=${_currentSoundType.value}")
+            } catch (e: Exception) {
+                Log.e(TAG, "播放订单通知声音失败", e)
+                // 尝试播放备用通知声音
+                try {
+                    val fallbackUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+                    RingtoneManager.getRingtone(context, fallbackUri).play()
+                } catch (e: Exception) {
+                    Log.e(TAG, "播放备用通知声音也失败", e)
+                }
+            }
         }
     }
     
@@ -371,9 +396,6 @@ class SoundManager @Inject constructor(
      */
     private fun playSpecificSound(uri: Uri) {
         try {
-            // 停止之前的声音
-            stopCurrentSound()
-            
             ringtonePlayer = RingtoneManager.getRingtone(context, uri)
             
             // 尝试设置音量
@@ -389,12 +411,6 @@ class SoundManager @Inject constructor(
             ringtonePlayer?.play()
             testSoundPlaying = true
             Log.d(TAG, "播放特定URI声音: $uri")
-            
-            // 添加自动停止计时器，防止声音一直循环播放
-            CoroutineScope(Dispatchers.Main).launch {
-                delay(5000) // 5秒后自动停止
-                stopCurrentSound()
-            }
         } catch (e: Exception) {
             Log.e(TAG, "播放特定URI声音失败: ${e.message}", e)
             // 播放备用声音
@@ -421,9 +437,6 @@ class SoundManager @Inject constructor(
      */
     private fun playSystemSound(ringtoneType: Int) {
         try {
-            // 停止之前的声音
-            stopCurrentSound()
-            
             val notificationUri = RingtoneManager.getDefaultUri(ringtoneType)
             ringtonePlayer = RingtoneManager.getRingtone(context, notificationUri)
             
@@ -440,12 +453,6 @@ class SoundManager @Inject constructor(
             ringtonePlayer?.play()
             testSoundPlaying = true
             Log.d(TAG, "播放系统声音: 类型=$ringtoneType")
-            
-            // 添加自动停止计时器，防止声音一直循环播放
-            CoroutineScope(Dispatchers.Main).launch {
-                delay(5000) // 5秒后自动停止
-                stopCurrentSound()
-            }
         } catch (e: Exception) {
             Log.e(TAG, "播放系统声音失败", e)
             // 回退到最基本的系统通知声音
@@ -453,12 +460,6 @@ class SoundManager @Inject constructor(
                 val fallbackUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
                 ringtonePlayer = RingtoneManager.getRingtone(context, fallbackUri)
                 ringtonePlayer?.play()
-                
-                // 同样添加自动停止
-                CoroutineScope(Dispatchers.Main).launch {
-                    delay(5000) // 5秒后自动停止
-                    stopCurrentSound()
-                }
             } catch (e: Exception) {
                 Log.e(TAG, "播放备用系统声音也失败", e)
             }

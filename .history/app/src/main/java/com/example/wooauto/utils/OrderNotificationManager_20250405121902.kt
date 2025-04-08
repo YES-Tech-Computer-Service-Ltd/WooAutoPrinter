@@ -17,7 +17,6 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
-import java.util.concurrent.CopyOnWriteArraySet
 
 /**
  * 订单通知管理器
@@ -38,14 +37,12 @@ class OrderNotificationManager @Inject constructor(
     private val isProcessingBatch = AtomicBoolean(false)
     private val isBatchNotificationEnabled = true // 可以通过设置来控制是否开启批量通知
     private val BATCH_PROCESSING_DELAY = 300L // 批量处理延迟，单位毫秒
+    private val NOTIFICATION_BACKOFF = 50L // 多个通知间隔时间
     
-    // 应用启动标记和启动静默期
-    private val APP_STARTUP_QUIET_PERIOD = 5000L // 应用启动后5秒内不发送通知
-    private val appStartTime = System.currentTimeMillis()
-    private var startupSilenceEnded = false
-    
-    // 存储已处理过的订单ID，防止重复通知
-    private val processedOrderIds = CopyOnWriteArraySet<Long>()
+    // 应用启动标记，用于过滤启动时的通知
+    private var isFirstLaunch = true
+    private var appStartTime = System.currentTimeMillis()
+    private val LAUNCH_QUIET_PERIOD = 3000L // 启动后的静默期（毫秒）
     
     // 通知回调接口
     interface NotificationCallback {
@@ -53,16 +50,6 @@ class OrderNotificationManager @Inject constructor(
     }
     
     private var callback: NotificationCallback? = null
-    
-    init {
-        // 在初始化时设置启动静默期，经过一段时间后才开始处理通知
-        Log.d(TAG, "初始化OrderNotificationManager，设置启动静默期: ${APP_STARTUP_QUIET_PERIOD}ms")
-        mainScope.launch {
-            delay(APP_STARTUP_QUIET_PERIOD)
-            startupSilenceEnded = true
-            Log.d(TAG, "应用启动静默期结束，开始处理通知")
-        }
-    }
     
     /**
      * 注册通知回调
@@ -89,42 +76,31 @@ class OrderNotificationManager @Inject constructor(
             return
         }
         
-        // 在注册接收器时，预先加载已有订单ID，防止重复通知
-        mainScope.launch {
-            try {
-                val existingOrders = withContext(Dispatchers.IO) {
-                    orderRepository.getOrders("processing")
-                }
-                existingOrders.forEach { order ->
-                    processedOrderIds.add(order.id)
-                }
-                Log.d(TAG, "预加载了 ${processedOrderIds.size} 个已有订单ID，防止重复通知")
-            } catch (e: Exception) {
-                Log.e(TAG, "预加载订单ID失败: ${e.message}", e)
-            }
-        }
+        // 记录应用启动时间
+        appStartTime = System.currentTimeMillis()
+        isFirstLaunch = true
+        Log.d(TAG, "记录应用启动时间: $appStartTime, 启动静默期: ${LAUNCH_QUIET_PERIOD}ms")
         
         newOrderReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context, intent: Intent) {
                 if (intent.action == "com.example.wooauto.NEW_ORDER_RECEIVED") {
                     val orderId = intent.getLongExtra("orderId", -1L)
-                    val isInStartupPeriod = !startupSilenceEnded
-                    val isAlreadyProcessed = processedOrderIds.contains(orderId)
+                    val currentTime = System.currentTimeMillis()
+                    val timeFromStart = currentTime - appStartTime
                     
-                    Log.d(TAG, "收到新订单广播: orderId=$orderId, 是否在启动静默期: $isInStartupPeriod, 是否已处理: $isAlreadyProcessed")
+                    // 检查是否在应用启动静默期内
+                    val isInQuietPeriod = isFirstLaunch && timeFromStart < LAUNCH_QUIET_PERIOD
                     
-                    if (orderId != -1L && !isAlreadyProcessed) {
-                        // 如果在启动静默期内，只记录ID但不产生通知
-                        if (isInStartupPeriod) {
-                            Log.d(TAG, "在应用启动静默期内，记录订单ID但不发送通知: $orderId")
-                            processedOrderIds.add(orderId)
+                    Log.d(TAG, "收到新订单广播: orderId=$orderId, 启动后时间=${timeFromStart}ms, 是否在静默期=$isInQuietPeriod")
+                    
+                    if (orderId != -1L) {
+                        if (isInQuietPeriod) {
+                            // 在应用启动的静默期内，记录但不处理通知
+                            Log.d(TAG, "应用启动静默期内，忽略通知: orderId=$orderId")
                             return
                         }
                         
-                        // 添加到已处理ID集合
-                        processedOrderIds.add(orderId)
-                        
-                        // 正常处理通知
+                        // 过了静默期，正常处理通知
                         if (isBatchNotificationEnabled) {
                             // 批量处理模式
                             addToPendingOrders(orderId)
@@ -132,8 +108,6 @@ class OrderNotificationManager @Inject constructor(
                             // 单独处理模式
                             loadOrderDetails(orderId)
                         }
-                    } else if (isAlreadyProcessed) {
-                        Log.d(TAG, "订单ID已处理过，忽略: $orderId")
                     }
                 }
             }
@@ -142,6 +116,13 @@ class OrderNotificationManager @Inject constructor(
         val filter = IntentFilter("com.example.wooauto.NEW_ORDER_RECEIVED")
         context.registerReceiver(newOrderReceiver, filter)
         Log.d(TAG, "已注册新订单广播接收器")
+        
+        // 延迟标记首次启动完成
+        mainScope.launch {
+            delay(LAUNCH_QUIET_PERIOD)
+            isFirstLaunch = false
+            Log.d(TAG, "应用启动静默期结束，现在将正常处理通知")
+        }
     }
     
     /**
@@ -183,10 +164,19 @@ class OrderNotificationManager @Inject constructor(
                     }
                 }
                 
-                // 只有在不在启动静默期时才播放声音和发送通知
-                if (orders.isNotEmpty() && startupSilenceEnded) {
-                    // 只播放一次声音
-                    soundManager.playOrderNotificationSound()
+                // 只播放一次声音
+                if (orders.isNotEmpty()) {
+                    // 检查是否在应用启动的静默期内
+                    val currentTime = System.currentTimeMillis()
+                    val isStillInQuietPeriod = isFirstLaunch && (currentTime - appStartTime < LAUNCH_QUIET_PERIOD)
+                    
+                    if (!isStillInQuietPeriod) {
+                        // 只在非静默期播放声音
+                        Log.d(TAG, "非启动静默期，播放通知声音")
+                        soundManager.playOrderNotificationSound()
+                    } else {
+                        Log.d(TAG, "仍在应用启动静默期，不播放通知声音")
+                    }
                     
                     // 重要：仅向MainActivity发送一个通知，优先使用最近的订单
                     val newestOrder = orders.maxByOrNull { it.dateCreated.time }
@@ -194,8 +184,6 @@ class OrderNotificationManager @Inject constructor(
                         Log.d(TAG, "向MainActivity发送批量通知，显示最新订单 #${order.number}，实际共有 ${orders.size} 个新订单")
                         callback?.onNewOrderReceived(order)
                     }
-                } else if (!startupSilenceEnded) {
-                    Log.d(TAG, "在启动静默期内，跳过通知声音和UI显示，订单数量: ${orders.size}")
                 }
             }
         } catch (e: Exception) {
@@ -241,12 +229,16 @@ class OrderNotificationManager @Inject constructor(
                 if (order != null) {
                     Log.d(TAG, "成功加载订单详情: #${order.number}")
                     
-                    // 只有在不在启动静默期时才播放声音和发送通知
-                    if (startupSilenceEnded) {
+                    // 检查是否在应用启动的静默期内
+                    val currentTime = System.currentTimeMillis()
+                    val isStillInQuietPeriod = isFirstLaunch && (currentTime - appStartTime < LAUNCH_QUIET_PERIOD)
+                    
+                    if (!isStillInQuietPeriod) {
+                        // 只在非静默期播放声音和发送通知
                         soundManager.playOrderNotificationSound()
                         callback?.onNewOrderReceived(order)
                     } else {
-                        Log.d(TAG, "在启动静默期内，记录但不通知: #${order.number}")
+                        Log.d(TAG, "应用启动静默期内，仅记录订单但不播放声音或通知: #${order.number}")
                     }
                 } else {
                     Log.e(TAG, "加载订单详情失败，未找到订单: $orderId")
@@ -302,13 +294,5 @@ class OrderNotificationManager @Inject constructor(
                 callback(null)
             }
         }
-    }
-    
-    /**
-     * 清理缓存，用于测试
-     */
-    fun clearProcessedIds() {
-        processedOrderIds.clear()
-        Log.d(TAG, "已清除所有处理过的订单ID")
     }
 } 

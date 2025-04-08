@@ -271,66 +271,91 @@ fun SoundTypeSelector(
         SoundSettings.SOUND_TYPE_EMAIL to R.string.sound_type_email
     )
     
-    // 所有声音类型平铺展示
-    val allSoundTypes = SoundSettings.getAllSoundTypes()
+    // 声音类型分组
+    val standardSoundTypes = listOf(
+        SoundSettings.SOUND_TYPE_DEFAULT,
+        SoundSettings.SOUND_TYPE_EVENT,
+        SoundSettings.SOUND_TYPE_EMAIL
+    )
+    
+    val loudSoundTypes = listOf(
+        SoundSettings.SOUND_TYPE_ALARM,
+        SoundSettings.SOUND_TYPE_RINGTONE
+    )
+    
+    // 显示的声音类型分类
+    val soundTypeGroups = listOf(
+        "标准系统声音" to standardSoundTypes,
+        "响亮系统声音" to loudSoundTypes
+    )
     
     Column(
         modifier = Modifier.fillMaxWidth()
     ) {
-        Text(
-            text = stringResource(id = R.string.sound_type_desc),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        allSoundTypes.forEach { type ->
-            // 使用安全获取资源ID，如果不存在则使用默认通知音类型
-            val displayTextResId = soundTypeResources[type] ?: R.string.sound_type_default
+        soundTypeGroups.forEach { (group, types) ->
+            Text(
+                text = group,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
             
-            val isSelected = type == selectedType
+            Spacer(modifier = Modifier.height(8.dp))
             
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(
-                        if (isSelected && enabled) 
-                            MaterialTheme.colorScheme.primaryContainer
-                        else 
-                            Color.Transparent
-                    )
-                    .selectable(
+            Text(
+                text = stringResource(id = R.string.sound_type_desc),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            types.forEach { type ->
+                // 使用安全获取资源ID，如果不存在则使用默认通知音类型
+                val displayTextResId = soundTypeResources[type] ?: R.string.sound_type_default
+                
+                val isSelected = type == selectedType
+                
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(
+                            if (isSelected && enabled) 
+                                MaterialTheme.colorScheme.primaryContainer
+                            else 
+                                Color.Transparent
+                        )
+                        .selectable(
+                            selected = isSelected,
+                            onClick = { onTypeSelected(type) },
+                            enabled = enabled
+                        )
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    RadioButton(
                         selected = isSelected,
                         onClick = { onTypeSelected(type) },
                         enabled = enabled
                     )
-                    .padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                RadioButton(
-                    selected = isSelected,
-                    onClick = { onTypeSelected(type) },
-                    enabled = enabled
-                )
-                
-                Text(
-                    text = stringResource(id = displayTextResId),
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier
-                        .padding(start = 16.dp)
-                        .weight(1f),
-                    color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                )
-                
-                if (isSelected && enabled) {
-                    Icon(
-                        imageVector = Icons.Default.Check,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
+                    
+                    Text(
+                        text = stringResource(id = displayTextResId),
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier
+                            .padding(start = 16.dp)
+                            .weight(1f),
+                        color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                     )
+                    
+                    if (isSelected && enabled) {
+                        Icon(
+                            imageVector = Icons.Default.Check,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
                 }
             }
         }

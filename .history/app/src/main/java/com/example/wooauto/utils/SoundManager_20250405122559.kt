@@ -93,10 +93,6 @@ class SoundManager @Inject constructor(
     private val notificationLock = Any()
     private val BATCH_NOTIFICATION_DELAY = 500L // 批量通知延迟，单位毫秒
     
-    // 防止测试声音连续播放
-    private var ringtonePlayer: android.media.Ringtone? = null
-    private var testSoundPlaying = false
-    
     // 初始化声音资源
     init {
         initializeSoundResources()
@@ -108,18 +104,23 @@ class SoundManager @Inject constructor(
      */
     private fun initializeSoundResources() {
         try {
-            // 我们使用系统声音，不需要加载自定义资源
-            Log.d(TAG, "使用系统提供的声音资源")
+            // 初始化系统通知音效URI
+            systemNotificationUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
             
-            // 尝试预先获取各种系统声音URI备用
-            try {
-                systemNotificationUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-                Log.d(TAG, "成功获取系统默认通知音效URI")
-            } catch (e: Exception) {
-                Log.e(TAG, "获取系统通知音效URI失败", e)
-            }
+            // 注意：这里假设资源可能不存在，我们提供合理的默认值
+            // 实际项目中应在 res/raw 目录下添加这些音效文件
             
-            anySoundLoaded = true
+            // 将资源类型映射到对应的资源ID
+            // 如果在项目中没有这些资源，这些值将为0或无效ID
+            soundResources[SoundSettings.SOUND_TYPE_DEFAULT] = R.raw.notification_default
+            soundResources[SoundSettings.SOUND_TYPE_BELL] = R.raw.notification_bell
+            soundResources[SoundSettings.SOUND_TYPE_CASH] = R.raw.notification_cash
+            soundResources[SoundSettings.SOUND_TYPE_ALERT] = R.raw.notification_alert
+            soundResources[SoundSettings.SOUND_TYPE_CHIME] = R.raw.notification_chime
+            
+            // 预加载所有声音
+            preloadSounds()
+            
             Log.d(TAG, "声音资源初始化完成")
             
         } catch (e: Exception) {
@@ -128,12 +129,41 @@ class SoundManager @Inject constructor(
     }
     
     /**
-     * 预加载所有声音 - 不再需要，因为我们现在使用系统声音
+     * 预加载所有声音
      */
     private fun preloadSounds() {
-        // 不再需要预加载，因为使用系统声音
-        anySoundLoaded = true
-        Log.d(TAG, "系统声音不需要预加载")
+        soundResources.forEach { (type, resId) ->
+            if (resId != 0) {
+                try {
+                    val resourceName = context.resources.getResourceEntryName(resId)
+                    val soundId = soundPool.load(context, resId, 1)
+                    loadedSounds[type] = soundId
+                    
+                    // 设置默认音效ID
+                    if (type == SoundSettings.SOUND_TYPE_DEFAULT || defaultSoundId == -1) {
+                        defaultSoundId = soundId
+                    }
+                    
+                    anySoundLoaded = true
+                    Log.d(TAG, "成功加载声音: $type (资源ID: $resId)")
+                } catch (e: Exception) {
+                    Log.e(TAG, "加载声音失败: $type (资源ID: $resId)", e)
+                }
+            } else {
+                Log.w(TAG, "声音资源未找到: $type")
+            }
+        }
+        
+        // 如果没有加载任何声音，尝试加载系统的默认通知音效
+        if (!anySoundLoaded) {
+            try {
+                // 使用系统铃声作为备选
+                val notification = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+                Log.d(TAG, "尝试使用系统默认通知音效: $notification")
+            } catch (e: Exception) {
+                Log.e(TAG, "无法加载任何声音资源", e)
+            }
+        }
     }
     
     /**
@@ -195,9 +225,6 @@ class SoundManager @Inject constructor(
      */
     suspend fun setSoundType(type: String) {
         if (SoundSettings.getAllSoundTypes().contains(type)) {
-            // 先停止当前可能正在播放的声音
-            stopCurrentSound()
-            
             _currentSoundType.value = type
             saveSettings()
             
@@ -243,13 +270,10 @@ class SoundManager @Inject constructor(
                 return
             }
             
-            // 正常播放订单通知声音
+            // 正常播放声音
             lastPlayTime = currentTime
             pendingNotifications = 0
-            
-            // 直接使用playSound方法确保声音类型一致性
             playSound(_currentSoundType.value)
-            Log.d(TAG, "播放订单通知声音: 类型=${_currentSoundType.value}")
         }
     }
     
@@ -269,7 +293,7 @@ class SoundManager @Inject constructor(
     }
     
     /**
-     * 播放指定类型的提示音 - 确保不同类型使用不同的系统声音
+     * 播放指定类型的提示音
      * @param type 声音类型
      */
     fun playSound(type: String) {
@@ -277,188 +301,79 @@ class SoundManager @Inject constructor(
             Log.d(TAG, "声音已禁用，不播放提示音")
             return
         }
-
-        // 如果已经有声音在播放，先停止
-        stopCurrentSound()
         
         try {
-            // 根据声音类型使用不同的系统声音ID或URI
-            when(type) {
-                SoundSettings.SOUND_TYPE_ALARM -> {
-                    // 使用系统闹钟声音
-                    playSystemSound(RingtoneManager.TYPE_ALARM)
-                }
-                
-                SoundSettings.SOUND_TYPE_RINGTONE -> {
-                    // 使用系统铃声
-                    playSystemSound(RingtoneManager.TYPE_RINGTONE)
-                }
-                
-                SoundSettings.SOUND_TYPE_DEFAULT -> {
-                    // 默认通知声音
-                    playSystemSound(RingtoneManager.TYPE_NOTIFICATION)
-                }
-                
-                SoundSettings.SOUND_TYPE_EVENT -> {
-                    // 尝试使用系统事件声音，安卓原生没有这个类型，我们使用特定URI
-                    try {
-                        val uri = Settings.System.DEFAULT_NOTIFICATION_URI
-                        playSpecificSound(uri)
-                    } catch (e: Exception) {
-                        // 使用备用系统声音
-                        playSystemSound(RingtoneManager.TYPE_NOTIFICATION)
-                    }
-                }
-                
-                SoundSettings.SOUND_TYPE_EMAIL -> {
-                    // 尝试使用邮件声音，安卓原生没有这个类型，我们使用特定URI
-                    try {
-                        // 在不同Android版本上尝试不同的声音
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                            // Android 8以上使用第二个可用的通知声音
-                            val availableSounds = RingtoneManager(context).cursor
-                            if (availableSounds.moveToPosition(1)) { // 尝试获取第二个声音
-                                val uri = Uri.parse(availableSounds.getString(RingtoneManager.URI_COLUMN_INDEX) + "/" +
-                                        availableSounds.getString(RingtoneManager.ID_COLUMN_INDEX))
-                                playSpecificSound(uri)
-                                availableSounds.close()
-                                return
-                            }
-                            availableSounds.close()
-                        }
-                        // 备用：使用系统第三个铃声
-                        val manager = RingtoneManager(context)
-                        manager.setType(RingtoneManager.TYPE_NOTIFICATION)
-                        val cursor = manager.cursor
-                        
-                        // 尝试获取第三个铃声
-                        if(cursor.count > 2 && cursor.moveToPosition(2)) {
-                            val position = cursor.position
-                            val uri = manager.getRingtoneUri(position)
-                            playSpecificSound(uri)
-                            cursor.close()
-                            return
-                        }
-                        cursor.close()
-                        
-                        // 如果没有找到额外的铃声，使用默认通知声音
-                        playSystemSound(RingtoneManager.TYPE_NOTIFICATION)
-                    } catch (e: Exception) {
-                        Log.e(TAG, "播放邮件声音失败: ${e.message}")
-                        // 备用声音
-                        playSystemSound(RingtoneManager.TYPE_NOTIFICATION)
-                    }
-                }
-                
-                else -> {
-                    // 未知类型使用默认通知声音
-                    playSystemSound(RingtoneManager.TYPE_NOTIFICATION)
-                }
+            // 对于系统声音类型，直接使用系统声音API
+            if (type == SoundSettings.SOUND_TYPE_DEFAULT || 
+                type == SoundSettings.SOUND_TYPE_SYSTEM_ALARM || 
+                type == SoundSettings.SOUND_TYPE_SYSTEM_RINGTONE) {
+                playSystemNotificationSound()
+                return
             }
+            
+            if (!anySoundLoaded) {
+                Log.w(TAG, "没有可用的声音资源，使用系统默认通知音")
+                playSystemNotificationSound()
+                return
+            }
+            
+            // 尝试获取指定类型的声音ID，如果不存在则使用默认声音ID
+            val soundId = loadedSounds[type] ?: loadedSounds[SoundSettings.SOUND_TYPE_DEFAULT] ?: defaultSoundId
+            
+            // 如果没有有效的声音ID，则使用系统通知音
+            if (soundId <= 0) {
+                Log.w(TAG, "找不到有效的声音资源，使用系统默认通知音")
+                playSystemNotificationSound()
+                return
+            }
+            
+            // 计算音量 (将百分比转换为0.0-1.0)
+            val volume = _currentVolume.value / 100f
+            
+            // 播放声音
+            soundPool.play(soundId, volume, volume, 1, 0, 1.0f)
+            
+            Log.d(TAG, "播放声音: 类型=$type, 音量=$volume, 声音ID=$soundId")
         } catch (e: Exception) {
-            Log.e(TAG, "播放声音失败: ${e.message}", e)
-            try {
-                // 兜底使用默认通知声音
-                playSystemSound(RingtoneManager.TYPE_NOTIFICATION)
-            } catch (e: Exception) {
-                Log.e(TAG, "播放备用声音也失败: ${e.message}", e)
-            }
+            Log.e(TAG, "播放声音失败", e)
+            // 出错时尝试播放系统音效
+            playSystemNotificationSound()
         }
     }
     
     /**
-     * 播放指定URI的系统声音
+     * 播放系统默认通知音效
      */
-    private fun playSpecificSound(uri: Uri) {
+    private fun playSystemNotificationSound() {
         try {
-            // 停止之前的声音
-            stopCurrentSound()
-            
-            ringtonePlayer = RingtoneManager.getRingtone(context, uri)
-            
-            // 尝试设置音量
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                try {
-                    val volume = _currentVolume.value / 100f
-                    ringtonePlayer?.volume = volume
-                } catch (e: Exception) {
-                    Log.w(TAG, "设置声音音量失败: ${e.message}")
-                }
+            // 根据当前选择的声音类型选择不同的系统声音
+            val ringtoneType = when (_currentSoundType.value) {
+                SoundSettings.SOUND_TYPE_SYSTEM_ALARM -> RingtoneManager.TYPE_ALARM
+                SoundSettings.SOUND_TYPE_SYSTEM_RINGTONE -> RingtoneManager.TYPE_RINGTONE
+                else -> RingtoneManager.TYPE_NOTIFICATION
             }
-            
-            ringtonePlayer?.play()
-            testSoundPlaying = true
-            Log.d(TAG, "播放特定URI声音: $uri")
-            
-            // 添加自动停止计时器，防止声音一直循环播放
-            CoroutineScope(Dispatchers.Main).launch {
-                delay(5000) // 5秒后自动停止
-                stopCurrentSound()
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "播放特定URI声音失败: ${e.message}", e)
-            // 播放备用声音
-            playSystemSound(RingtoneManager.TYPE_NOTIFICATION)
-        }
-    }
-    
-    /**
-     * 停止当前正在播放的声音
-     */
-    private fun stopCurrentSound() {
-        try {
-            ringtonePlayer?.stop()
-            ringtonePlayer = null
-            testSoundPlaying = false
-        } catch (e: Exception) {
-            Log.e(TAG, "停止声音失败", e)
-        }
-    }
-    
-    /**
-     * 播放系统声音
-     * @param ringtoneType 铃声类型
-     */
-    private fun playSystemSound(ringtoneType: Int) {
-        try {
-            // 停止之前的声音
-            stopCurrentSound()
             
             val notificationUri = RingtoneManager.getDefaultUri(ringtoneType)
-            ringtonePlayer = RingtoneManager.getRingtone(context, notificationUri)
+            val ringtone = RingtoneManager.getRingtone(context, notificationUri)
             
             // 尝试设置音量 (部分设备可能不支持)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 try {
                     val volume = _currentVolume.value / 100f
-                    ringtonePlayer?.volume = volume
+                    ringtone.volume = volume
                 } catch (e: Exception) {
-                    Log.w(TAG, "设置系统声音音量失败: ${e.message}")
+                    Log.w(TAG, "设置系统通知音效音量失败: ${e.message}")
                 }
             }
             
-            ringtonePlayer?.play()
-            testSoundPlaying = true
+            ringtone.play()
             Log.d(TAG, "播放系统声音: 类型=$ringtoneType")
-            
-            // 添加自动停止计时器，防止声音一直循环播放
-            CoroutineScope(Dispatchers.Main).launch {
-                delay(5000) // 5秒后自动停止
-                stopCurrentSound()
-            }
         } catch (e: Exception) {
             Log.e(TAG, "播放系统声音失败", e)
             // 回退到最基本的系统通知声音
             try {
                 val fallbackUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-                ringtonePlayer = RingtoneManager.getRingtone(context, fallbackUri)
-                ringtonePlayer?.play()
-                
-                // 同样添加自动停止
-                CoroutineScope(Dispatchers.Main).launch {
-                    delay(5000) // 5秒后自动停止
-                    stopCurrentSound()
-                }
+                RingtoneManager.getRingtone(context, fallbackUri).play()
             } catch (e: Exception) {
                 Log.e(TAG, "播放备用系统声音也失败", e)
             }
@@ -470,7 +385,6 @@ class SoundManager @Inject constructor(
      */
     fun release() {
         try {
-            stopCurrentSound()
             soundPool.release()
         } catch (e: Exception) {
             Log.e(TAG, "释放声音资源失败", e)

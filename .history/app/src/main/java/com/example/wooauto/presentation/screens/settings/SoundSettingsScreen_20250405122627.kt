@@ -265,72 +265,100 @@ fun SoundTypeSelector(
     // 声音类型列表和对应的字符串资源ID映射
     val soundTypeResources = mapOf(
         SoundSettings.SOUND_TYPE_DEFAULT to R.string.sound_type_default,
-        SoundSettings.SOUND_TYPE_ALARM to R.string.sound_type_alarm,
-        SoundSettings.SOUND_TYPE_RINGTONE to R.string.sound_type_ringtone,
-        SoundSettings.SOUND_TYPE_EVENT to R.string.sound_type_event,
-        SoundSettings.SOUND_TYPE_EMAIL to R.string.sound_type_email
+        SoundSettings.SOUND_TYPE_BELL to R.string.sound_type_bell,
+        SoundSettings.SOUND_TYPE_CASH to R.string.sound_type_cash,
+        SoundSettings.SOUND_TYPE_ALERT to R.string.sound_type_alert,
+        SoundSettings.SOUND_TYPE_CHIME to R.string.sound_type_chime,
+        SoundSettings.SOUND_TYPE_SYSTEM_ALARM to R.string.sound_type_system_alarm,
+        SoundSettings.SOUND_TYPE_SYSTEM_RINGTONE to R.string.sound_type_system_ringtone
     )
     
-    // 所有声音类型平铺展示
-    val allSoundTypes = SoundSettings.getAllSoundTypes()
+    // 声音类型分组
+    val standardSoundTypes = listOf(
+        SoundSettings.SOUND_TYPE_DEFAULT,
+        SoundSettings.SOUND_TYPE_BELL,
+        SoundSettings.SOUND_TYPE_CASH,
+        SoundSettings.SOUND_TYPE_ALERT,
+        SoundSettings.SOUND_TYPE_CHIME
+    )
+    
+    val systemSoundTypes = listOf(
+        SoundSettings.SOUND_TYPE_SYSTEM_ALARM,
+        SoundSettings.SOUND_TYPE_SYSTEM_RINGTONE
+    )
+    
+    // 显示的声音类型分类
+    val soundTypeGroups = listOf(
+        stringResource(R.string.sound_type_title) to standardSoundTypes,
+        "系统声音（更响亮）" to systemSoundTypes
+    )
     
     Column(
         modifier = Modifier.fillMaxWidth()
     ) {
-        Text(
-            text = stringResource(id = R.string.sound_type_desc),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        allSoundTypes.forEach { type ->
-            // 使用安全获取资源ID，如果不存在则使用默认通知音类型
-            val displayTextResId = soundTypeResources[type] ?: R.string.sound_type_default
+        soundTypeGroups.forEach { (group, types) ->
+            Text(
+                text = group,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
             
-            val isSelected = type == selectedType
+            Spacer(modifier = Modifier.height(8.dp))
             
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(
-                        if (isSelected && enabled) 
-                            MaterialTheme.colorScheme.primaryContainer
-                        else 
-                            Color.Transparent
-                    )
-                    .selectable(
+            Text(
+                text = stringResource(id = R.string.sound_type_desc),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            types.forEach { type ->
+                val displayTextResId = soundTypeResources[type]
+                
+                val isSelected = type == selectedType
+                
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(
+                            if (isSelected && enabled) 
+                                MaterialTheme.colorScheme.primaryContainer
+                            else 
+                                Color.Transparent
+                        )
+                        .selectable(
+                            selected = isSelected,
+                            onClick = { onTypeSelected(type) },
+                            enabled = enabled
+                        )
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    RadioButton(
                         selected = isSelected,
                         onClick = { onTypeSelected(type) },
                         enabled = enabled
                     )
-                    .padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                RadioButton(
-                    selected = isSelected,
-                    onClick = { onTypeSelected(type) },
-                    enabled = enabled
-                )
-                
-                Text(
-                    text = stringResource(id = displayTextResId),
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier
-                        .padding(start = 16.dp)
-                        .weight(1f),
-                    color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                )
-                
-                if (isSelected && enabled) {
-                    Icon(
-                        imageVector = Icons.Default.Check,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
+                    
+                    Text(
+                        text = stringResource(id = displayTextResId),
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier
+                            .padding(start = 16.dp)
+                            .weight(1f),
+                        color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                     )
+                    
+                    if (isSelected && enabled) {
+                        Icon(
+                            imageVector = Icons.Default.Check,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
                 }
             }
         }

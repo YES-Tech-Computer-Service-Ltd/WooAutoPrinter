@@ -188,12 +188,12 @@
     <string name="volume_min">0%</string>
     <string name="volume_max">100%</string>
     <!-- Sound Types -->
-    <string name="sound_type_default">system default</string>
-    <string name="sound_type_alarm">system alarm</string>
-    <string name="sound_type_ringtone">system ringtone</string>
-    <string name="sound_type_event">system event</string>
-    <string name="sound_type_email">system email</string>
-    <string name="sound_test">test sound</string>
+    <string name="sound_type_default">系统默认通知音</string>
+    <string name="sound_type_alarm">系统闹钟声音（最响亮）</string>
+    <string name="sound_type_ringtone">系统电话铃声（较响亮）</string>
+    <string name="sound_type_event">系统事件提示音</string>
+    <string name="sound_type_email">系统邮件提示音</string>
+    <string name="sound_test">测试声音</string>
 
     <!-- App Settings -->
     <string name="language">Language（语言）</string>

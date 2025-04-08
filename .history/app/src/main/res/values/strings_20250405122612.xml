@@ -176,24 +176,27 @@
     <string name="test_sound">Test Sound</string>
     <string name="male_voice">Male Voice</string>
     <string name="female_voice">Female Voice</string>
-    <string name="sound_settings">Sound Settings</string>
+    <string name="sound_settings">声音设置</string>
     <string name="sound_settings_saved">Sound settings saved</string>
     <string name="save_settings">Save Settings</string>
-    <string name="notification_volume">Notification Volume</string>
-    <string name="notification_volume_desc">Adjust notification sound volume without affecting system volume</string>
-    <string name="enable_sound">Enable Sound</string>
-    <string name="enable_sound_desc">Control whether to play notification sound for new orders</string>
-    <string name="sound_type_title">Notification Sound Type</string>
-    <string name="sound_type_desc">Select sound for new order notifications</string>
-    <string name="volume_min">0%</string>
-    <string name="volume_max">100%</string>
+    <string name="notification_volume">通知音量</string>
+    <string name="notification_volume_desc">调整新订单通知的提示音音量</string>
+    <string name="enable_sound">启用声音</string>
+    <string name="enable_sound_desc">是否在收到新订单时播放提示音</string>
+    <string name="sound_type_title">提示音类型</string>
+    <string name="sound_type_desc">选择新订单通知时播放的提示音</string>
+    <string name="volume_min">静音</string>
+    <string name="volume_max">最大</string>
     <!-- Sound Types -->
-    <string name="sound_type_default">system default</string>
-    <string name="sound_type_alarm">system alarm</string>
-    <string name="sound_type_ringtone">system ringtone</string>
-    <string name="sound_type_event">system event</string>
-    <string name="sound_type_email">system email</string>
-    <string name="sound_test">test sound</string>
+    <string name="sound_type_default">系统默认通知音</string>
+    <string name="sound_type_bell">门铃声</string>
+    <string name="sound_type_cash">收银机声</string>
+    <string name="sound_type_alert">提醒声</string>
+    <string name="sound_type_chime">风铃声</string>
+    <string name="sound_type_unknown">Unknown Sound</string>
+    <string name="sound_type_system_alarm">系统闹钟声（较响亮）</string>
+    <string name="sound_type_system_ringtone">系统铃声（较响亮）</string>
+    <string name="sound_test">测试声音</string>
 
     <!-- App Settings -->
     <string name="language">Language（语言）</string>
