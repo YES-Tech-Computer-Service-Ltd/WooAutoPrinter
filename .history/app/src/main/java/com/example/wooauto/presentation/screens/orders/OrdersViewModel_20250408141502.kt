@@ -240,18 +240,6 @@ class OrdersViewModel @Inject constructor(
                             Log.d(TAG, "虽然API调用异常，但有缓存数据，设置为已配置状态以允许用户查看")
                         }
                         apiCallSuccess = false
-                        
-                        // 设置用户友好的错误消息，但只在没有缓存数据时提示
-                        if (cachedOrders.isEmpty()) {
-                            val errorMsg = when {
-                                e.message?.contains("timeout") == true -> "API请求超时，请检查网络连接"
-                                e.message?.contains("401") == true -> "API认证失败，请检查设置中的API密钥"
-                                e.message?.contains("404") == true -> "API端点未找到，请检查站点URL"
-                                e.message?.contains("网络") == true || e.message?.contains("连接") == true -> "网络连接失败，请检查网络设置"
-                                else -> "API调用失败: ${e.message}"
-                            }
-                            _errorMessage.value = errorMsg
-                        }
                     } finally {
                         apiCallCompleted = true
                     }

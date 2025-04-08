@@ -224,8 +224,6 @@ fun OrdersScreen(
     LaunchedEffect(errorMessage) {
         errorMessage?.let {
             coroutineScope.launch {
-                // 确保错误消息显示优先，关闭API配置对话框
-                showApiConfigDialog = false
                 snackbarHostState.showSnackbar(it)
                 viewModel.clearError()
             }
@@ -233,14 +231,9 @@ fun OrdersScreen(
     }
     
     // 检查API配置状态，在延迟结束后才判断是否需要显示配置对话框
-    LaunchedEffect(isLoading, isConfigured, apiCheckDelayCompleted, orders, errorMessage) {
-        // 只有在没有错误消息的情况下才显示API配置对话框
-        if (errorMessage == null && !isLoading && !isConfigured && apiCheckDelayCompleted && orders.isEmpty()) {
-            // 只有在未配置API且没有订单数据时才显示配置对话框
+    LaunchedEffect(isLoading, isConfigured, apiCheckDelayCompleted) {
+        if (!isLoading && !isConfigured && apiCheckDelayCompleted) {
             showApiConfigDialog = true
-        } else if (orders.isNotEmpty() || errorMessage != null) {
-            // 如果有订单数据或有错误消息，不显示API配置对话框
-            showApiConfigDialog = false
         }
     }
     
