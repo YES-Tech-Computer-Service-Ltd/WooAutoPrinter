@@ -99,6 +99,28 @@ fun AppContent() {
             WooBottomNavigation(navController = navController) 
         }
     ) { paddingValues ->
+        // 添加额外日志，监控导航控制器
+        LaunchedEffect(navController) {
+            navController.addOnDestinationChangedListener { _, destination, arguments ->
+                Log.d(TAG, "导航目的地变更: ${destination.route}, 参数: $arguments")
+                // 诊断当前导航堆栈 - 移除访问私有属性的代码
+                try {
+                    // 不再尝试访问私有的backQueue
+                    Log.d(TAG, "当前导航路线: ${destination.route ?: "null"}")
+                } catch (e: Exception) {
+                    Log.e(TAG, "获取导航状态时出错", e)
+                }
+            }
+        }
+        
+        // 确保在订单和设置间导航时能正确工作的关键：处理重组
+        val currentBackStackEntry by navController.currentBackStackEntryAsState()
+        val currentDestination = currentBackStackEntry?.destination
+        val currentDestinationRoute = currentDestination?.route
+        
+        // 记录每次重组中的当前路由
+        Log.d(TAG, "重组: 当前目的地路由 = $currentDestinationRoute")
+        
         NavHost(
             navController = navController,
             startDestination = NavigationItem.Orders.route,
