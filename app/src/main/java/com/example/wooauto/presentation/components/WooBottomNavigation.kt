@@ -1,5 +1,7 @@
 package com.example.wooauto.presentation.components
 
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -67,24 +69,35 @@ fun WooBottomNavigation(navController: NavController) {
                 onClick = {
                     Log.d("WooBottomNavigation", "点击了导航项: ${item.route}")
                     
-                    // 如果在特殊屏幕上，先返回到主导航栏
-                    if (isOnSpecialScreen) {
-                        Log.d("WooBottomNavigation", "在特殊屏幕上，先返回到主导航")
-                        navController.popBackStack()
-                    }
-                    
-                    // 然后导航到目标
-                    if (!selected || isOnSpecialScreen) {
-                        navController.navigate(item.route) {
-                            // 避免重复点击创建多个堆栈
-                            popUpTo(navController.graph.findStartDestination().id) {
-                                saveState = true
+                    // 强制导航到目标，采用更强制的方式确保导航可以执行
+                    try {
+                        // 尝试先清除可能的导航回退栈，更彻底地确保导航可以切换
+                        if (currentRoute != item.route) {
+                            Log.d("WooBottomNavigation", "正在强制导航从 $currentRoute 到 ${item.route}")
+                            
+                            // 清除回退栈，然后重新导航
+                            navController.navigate(item.route) {
+                                // 弹出到起始目的地，但不保存任何状态
+                                popUpTo(navController.graph.findStartDestination().id) {
+                                    inclusive = false
+                                    saveState = false
+                                }
+                                // 确保是单一顶部实例
+                                launchSingleTop = true
+                                // 不恢复状态，强制创建新实例
+                                restoreState = false
                             }
-                            // 避免多次点击导致创建多个目标实例
-                            launchSingleTop = true
-                            // 切换时恢复状态
-                            restoreState = true
+                            
+                            // 延迟记录，检查导航是否成功
+                            Handler(Looper.getMainLooper()).postDelayed({
+                                val newRoute = navController.currentBackStackEntry?.destination?.route
+                                Log.d("WooBottomNavigation", "导航后的当前路由: $newRoute")
+                            }, 100)
+                        } else {
+                            Log.d("WooBottomNavigation", "已经在目标路由上，无需导航")
                         }
+                    } catch (e: Exception) {
+                        Log.e("WooBottomNavigation", "导航时发生错误", e)
                     }
                 },
                 icon = {

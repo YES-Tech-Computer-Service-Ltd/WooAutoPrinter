@@ -242,13 +242,55 @@ fun OrdersScreen(
     
     // 检查API配置状态，在延迟结束后才判断是否需要显示配置对话框
     LaunchedEffect(isLoading, isConfigured, apiCheckDelayCompleted, orders, errorMessage) {
+        Log.d("OrdersScreen", "检查API配置状态: isLoading=$isLoading, isConfigured=$isConfigured, apiCheckDelayCompleted=$apiCheckDelayCompleted, 订单数量=${orders.size}, 错误=${errorMessage != null}")
+        
         // 只有在没有错误消息的情况下才显示API配置对话框
         if (errorMessage == null && !isLoading && !isConfigured && apiCheckDelayCompleted && orders.isEmpty()) {
             // 只有在未配置API且没有订单数据时才显示配置对话框
             showApiConfigDialog = true
-        } else if (orders.isNotEmpty() || errorMessage != null) {
-            // 如果有订单数据或有错误消息，不显示API配置对话框
+            Log.d("OrdersScreen", "显示API配置对话框，状态: isConfigured=$isConfigured, apiCheckDelayCompleted=$apiCheckDelayCompleted")
+        } else if (orders.isNotEmpty() || errorMessage != null || isConfigured) {
+            // 如果有订单数据、有错误消息或API已配置，不显示API配置对话框
             showApiConfigDialog = false
+            Log.d("OrdersScreen", "隐藏API配置对话框，状态: isConfigured=$isConfigured, orders=${orders.size}, errorMessage=$errorMessage")
+        }
+    }
+    
+    // 订单页面每次成为活动页面时刷新API配置状态
+    LaunchedEffect(navController) {
+        // 使用navController的addOnDestinationChangedListener代替currentBackStackEntryAsState
+        navController.addOnDestinationChangedListener { _, destination, _ ->
+            val currentRoute = destination.route
+            Log.d("OrdersScreen", "当前导航到页面: $currentRoute")
+            if (currentRoute == NavigationItem.Orders.route) {
+                Log.d("OrdersScreen", "导航回订单页面，刷新订单数据")
+                viewModel.refreshOrders()
+            }
+        }
+    }
+    
+    // 添加对导航变化的监听，确保对话框状态正确
+    LaunchedEffect(Unit) {
+        val callback = { route: String? -> 
+            // 当导航回到这个页面时，检查API是否已配置，并相应更新对话框状态
+            Log.d("OrdersScreen", "导航状态变化: $route")
+            if (route == NavigationItem.Orders.route) {
+                if (isConfigured) {
+                    showApiConfigDialog = false
+                    Log.d("OrdersScreen", "导航返回订单页面，API已配置，隐藏对话框")
+                } else {
+                    Log.d("OrdersScreen", "导航返回订单页面，API未配置，检查是否需要显示对话框")
+                    // 这里不再调用私有方法checkApiConfiguration，而是刷新订单
+                    viewModel.refreshOrders()
+                }
+            }
+        }
+        try {
+            navController.currentBackStackEntryFlow.collect {
+                callback(it.destination.route)
+            }
+        } catch (e: Exception) {
+            Log.e("OrdersScreen", "监听导航变化出错", e)
         }
     }
     
@@ -352,7 +394,26 @@ fun OrdersScreen(
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Button(
                                     onClick = {
-                                        navController.navigate(NavigationItem.Settings.route)
+                                        showApiConfigDialog = false
+                                        Log.d("OrdersScreen", "API配置对话框：点击前往设置按钮")
+                                        // 使用更强制的导航方式，避免导航被拦截
+                                        try {
+                                            // 清除回退栈，然后导航到设置页面
+                                            navController.navigate(NavigationItem.Settings.route) {
+                                                // 弹出所有页面直到图的开始，不保存状态
+                                                popUpTo(navController.graph.id) {
+                                                    inclusive = true
+                                                    saveState = false
+                                                }
+                                                // 确保是单一顶部实例
+                                                launchSingleTop = true
+                                                // 不恢复任何状态
+                                                restoreState = false
+                                            }
+                                            Log.d("OrdersScreen", "API配置对话框：已发起导航到设置页面")
+                                        } catch (e: Exception) {
+                                            Log.e("OrdersScreen", "API配置对话框：导航到设置页面时出错", e)
+                                        }
                                     }
                                 ) {
                                     Text(stringResource(id = R.string.go_to_api_settings))
