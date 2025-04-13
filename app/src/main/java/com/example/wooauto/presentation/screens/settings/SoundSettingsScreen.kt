@@ -1,5 +1,12 @@
 package com.example.wooauto.presentation.screens.settings
 
+import android.app.Activity
+import android.content.Intent
+import android.net.Uri
+import android.provider.DocumentsContract
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -10,10 +17,13 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.AudioFile
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Save
-import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material.icons.filled.Upload
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -23,12 +33,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.example.wooauto.R
 import com.example.wooauto.domain.models.SoundSettings
 import kotlinx.coroutines.launch
+import java.io.File
+import java.io.FileOutputStream
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -38,16 +51,87 @@ fun SoundSettingsScreen(
 ) {
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
     
     // 获取当前音量和声音类型
     val volume by viewModel.notificationVolume.collectAsState()
     val soundType by viewModel.soundType.collectAsState()
     val soundEnabled by viewModel.soundEnabled.collectAsState()
+    val customSoundUri by viewModel.customSoundUri.collectAsState()
     
     val scrollState = rememberScrollState()
     
     // 在Composable函数中提前获取字符串资源
     val savedMessage = stringResource(id = R.string.sound_settings_saved)
+    
+    // 文件选择器
+    val audioFilePicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            result.data?.data?.let { uri ->
+                // 复制文件到应用内部存储
+                try {
+                    // 获取文件名
+                    val fileName = getFileNameFromUri(context, uri) ?: "custom_sound.mp3"
+                    
+                    // 在应用内部存储创建目录
+                    val soundDir = File(context.filesDir, "sounds")
+                    if (!soundDir.exists()) {
+                        soundDir.mkdirs()
+                    }
+                    
+                    // 目标文件
+                    val destinationFile = File(soundDir, fileName)
+                    
+                    // 复制文件
+                    context.contentResolver.openInputStream(uri)?.use { input ->
+                        FileOutputStream(destinationFile).use { output ->
+                            input.copyTo(output)
+                        }
+                    }
+                    
+                    // 内部URI
+                    val internalUri = Uri.fromFile(destinationFile).toString()
+                    
+                    // 保存URI
+                    coroutineScope.launch {
+                        viewModel.setCustomSoundUri(internalUri)
+                        
+                        // 如果当前选中的不是自定义声音类型，自动切换
+                        if (soundType != SoundSettings.SOUND_TYPE_CUSTOM) {
+                            viewModel.setSoundType(SoundSettings.SOUND_TYPE_CUSTOM)
+                        }
+                        
+                        // 提示用户
+                        snackbarHostState.showSnackbar("音频文件设置成功")
+                    }
+                } catch (e: Exception) {
+                    // 提示用户
+                    Toast.makeText(
+                        context,
+                        "设置音频文件失败: ${e.message}",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
+        }
+    }
+    
+    // 打开音频文件选择器
+    fun openAudioFilePicker() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "audio/*"
+            
+            // 对于API 19及以上，可以指定MIME类型
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.KITKAT) {
+                putExtra(DocumentsContract.EXTRA_INITIAL_URI, android.provider.MediaStore.Audio.Media.EXTERNAL_CONTENT_URI)
+            }
+        }
+        
+        audioFilePicker.launch(intent)
+    }
     
     Scaffold(
         topBar = {
@@ -55,7 +139,7 @@ fun SoundSettingsScreen(
                 title = { Text(stringResource(id = R.string.sound_settings)) },
                 navigationIcon = {
                     IconButton(onClick = { navController.navigateUp() }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(id = R.string.back))
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(id = R.string.back))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -161,10 +245,14 @@ fun SoundSettingsScreen(
             
             SoundTypeSelector(
                 selectedType = soundType,
+                customSoundUri = customSoundUri,
                 onTypeSelected = { 
                     coroutineScope.launch {
                         viewModel.setSoundType(it)
                     }
+                },
+                onSelectCustomSound = {
+                    openAudioFilePicker()
                 },
                 enabled = soundEnabled
             )
@@ -172,6 +260,20 @@ fun SoundSettingsScreen(
             Spacer(modifier = Modifier.height(16.dp)) // 为底部按钮留出空间
         }
     }
+}
+
+// 获取URI对应的文件名
+private fun getFileNameFromUri(context: android.content.Context, uri: Uri): String? {
+    var fileName: String? = null
+    context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+        if (cursor.moveToFirst()) {
+            val displayNameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+            if (displayNameIndex != -1) {
+                fileName = cursor.getString(displayNameIndex)
+            }
+        }
+    }
+    return fileName
 }
 
 @Composable
@@ -186,7 +288,7 @@ fun SoundEnabledSwitch(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
-            imageVector = Icons.Default.VolumeUp,
+            imageVector = Icons.AutoMirrored.Filled.VolumeUp,
             contentDescription = null,
             modifier = Modifier.padding(end = 16.dp)
         )
@@ -259,7 +361,9 @@ fun VolumeSlider(
 @Composable
 fun SoundTypeSelector(
     selectedType: String,
+    customSoundUri: String,
     onTypeSelected: (String) -> Unit,
+    onSelectCustomSound: () -> Unit,
     enabled: Boolean
 ) {
     // 声音类型列表和对应的字符串资源ID映射
@@ -268,7 +372,8 @@ fun SoundTypeSelector(
         SoundSettings.SOUND_TYPE_ALARM to R.string.sound_type_alarm,
         SoundSettings.SOUND_TYPE_RINGTONE to R.string.sound_type_ringtone,
         SoundSettings.SOUND_TYPE_EVENT to R.string.sound_type_event,
-        SoundSettings.SOUND_TYPE_EMAIL to R.string.sound_type_email
+        SoundSettings.SOUND_TYPE_EMAIL to R.string.sound_type_email,
+        SoundSettings.SOUND_TYPE_CUSTOM to R.string.sound_type_custom
     )
     
     // 所有声音类型平铺展示
@@ -277,14 +382,6 @@ fun SoundTypeSelector(
     Column(
         modifier = Modifier.fillMaxWidth()
     ) {
-        Text(
-            text = stringResource(id = R.string.sound_type_desc),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        
-        Spacer(modifier = Modifier.height(16.dp))
-        
         allSoundTypes.forEach { type ->
             // 使用安全获取资源ID，如果不存在则使用默认通知音类型
             val displayTextResId = soundTypeResources[type] ?: R.string.sound_type_default
@@ -316,14 +413,60 @@ fun SoundTypeSelector(
                     enabled = enabled
                 )
                 
-                Text(
-                    text = stringResource(id = displayTextResId),
-                    style = MaterialTheme.typography.bodyLarge,
+                Icon(
+                    imageVector = when (type) {
+                        SoundSettings.SOUND_TYPE_CUSTOM -> Icons.Default.MusicNote
+                        else -> Icons.AutoMirrored.Filled.VolumeUp
+                    },
+                    contentDescription = null,
+                    tint = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
                     modifier = Modifier
-                        .padding(start = 16.dp)
-                        .weight(1f),
-                    color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        .padding(start = 8.dp, end = 16.dp)
+                        .size(24.dp)
                 )
+                
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                ) {
+                    Text(
+                        text = stringResource(id = displayTextResId),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                    
+                    // 如果是自定义声音类型，显示已选择的文件名
+                    if (type == SoundSettings.SOUND_TYPE_CUSTOM) {
+                        val fileName = if (customSoundUri.isNotEmpty()) {
+                            val file = File(Uri.parse(customSoundUri).path ?: "")
+                            file.name
+                        } else {
+                            "未选择音频文件"
+                        }
+                        
+                        Text(
+                            text = fileName,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+                
+                // 对于自定义声音类型，添加选择文件按钮
+                if (type == SoundSettings.SOUND_TYPE_CUSTOM) {
+                    IconButton(
+                        onClick = onSelectCustomSound,
+                        enabled = enabled
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Upload,
+                            contentDescription = "选择音频文件",
+                            tint = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
+                        )
+                    }
+                }
                 
                 if (isSelected && enabled) {
                     Icon(

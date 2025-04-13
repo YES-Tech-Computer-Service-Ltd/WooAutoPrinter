@@ -68,6 +68,10 @@ class SoundManager @Inject constructor(
     private val _soundEnabled = MutableStateFlow(true)
     val soundEnabled: StateFlow<Boolean> = _soundEnabled.asStateFlow()
     
+    // 自定义声音URI
+    private val _customSoundUri = MutableStateFlow("")
+    val customSoundUri: StateFlow<String> = _customSoundUri.asStateFlow()
+    
     // 声音资源ID映射
     private val soundResources = mutableMapOf<String, Int>()
     
@@ -146,8 +150,9 @@ class SoundManager @Inject constructor(
                 _currentVolume.value = settings.notificationVolume
                 _currentSoundType.value = settings.soundType
                 _soundEnabled.value = settings.soundEnabled
+                _customSoundUri.value = settings.customSoundUri
                 
-                Log.d(TAG, "已加载声音设置: 音量=${settings.notificationVolume}, 类型=${settings.soundType}, 启用=${settings.soundEnabled}")
+                Log.d(TAG, "已加载声音设置: 音量=${settings.notificationVolume}, 类型=${settings.soundType}, 启用=${settings.soundEnabled}, 自定义声音=${settings.customSoundUri}")
             } catch (e: Exception) {
                 Log.e(TAG, "加载声音设置失败", e)
             }
@@ -162,7 +167,8 @@ class SoundManager @Inject constructor(
             val settings = SoundSettings(
                 notificationVolume = _currentVolume.value,
                 soundType = _currentSoundType.value,
-                soundEnabled = _soundEnabled.value
+                soundEnabled = _soundEnabled.value,
+                customSoundUri = _customSoundUri.value
             )
             settingsRepository.saveSoundSettings(settings)
             Log.d(TAG, "已保存声音设置")
@@ -216,6 +222,20 @@ class SoundManager @Inject constructor(
         
         // 如果启用声音，播放一个测试音效
         if (enabled) {
+            playSound(_currentSoundType.value)
+        }
+    }
+    
+    /**
+     * 设置自定义声音URI
+     * @param uri 自定义声音URI
+     */
+    suspend fun setCustomSoundUri(uri: String) {
+        _customSoundUri.value = uri
+        saveSettings()
+        
+        // 如果当前声音类型是自定义，那么播放测试音效
+        if (_currentSoundType.value == SoundSettings.SOUND_TYPE_CUSTOM) {
             playSound(_currentSoundType.value)
         }
     }
@@ -346,6 +366,24 @@ class SoundManager @Inject constructor(
                     } catch (e: Exception) {
                         Log.e(TAG, "播放邮件声音失败: ${e.message}")
                         // 备用声音
+                        playSystemSound(RingtoneManager.TYPE_NOTIFICATION)
+                    }
+                }
+                
+                SoundSettings.SOUND_TYPE_CUSTOM -> {
+                    // 播放自定义音频文件
+                    if (_customSoundUri.value.isNotEmpty()) {
+                        try {
+                            val uri = Uri.parse(_customSoundUri.value)
+                            playSpecificSound(uri)
+                            Log.d(TAG, "播放自定义声音: $_customSoundUri")
+                        } catch (e: Exception) {
+                            Log.e(TAG, "播放自定义声音失败: ${e.message}", e)
+                            // 失败时使用默认声音
+                            playSystemSound(RingtoneManager.TYPE_NOTIFICATION)
+                        }
+                    } else {
+                        Log.d(TAG, "自定义声音URI为空，使用默认声音")
                         playSystemSound(RingtoneManager.TYPE_NOTIFICATION)
                     }
                 }

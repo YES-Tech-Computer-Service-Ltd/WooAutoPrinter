@@ -193,7 +193,11 @@
     <string name="sound_type_ringtone">system ringtone</string>
     <string name="sound_type_event">system event</string>
     <string name="sound_type_email">system email</string>
+    <string name="sound_type_custom">custom audio file</string>
     <string name="sound_test">test sound</string>
+    <string name="select_audio_file">select audio file</string>
+    <string name="audio_file_selected">Audio file selected</string>
+    <string name="audio_file_select_error">Failed to select audio file</string>
 
     <!-- App Settings -->
     <string name="language">Language（语言）</string>
