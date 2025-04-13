@@ -18,6 +18,3 @@ dependencyResolutionManagement {
 
 rootProject.name = "WooAuto"
 include(":app")
-include(":domain")
-include(":data")
-include(":presentation")

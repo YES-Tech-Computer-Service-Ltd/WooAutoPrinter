@@ -23,6 +23,19 @@ android {
         }
     }
 
+    // 禁用密度分包，避免 bundle 工具错误
+    bundle {
+        density {
+            enableSplit = false
+        }
+        language {
+            enableSplit = false
+        }
+        abi {
+            enableSplit = false
+        }
+    }
+
     // 添加测试配置，跳过所有测试
     testOptions {
         unitTests.all {

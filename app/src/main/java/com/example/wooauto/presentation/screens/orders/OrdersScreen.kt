@@ -208,7 +208,15 @@ fun OrdersScreen(
                 }
             }
         }
-        context.registerReceiver(receiver, intentFilter)
+        
+        // 根据API级别使用相应的注册方法
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            context.registerReceiver(receiver, intentFilter, android.content.Context.RECEIVER_NOT_EXPORTED)
+            Log.d("OrdersScreen", "使用RECEIVER_NOT_EXPORTED标志注册订单详情广播接收器(Android 13+)")
+        } else {
+            context.registerReceiver(receiver, intentFilter)
+            Log.d("OrdersScreen", "标准方式注册订单详情广播接收器(Android 12及以下)")
+        }
         
         // 在效果结束时注销接收器
         onDispose {

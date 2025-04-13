@@ -140,8 +140,15 @@ class OrderNotificationManager @Inject constructor(
         }
         
         val filter = IntentFilter("com.example.wooauto.NEW_ORDER_RECEIVED")
-        context.registerReceiver(newOrderReceiver, filter)
-        Log.d(TAG, "已注册新订单广播接收器")
+        
+        // 根据API级别使用相应的注册方法
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            context.registerReceiver(newOrderReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+            Log.d(TAG, "使用RECEIVER_NOT_EXPORTED标志注册新订单广播接收器(Android 13+)")
+        } else {
+            context.registerReceiver(newOrderReceiver, filter)
+            Log.d(TAG, "标准方式注册新订单广播接收器(Android 12及以下)")
+        }
     }
     
     /**

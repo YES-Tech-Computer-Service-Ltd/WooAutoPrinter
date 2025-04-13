@@ -162,9 +162,14 @@ class OrdersViewModel @Inject constructor(
                 addAction(ACTION_ORDERS_UPDATED)
                 addAction(ACTION_NEW_ORDERS_RECEIVED)
             }
-            // 使用不带flags参数的registerReceiver方法以确保兼容性
-            context.registerReceiver(ordersUpdateReceiver, filter)
-            Log.d(TAG, "成功注册订单广播接收器")
+            // 根据API级别使用相应的注册方法
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                context.registerReceiver(ordersUpdateReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+                Log.d(TAG, "使用RECEIVER_NOT_EXPORTED标志成功注册订单广播接收器(Android 13+)")
+            } else {
+                context.registerReceiver(ordersUpdateReceiver, filter)
+                Log.d(TAG, "成功注册订单广播接收器(Android 12及以下)")
+            }
         } catch (e: Exception) {
             Log.e(TAG, "注册订单广播接收器失败: ${e.message}")
         }
