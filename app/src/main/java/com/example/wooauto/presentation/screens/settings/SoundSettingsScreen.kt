@@ -91,12 +91,12 @@ fun SoundSettingsScreen(
                         }
                     }
                     
-                    // 内部URI
-                    val internalUri = Uri.fromFile(destinationFile).toString()
+                    // 保存文件路径而不是URI形式
+                    val internalPath = destinationFile.absolutePath
                     
-                    // 保存URI
+                    // 保存路径
                     coroutineScope.launch {
-                        viewModel.setCustomSoundUri(internalUri)
+                        viewModel.setCustomSoundUri(internalPath)
                         
                         // 如果当前选中的不是自定义声音类型，自动切换
                         if (soundType != SoundSettings.SOUND_TYPE_CUSTOM) {
@@ -438,7 +438,8 @@ fun SoundTypeSelector(
                     // 如果是自定义声音类型，显示已选择的文件名
                     if (type == SoundSettings.SOUND_TYPE_CUSTOM) {
                         val fileName = if (customSoundUri.isNotEmpty()) {
-                            val file = File(Uri.parse(customSoundUri).path ?: "")
+                            // 从绝对路径中提取文件名
+                            val file = File(customSoundUri)
                             file.name
                         } else {
                             "未选择音频文件"

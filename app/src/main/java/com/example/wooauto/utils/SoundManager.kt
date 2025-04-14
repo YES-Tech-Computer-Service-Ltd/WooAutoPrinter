@@ -101,6 +101,9 @@ class SoundManager @Inject constructor(
     private var ringtonePlayer: android.media.Ringtone? = null
     private var testSoundPlaying = false
     
+    // 播放自定义声音文件
+    private var mediaPlayer: MediaPlayer? = null
+    
     // 初始化声音资源
     init {
         initializeSoundResources()
@@ -374,9 +377,10 @@ class SoundManager @Inject constructor(
                     // 播放自定义音频文件
                     if (_customSoundUri.value.isNotEmpty()) {
                         try {
-                            val uri = Uri.parse(_customSoundUri.value)
-                            playSpecificSound(uri)
-                            Log.d(TAG, "播放自定义声音: $_customSoundUri")
+                            // 直接使用保存的文件路径
+                            val filePath = _customSoundUri.value
+                            playCustomSound(filePath)
+                            Log.d(TAG, "播放自定义声音: $filePath")
                         } catch (e: Exception) {
                             Log.e(TAG, "播放自定义声音失败: ${e.message}", e)
                             // 失败时使用默认声音
@@ -441,12 +445,66 @@ class SoundManager @Inject constructor(
     }
     
     /**
+     * 播放自定义声音文件
+     */
+    private fun playCustomSound(filePath: String) {
+        try {
+            // 先停止当前声音
+            stopCurrentSound()
+            
+            // 停止可能正在播放的MediaPlayer
+            mediaPlayer?.release()
+            
+            // 创建新的MediaPlayer
+            mediaPlayer = MediaPlayer().apply {
+                setDataSource(filePath)
+                setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                        .build()
+                )
+                setVolume(_currentVolume.value / 100f, _currentVolume.value / 100f)
+                prepare()
+                start()
+                
+                // 播放完成后释放资源
+                setOnCompletionListener {
+                    it.release()
+                    mediaPlayer = null
+                }
+            }
+            
+            testSoundPlaying = true
+            Log.d(TAG, "播放自定义声音文件: $filePath")
+            
+            // 添加自动停止计时器，防止声音一直循环播放
+            CoroutineScope(Dispatchers.Main).launch {
+                delay(5000) // 5秒后自动停止
+                mediaPlayer?.release()
+                mediaPlayer = null
+                testSoundPlaying = false
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "播放自定义声音文件失败: ${e.message}", e)
+            // 播放备用声音
+            playSystemSound(RingtoneManager.TYPE_NOTIFICATION)
+        }
+    }
+    
+    /**
      * 停止当前正在播放的声音
      */
     private fun stopCurrentSound() {
         try {
             ringtonePlayer?.stop()
             ringtonePlayer = null
+            
+            // 也停止MediaPlayer
+            mediaPlayer?.stop()
+            mediaPlayer?.release()
+            mediaPlayer = null
+            
             testSoundPlaying = false
         } catch (e: Exception) {
             Log.e(TAG, "停止声音失败", e)
