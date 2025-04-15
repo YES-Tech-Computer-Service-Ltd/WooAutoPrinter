@@ -151,4 +151,12 @@ class SettingRepository @Inject constructor(
     override suspend fun setSoundEnabled(enabled: Boolean) {
         Log.d(TAG, "设置声音启用状态: $enabled")
     }
+    
+    override suspend fun getCustomSoundUri(): String {
+        return "" // 默认空字符串
+    }
+    
+    override suspend fun setCustomSoundUri(uri: String) {
+        Log.d(TAG, "设置自定义声音URI: $uri")
+    }
 } 

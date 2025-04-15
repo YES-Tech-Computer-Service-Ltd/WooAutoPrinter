@@ -86,6 +86,7 @@ class SettingsRepositoryImpl @Inject constructor(
         private const val KEY_NOTIFICATION_VOLUME = "notification_volume"
         private const val KEY_SOUND_TYPE = "sound_type"
         private const val KEY_SOUND_ENABLED = "sound_enabled"
+        private const val KEY_CUSTOM_SOUND_URI = "custom_sound_uri"
     }
 
     init {
@@ -504,11 +505,13 @@ class SettingsRepositoryImpl @Inject constructor(
         val volume = getNotificationVolume()
         val type = getSoundType()
         val enabled = getSoundEnabled()
+        val customUri = getCustomSoundUri()
         
         return SoundSettings(
             notificationVolume = volume,
             soundType = type,
-            soundEnabled = enabled
+            soundEnabled = enabled,
+            customSoundUri = customUri
         )
     }
     
@@ -516,8 +519,9 @@ class SettingsRepositoryImpl @Inject constructor(
         setNotificationVolume(settings.notificationVolume)
         setSoundType(settings.soundType)
         setSoundEnabled(settings.soundEnabled)
+        setCustomSoundUri(settings.customSoundUri)
         
-        Log.d("SettingsRepository", "保存声音设置: 音量=${settings.notificationVolume}, 音效=${settings.soundType}, 启用=${settings.soundEnabled}")
+        Log.d("SettingsRepository", "保存声音设置: 音量=${settings.notificationVolume}, 音效=${settings.soundType}, 启用=${settings.soundEnabled}, 自定义音效=${settings.customSoundUri}")
     }
     
     override suspend fun getNotificationVolume(): Int {
@@ -570,6 +574,20 @@ class SettingsRepositoryImpl @Inject constructor(
             KEY_SOUND_ENABLED,
             enabled,
             "声音启用状态"
+        )
+        settingDao.insertOrUpdateSetting(entity)
+    }
+
+    override suspend fun getCustomSoundUri(): String {
+        val setting = settingDao.getSettingByKey(KEY_CUSTOM_SOUND_URI)
+        return setting?.value ?: ""
+    }
+
+    override suspend fun setCustomSoundUri(uri: String) {
+        val entity = SettingMapper.createStringSettingEntity(
+            KEY_CUSTOM_SOUND_URI,
+            uri,
+            "自定义提示音URI"
         )
         settingDao.insertOrUpdateSetting(entity)
     }

@@ -12,7 +12,10 @@ data class SoundSettings(
     val soundType: String = SOUND_TYPE_DEFAULT,
     
     // 是否启用声音
-    val soundEnabled: Boolean = true
+    val soundEnabled: Boolean = true,
+    
+    // 自定义音效文件路径
+    val customSoundUri: String = ""
 ) {
     companion object {
         // 提示音类型常量 - 全部使用系统声音，兼容安卓7
@@ -21,6 +24,7 @@ data class SoundSettings(
         const val SOUND_TYPE_RINGTONE = "system_ringtone"  // 系统电话铃声 - 较响亮
         const val SOUND_TYPE_EVENT = "system_event"        // 系统事件声音
         const val SOUND_TYPE_EMAIL = "system_email"        // 系统邮件声音
+        const val SOUND_TYPE_CUSTOM = "custom"             // 自定义音频文件
         
         // 获取所有可用的提示音类型
         fun getAllSoundTypes(): List<String> {
@@ -29,7 +33,8 @@ data class SoundSettings(
                 SOUND_TYPE_ALARM,
                 SOUND_TYPE_RINGTONE,
                 SOUND_TYPE_EVENT,
-                SOUND_TYPE_EMAIL
+                SOUND_TYPE_EMAIL,
+                SOUND_TYPE_CUSTOM
             )
         }
         
@@ -41,6 +46,7 @@ data class SoundSettings(
                 SOUND_TYPE_RINGTONE -> ""
                 SOUND_TYPE_EVENT -> ""
                 SOUND_TYPE_EMAIL -> ""
+                SOUND_TYPE_CUSTOM -> ""
                 else -> ""
             }
         }

@@ -322,4 +322,16 @@ interface DomainSettingRepository {
      * @param enabled 声音是否启用
      */
     suspend fun setSoundEnabled(enabled: Boolean)
+
+    /**
+     * 获取自定义声音URI
+     * @return 自定义声音URI
+     */
+    suspend fun getCustomSoundUri(): String
+
+    /**
+     * 设置自定义声音URI
+     * @param uri 自定义声音URI
+     */
+    suspend fun setCustomSoundUri(uri: String)
 } 

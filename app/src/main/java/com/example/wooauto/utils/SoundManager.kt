@@ -68,6 +68,10 @@ class SoundManager @Inject constructor(
     private val _soundEnabled = MutableStateFlow(true)
     val soundEnabled: StateFlow<Boolean> = _soundEnabled.asStateFlow()
     
+    // 自定义声音URI
+    private val _customSoundUri = MutableStateFlow("")
+    val customSoundUri: StateFlow<String> = _customSoundUri.asStateFlow()
+    
     // 声音资源ID映射
     private val soundResources = mutableMapOf<String, Int>()
     
@@ -96,6 +100,9 @@ class SoundManager @Inject constructor(
     // 防止测试声音连续播放
     private var ringtonePlayer: android.media.Ringtone? = null
     private var testSoundPlaying = false
+    
+    // 播放自定义声音文件
+    private var mediaPlayer: MediaPlayer? = null
     
     // 初始化声音资源
     init {
@@ -146,8 +153,9 @@ class SoundManager @Inject constructor(
                 _currentVolume.value = settings.notificationVolume
                 _currentSoundType.value = settings.soundType
                 _soundEnabled.value = settings.soundEnabled
+                _customSoundUri.value = settings.customSoundUri
                 
-                Log.d(TAG, "已加载声音设置: 音量=${settings.notificationVolume}, 类型=${settings.soundType}, 启用=${settings.soundEnabled}")
+                Log.d(TAG, "已加载声音设置: 音量=${settings.notificationVolume}, 类型=${settings.soundType}, 启用=${settings.soundEnabled}, 自定义声音=${settings.customSoundUri}")
             } catch (e: Exception) {
                 Log.e(TAG, "加载声音设置失败", e)
             }
@@ -162,7 +170,8 @@ class SoundManager @Inject constructor(
             val settings = SoundSettings(
                 notificationVolume = _currentVolume.value,
                 soundType = _currentSoundType.value,
-                soundEnabled = _soundEnabled.value
+                soundEnabled = _soundEnabled.value,
+                customSoundUri = _customSoundUri.value
             )
             settingsRepository.saveSoundSettings(settings)
             Log.d(TAG, "已保存声音设置")
@@ -216,6 +225,20 @@ class SoundManager @Inject constructor(
         
         // 如果启用声音，播放一个测试音效
         if (enabled) {
+            playSound(_currentSoundType.value)
+        }
+    }
+    
+    /**
+     * 设置自定义声音URI
+     * @param uri 自定义声音URI
+     */
+    suspend fun setCustomSoundUri(uri: String) {
+        _customSoundUri.value = uri
+        saveSettings()
+        
+        // 如果当前声音类型是自定义，那么播放测试音效
+        if (_currentSoundType.value == SoundSettings.SOUND_TYPE_CUSTOM) {
             playSound(_currentSoundType.value)
         }
     }
@@ -350,6 +373,25 @@ class SoundManager @Inject constructor(
                     }
                 }
                 
+                SoundSettings.SOUND_TYPE_CUSTOM -> {
+                    // 播放自定义音频文件
+                    if (_customSoundUri.value.isNotEmpty()) {
+                        try {
+                            // 直接使用保存的文件路径
+                            val filePath = _customSoundUri.value
+                            playCustomSound(filePath)
+                            Log.d(TAG, "播放自定义声音: $filePath")
+                        } catch (e: Exception) {
+                            Log.e(TAG, "播放自定义声音失败: ${e.message}", e)
+                            // 失败时使用默认声音
+                            playSystemSound(RingtoneManager.TYPE_NOTIFICATION)
+                        }
+                    } else {
+                        Log.d(TAG, "自定义声音URI为空，使用默认声音")
+                        playSystemSound(RingtoneManager.TYPE_NOTIFICATION)
+                    }
+                }
+                
                 else -> {
                     // 未知类型使用默认通知声音
                     playSystemSound(RingtoneManager.TYPE_NOTIFICATION)
@@ -403,12 +445,66 @@ class SoundManager @Inject constructor(
     }
     
     /**
+     * 播放自定义声音文件
+     */
+    private fun playCustomSound(filePath: String) {
+        try {
+            // 先停止当前声音
+            stopCurrentSound()
+            
+            // 停止可能正在播放的MediaPlayer
+            mediaPlayer?.release()
+            
+            // 创建新的MediaPlayer
+            mediaPlayer = MediaPlayer().apply {
+                setDataSource(filePath)
+                setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                        .build()
+                )
+                setVolume(_currentVolume.value / 100f, _currentVolume.value / 100f)
+                prepare()
+                start()
+                
+                // 播放完成后释放资源
+                setOnCompletionListener {
+                    it.release()
+                    mediaPlayer = null
+                }
+            }
+            
+            testSoundPlaying = true
+            Log.d(TAG, "播放自定义声音文件: $filePath")
+            
+            // 添加自动停止计时器，防止声音一直循环播放
+            CoroutineScope(Dispatchers.Main).launch {
+                delay(5000) // 5秒后自动停止
+                mediaPlayer?.release()
+                mediaPlayer = null
+                testSoundPlaying = false
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "播放自定义声音文件失败: ${e.message}", e)
+            // 播放备用声音
+            playSystemSound(RingtoneManager.TYPE_NOTIFICATION)
+        }
+    }
+    
+    /**
      * 停止当前正在播放的声音
      */
     private fun stopCurrentSound() {
         try {
             ringtonePlayer?.stop()
             ringtonePlayer = null
+            
+            // 也停止MediaPlayer
+            mediaPlayer?.stop()
+            mediaPlayer?.release()
+            mediaPlayer = null
+            
             testSoundPlaying = false
         } catch (e: Exception) {
             Log.e(TAG, "停止声音失败", e)

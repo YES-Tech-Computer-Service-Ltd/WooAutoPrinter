@@ -1,5 +1,6 @@
 package com.example.wooauto.presentation.screens.settings
 
+import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -38,6 +39,10 @@ class SoundSettingsViewModel @Inject constructor(
     // 声音启用状态
     private val _soundEnabled = MutableStateFlow(true)
     val soundEnabled: StateFlow<Boolean> = _soundEnabled.asStateFlow()
+    
+    // 自定义声音URI
+    private val _customSoundUri = MutableStateFlow("")
+    val customSoundUri: StateFlow<String> = _customSoundUri.asStateFlow()
 
     init {
         loadSettings()
@@ -53,8 +58,9 @@ class SoundSettingsViewModel @Inject constructor(
                 _notificationVolume.value = settings.notificationVolume
                 _soundType.value = settings.soundType
                 _soundEnabled.value = settings.soundEnabled
+                _customSoundUri.value = settings.customSoundUri
                 
-                Log.d(TAG, "成功加载声音设置: 音量=${settings.notificationVolume}, 类型=${settings.soundType}, 启用=${settings.soundEnabled}")
+                Log.d(TAG, "成功加载声音设置: 音量=${settings.notificationVolume}, 类型=${settings.soundType}, 启用=${settings.soundEnabled}, 自定义声音=${settings.customSoundUri}")
             } catch (e: Exception) {
                 Log.e(TAG, "加载声音设置失败", e)
             }
@@ -69,7 +75,8 @@ class SoundSettingsViewModel @Inject constructor(
             val settings = SoundSettings(
                 notificationVolume = _notificationVolume.value,
                 soundType = _soundType.value,
-                soundEnabled = _soundEnabled.value
+                soundEnabled = _soundEnabled.value,
+                customSoundUri = _customSoundUri.value
             )
             
             settingsRepository.saveSoundSettings(settings)
@@ -80,6 +87,10 @@ class SoundSettingsViewModel @Inject constructor(
                 soundManager.setVolume(_notificationVolume.value)
                 soundManager.setSoundType(_soundType.value)
                 soundManager.setSoundEnabled(true)
+                // 如果是自定义类型，设置自定义URI
+                if (_soundType.value == SoundSettings.SOUND_TYPE_CUSTOM) {
+                    soundManager.setCustomSoundUri(_customSoundUri.value)
+                }
             } else {
                 soundManager.setSoundEnabled(false)
             }
@@ -89,43 +100,23 @@ class SoundSettingsViewModel @Inject constructor(
     }
 
     /**
-     * 设置通知音量
+     * 设置音量
      */
     suspend fun setVolume(volume: Int) {
-        try {
-            val safeVolume = when {
-                volume < 0 -> 0
-                volume > 100 -> 100
-                else -> volume
-            }
-            
-            _notificationVolume.value = safeVolume
-            
-            // 实时应用到SoundManager并播放测试音效
-            if (_soundEnabled.value) {
-                soundManager.setVolume(safeVolume)
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "设置音量失败", e)
-        }
+        _notificationVolume.value = volume
+        soundManager.setVolume(volume)
     }
 
     /**
-     * 设置提示音类型
+     * 设置声音类型
      */
     suspend fun setSoundType(type: String) {
-        try {
-            if (SoundSettings.getAllSoundTypes().contains(type)) {
-                _soundType.value = type
-                
-                // 实时应用到SoundManager并播放测试音效
-                if (_soundEnabled.value) {
-                    // 只播放一次测试音效
-                    soundManager.setSoundType(type)
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "设置提示音类型失败", e)
+        _soundType.value = type
+        soundManager.setSoundType(type)
+        
+        // 如果选择自定义声音但URI为空，需要提示用户选择音频文件
+        if (type == SoundSettings.SOUND_TYPE_CUSTOM && _customSoundUri.value.isEmpty()) {
+            Log.d(TAG, "选择了自定义声音类型，但未设置音频文件")
         }
     }
 
@@ -133,13 +124,19 @@ class SoundSettingsViewModel @Inject constructor(
      * 设置声音启用状态
      */
     suspend fun setSoundEnabled(enabled: Boolean) {
-        try {
-            _soundEnabled.value = enabled
-            
-            // 实时应用到SoundManager
-            soundManager.setSoundEnabled(enabled)
-        } catch (e: Exception) {
-            Log.e(TAG, "设置声音启用状态失败", e)
+        _soundEnabled.value = enabled
+        soundManager.setSoundEnabled(enabled)
+    }
+    
+    /**
+     * 设置自定义声音URI
+     */
+    suspend fun setCustomSoundUri(uri: String) {
+        _customSoundUri.value = uri
+        
+        // 如果当前选择的是自定义声音类型，则应用新的URI
+        if (_soundType.value == SoundSettings.SOUND_TYPE_CUSTOM) {
+            soundManager.setCustomSoundUri(uri)
         }
     }
 
