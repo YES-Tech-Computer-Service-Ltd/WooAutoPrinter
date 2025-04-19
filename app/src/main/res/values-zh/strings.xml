@@ -80,8 +80,8 @@
     <string name="stock_status_out_of_stock">无库存</string>
     <string name="save_changes">保存更改</string>
     <string name="no_products_found">未找到产品</string>
-    <string name="loading_products">正在加载产品...</string>
-    <string name="switching_category">正在切换分类...</string>
+    <string name="loading_products">正在加载产品…</string>
+    <string name="switching_category">正在切换分类…</string>
     <string name="loading_message">稍等片刻，正在从您的WooCommerce商店获取最新数据</string>
 
     <!-- Settings -->
@@ -135,7 +135,7 @@
     <string name="delete_printer_confirm">确定要删除打印机 \'%1$s\' 吗？此操作无法撤销。</string>
     <string name="delete">删除</string>
     <string name="bluetooth_devices">蓝牙设备</string>
-    <string name="scanning_bluetooth">正在扫描蓝牙设备...</string>
+    <string name="scanning_bluetooth">正在扫描蓝牙设备…</string>
     <string name="no_bluetooth_devices">未找到蓝牙设备</string>
     <string name="select_bluetooth_device">选择一个蓝牙设备连接</string>
     <string name="bluetooth_tip">提示: 请确保打印机已开启并处于可发现状态。对于Android 7设备，可能需要先在系统蓝牙设置中配对打印机。</string>
@@ -157,7 +157,7 @@
     <string name="printer_connected_success">打印机连接成功</string>
     <string name="printer_disconnected">已断开打印机连接</string>
     <string name="printer_connection_failed">打印机连接失败</string>
-    <string name="connecting_printer">正在连接打印机...</string>
+    <string name="connecting_printer">正在连接打印机…</string>
     <string name="test_print_success">测试打印成功</string>
     <string name="test_print_failed">测试打印失败，请检查打印机连接</string>
     <string name="printer_error">打印机错误: %1$s</string>
@@ -273,10 +273,10 @@
 
     <!-- API Settings -->
     <string name="website_url_placeholder">https://your-site.com</string>
-    <string name="api_key_placeholder">如：ck_1234...</string>
-    <string name="api_secret_placeholder">如：cs_5678...</string>
+    <string name="api_key_placeholder">如：ck_1234…</string>
+    <string name="api_secret_placeholder">如：cs_5678…</string>
     <string name="save_and_test">保存并测试</string>
-    <string name="testing_connection">测试连接中...</string>
+    <string name="testing_connection">测试连接中…</string>
     <string name="fill_all_fields">请填写所有必填字段</string>
     <string name="scan_qr_code_prompt">扫描 WooCommerce 站点 URL 二维码</string>
     <string name="scan_successful">扫描成功</string>
@@ -303,8 +303,42 @@
     <string name="please_fill_all_required_fields">请填写所有必填字段</string>
 
     <!-- API Configuration Check -->
-    <string name="checking_api_configuration">正在检查API配置...</string>
+    <string name="checking_api_configuration">正在检查API配置…</string>
     <string name="api_config_required">需要配置API</string>
     <string name="api_config_message">您的WooCommerce API未正确配置。请检查您的设置。</string>
     <string name="go_to_api_settings">前往API设置</string>
+
+    <string name="unread_orders">未读订单</string>
+    <string name="unread_orders_count">未读订单: %d</string>
+    <string name="mark_all_as_read">完全标记为已读</string>
+    <string name="no_unread_orders">暂无未读订单</string>
+
+    <!-- Printer Details Screen -->
+    <string name="configure_printer">配置打印机</string>
+    <string name="setup_printer">设置打印机</string>
+    <string name="edit_printer">编辑打印机</string>
+    <string name="select_bluetooth_printer">选择蓝牙打印机</string>
+    <string name="select_printer_instruction">请从下列设备中选择您的打印机，选择后可进行详细设置</string>
+    <string name="scanning_devices">扫描中…</string>
+    <string name="refresh_device_list">刷新设备列表</string>
+    <string name="no_device_found">未找到蓝牙设备</string>
+    <string name="ensure_bluetooth_paired">请确保蓝牙已开启并已与打印机配对</string>
+    <string name="paired">已配对</string>
+    <string name="select">选择</string>
+    <string name="request_bluetooth_location_permission">请求蓝牙和位置权限</string>
+    <string name="printer_configuration">打印机配置</string>
+    <string name="paper_width_setting">纸张宽度设置</string>
+    <string name="paper_width">纸张宽度</string>
+    <string name="select_paper_width">选择纸张宽度</string>
+    <string name="paper_width_58mm">58mm (50mm有效宽度)</string>
+    <string name="paper_width_80mm">80mm (72mm有效宽度)</string>
+    <string name="printer_options">打印机选项</string>
+    <string name="save_printer_config">保存打印机配置</string>
+    <string name="please_enter_name_address">请填写打印机名称和地址</string>
+    <string name="printer_config_saved">打印机配置已保存</string>
+    <string name="ensure_printer_on">提示: 请确保打印机已开启并处于可发现状态。对于Android 7设备，可能需要先在系统蓝牙设置中配对打印机。</string>
+    <string name="printer_config">打印机配置</string>
+    <string name="paper_width_setup">纸张宽度设置</string>
+    <string name="set_default_printer">设为默认打印机</string>
+    <string name="request_bluetooth_location_permissions">请求蓝牙和位置权限</string>
 </resources>

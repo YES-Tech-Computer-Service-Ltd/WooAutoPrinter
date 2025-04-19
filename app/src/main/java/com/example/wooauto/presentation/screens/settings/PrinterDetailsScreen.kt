@@ -1,7 +1,11 @@
 package com.example.wooauto.presentation.screens.settings
 
+import android.Manifest
 import android.bluetooth.BluetoothAdapter
+import android.os.Build
 import android.util.Log
+import androidx.annotation.RequiresApi
+import androidx.annotation.RequiresPermission
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -99,7 +103,10 @@ import androidx.compose.material3.Divider
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.foundation.ScrollState
 import kotlinx.coroutines.CoroutineScope
+import androidx.compose.ui.res.stringResource
+import com.example.wooauto.R
 
+@RequiresApi(Build.VERSION_CODES.S)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PrinterDetailsScreen(
@@ -159,8 +166,8 @@ fun PrinterDetailsScreen(
                 title = { 
                     Text(
                         if (isNewPrinter) {
-                            if (hasSelectedDevice) "设置打印机" else "添加打印机"
-                        } else "编辑打印机"
+                            if (hasSelectedDevice) stringResource(id = R.string.setup_printer) else stringResource(id = R.string.add_printer)
+                        } else stringResource(id = R.string.edit_printer)
                     ) 
                 },
                 navigationIcon = {
@@ -174,7 +181,7 @@ fun PrinterDetailsScreen(
                     }) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "返回"
+                            contentDescription = stringResource(id = R.string.back)
                         )
                     }
                 },
@@ -201,6 +208,10 @@ fun PrinterDetailsScreen(
                 }
             )
         } else {
+            // 在lambda外部获取字符串资源
+            val missingFieldsMessage = stringResource(id = R.string.please_enter_name_address)
+            val configSavedMessage = stringResource(id = R.string.printer_config_saved)
+            
             // 编辑打印机或已选择设备时显示配置表单
             ConfigurationScreen(
                 paperWidth = paperWidth,
@@ -211,7 +222,7 @@ fun PrinterDetailsScreen(
                     // 验证必填字段
                     if (name.isBlank() || address.isBlank()) {
                         coroutineScope.launch {
-                            snackbarHostState.showSnackbar("请填写打印机名称和地址")
+                            snackbarHostState.showSnackbar(missingFieldsMessage)
                         }
                         return@ConfigurationScreen
                     }
@@ -228,7 +239,7 @@ fun PrinterDetailsScreen(
                     
                     viewModel.savePrinterConfig(updatedConfig)
                     coroutineScope.launch {
-                        snackbarHostState.showSnackbar("打印机配置已保存")
+                        snackbarHostState.showSnackbar(configSavedMessage)
                     }
                     
                     // 返回上一页
@@ -242,6 +253,7 @@ fun PrinterDetailsScreen(
     }
 }
 
+@RequiresApi(Build.VERSION_CODES.S)
 @Composable
 private fun DeviceSelectionScreen(
     paddingValues: PaddingValues,
@@ -258,7 +270,7 @@ private fun DeviceSelectionScreen(
     ) {
         // 头部说明
         Text(
-            text = "选择蓝牙打印机",
+            text = stringResource(id = R.string.select_bluetooth_printer),
             style = MaterialTheme.typography.titleLarge,
             color = MaterialTheme.colorScheme.primary
         )
@@ -266,7 +278,7 @@ private fun DeviceSelectionScreen(
         Spacer(modifier = Modifier.height(8.dp))
         
         Text(
-            text = "请从下列设备中选择您的打印机，选择后可进行详细设置",
+            text = stringResource(id = R.string.select_printer_instruction),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -280,10 +292,10 @@ private fun DeviceSelectionScreen(
         ) {
             Icon(
                 imageVector = Icons.Default.Refresh,
-                contentDescription = "刷新"
+                contentDescription = stringResource(id = R.string.refresh)
             )
             Spacer(modifier = Modifier.width(8.dp))
-            Text(if (isScanning) "扫描中..." else "刷新设备列表")
+            Text(if (isScanning) stringResource(id = R.string.scanning_devices) else stringResource(id = R.string.refresh_device_list))
         }
         
         Spacer(modifier = Modifier.height(16.dp))
@@ -301,7 +313,7 @@ private fun DeviceSelectionScreen(
                 ) {
                     CircularProgressIndicator()
                     Spacer(modifier = Modifier.height(16.dp))
-                    Text("正在扫描蓝牙设备...")
+                    Text(stringResource(id = R.string.scanning_bluetooth))
                 }
             }
         } else if (availablePrinters.isEmpty()) {
@@ -322,12 +334,12 @@ private fun DeviceSelectionScreen(
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = "未找到蓝牙设备",
+                        text = stringResource(id = R.string.no_device_found),
                         style = MaterialTheme.typography.titleMedium
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "请确保蓝牙已开启并已与打印机配对",
+                        text = stringResource(id = R.string.ensure_bluetooth_paired),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -389,7 +401,7 @@ private fun DeviceSelectionScreen(
                                     if (isPaired) {
                                         Spacer(modifier = Modifier.width(8.dp))
                                         Text(
-                                            text = "(已配对)",
+                                            text = stringResource(id = R.string.paired),
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.primary
                                         )
@@ -404,7 +416,7 @@ private fun DeviceSelectionScreen(
                             
                             Icon(
                                 imageVector = Icons.Default.ArrowDropDown,
-                                contentDescription = "选择",
+                                contentDescription = stringResource(id = R.string.select),
                                 tint = MaterialTheme.colorScheme.primary
                             )
                         }
@@ -417,7 +429,7 @@ private fun DeviceSelectionScreen(
         
         // 底部提示
         Text(
-            text = "提示: 请确保打印机已开启并处于可发现状态。对于Android 7设备，可能需要先在系统蓝牙设置中配对打印机。",
+            text = stringResource(id = R.string.bluetooth_tip),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -427,6 +439,7 @@ private fun DeviceSelectionScreen(
 /**
  * 检查设备是否已配对
  */
+@RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
 private fun isPairedDevice(device: PrinterDevice): Boolean {
     val bluetoothAdapter = BluetoothAdapter.getDefaultAdapter() ?: return false
     try {
@@ -468,7 +481,7 @@ fun ConfigurationScreen(
     ) {
         // 标题
         Text(
-            text = "打印机配置",
+            text = stringResource(id = R.string.printer_configuration),
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold
         )
@@ -478,7 +491,7 @@ fun ConfigurationScreen(
         // 纸张宽度设置
         Column {
             Text(
-                text = "纸张宽度设置",
+                text = stringResource(id = R.string.paper_width_setting),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
@@ -490,17 +503,17 @@ fun ConfigurationScreen(
             Box(modifier = Modifier.fillMaxWidth()) {
                 OutlinedTextField(
                     value = when(paperWidth) {
-                        "80" -> "80mm (72mm有效宽度)"
-                        else -> "58mm (50mm有效宽度)"
+                        "80" -> stringResource(id = R.string.paper_width_80mm)
+                        else -> stringResource(id = R.string.paper_width_58mm)
                     },
                     onValueChange = { },
-                    label = { Text("纸张宽度") },
+                    label = { Text(stringResource(id = R.string.paper_width)) },
                     readOnly = true,
                     modifier = Modifier.fillMaxWidth(),
                     trailingIcon = {
                         Icon(
                             imageVector = Icons.Default.ArrowDropDown,
-                            contentDescription = "选择纸张宽度",
+                            contentDescription = stringResource(id = R.string.select_paper_width),
                             modifier = Modifier.clickable { expanded = true }
                         )
                     }
@@ -519,14 +532,14 @@ fun ConfigurationScreen(
                     modifier = Modifier.fillMaxWidth(0.9f)
                 ) {
                     DropdownMenuItem(
-                        text = { Text("58mm (50mm有效宽度)") },
+                        text = { Text(stringResource(id = R.string.paper_width_58mm)) },
                         onClick = {
                             onPaperWidthChange("58")
                             expanded = false
                         }
                     )
                     DropdownMenuItem(
-                        text = { Text("80mm (72mm有效宽度)") },
+                        text = { Text(stringResource(id = R.string.paper_width_80mm)) },
                         onClick = {
                             onPaperWidthChange("80")
                             expanded = false
@@ -541,7 +554,7 @@ fun ConfigurationScreen(
         // 打印机选项
         Column {
             Text(
-                text = "打印机选项",
+                text = stringResource(id = R.string.printer_options),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
@@ -557,7 +570,7 @@ fun ConfigurationScreen(
                     onCheckedChange = onIsDefaultChange
                 )
                 Text(
-                    text = "设为默认打印机",
+                    text = stringResource(id = R.string.set_as_default),
                     modifier = Modifier.clickable { onIsDefaultChange(!isDefault) }
                 )
             }
@@ -572,14 +585,15 @@ fun ConfigurationScreen(
         ) {
             Icon(
                 imageVector = Icons.Default.Save,
-                contentDescription = "保存"
+                contentDescription = stringResource(id = R.string.save)
             )
             Spacer(modifier = Modifier.width(8.dp))
-            Text("保存打印机配置")
+            Text(stringResource(id = R.string.save_printer_config))
         }
     }
 }
 
+@RequiresApi(Build.VERSION_CODES.S)
 @Composable
 private fun RequestPermissionButton() {
     val context = LocalContext.current
@@ -591,6 +605,6 @@ private fun RequestPermissionButton() {
         },
         modifier = Modifier.padding(vertical = 8.dp)
     ) {
-        Text(text = "请求蓝牙和位置权限")
+        Text(text = stringResource(id = R.string.request_bluetooth_location_permission))
     }
 } 
