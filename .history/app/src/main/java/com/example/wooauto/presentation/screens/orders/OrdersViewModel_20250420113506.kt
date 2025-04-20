@@ -1022,4 +1022,59 @@ class OrdersViewModel @Inject constructor(
         
         return validId && validStatus && validName && validOrderStatus
     }
+
+    /**
+     * 保存API配置
+     * @param siteUrl 站点URL
+     * @param consumerKey API密钥
+     * @param consumerSecret API密钥密钥
+     */
+    suspend fun saveApiConfig(siteUrl: String, consumerKey: String, consumerSecret: String) {
+        try {
+            Log.d(TAG, "保存API配置: URL=$siteUrl")
+            
+            // 保存到WooCommerceConfig
+            wooCommerceConfig.setSiteUrl(siteUrl)
+            wooCommerceConfig.setConsumerKey(consumerKey)
+            wooCommerceConfig.setConsumerSecret(consumerSecret)
+            
+            // 默认设置轮询间隔为30秒
+            wooCommerceConfig.setPollingInterval(30)
+            
+            Log.d(TAG, "API配置已保存")
+        } catch (e: Exception) {
+            Log.e(TAG, "保存API配置失败: ${e.message}", e)
+            throw e
+        }
+    }
+
+    /**
+     * 测试API连接
+     * @return 连接是否成功
+     */
+    suspend fun testApiConnection(): Boolean {
+        return try {
+            Log.d(TAG, "测试API连接")
+            
+            // 使用orderRepository测试连接
+            val result = orderRepository.testConnection()
+            
+            if (result) {
+                Log.d(TAG, "API连接测试成功")
+                // 更新配置状态
+                _isConfigured.value = true
+                // 更新全局配置状态
+                com.example.wooauto.data.remote.WooCommerceConfig.updateConfigurationStatus(true)
+            } else {
+                Log.d(TAG, "API连接测试失败")
+                _isConfigured.value = false
+            }
+            
+            result
+        } catch (e: Exception) {
+            Log.e(TAG, "API连接测试异常: ${e.message}", e)
+            _isConfigured.value = false
+            throw e
+        }
+    }
 } 

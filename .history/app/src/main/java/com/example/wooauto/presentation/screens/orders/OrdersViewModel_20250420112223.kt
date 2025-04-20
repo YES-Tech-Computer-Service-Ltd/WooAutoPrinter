@@ -39,7 +39,6 @@ class OrdersViewModel @Inject constructor(
     private val orderRepository: DomainOrderRepository,
     private val settingRepository: DomainSettingRepository,
     private val printerManager: PrinterManager,
-    private val wooCommerceConfig: com.example.wooauto.data.local.WooCommerceConfig,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -372,15 +371,10 @@ class OrdersViewModel @Inject constructor(
         return try {
             Log.d(TAG, "正在直接检查API配置状态")
             
-            // 使用注入的实例
-            val siteUrl = wooCommerceConfig.siteUrl.first()
-            val consumerKey = wooCommerceConfig.consumerKey.first()
-            val consumerSecret = wooCommerceConfig.consumerSecret.first()
+            // 使用注入的wooCommerceConfig实例
+            val configCheck = checkConfigurationValid()
             
-            // 检查配置是否有效
-            val isValid = siteUrl.isNotBlank() && consumerKey.isNotBlank() && consumerSecret.isNotBlank()
-            
-            if (isValid) {
+            if (configCheck) {
                 // 测试API连接
                 val connectionResult = orderRepository.testConnection()
                 if (connectionResult) {
@@ -393,7 +387,7 @@ class OrdersViewModel @Inject constructor(
                     return false
                 }
             } else {
-                Log.d(TAG, "API配置信息不完整: siteUrl=${siteUrl.isNotBlank()}, key=${consumerKey.isNotBlank()}, secret=${consumerSecret.isNotBlank()}")
+                Log.d(TAG, "API配置信息不完整")
                 _isConfigured.value = false
                 return false
             }
@@ -409,10 +403,9 @@ class OrdersViewModel @Inject constructor(
      */
     private suspend fun checkConfigurationValid(): Boolean {
         return try {
-            // 使用注入的wooCommerceConfig实例
-            val siteUrl = wooCommerceConfig.siteUrl.first()
-            val consumerKey = wooCommerceConfig.consumerKey.first()
-            val consumerSecret = wooCommerceConfig.consumerSecret.first()
+            val siteUrl = WooCommerceConfig.siteUrl.first()
+            val consumerKey = WooCommerceConfig.consumerKey.first()
+            val consumerSecret = WooCommerceConfig.consumerSecret.first()
             
             val isValid = siteUrl.isNotBlank() && consumerKey.isNotBlank() && consumerSecret.isNotBlank()
             if (isValid) {

@@ -1,6 +1,5 @@
 package com.example.wooauto.presentation.screens.orders
 
-import android.content.Intent
 import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -84,6 +83,8 @@ import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -103,8 +104,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
@@ -114,6 +113,7 @@ import com.example.wooauto.navigation.NavigationItem
 import com.example.wooauto.presentation.theme.WooAutoTheme
 import com.example.wooauto.utils.LocaleHelper
 import com.example.wooauto.presentation.screens.settings.SettingsViewModel
+import com.example.wooauto.presentation.components.ApiConfigForm
 import com.google.gson.Gson
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -143,6 +143,8 @@ import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material3.AlertDialog
+import androidx.compose.ui.window.Dialog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -178,6 +180,51 @@ fun OrdersScreen(
     var showOrderDetail by remember { mutableStateOf(false) }
     var statusFilter by remember { mutableStateOf("") }
     var showUnreadOrders by remember { mutableStateOf(false) }
+    
+    // 根据当前语言环境提供状态选项
+    val statusOptions = if (locale.language == "zh") {
+        listOf(
+            "" to "全部状态",
+            "processing" to "处理中",
+            "pending" to "待处理",
+            "on-hold" to "保留",
+            "completed" to "已完成",
+            "cancelled" to "已取消",
+            "refunded" to "已退款",
+            "failed" to "失败"
+        )
+    } else {
+        listOf(
+            "" to "All Status",
+            "processing" to "Processing",
+            "pending" to "Pending",
+            "on-hold" to "On Hold",
+            "completed" to "Completed",
+            "cancelled" to "Cancelled",
+            "refunded" to "Refunded",
+            "failed" to "Failed"
+        )
+    }
+    
+    // API配置对话框的状态
+    var siteUrlInput by remember { mutableStateOf("") }
+    var consumerKeyInput by remember { mutableStateOf("") }
+    var consumerSecretInput by remember { mutableStateOf("") }
+    var pollingIntervalInput by remember { mutableStateOf("30") }
+    var useWooCommerceFoodInput by remember { mutableStateOf(false) }
+    val isTestingConnection by viewModel.isTestingConnection.collectAsState()
+    val settingsViewModel: SettingsViewModel = hiltViewModel()
+    
+    // 加载当前API配置
+    LaunchedEffect(showApiConfigDialog) {
+        if (showApiConfigDialog) {
+            siteUrlInput = settingsViewModel.siteUrl.first()
+            consumerKeyInput = settingsViewModel.consumerKey.first()
+            consumerSecretInput = settingsViewModel.consumerSecret.first()
+            pollingIntervalInput = settingsViewModel.pollingInterval.first().toString()
+            useWooCommerceFoodInput = settingsViewModel.useWooCommerceFood.first()
+        }
+    }
     
     // 当进入此屏幕时执行初始化操作
     LaunchedEffect(key1 = Unit) {
@@ -308,31 +355,6 @@ fun OrdersScreen(
         }
     }
     
-    // 根据当前语言环境提供状态选项
-    val statusOptions = if (locale.language == "zh") {
-        listOf(
-            "" to "全部状态",
-            "processing" to "处理中",
-            "pending" to "待处理",
-            "on-hold" to "保留",
-            "completed" to "已完成",
-            "cancelled" to "已取消",
-            "refunded" to "已退款",
-            "failed" to "失败"
-        )
-    } else {
-        listOf(
-            "" to "All Status",
-            "processing" to "Processing",
-            "pending" to "Pending",
-            "on-hold" to "On Hold",
-            "completed" to "Completed",
-            "cancelled" to "Cancelled",
-            "refunded" to "Refunded",
-            "failed" to "Failed"
-        )
-    }
-    
     Scaffold(
         topBar = {
             TopBar(
@@ -386,17 +408,10 @@ fun OrdersScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                     Button(
                         onClick = {
-                            // 直接导航到设置页面的API设置部分，而非独立页面
-                            navController.navigate(NavigationItem.Settings.route) {
-                                // 确保是单一顶部实例
-                                launchSingleTop = true
-                            }
-                            // 发送广播通知设置页面直接打开API设置
-                            val intent = Intent("com.example.wooauto.ACTION_OPEN_API_SETTINGS")
-                            context.sendBroadcast(intent)
+                            navController.navigate("website_settings")
                         }
                     ) {
-                        Text("前往API设置")
+                        Text("前往配置")
                     }
                 }
             } else if (orders.isEmpty()) {
@@ -439,8 +454,78 @@ fun OrdersScreen(
                 )
             }
             
-            // 其余UI部分保持不变
-            // ... existing code ...
+            // API配置对话框
+            if (showApiConfigDialog) {
+                AlertDialog(
+                    onDismissRequest = { showApiConfigDialog = false },
+                    title = { 
+                        Text(
+                            text = stringResource(id = R.string.api_configuration),
+                            style = MaterialTheme.typography.headlineSmall
+                        ) 
+                    },
+                    text = {
+                        ApiConfigForm(
+                            siteUrl = siteUrlInput,
+                            consumerKey = consumerKeyInput,
+                            consumerSecret = consumerSecretInput,
+                            pollingInterval = pollingIntervalInput,
+                            useWooCommerceFood = useWooCommerceFoodInput,
+                            onSiteUrlChange = { siteUrlInput = it },
+                            onConsumerKeyChange = { consumerKeyInput = it },
+                            onConsumerSecretChange = { consumerSecretInput = it },
+                            onPollingIntervalChange = { pollingIntervalInput = it },
+                            onUseWooCommerceFoodChange = { useWooCommerceFoodInput = it },
+                            onQrCodeScan = { settingsViewModel.handleQrCodeScan() },
+                            isTestingConnection = isTestingConnection
+                        )
+                    },
+                    confirmButton = {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Button(
+                                onClick = {
+                                    if (siteUrlInput.isNotEmpty() && consumerKeyInput.isNotEmpty() && consumerSecretInput.isNotEmpty()) {
+                                        // 保存配置
+                                        settingsViewModel.updateSiteUrl(siteUrlInput)
+                                        settingsViewModel.updateConsumerKey(consumerKeyInput)
+                                        settingsViewModel.updateConsumerSecret(consumerSecretInput)
+                                        settingsViewModel.updatePollingInterval(pollingIntervalInput.toIntOrNull() ?: 30)
+                                        settingsViewModel.updateUseWooCommerceFood(useWooCommerceFoodInput)
+                                        
+                                        // 测试连接并关闭对话框
+                                        settingsViewModel.testConnection()
+                                        
+                                        // 关闭对话框后刷新订单
+                                        showApiConfigDialog = false
+                                        viewModel.refreshOrders()
+                                    } else {
+                                        // 显示错误提示
+                                        coroutineScope.launch {
+                                            snackbarHostState.showSnackbar("请填写所有必填字段")
+                                        }
+                                    }
+                                },
+                                enabled = !isTestingConnection,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(stringResource(id = R.string.save))
+                            }
+                            
+                            Spacer(modifier = Modifier.width(8.dp))
+                            
+                            OutlinedButton(
+                                onClick = { showApiConfigDialog = false },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(stringResource(id = R.string.cancel))
+                            }
+                        }
+                    }
+                )
+            }
         }
     }
 }

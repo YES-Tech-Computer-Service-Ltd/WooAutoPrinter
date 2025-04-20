@@ -1,6 +1,5 @@
 package com.example.wooauto.presentation.screens.orders
 
-import android.content.Intent
 import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -386,17 +385,10 @@ fun OrdersScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                     Button(
                         onClick = {
-                            // 直接导航到设置页面的API设置部分，而非独立页面
-                            navController.navigate(NavigationItem.Settings.route) {
-                                // 确保是单一顶部实例
-                                launchSingleTop = true
-                            }
-                            // 发送广播通知设置页面直接打开API设置
-                            val intent = Intent("com.example.wooauto.ACTION_OPEN_API_SETTINGS")
-                            context.sendBroadcast(intent)
+                            navController.navigate("website_settings")
                         }
                     ) {
-                        Text("前往API设置")
+                        Text("前往配置")
                     }
                 }
             } else if (orders.isEmpty()) {

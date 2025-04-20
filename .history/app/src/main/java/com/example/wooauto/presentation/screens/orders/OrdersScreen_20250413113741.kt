@@ -1,6 +1,5 @@
 package com.example.wooauto.presentation.screens.orders
 
-import android.content.Intent
 import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -163,42 +162,27 @@ fun OrdersScreen(
     val selectedOrder by viewModel.selectedOrder.collectAsState()
     val isRefreshing by viewModel.refreshing.collectAsState()
     
-    // 新增状态，用于控制何时显示UI
-    val isInitialized = remember { mutableStateOf(false) }
-    
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
     
-    // 修改API检查状态逻辑
+    // 添加API检查状态
     var showApiConfigDialog by remember { mutableStateOf(false) }
-    // 不再使用api检查延迟
-    // var apiCheckDelayCompleted by remember { mutableStateOf(false) }
+    // 添加延迟检查计时器
+    var apiCheckDelayCompleted by remember { mutableStateOf(false) }
     
     var searchQuery by remember { mutableStateOf("") }
     var showOrderDetail by remember { mutableStateOf(false) }
     var statusFilter by remember { mutableStateOf("") }
     var showUnreadOrders by remember { mutableStateOf(false) }
     
-    // 当进入此屏幕时执行初始化操作
+    // 当进入此屏幕时执行刷新操作
     LaunchedEffect(key1 = Unit) {
-        Log.d("OrdersScreen", "LaunchedEffect 触发，开始初始化流程")
+        Log.d("OrdersScreen", "LaunchedEffect 触发，刷新订单数据")
+        viewModel.refreshOrders()
         
-        // 首先检查API是否已配置
-        val configResult = viewModel.checkApiConfiguration()
-        
-        if (configResult) {
-            // API已配置，直接刷新订单数据
-            Log.d("OrdersScreen", "API已配置，直接刷新订单数据")
-            viewModel.refreshOrders()
-            // 数据加载完成后将初始化状态设为true
-            isInitialized.value = true
-        } else {
-            // API未配置，显示配置对话框
-            Log.d("OrdersScreen", "API未配置，显示配置对话框")
-            showApiConfigDialog = true
-            // 虽然未配置API，但仍然可以展示UI
-            isInitialized.value = true
-        }
+        // 添加延迟，确保有足够时间检查API配置
+        kotlinx.coroutines.delay(3000) // 延迟3秒
+        apiCheckDelayCompleted = true
     }
     
     // 注册接收新订单详情显示的广播接收器
@@ -256,55 +240,15 @@ fun OrdersScreen(
         }
     }
     
-    // 检查API配置状态，优化判断逻辑
-    LaunchedEffect(isLoading, isConfigured, orders, errorMessage) {
-        Log.d("OrdersScreen", "检查API配置状态: isLoading=$isLoading, isConfigured=$isConfigured, 订单数量=${orders.size}, 错误=${errorMessage != null}")
-        
+    // 检查API配置状态，在延迟结束后才判断是否需要显示配置对话框
+    LaunchedEffect(isLoading, isConfigured, apiCheckDelayCompleted, orders, errorMessage) {
         // 只有在没有错误消息的情况下才显示API配置对话框
-        if (errorMessage == null && !isLoading && !isConfigured && orders.isEmpty()) {
+        if (errorMessage == null && !isLoading && !isConfigured && apiCheckDelayCompleted && orders.isEmpty()) {
             // 只有在未配置API且没有订单数据时才显示配置对话框
             showApiConfigDialog = true
-        } else {
-            // 已经加载了数据或API已配置或有错误消息，不显示配置对话框
+        } else if (orders.isNotEmpty() || errorMessage != null) {
+            // 如果有订单数据或有错误消息，不显示API配置对话框
             showApiConfigDialog = false
-        }
-    }
-    
-    // 订单页面每次成为活动页面时刷新API配置状态
-    LaunchedEffect(navController) {
-        // 使用navController的addOnDestinationChangedListener代替currentBackStackEntryAsState
-        navController.addOnDestinationChangedListener { _, destination, _ ->
-            val currentRoute = destination.route
-            Log.d("OrdersScreen", "当前导航到页面: $currentRoute")
-            if (currentRoute == NavigationItem.Orders.route) {
-                Log.d("OrdersScreen", "导航回订单页面，刷新订单数据")
-                viewModel.refreshOrders()
-            }
-        }
-    }
-    
-    // 添加对导航变化的监听，确保对话框状态正确
-    LaunchedEffect(Unit) {
-        val callback = { route: String? -> 
-            // 当导航回到这个页面时，检查API是否已配置，并相应更新对话框状态
-            Log.d("OrdersScreen", "导航状态变化: $route")
-            if (route == NavigationItem.Orders.route) {
-                if (isConfigured) {
-                    showApiConfigDialog = false
-                    Log.d("OrdersScreen", "导航返回订单页面，API已配置，隐藏对话框")
-                } else {
-                    Log.d("OrdersScreen", "导航返回订单页面，API未配置，检查是否需要显示对话框")
-                    // 这里不再调用私有方法checkApiConfiguration，而是刷新订单
-                    viewModel.refreshOrders()
-                }
-            }
-        }
-        try {
-            navController.currentBackStackEntryFlow.collect {
-                callback(it.destination.route)
-            }
-        } catch (e: Exception) {
-            Log.e("OrdersScreen", "监听导航变化出错", e)
         }
     }
     
@@ -334,281 +278,371 @@ fun OrdersScreen(
     }
     
     Scaffold(
-        topBar = {
-            TopBar(
-                isRefreshing = isRefreshing,
-                showUnreadOrders = showUnreadOrders,
-                onToggleUnreadOrders = { showUnreadOrders = !showUnreadOrders },
-                onRefresh = { viewModel.refreshOrders() }
-            )
-        },
-        snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
+        // 删除顶部AppBar，使用WooAutoApp中的全局AppBar
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { paddingValues ->
-        Box(modifier = Modifier.padding(paddingValues)) {
-            // 先检查是否初始化完成
-            if (!isInitialized.value) {
-                // 显示初始化加载界面
-                Box(
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
+            // 加载中状态
+            if (isLoading) {
+                Column(
                     modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        CircularProgressIndicator()
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(text = "正在加载订单数据...", style = MaterialTheme.typography.bodyLarge)
-                    }
-                }
-            } else if (isLoading && orders.isEmpty()) {
-                // 已初始化但正在加载且没有订单数据
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     CircularProgressIndicator()
-                }
-            } else if (orders.isEmpty() && !isConfigured) {
-                // 没有订单且API未配置
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
+                    Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = "请先配置WooCommerce API",
-                        style = MaterialTheme.typography.headlineSmall,
+                        text = stringResource(id = R.string.checking_api_configuration),
+                        style = MaterialTheme.typography.bodyLarge,
                         textAlign = TextAlign.Center
                     )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Button(
-                        onClick = {
-                            // 直接导航到设置页面的API设置部分，而非独立页面
-                            navController.navigate(NavigationItem.Settings.route) {
-                                // 确保是单一顶部实例
-                                launchSingleTop = true
+                }
+            } 
+            // API 未配置状态，显示对话框而不是直接显示在页面上
+            else if (showApiConfigDialog) {
+                Dialog(
+                    onDismissRequest = { showApiConfigDialog = false },
+                    properties = DialogProperties(dismissOnBackPress = true, dismissOnClickOutside = true)
+                ) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = null,
+                                modifier = Modifier.size(64.dp),
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                text = stringResource(id = R.string.api_config_required),
+                                style = MaterialTheme.typography.headlineSmall,
+                                textAlign = TextAlign.Center
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = stringResource(id = R.string.api_config_message),
+                                style = MaterialTheme.typography.bodyMedium,
+                                textAlign = TextAlign.Center
+                            )
+                            Spacer(modifier = Modifier.height(24.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End
+                            ) {
+                                Button(
+                                    onClick = {
+                                        showApiConfigDialog = false
+                                    }
+                                ) {
+                                    Text(stringResource(id = R.string.cancel))
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Button(
+                                    onClick = {
+                                        navController.navigate(NavigationItem.Settings.route)
+                                    }
+                                ) {
+                                    Text(stringResource(id = R.string.go_to_api_settings))
+                                }
                             }
-                            // 发送广播通知设置页面直接打开API设置
-                            val intent = Intent("com.example.wooauto.ACTION_OPEN_API_SETTINGS")
-                            context.sendBroadcast(intent)
                         }
-                    ) {
-                        Text("前往API设置")
                     }
                 }
-            } else if (orders.isEmpty()) {
-                // 已配置但没有订单
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Text(
-                        text = "没有订单数据",
-                        style = MaterialTheme.typography.headlineSmall,
-                        textAlign = TextAlign.Center
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Button(
-                        onClick = { viewModel.refreshOrders() }
+                
+                // 即使API未配置，也显示空的订单列表背景，而不是特殊的API未配置页面
+                if (orders.isEmpty()) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Text("刷新")
-                    }
-                }
-            } else {
-                // 有订单数据，显示订单列表
-                OrdersList(
-                    orders = orders,
-                    showUnreadOnly = showUnreadOrders,
-                    selectedStatus = statusFilter,
-                    onSelectOrder = { order ->
-                        viewModel.getOrderDetails(order.id)
-                        showOrderDetail = true
-                        // 标记订单为已读
-                        viewModel.markOrderAsRead(order.id)
-                    },
-                    onStatusSelected = { status ->
-                        statusFilter = status
-                        viewModel.filterOrdersByStatus(status)
-                    }
-                )
-            }
-            
-            // 其余UI部分保持不变
-            // ... existing code ...
-        }
-    }
-}
-
-/**
- * 订单列表顶部栏
- */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun TopBar(
-    isRefreshing: Boolean,
-    showUnreadOrders: Boolean,
-    onToggleUnreadOrders: () -> Unit,
-    onRefresh: () -> Unit
-) {
-    val locale = LocalAppLocale.current
-    
-    TopAppBar(
-        title = { Text(text = if (locale.language == "zh") "订单" else "Orders") },
-        actions = {
-            // 未读订单按钮
-            IconButton(
-                onClick = onToggleUnreadOrders
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Email,
-                    contentDescription = if (locale.language == "zh") "未读订单" else "Unread Orders"
-                )
-            }
-            
-            // 刷新按钮
-            IconButton(
-                onClick = onRefresh,
-                enabled = !isRefreshing
-            ) {
-                if (isRefreshing) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(24.dp),
-                        strokeWidth = 2.dp
-                    )
-                } else {
-                    Icon(
-                        imageVector = Icons.Default.Refresh,
-                        contentDescription = if (locale.language == "zh") "刷新" else "Refresh"
-                    )
-                }
-            }
-        }
-    )
-}
-
-/**
- * 订单列表组件
- */
-@Composable
-private fun OrdersList(
-    orders: List<Order>,
-    showUnreadOnly: Boolean,
-    selectedStatus: String,
-    onSelectOrder: (Order) -> Unit,
-    onStatusSelected: (String) -> Unit
-) {
-    val locale = LocalAppLocale.current
-    var searchQuery by remember { mutableStateOf("") }
-    
-    // 定义状态选项列表
-    val statusOptions = listOf(
-        "" to (if (locale.language == "zh") "全部" else "All"),
-        "processing" to (if (locale.language == "zh") "处理中" else "Processing"),
-        "completed" to (if (locale.language == "zh") "已完成" else "Completed"),
-        "pending" to (if (locale.language == "zh") "待付款" else "Pending"),
-        "cancelled" to (if (locale.language == "zh") "已取消" else "Cancelled"),
-        "on-hold" to (if (locale.language == "zh") "暂挂" else "On Hold")
-    )
-    
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 8.dp)
-    ) {
-        // 搜索栏
-        OutlinedTextField(
-            value = searchQuery,
-            onValueChange = { searchQuery = it },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 8.dp),
-            placeholder = { Text(if (locale.language == "zh") "搜索订单..." else "Search orders...") },
-            leadingIcon = { 
-                Icon(
-                    imageVector = Icons.Default.Search,
-                    contentDescription = if (locale.language == "zh") "搜索" else "Search"
-                )
-            },
-            trailingIcon = {
-                if (searchQuery.isNotEmpty()) {
-                    IconButton(
-                        onClick = { searchQuery = "" }
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Clear,
-                            contentDescription = if (locale.language == "zh") "清除" else "Clear"
+                        Text(
+                            text = stringResource(id = R.string.no_orders_found),
+                            style = MaterialTheme.typography.bodyLarge,
+                            textAlign = TextAlign.Center
                         )
                     }
+                } else {
+                    // 显示订单列表，即使用户需要配置API
+                    // 订单内容渲染
+                    // ... 后续的订单列表渲染代码会自动生效 ...
                 }
-            },
-            singleLine = true,
-            shape = RoundedCornerShape(8.dp)
-        )
-        
-        // 状态过滤器
-        LazyRow(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            items(statusOptions) { statusOption ->
-                val (status, label) = statusOption  // 正确的解构语法
-                FilterChip(
-                    selected = selectedStatus == status,
-                    onClick = { onStatusSelected(status) },
-                    label = { Text(text = label) }  // 明确指定text参数
-                )
             }
-        }
-        
-        // 订单列表
-        val filteredOrders = orders.filter {
-            // 状态过滤
-            val statusMatch = selectedStatus.isEmpty() || it.status == selectedStatus
-            // 搜索过滤
-            val queryMatch = searchQuery.isEmpty() || 
-                it.number.contains(searchQuery, ignoreCase = true) || 
-                it.customerName.contains(searchQuery, ignoreCase = true)
-            // 未读过滤
-            val unreadMatch = !showUnreadOnly || !it.isRead
-            
-            statusMatch && queryMatch && unreadMatch
-        }
-        
-        if (filteredOrders.isEmpty()) {
-            // 没有匹配的订单
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Text(
-                    text = if (locale.language == "zh") "未找到匹配的订单" else "No matching orders found",
-                    style = MaterialTheme.typography.headlineSmall,
-                    textAlign = TextAlign.Center
-                )
-            }
-        } else {
-            // 显示订单列表
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(filteredOrders) { order ->
-                    OrderCard(
-                        order = order,
-                        onClick = { onSelectOrder(order) }
+            // 已配置，显示订单列表
+            else {
+                Log.d("OrdersScreen", "显示订单列表，共 ${orders.size} 个订单")
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 8.dp, vertical = 8.dp)
+                ) {
+                    // 搜索框与刷新按钮行
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // 搜索框
+                        OutlinedTextField(
+                            value = searchQuery,
+                            onValueChange = { searchQuery = it },
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(end = 8.dp),
+                            placeholder = { Text(if (locale.language == "zh") "搜索订单..." else "Search orders...") },
+                            leadingIcon = { 
+                                Icon(
+                                    imageVector = Icons.Default.Search,
+                                    contentDescription = if (locale.language == "zh") "搜索" else "Search"
+                                )
+                            },
+                            trailingIcon = {
+                                if (searchQuery.isNotEmpty()) {
+                                    IconButton(
+                                        onClick = { searchQuery = "" },
+                                        modifier = Modifier.size(40.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Clear,
+                                            contentDescription = if (locale.language == "zh") "清除" else "Clear"
+                                        )
+                                    }
+                                }
+                            },
+                            singleLine = true,
+                            shape = RoundedCornerShape(8.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                            )
+                        )
+                        
+                        // 未读订单按钮
+                        Box(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .padding(end = 8.dp)
+                        ) {
+                            IconButton(
+                                onClick = { showUnreadOrders = true },
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .background(
+                                        color = MaterialTheme.colorScheme.primary,
+                                        shape = RoundedCornerShape(8.dp)
+                                    )
+                                    .padding(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Email,
+                                    contentDescription = if (locale.language == "zh") "未读订单" else "Unread Orders",
+                                    tint = MaterialTheme.colorScheme.onPrimary
+                                )
+                            }
+                            
+                            // 从ViewModel获取未读订单数量
+                            val unreadCount by viewModel.unreadOrdersCount.collectAsState()
+                            if (unreadCount > 0) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(20.dp)
+                                        .align(Alignment.TopEnd)
+                                        .offset(x = 4.dp, y = (-4).dp)
+                                        .background(
+                                            color = MaterialTheme.colorScheme.error,
+                                            shape = CircleShape
+                                        ),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = if (unreadCount > 99) "99+" else unreadCount.toString(),
+                                        color = MaterialTheme.colorScheme.onError,
+                                        style = MaterialTheme.typography.bodySmall.copy(
+                                            fontSize = 10.sp
+                                        )
+                                    )
+                                }
+                            }
+                        }
+                        
+                        // 刷新按钮
+                        IconButton(
+                            onClick = { viewModel.refreshOrders() },
+                            enabled = !isRefreshing,
+                            modifier = Modifier
+                                .size(48.dp)
+                                .background(
+                                    color = MaterialTheme.colorScheme.primary,
+                                    shape = RoundedCornerShape(8.dp)
+                                )
+                                .padding(4.dp)
+                        ) {
+                            if (isRefreshing) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(24.dp),
+                                    strokeWidth = 2.dp,
+                                    color = MaterialTheme.colorScheme.onPrimary
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.Refresh,
+                                    contentDescription = stringResource(id = R.string.refresh),
+                                    tint = MaterialTheme.colorScheme.onPrimary
+                                )
+                            }
+                        }
+                    }
+                    
+                    // 状态过滤器 - 水平滚动按钮样式
+                    LazyRow(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = PaddingValues(horizontal = 0.dp),
+                        state = rememberLazyListState()
+                    ) {
+                        items(statusOptions) { (status, label) ->
+                            FilterChip(
+                                selected = statusFilter == status,
+                                onClick = {
+                                    statusFilter = status
+                                    viewModel.filterOrdersByStatus(status.takeIf { it.isNotEmpty() })
+                                },
+                                label = { 
+                                    Text(
+                                        text = label,
+                                        style = MaterialTheme.typography.bodyMedium
+                                    ) 
+                                },
+                                leadingIcon = if (statusFilter == status) {
+                                    {
+                                        Icon(
+                                            imageVector = Icons.Default.Check,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                } else null,
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            )
+                        }
+                    }
+                    
+                    // 订单列表
+                    if (orders.isEmpty()) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Error,
+                                contentDescription = if (locale.language == "zh") "无数据" else "No Data",
+                                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                                modifier = Modifier.size(64.dp)
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                text = if (locale.language == "zh") "暂无订单数据" else "No Order Data",
+                                style = MaterialTheme.typography.titleLarge,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            )
+                        }
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            contentPadding = PaddingValues(vertical = 0.dp)
+                        ) {
+                            val filteredOrders = orders.filter {
+                                val orderNumber = it.number.lowercase(Locale.getDefault())
+                                val customerName = it.customerName.lowercase(Locale.getDefault())
+                                val query = searchQuery.lowercase(Locale.getDefault())
+                                
+                                (orderNumber.contains(query) || customerName.contains(query))
+                            }
+                            
+                            if (filteredOrders.isEmpty()) {
+                                item {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 32.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally
+                                    ) {
+                                        Text(
+                                            text = if (locale.language == "zh") "未找到匹配的订单" else "No matching orders found",
+                                            style = MaterialTheme.typography.titleLarge,
+                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                        )
+                                    }
+                                }
+                            } else {
+                                items(filteredOrders) { order ->
+                                    OrderCard(
+                                        order = order,
+                                        onClick = {
+                                            viewModel.getOrderDetails(order.id)
+                                            showOrderDetail = true
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // 显示订单详情对话框
+                if (showOrderDetail && selectedOrder != null) {
+                    OrderDetailDialog(
+                        order = selectedOrder!!,
+                        onDismiss = { 
+                            showOrderDetail = false
+                            viewModel.clearSelectedOrder()
+                        },
+                        onStatusChange = { orderId, newStatus ->
+                            viewModel.updateOrderStatus(orderId, newStatus)
+                        },
+                        onMarkAsPrinted = { orderId ->
+                            viewModel.markOrderAsPrinted(orderId)
+                        }
+                    )
+                }
+                
+                // 显示未读订单对话框
+                if (showUnreadOrders) {
+                    UnreadOrdersDialog(
+                        onDismiss = { showUnreadOrders = false },
+                        onOrderClick = { order ->
+                            viewModel.getOrderDetails(order.id)
+                            showOrderDetail = true
+                            showUnreadOrders = false
+                        },
+                        viewModel = viewModel
                     )
                 }
             }

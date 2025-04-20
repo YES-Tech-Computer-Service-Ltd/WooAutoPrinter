@@ -39,7 +39,6 @@ class OrdersViewModel @Inject constructor(
     private val orderRepository: DomainOrderRepository,
     private val settingRepository: DomainSettingRepository,
     private val printerManager: PrinterManager,
-    private val wooCommerceConfig: com.example.wooauto.data.local.WooCommerceConfig,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -372,10 +371,10 @@ class OrdersViewModel @Inject constructor(
         return try {
             Log.d(TAG, "正在直接检查API配置状态")
             
-            // 使用注入的实例
-            val siteUrl = wooCommerceConfig.siteUrl.first()
-            val consumerKey = wooCommerceConfig.consumerKey.first()
-            val consumerSecret = wooCommerceConfig.consumerSecret.first()
+            // 获取API配置
+            val siteUrl = WooCommerceConfig.siteUrl.first()
+            val consumerKey = WooCommerceConfig.consumerKey.first()
+            val consumerSecret = WooCommerceConfig.consumerSecret.first()
             
             // 检查配置是否有效
             val isValid = siteUrl.isNotBlank() && consumerKey.isNotBlank() && consumerSecret.isNotBlank()
@@ -386,6 +385,7 @@ class OrdersViewModel @Inject constructor(
                 if (connectionResult) {
                     Log.d(TAG, "API配置有效且连接测试成功")
                     _isConfigured.value = true
+                    WooCommerceConfig.updateConfigurationStatus(true)
                     return true
                 } else {
                     Log.d(TAG, "API配置信息完整但连接测试失败")
@@ -401,29 +401,6 @@ class OrdersViewModel @Inject constructor(
             Log.e(TAG, "检查API配置状态发生异常: ${e.message}", e)
             _isConfigured.value = false
             return false
-        }
-    }
-    
-    /**
-     * 检查配置是否有效
-     */
-    private suspend fun checkConfigurationValid(): Boolean {
-        return try {
-            // 使用注入的wooCommerceConfig实例
-            val siteUrl = wooCommerceConfig.siteUrl.first()
-            val consumerKey = wooCommerceConfig.consumerKey.first()
-            val consumerSecret = wooCommerceConfig.consumerSecret.first()
-            
-            val isValid = siteUrl.isNotBlank() && consumerKey.isNotBlank() && consumerSecret.isNotBlank()
-            if (isValid) {
-                Log.d(TAG, "WooCommerce配置有效")
-            } else {
-                Log.w(TAG, "WooCommerce配置无效: URL=${siteUrl.isNotBlank()}, Key=${consumerKey.isNotBlank()}, Secret=${consumerSecret.isNotBlank()}")
-            }
-            isValid
-        } catch (e: Exception) {
-            Log.e(TAG, "检查配置有效性出错: ${e.message}", e)
-            false
         }
     }
     

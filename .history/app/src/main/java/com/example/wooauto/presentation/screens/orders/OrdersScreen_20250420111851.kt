@@ -1,6 +1,5 @@
 package com.example.wooauto.presentation.screens.orders
 
-import android.content.Intent
 import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -386,17 +385,10 @@ fun OrdersScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                     Button(
                         onClick = {
-                            // 直接导航到设置页面的API设置部分，而非独立页面
-                            navController.navigate(NavigationItem.Settings.route) {
-                                // 确保是单一顶部实例
-                                launchSingleTop = true
-                            }
-                            // 发送广播通知设置页面直接打开API设置
-                            val intent = Intent("com.example.wooauto.ACTION_OPEN_API_SETTINGS")
-                            context.sendBroadcast(intent)
+                            navController.navigate("website_settings")
                         }
                     ) {
-                        Text("前往API设置")
+                        Text("前往配置")
                     }
                 }
             } else if (orders.isEmpty()) {
@@ -506,16 +498,6 @@ private fun OrdersList(
     val locale = LocalAppLocale.current
     var searchQuery by remember { mutableStateOf("") }
     
-    // 定义状态选项列表
-    val statusOptions = listOf(
-        "" to (if (locale.language == "zh") "全部" else "All"),
-        "processing" to (if (locale.language == "zh") "处理中" else "Processing"),
-        "completed" to (if (locale.language == "zh") "已完成" else "Completed"),
-        "pending" to (if (locale.language == "zh") "待付款" else "Pending"),
-        "cancelled" to (if (locale.language == "zh") "已取消" else "Cancelled"),
-        "on-hold" to (if (locale.language == "zh") "暂挂" else "On Hold")
-    )
-    
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -558,12 +540,11 @@ private fun OrdersList(
                 .padding(bottom = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(statusOptions) { statusOption ->
-                val (status, label) = statusOption  // 正确的解构语法
+            items(statusOptions) { (status, label) ->
                 FilterChip(
                     selected = selectedStatus == status,
                     onClick = { onStatusSelected(status) },
-                    label = { Text(text = label) }  // 明确指定text参数
+                    label = { Text(text = label) }
                 )
             }
         }

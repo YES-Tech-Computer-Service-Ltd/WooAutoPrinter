@@ -410,9 +410,9 @@ class OrdersViewModel @Inject constructor(
     private suspend fun checkConfigurationValid(): Boolean {
         return try {
             // 使用注入的wooCommerceConfig实例
-            val siteUrl = wooCommerceConfig.siteUrl.first()
-            val consumerKey = wooCommerceConfig.consumerKey.first()
-            val consumerSecret = wooCommerceConfig.consumerSecret.first()
+            val siteUrl = WooCommerceConfig.siteUrl.first()
+            val consumerKey = WooCommerceConfig.consumerKey.first()
+            val consumerSecret = WooCommerceConfig.consumerSecret.first()
             
             val isValid = siteUrl.isNotBlank() && consumerKey.isNotBlank() && consumerSecret.isNotBlank()
             if (isValid) {

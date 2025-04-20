@@ -1,7 +1,8 @@
 package com.example.wooauto.presentation.screens.orders
 
-import android.content.Intent
 import android.util.Log
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -25,65 +26,23 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccessTime
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Article
-import androidx.compose.material.icons.filled.AttachMoney
-import androidx.compose.material.icons.filled.Call
-import androidx.compose.material.icons.filled.Cancel
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.Error
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.List
-import androidx.compose.material.icons.filled.LocalShipping
-import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Payment
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Phone
-import androidx.compose.material.icons.filled.Place
-import androidx.compose.material.icons.filled.Print
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Restaurant
-import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.ShoppingCart
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.Store
-import androidx.compose.material.icons.filled.Tag
-import androidx.compose.material.icons.filled.TextSnippet
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SmallTopAppBar
-import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -103,46 +62,17 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import com.example.wooauto.domain.models.Order
-import com.example.wooauto.domain.models.OrderItem
+import com.example.wooauto.R
 import com.example.wooauto.navigation.NavigationItem
-import com.example.wooauto.presentation.theme.WooAutoTheme
-import com.example.wooauto.utils.LocaleHelper
-import com.example.wooauto.presentation.screens.settings.SettingsViewModel
-import com.google.gson.Gson
+import com.example.wooauto.utils.LocalAppLocale
+import com.journeyapps.barcodescanner.ScanContract
+import com.journeyapps.barcodescanner.ScanOptions
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import org.json.JSONArray
-import org.json.JSONObject
-import java.text.SimpleDateFormat
-import java.util.Locale
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.TopAppBar
-import coil.compose.AsyncImage
-import coil.request.CachePolicy
-import coil.request.ImageRequest
-import com.example.wooauto.R
-import com.example.wooauto.utils.LocalAppLocale
-import com.example.wooauto.utils.LocaleManager
-import com.example.wooauto.domain.templates.TemplateType
-import androidx.compose.material3.Divider
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.material.icons.filled.AccountBalance
-import androidx.compose.material.icons.filled.Discount
-import androidx.compose.material.icons.filled.List
-import androidx.compose.material.icons.filled.AttachMoney
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.ChevronRight
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -370,35 +300,12 @@ fun OrdersScreen(
                     CircularProgressIndicator()
                 }
             } else if (orders.isEmpty() && !isConfigured) {
-                // 没有订单且API未配置
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Text(
-                        text = "请先配置WooCommerce API",
-                        style = MaterialTheme.typography.headlineSmall,
-                        textAlign = TextAlign.Center
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Button(
-                        onClick = {
-                            // 直接导航到设置页面的API设置部分，而非独立页面
-                            navController.navigate(NavigationItem.Settings.route) {
-                                // 确保是单一顶部实例
-                                launchSingleTop = true
-                            }
-                            // 发送广播通知设置页面直接打开API设置
-                            val intent = Intent("com.example.wooauto.ACTION_OPEN_API_SETTINGS")
-                            context.sendBroadcast(intent)
-                        }
-                    ) {
-                        Text("前往API设置")
-                    }
-                }
+                // 没有订单且API未配置，显示API配置对话框
+                ApiConfigDialog(
+                    navController = navController,
+                    onDismiss = { showApiConfigDialog = false },
+                    viewModel = viewModel
+                )
             } else if (orders.isEmpty()) {
                 // 已配置但没有订单
                 Column(
@@ -2149,4 +2056,278 @@ fun UnreadOrderItem(
             )
         }
     }
-} 
+}
+
+/**
+ * API配置对话框，带有二维码扫描功能
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ApiConfigDialog(
+    navController: NavController,
+    onDismiss: () -> Unit,
+    viewModel: OrdersViewModel
+) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    
+    // API设置表单状态
+    var siteUrlInput by remember { mutableStateOf("") }
+    var consumerKeyInput by remember { mutableStateOf("") }
+    var consumerSecretInput by remember { mutableStateOf("") }
+    
+    // 连接测试状态
+    var isTestingConnection by remember { mutableStateOf(false) }
+    var connectionResult by remember { mutableStateOf<String?>(null) }
+    var isConnectionSuccess by remember { mutableStateOf(false) }
+    
+    // 二维码扫描器
+    val barcodeLauncher = rememberLauncherForActivityResult(
+        contract = com.journeyapps.barcodescanner.ScanContract(),
+    ) { result ->
+        result.contents?.let { scanResult ->
+            try {
+                Log.d("ApiConfigDialog", "处理二维码扫描结果: ${scanResult.take(30)}...")
+                
+                // 检查是否是wooauto://开头的特定格式
+                if (scanResult.startsWith("wooauto://")) {
+                    // 提取JSON部分 (wooauto://之后的内容)
+                    val jsonStr = scanResult.substring("wooauto://".length)
+                    
+                    // 使用Gson解析JSON
+                    val gson = com.google.gson.Gson()
+                    try {
+                        val qrData = gson.fromJson(jsonStr, QrData::class.java)
+                        
+                        // 更新各字段值
+                        siteUrlInput = qrData.url ?: ""
+                        consumerKeyInput = qrData.key ?: ""
+                        consumerSecretInput = qrData.secret ?: ""
+                        
+                        Log.d("ApiConfigDialog", "二维码数据解析成功")
+                        Toast.makeText(context, "二维码扫描成功", Toast.LENGTH_SHORT).show()
+                    } catch (e: Exception) {
+                        Log.e("ApiConfigDialog", "解析二维码JSON数据失败: ${e.message}")
+                        // 如果JSON解析失败，则直接使用整个结果作为URL
+                        siteUrlInput = scanResult
+                        Toast.makeText(context, "二维码格式错误，已作为URL处理", Toast.LENGTH_SHORT).show()
+                    }
+                } else {
+                    // 不是特定格式，直接作为URL使用
+                    siteUrlInput = scanResult.trim()
+                    Log.d("ApiConfigDialog", "使用普通URL格式: ${scanResult.take(30)}...")
+                    Toast.makeText(context, "已设置站点URL", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                Log.e("ApiConfigDialog", "处理二维码扫描结果出错", e)
+                Toast.makeText(context, "二维码处理失败", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+    
+    // 启动二维码扫描
+    fun startQrCodeScanner() {
+        val options = com.journeyapps.barcodescanner.ScanOptions().apply {
+            setPrompt("扫描WooCommerce站点二维码")
+            setBeepEnabled(true)
+            setOrientationLocked(false)
+        }
+        barcodeLauncher.launch(options)
+    }
+    
+    // 测试连接并保存
+    fun saveAndTestConnection() {
+        if (siteUrlInput.isBlank() || consumerKeyInput.isBlank() || consumerSecretInput.isBlank()) {
+            Toast.makeText(context, "请填写所有必填字段", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        isTestingConnection = true
+        connectionResult = null
+        
+        coroutineScope.launch {
+            try {
+                // 保存配置
+                viewModel.saveApiConfig(siteUrlInput, consumerKeyInput, consumerSecretInput)
+                
+                // 测试连接
+                val testResult = viewModel.testApiConnection()
+                isTestingConnection = false
+                
+                if (testResult) {
+                    isConnectionSuccess = true
+                    connectionResult = "连接测试成功！"
+                    
+                    // 短暂延迟后刷新订单并导航回订单页面
+                    delay(1000)
+                    viewModel.refreshOrders()
+                    onDismiss()
+                    
+                    // 显示成功提示
+                    Toast.makeText(context, "设置已保存，正在刷新订单数据", Toast.LENGTH_SHORT).show()
+                } else {
+                    isConnectionSuccess = false
+                    connectionResult = "连接测试失败，请检查API配置"
+                }
+            } catch (e: Exception) {
+                isTestingConnection = false
+                isConnectionSuccess = false
+                connectionResult = "连接出错: ${e.message}"
+            }
+        }
+    }
+    
+    // API设置对话框UI
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = "WooCommerce API 设置",
+            style = MaterialTheme.typography.headlineMedium,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(bottom = 16.dp)
+        )
+        
+        Text(
+            text = "请配置您的WooCommerce API信息以获取订单数据",
+            style = MaterialTheme.typography.bodyMedium,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(bottom = 24.dp)
+        )
+        
+        // 站点URL输入行 (带二维码扫描按钮)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            OutlinedTextField(
+                value = siteUrlInput,
+                onValueChange = { siteUrlInput = it },
+                label = { Text("站点URL") },
+                placeholder = { Text("https://your-site.com") },
+                singleLine = true,
+                modifier = Modifier.weight(1f)
+            )
+            
+            IconButton(onClick = { startQrCodeScanner() }) {
+                Icon(
+                    imageVector = Icons.Default.QrCode,
+                    contentDescription = "扫描二维码"
+                )
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(12.dp))
+        
+        // Consumer Key输入框
+        OutlinedTextField(
+            value = consumerKeyInput,
+            onValueChange = { consumerKeyInput = it },
+            label = { Text("Consumer Key") },
+            placeholder = { Text("ck_...") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+        
+        Spacer(modifier = Modifier.height(12.dp))
+        
+        // Consumer Secret输入框
+        OutlinedTextField(
+            value = consumerSecretInput,
+            onValueChange = { consumerSecretInput = it },
+            label = { Text("Consumer Secret") },
+            placeholder = { Text("cs_...") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+        
+        Spacer(modifier = Modifier.height(24.dp))
+        
+        // 显示连接测试结果
+        connectionResult?.let { result ->
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (isConnectionSuccess) 
+                        MaterialTheme.colorScheme.primaryContainer
+                    else 
+                        MaterialTheme.colorScheme.errorContainer
+                )
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = if (isConnectionSuccess) 
+                            Icons.Default.Check 
+                        else 
+                            Icons.Default.Close,
+                        contentDescription = null,
+                        tint = if (isConnectionSuccess) 
+                            MaterialTheme.colorScheme.primary 
+                        else 
+                            MaterialTheme.colorScheme.error
+                    )
+                    
+                    Spacer(modifier = Modifier.width(8.dp))
+                    
+                    Text(
+                        text = result,
+                        color = if (isConnectionSuccess) 
+                            MaterialTheme.colorScheme.primary 
+                        else 
+                            MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(24.dp))
+        }
+        
+        // 按钮行
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            // 取消按钮
+            OutlinedButton(
+                onClick = onDismiss,
+                modifier = Modifier.weight(1f)
+            ) {
+                Text("取消")
+            }
+            
+            Spacer(modifier = Modifier.width(16.dp))
+            
+            // 保存并测试按钮
+            Button(
+                onClick = { saveAndTestConnection() },
+                modifier = Modifier.weight(1f),
+                enabled = !isTestingConnection
+            ) {
+                if (isTestingConnection) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Text("保存并测试")
+                }
+            }
+        }
+    }
+}
+
+// 二维码数据类
+data class QrData(
+    val url: String? = null,
+    val key: String? = null,
+    val secret: String? = null
+) 

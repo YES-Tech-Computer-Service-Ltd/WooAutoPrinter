@@ -142,36 +142,6 @@ fun SettingsScreen(
     var pollingIntervalInput by remember { mutableStateOf(pollingInterval.toString()) }
     var useWooCommerceFoodInput by remember { mutableStateOf(useWooCommerceFood) }
     
-    // 注册广播接收器，用于在收到广播时打开API设置对话框
-    androidx.compose.runtime.DisposableEffect(context) {
-        val intentFilter = android.content.IntentFilter("com.example.wooauto.ACTION_OPEN_API_SETTINGS")
-        val receiver = object : android.content.BroadcastReceiver() {
-            override fun onReceive(context: android.content.Context?, intent: android.content.Intent?) {
-                Log.d("SettingsScreen", "收到打开API设置广播")
-                showApiDialog = true
-            }
-        }
-        
-        // 根据API级别使用相应的注册方法
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-            context.registerReceiver(receiver, intentFilter, android.content.Context.RECEIVER_NOT_EXPORTED)
-            Log.d("SettingsScreen", "使用RECEIVER_NOT_EXPORTED标志注册API设置广播接收器(Android 13+)")
-        } else {
-            context.registerReceiver(receiver, intentFilter)
-            Log.d("SettingsScreen", "标准方式注册API设置广播接收器(Android 12及以下)")
-        }
-        
-        // 在效果结束时注销接收器
-        onDispose {
-            try {
-                context.unregisterReceiver(receiver)
-                Log.d("SettingsScreen", "注销API设置广播接收器")
-            } catch (e: Exception) {
-                Log.e("SettingsScreen", "注销API设置广播接收器失败", e)
-            }
-        }
-    }
-    
     // 二维码扫描器
     val barcodeLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
         result.contents?.let { scanResult ->
@@ -204,21 +174,38 @@ fun SettingsScreen(
         useWooCommerceFoodInput = useWooCommerceFood
     }
     
-    // 连接测试结果处理
+    // 监听连接测试结果
     LaunchedEffect(connectionTestResult) {
-        connectionTestResult?.let {
-            when (it) {
+        connectionTestResult?.let { result ->
+            when (result) {
                 is SettingsViewModel.ConnectionTestResult.Success -> {
+                    // 记录成功日志
+                    Log.d("SettingsScreen", "API连接测试成功")
+                    
+                    // 显示成功提示
                     coroutineScope.launch {
                         snackbarHostState.showSnackbar(connectionSuccessText)
                     }
+                    
+                    // 延迟一小段时间后返回到订单页面
+                    delay(1500)
+                    
+                    // 导航回订单页面
+                    navController.navigate("orders") {
+                        // 清空导航栈，避免重复页面
+                        popUpTo(0) { inclusive = true }
+                        launchSingleTop = true
+                    }
                 }
                 is SettingsViewModel.ConnectionTestResult.Error -> {
+                    // 显示错误消息
                     coroutineScope.launch {
-                        snackbarHostState.showSnackbar(connectionFailedText + ": " + it.message)
+                        snackbarHostState.showSnackbar(connectionFailedText + ": " + result.message)
                     }
                 }
             }
+            
+            // 处理完成后清除结果，避免再次触发
             viewModel.clearConnectionTestResult()
         }
     }
