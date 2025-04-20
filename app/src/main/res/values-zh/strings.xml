@@ -341,4 +341,5 @@
     <string name="paper_width_setup">纸张宽度设置</string>
     <string name="set_default_printer">设为默认打印机</string>
     <string name="request_bluetooth_location_permissions">请求蓝牙和位置权限</string>
+    <string name="auto_cut_paper">自动切纸</string>
 </resources>

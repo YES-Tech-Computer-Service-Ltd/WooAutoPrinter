@@ -53,6 +53,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import java.io.ByteArrayOutputStream
+import kotlin.math.max
 
 @Singleton
 class BluetoothPrinterManager @Inject constructor(
@@ -173,7 +174,6 @@ class BluetoothPrinterManager @Inject constructor(
                         // 增加详细日志帮助调试
                         val rssi = intent.getShortExtra(BluetoothDevice.EXTRA_RSSI, Short.MIN_VALUE)
                             .toInt()
-//                        Log.d(TAG, "发现蓝牙设备: ${it.name ?: "未知"} (${it.address}), RSSI: $rssi dBm")
 
                         // 保存设备，不过滤任何设备
                         discoveredDevices[it.address] = it
@@ -184,7 +184,6 @@ class BluetoothPrinterManager @Inject constructor(
                 }
 
                 BluetoothAdapter.ACTION_DISCOVERY_FINISHED -> {
-//                    Log.d(TAG, "蓝牙设备发现完成，找到${discoveredDevices.size}个设备")
                     isScanning = false
 
                     // 最后一次更新扫描结果
@@ -215,7 +214,6 @@ class BluetoothPrinterManager @Inject constructor(
                         BluetoothDevice.ERROR
                     )
 
-//                    Log.d(TAG, "设备${device?.name ?: "未知"}绑定状态变化: $prevBondState -> $bondState")
 
                     // 如果设备完成配对，尝试连接
                     if (bondState == BluetoothDevice.BOND_BONDED) {
@@ -250,10 +248,8 @@ class BluetoothPrinterManager @Inject constructor(
                     BluetoothDevice.BOND_NONE
                 )
 
-//                Log.d(TAG, "配对状态变化: ${bondStateToString(prevBondState)} -> ${bondStateToString(bondState)}")
 
                 if (bondState == BluetoothDevice.BOND_BONDED) {
-//                    Log.d(TAG, "设备配对成功: ${device?.name ?: "未知设备"}")
                     // 设备配对成功，尝试连接
                     device?.let {
                         managerScope.launch {
@@ -274,73 +270,71 @@ class BluetoothPrinterManager @Inject constructor(
         }
     }
 
-    override suspend fun connect(config: PrinterConfig): Boolean = withContext(Dispatchers.IO) {
+    override suspend fun connect(config: PrinterConfig): Boolean {
         try {
-            Log.d(TAG, "开始连接打印机: ${config.name} (${config.address})")
-
-            // 先检查当前是否有连接
-            if (currentConnection != null) {
-                // 如果正在连接的是同一台打印机，复用连接
-                val connectedAddress = currentConnection?.device?.address
-                if (connectedAddress == config.address) {
-//                    Log.d(TAG, "打印机已连接，复用现有连接")
-
-                    // 检查并更新打印机状态
-                    testPrinterConnection(config)
-                    return@withContext true
-                } else {
-                    // 如果连接的是不同打印机，先断开当前连接
-//                    Log.d(TAG, "断开现有打印机连接: $connectedAddress")
-                    disconnect(config)
-                }
-            }
+//            Log.d(TAG, "【打印机连接】尝试连接打印机: ${config.name} (${config.address})")
 
             // 获取蓝牙设备
             val device = getBluetoothDevice(config.address)
             if (device == null) {
                 Log.e(TAG, "未找到打印机设备: ${config.address}")
                 updatePrinterStatus(config, PrinterStatus.ERROR)
-                return@withContext false
+                return false
             }
 
+            // 如果不是当前配置的打印机，则断开原连接
+            if (currentPrinterConfig != null && currentPrinterConfig?.id != config.id) {
+                disconnect(currentPrinterConfig!!)
+            }
+
+            // 如果已经连接，直接返回
+            if (getPrinterStatus(config) == PrinterStatus.CONNECTED) {
+                return true
+            }
+
+            // 检查连接是否有效
+            if (currentConnection?.isConnected == true && currentPrinterConfig?.id == config.id) {
+                updatePrinterStatus(config, PrinterStatus.CONNECTED)
+                return true
+            }
+
+            // 直接进行连接尝试，而不是调用testPrinterConnection
             // 创建蓝牙连接
-//            Log.d(TAG, "创建打印机连接: ${device.name} (${device.address})")
             val connection = BluetoothConnection(device)
 
             // 连接到打印机
             updatePrinterStatus(config, PrinterStatus.CONNECTING)
-
+            
             // 尝试连接
             val isConnected = try {
                 connection.connect()
-//                Log.d(TAG, "打印机连接成功: ${config.name}")
                 true
             } catch (e: Exception) {
                 Log.e(TAG, "打印机连接失败: ${e.message}", e)
                 updatePrinterStatus(config, PrinterStatus.ERROR)
-                return@withContext false
+                return false
             }
 
             if (!isConnected) {
                 Log.e(TAG, "无法建立打印机连接")
                 updatePrinterStatus(config, PrinterStatus.DISCONNECTED)
-                return@withContext false
+                return false
             }
 
-            // 保存当前连接信息
+            // 保存当前连接
             currentConnection = connection
-
+            
             // 创建打印机实例
-            try {
-                val dpi = 203 // 通用值
-                val paperWidthMm = config.paperWidth.toFloat() // 转换为Float类型
-                val nbCharPerLine = when (config.paperWidth) {
-                    PrinterConfig.PAPER_WIDTH_57MM -> 32
-                    PrinterConfig.PAPER_WIDTH_80MM -> 42
-                    else -> 32
-                }
+            val dpi = 203
+            val paperWidthMm = config.paperWidth.toFloat()
+            val nbCharPerLine = when (config.paperWidth) {
+                PrinterConfig.PAPER_WIDTH_57MM -> 32
+                PrinterConfig.PAPER_WIDTH_80MM -> 42
+                else -> 32
+            }
 
-                // 创建打印机实例，不指定字符编码（使用默认编码）
+            try {
+                // 创建EscPos打印机实例
                 val printer = EscPosPrinter(connection, dpi, paperWidthMm, nbCharPerLine)
                 currentPrinter = printer
 
@@ -352,19 +346,18 @@ class BluetoothPrinterManager @Inject constructor(
 
                 // 保存当前打印机配置
                 currentPrinterConfig = config
-
-                true
+                
+                return true
             } catch (e: Exception) {
                 Log.e(TAG, "创建打印机实例失败: ${e.message}", e)
                 updatePrinterStatus(config, PrinterStatus.ERROR)
-                currentConnection?.disconnect()
-                currentConnection = null
-                false
+                connection.disconnect()
+                return false
             }
         } catch (e: Exception) {
             Log.e(TAG, "连接打印机异常: ${e.message}", e)
             updatePrinterStatus(config, PrinterStatus.ERROR)
-            false
+            return false
         }
     }
 
@@ -455,6 +448,39 @@ class BluetoothPrinterManager @Inject constructor(
             Log.d(TAG, "【Star TSP100】切纸命令发送完成")
         } catch (e: Exception) {
             Log.e(TAG, "【Star TSP100】发送切纸命令失败: ${e.message}")
+        }
+    }
+
+    /**
+     * 发送通用切纸命令
+     * 根据打印机品牌和配置决定使用什么切纸命令
+     * @param printerConfig 打印机配置
+     */
+    private fun sendPaperCutCommand(printerConfig: PrinterConfig) {
+        if (!printerConfig.autoCut) {
+            Log.d(TAG, "【打印机】自动切纸已禁用，跳过切纸命令")
+            return
+        }
+
+        try {
+            Log.d(TAG, "【打印机】发送切纸命令，品牌: ${printerConfig.brand.displayName}, 自动切纸设置: ${printerConfig.autoCut}")
+            
+            // 增加走纸量，确保留出足够空间再切纸
+            val feedCommand = byteArrayOf(0x1B, 0x64, 0x14)  // ESC d 20 - 走纸20行，增加走纸量
+            currentConnection?.write(feedCommand)
+            Thread.sleep(800)  // 延长等待时间
+            
+            // 添加一些换行符来确保走纸
+            val lfCommand = byteArrayOf(0x0A, 0x0A, 0x0A, 0x0A, 0x0A)  // 多个换行符
+            currentConnection?.write(lfCommand)
+            Thread.sleep(600)  // 等待走纸完成
+            
+            // 直接调用finalizePrinting，使用统一的切纸流程
+            finalizePrinting(printerConfig)
+            
+            Log.d(TAG, "【打印机】切纸命令发送完成")
+        } catch (e: Exception) {
+            Log.e(TAG, "【打印机】发送切纸命令失败: ${e.message}", e)
         }
     }
 
@@ -762,10 +788,13 @@ class BluetoothPrinterManager @Inject constructor(
             if (getPrinterStatus(config) != PrinterStatus.CONNECTED) {
 //                Log.d(TAG, "打印机未连接，尝试连接...")
 
-                if (!connect(config)) {
-                    Log.e(TAG, "无法连接到打印机，测试失败")
-                    return false
-                }
+                // 避免循环调用 connect 方法，直接返回 false
+                // if (!connect(config)) {
+                //     Log.e(TAG, "无法连接到打印机，测试失败")
+                //     return false
+                // }
+                Log.d(TAG, "打印机未连接，测试连接失败")
+                return false
             }
 
             // 用简单内容进行测试
@@ -954,27 +983,82 @@ class BluetoothPrinterManager @Inject constructor(
 
         if (status != PrinterStatus.CONNECTED) {
 //            Log.d(TAG, "【打印机状态】打印机未连接，尝试连接...")
-            val connectResult = connect(config)
-//            Log.d(TAG, "【打印机状态】连接尝试结果: ${if(connectResult) "成功" else "失败"}")
-            return connectResult
-        }
+            
+            // 创建原始连接而不是调用connect方法，避免潜在的循环
+            try {
+                // 获取蓝牙设备
+                val device = getBluetoothDevice(config.address)
+                if (device == null) {
+                    Log.e(TAG, "未找到打印机设备: ${config.address}")
+                    updatePrinterStatus(config, PrinterStatus.ERROR)
+                    return false
+                }
 
-        // 即使状态是CONNECTED，也检查连接是否真的有效
-        try {
-            val isReallyConnected = currentConnection?.isConnected ?: false
-//            Log.d(TAG, "【打印机状态】验证连接是否真的有效: $isReallyConnected")
+                // 断开现有连接
+                if (currentConnection != null) {
+                    disconnect(config)
+                }
 
-            if (!isReallyConnected) {
-//                Log.d(TAG, "【打印机状态】连接状态不一致，尝试重新连接")
-                updatePrinterStatus(config, PrinterStatus.DISCONNECTED)
-                return connect(config)
+                // 创建新连接
+                val connection = BluetoothConnection(device)
+                updatePrinterStatus(config, PrinterStatus.CONNECTING)
+
+                // 尝试连接
+                val isConnected = try {
+                    connection.connect()
+                    true
+                } catch (e: Exception) {
+                    Log.e(TAG, "打印机连接失败: ${e.message}", e)
+                    updatePrinterStatus(config, PrinterStatus.ERROR)
+                    return false
+                }
+
+                if (!isConnected) {
+                    Log.e(TAG, "无法建立打印机连接")
+                    updatePrinterStatus(config, PrinterStatus.DISCONNECTED)
+                    return false
+                }
+
+                // 保存当前连接信息
+                currentConnection = connection
+
+                // 创建打印机实例
+                try {
+                    val dpi = 203 // 通用值
+                    val paperWidthMm = config.paperWidth.toFloat()
+                    val nbCharPerLine = when (config.paperWidth) {
+                        PrinterConfig.PAPER_WIDTH_57MM -> 32
+                        PrinterConfig.PAPER_WIDTH_80MM -> 42
+                        else -> 32
+                    }
+
+                    // 创建打印机实例
+                    val printer = EscPosPrinter(connection, dpi, paperWidthMm, nbCharPerLine)
+                    currentPrinter = printer
+
+                    // 启动心跳检测
+                    startHeartbeat(config)
+
+                    // 更新状态为已连接
+                    updatePrinterStatus(config, PrinterStatus.CONNECTED)
+
+                    // 保存当前打印机配置
+                    currentPrinterConfig = config
+                } catch (e: Exception) {
+                    Log.e(TAG, "创建打印机实例失败: ${e.message}", e)
+                    updatePrinterStatus(config, PrinterStatus.ERROR)
+                    currentConnection?.disconnect()
+                    currentConnection = null
+                    return false
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "连接打印机异常: ${e.message}", e)
+                updatePrinterStatus(config, PrinterStatus.ERROR)
+                return false
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "【打印机状态】检查连接时出错: ${e.message}")
         }
 
-//        Log.d(TAG, "【打印机状态】打印机已连接")
-        return true
+        return status == PrinterStatus.CONNECTED || getPrinterStatus(config) == PrinterStatus.CONNECTED
     }
 
     /**
@@ -988,7 +1072,7 @@ class BluetoothPrinterManager @Inject constructor(
         return try {
             // 添加打印机状态日志
             val printerStatus = getPrinterStatus(config)
-//            Log.d(TAG, "【打印机状态】准备打印内容，当前打印机 ${config.name} (${config.address}) 状态: $printerStatus")
+            Log.d(TAG, "【打印机状态】准备打印内容，当前打印机 ${config.name} (${config.address}) 状态: $printerStatus")
 
             // 检查当前连接状态
             if (currentConnection == null) {
@@ -999,7 +1083,6 @@ class BluetoothPrinterManager @Inject constructor(
             // 检查打印机连接状态
             try {
                 val isConnected = currentConnection?.isConnected ?: false
-//                Log.d(TAG, "【打印机状态】打印机连接状态检查: isConnected=$isConnected")
                 if (!isConnected) {
                     Log.e(TAG, "【打印机状态】打印机连接已断开")
                     updatePrinterStatus(config, PrinterStatus.DISCONNECTED)
@@ -1018,9 +1101,6 @@ class BluetoothPrinterManager @Inject constructor(
             // 验证并修复内容格式
             val fixedContent = validateAndFixPrintContent(content)
 
-            // 输出内容到日志中帮助调试
-//            Log.d(TAG, "准备打印内容:\n$fixedContent")
-
             // 添加额外检查，避免发送无效内容到打印机
             if (fixedContent.isBlank()) {
                 Log.e(TAG, "修复后的内容仍然为空，无法打印")
@@ -1033,14 +1113,20 @@ class BluetoothPrinterManager @Inject constructor(
             // 保存最后一次打印内容，用于重试
             lastPrintContent = contentWithExtra
 
-            // 打印格式化内容
-            currentPrinter?.printFormattedText(contentWithExtra)
+            // 初始化打印机，确保处于已知状态
+            Log.d(TAG, "初始化打印机")
+            val initCommand = byteArrayOf(0x1B, 0x40)  // ESC @
+            currentConnection?.write(initCommand)
+            Thread.sleep(300)
 
-            // 发送额外的走纸和切纸命令
-            sendExtraPaperFeedCommands()
-
-            Log.d(TAG, "打印成功完成")
-            true
+            // 清除缓冲区
+            val clearCommand = byteArrayOf(0x18)  // CAN
+            currentConnection?.write(clearCommand)
+            Thread.sleep(200)
+            
+            // 分块打印内容，解决缓冲区溢出问题
+            Log.d(TAG, "开始分块打印内容（总长度: ${contentWithExtra.length}字符）")
+            return chunkedPrintingProcess(contentWithExtra, config)
         } catch (e: Exception) {
             // 捕获所有异常，包括解析异常
             Log.e(TAG, "打印机库异常: ${e.message}", e)
@@ -1052,16 +1138,198 @@ class BluetoothPrinterManager @Inject constructor(
                 // 使用更简单的内容格式重试
                 val simpleContent = createSimpleContent()
 
-                currentPrinter?.printFormattedText(simpleContent)
-
-                // 发送额外的走纸和切纸命令
-                sendExtraPaperFeedCommands()
-
-//                Log.d(TAG, "使用简化内容打印成功")
-                true
+                try {
+                    // 初始化打印机
+                    val initCommand = byteArrayOf(0x1B, 0x40)  // ESC @
+                    currentConnection?.write(initCommand)
+                    Thread.sleep(200)
+                
+                    // 打印简单内容
+                    chunkedPrintingProcess(simpleContent, config)
+                    
+                    Log.d(TAG, "使用简化内容打印成功")
+                    return true
+                } catch (e2: Exception) {
+                    Log.e(TAG, "简化内容打印失败: ${e2.message}")
+                    return false
+                }
             } else {
-                false
+                return false
             }
+        }
+    }
+
+    /**
+     * 分块打印流程
+     * 将打印内容分成小块进行打印，确保每块内容都能被处理
+     * @param content 要打印的内容
+     * @param config 打印机配置
+     * @return 是否成功打印
+     */
+    private suspend fun chunkedPrintingProcess(content: String, config: PrinterConfig): Boolean {
+        try {
+            // 将内容按行分割
+            val lines = content.split("\n")
+            val totalLines = lines.size
+            Log.d(TAG, "分块打印，总行数: $totalLines")
+            
+            // 每块最大行数 - 根据行长度可能更少
+            val maxChunkLines = 15 
+            var currentLine = 0
+            
+            // 分块打印所有内容
+            while (currentLine < totalLines) {
+                // 计算当前块的终止行
+                val endLine = minOf(currentLine + maxChunkLines, totalLines)
+                
+                // 提取当前块内容
+                val chunkLines = lines.subList(currentLine, endLine)
+                val chunkContent = chunkLines.joinToString("\n")
+                
+                if (chunkContent.isNotBlank()) {
+                    Log.d(TAG, "打印内容块 ${currentLine / maxChunkLines + 1}: 行 $currentLine-${endLine-1}")
+                    
+                    // 使用打印库打印当前块
+                    currentPrinter?.printFormattedText(chunkContent)
+                    
+                    // 每个块之后立即刷新缓冲区，确保完全打印
+                    forcePrinterFlush()
+                    delay(500) // 给打印机处理时间
+                }
+                
+                // 移动到下一块
+                currentLine = endLine
+            }
+            
+            // 所有内容打印完成后，发送额外走纸和切纸命令
+            Log.d(TAG, "所有内容块打印完成，发送最终命令")
+            finalizePrinting(config)
+            
+            return true
+        } catch (e: Exception) {
+            Log.e(TAG, "分块打印出错: ${e.message}")
+            return false
+        }
+    }
+    
+    /**
+     * 强制打印机刷新缓冲区
+     * 发送多种命令确保缓冲区内容被处理
+     */
+    private fun forcePrinterFlush() {
+        try {
+            if (currentConnection == null) {
+                return
+            }
+            
+            // 发送多个换行符，确保内容输出
+            val lineFeeds = byteArrayOf(0x0A, 0x0A, 0x0A)  // 3个LF
+            currentConnection?.write(lineFeeds)
+            Thread.sleep(50) // 减少休眠时间
+            
+            // 发送换页命令
+            val formFeedCommand = byteArrayOf(0x0C)  // FF
+            currentConnection?.write(formFeedCommand)
+            Thread.sleep(50) // 减少休眠时间
+            
+            // 发送回车
+            val crCommand = byteArrayOf(0x0D)  // CR
+            currentConnection?.write(crCommand)
+            Thread.sleep(50) // 减少休眠时间
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "刷新打印机缓冲区失败: ${e.message}")
+        }
+    }
+    
+    /**
+     * 最终化打印过程
+     * 发送最后的走纸和切纸命令
+     * @param config 打印机配置
+     */
+    private fun finalizePrinting(config: PrinterConfig) {
+        try {
+            Log.d(TAG, "执行最终走纸和切纸命令")
+            
+            // 1. 首先清除缓冲区，确保前面的打印内容已处理
+            val clearCommand = byteArrayOf(0x18)  // CAN - 清除打印缓冲区
+            currentConnection?.write(clearCommand)
+            Thread.sleep(100)
+            
+            // 2. 初始化打印机，将其恢复到已知状态
+            val initCommand = byteArrayOf(0x1B, 0x40)  // ESC @ - 初始化打印机
+            currentConnection?.write(initCommand)
+            Thread.sleep(100)
+            
+            // 3. 走纸确保有足够空间切纸
+            // 连续发送多个换行符 - 避免一次性发送太多，防止缓冲区问题
+            for (i in 1..5) {
+                currentConnection?.write(byteArrayOf(0x0A))  // LF
+                Thread.sleep(30) // 短暂休眠，避免命令堆积
+            }
+            
+            // 4. 使用ESC d命令走纸 - 这是专门的走纸命令
+            val feedCommand = byteArrayOf(0x1B, 0x64, 0x08)  // ESC d 8 - 走纸8行
+            currentConnection?.write(feedCommand)
+            Thread.sleep(200)  // 给打印机时间执行走纸
+            
+            // 5. 执行切纸命令 - 如果启用了自动切纸
+            if (config.autoCut) {
+                Log.d(TAG, "开始执行切纸序列")
+                
+                // --- 主切纸命令序列 ---
+                // 首先发送最标准、最广泛支持的切纸命令
+                
+                // 发送标准部分切纸命令 - 最常用
+                val standardCut = byteArrayOf(0x1D, 0x56, 0x01)  // GS V 1
+                currentConnection?.write(standardCut)
+                Log.d(TAG, "已发送标准部分切纸命令: GS V 1")
+                Thread.sleep(200)
+                
+                // --- 备用切纸命令 ---
+                // 如果标准命令不起作用，尝试其他格式
+                
+                // 其他常见ESC/POS切纸命令
+                val cutCommands = arrayOf(
+                    byteArrayOf(0x1D, 0x56, 0x00),       // GS V 0 (完全切纸)
+                    byteArrayOf(0x1D, 0x56, 0x41, 0x00), // GS V A 0
+                    byteArrayOf(0x1D, 0x56, 0x42, 0x00), // GS V B 0
+                    byteArrayOf(0x1B, 0x6D),             // ESC m
+                    byteArrayOf(0x1B, 0x69)              // ESC i
+                )
+                
+                // 尝试所有备用命令
+                for (cmd in cutCommands) {
+                    currentConnection?.write(cmd)
+                    Thread.sleep(100) // 使用较短的等待时间
+                }
+                
+                // --- 特定品牌切纸命令 ---
+                if (config.brand == PrinterBrand.STAR) {
+                    val starCut = byteArrayOf(0x1B, 0x64, 0x02) // ESC d 2
+                    currentConnection?.write(starCut)
+                    Log.d(TAG, "已发送Star专用切纸命令")
+                    Thread.sleep(100)
+                }
+                
+                // --- 最后一次尝试 ---
+                // 如果前面的命令都不起作用，尝试ASCII格式的命令
+                
+                // 发送ASCII格式切纸命令
+                currentConnection?.write(byteArrayOf(27, 86, 1))  // GS V 1 (ASCII)
+                Thread.sleep(100)
+                
+                Log.d(TAG, "切纸命令序列完成")
+            } else {
+                Log.d(TAG, "自动切纸已禁用，跳过切纸命令")
+            }
+            
+            // 6. 最后添加换行，确保下次打印开始位置正确
+            currentConnection?.write(byteArrayOf(0x0A, 0x0A))
+            
+            Log.d(TAG, "打印最终处理完成")
+        } catch (e: Exception) {
+            Log.e(TAG, "最终走纸和切纸命令执行失败: ${e.message}")
         }
     }
 
@@ -1086,21 +1354,18 @@ class BluetoothPrinterManager @Inject constructor(
      */
     private fun ensureProperEnding(content: String): String {
         // 如果内容已经有足够的换行符结尾，不需要添加
-        if (content.endsWith("\n\n")) {
+        if (content.endsWith("\n\n\n")) {
             return content
         }
 
         // 确保内容以换行结束
         val contentWithNewLine = if (content.endsWith("\n")) content else "$content\n"
 
-        // 只添加一个额外的换行，减少底部留白
-        return "$contentWithNewLine\n"
+        // 添加两个额外的换行
+        return "$contentWithNewLine\n\n"
     }
-
-    /**
-     * 发送额外的走纸和切纸命令
-     * 这些是直接发送到打印机的原始命令
-     */
+    
+    // 保留旧的发送额外走纸和切纸命令方法，用于兼容其他地方的调用
     private fun sendExtraPaperFeedCommands() {
         try {
             if (currentConnection == null) {
@@ -1108,74 +1373,17 @@ class BluetoothPrinterManager @Inject constructor(
                 return
             }
 
-//            Log.d(TAG, "【打印机】发送额外走纸和切纸命令")
+            Log.d(TAG, "【打印机】发送额外走纸和切纸命令")
 
-            // 1. 清除缓冲区，确保之前的命令都被处理
-            val clearCommand = byteArrayOf(0x18)  // CAN - 清除缓冲区
-            currentConnection?.write(clearCommand)
-            Thread.sleep(100)
+            finalizePrinting(currentPrinterConfig ?: PrinterConfig(
+                name = "Default",
+                address = "",
+                autoCut = true
+            ))
 
-            // 2. 发送少量换行 (LF)，减少之前的行数
-            val lfCommand = byteArrayOf(0x0A, 0x0A)  // 只保留2个换行符，减少留白
-            currentConnection?.write(lfCommand)
-            Thread.sleep(100)
-
-            // 3. 走纸命令 (ESC d n) - 走纸行数减少到4行（之前是12行）
-            val feedCommand = byteArrayOf(0x1B, 0x64, 0x04)
-            currentConnection?.write(feedCommand)
-            Thread.sleep(200)
-
-            // 4. 部分切纸命令 (GS V m) - 仅适用于支持切纸的打印机
-            val cutCommand = byteArrayOf(0x1D, 0x56, 0x01)
-            currentConnection?.write(cutCommand)
-            Thread.sleep(100)
-
-//            Log.d(TAG, "【打印机】额外命令发送完成")
+            Log.d(TAG, "【打印机】额外命令发送完成")
         } catch (e: Exception) {
             Log.e(TAG, "【打印机】发送额外命令失败: ${e.message}")
-        }
-    }
-
-    /**
-     * 验证并修复打印内容格式
-     * 增强对标签和内容的处理
-     */
-    private fun validateAndFixPrintContent(content: String): String {
-        if (content.isBlank()) {
-            Log.w(TAG, "内容为空，返回默认测试内容")
-            return "[L]测试打印内容"
-        }
-
-        try {
-            // 分行处理
-            val lines = content.split("\n")
-            val fixedLines = mutableListOf<String>()
-
-            for (line in lines) {
-                val trimmedLine = line.trim()
-
-                // 空行转换为一个空格的左对齐行，确保不会有空标签
-                if (trimmedLine.isEmpty()) {
-                    fixedLines.add("[L] ")
-                    continue
-                }
-
-                // 检查行是否有对齐标记
-                val hasAlignmentTag = trimmedLine.startsWith("[L]") ||
-                        trimmedLine.startsWith("[C]") ||
-                        trimmedLine.startsWith("[R]")
-
-                // 如果没有对齐标记，添加左对齐标记
-                val lineWithTag = if (!hasAlignmentTag) "[L]$trimmedLine" else trimmedLine
-                fixedLines.add(lineWithTag)
-            }
-
-            // 合并修复后的行
-            return fixedLines.joinToString("\n")
-
-        } catch (e: Exception) {
-            Log.e(TAG, "修复内容格式失败: ${e.message}")
-            return "[L]打印内容解析错误，请检查格式"
         }
     }
 
@@ -1943,6 +2151,125 @@ class BluetoothPrinterManager @Inject constructor(
         } catch (e: Exception) {
             Log.e(TAG, "测试打印异常: ${e.message}", e)
             return@withContext false
+        }
+    }
+
+    /**
+     * 验证并修复打印内容格式
+     * 增强对标签和内容的处理
+     */
+    private fun validateAndFixPrintContent(content: String): String {
+        if (content.isBlank()) {
+            Log.w(TAG, "内容为空，返回默认测试内容")
+            return "[L]测试打印内容"
+        }
+
+        try {
+            // 分行处理
+            val lines = content.split("\n")
+            val fixedLines = mutableListOf<String>()
+
+            for (line in lines) {
+                val trimmedLine = line.trim()
+
+                // 空行转换为一个空格的左对齐行，确保不会有空标签
+                if (trimmedLine.isEmpty()) {
+                    fixedLines.add("[L] ")
+                    continue
+                }
+
+                // 检查行是否有对齐标记
+                val hasAlignmentTag = trimmedLine.startsWith("[L]") ||
+                        trimmedLine.startsWith("[C]") ||
+                        trimmedLine.startsWith("[R]")
+
+                // 如果没有对齐标记，添加左对齐标记
+                val lineWithTag = if (!hasAlignmentTag) "[L]$trimmedLine" else trimmedLine
+                fixedLines.add(lineWithTag)
+            }
+
+            // 合并修复后的行
+            return fixedLines.joinToString("\n")
+
+        } catch (e: Exception) {
+            Log.e(TAG, "修复内容格式失败: ${e.message}")
+            return "[L]打印内容解析错误，请检查格式"
+        }
+    }
+
+    /**
+     * 打印直接切纸测试
+     * 直接发送切纸命令测试打印机切纸功能
+     */
+    suspend fun testDirectCut(config: PrinterConfig): Boolean {
+        try {
+            Log.d(TAG, "开始切纸功能测试")
+            
+            // 确保连接
+            if (!ensurePrinterConnected(config)) {
+                Log.e(TAG, "无法连接打印机")
+                return false
+            }
+            
+            // 初始化打印机
+            val initCommand = byteArrayOf(0x1B, 0x40)  // ESC @
+            currentConnection?.write(initCommand)
+            Thread.sleep(100)
+            
+            // 打印测试内容
+            val testText = """
+                [C]切纸测试
+                [C]------------
+                [L]如果您看到这段文字
+                [L]说明打印功能工作正常
+                [L]下面将测试切纸功能
+                [C]------------
+                
+                
+            """.trimIndent()
+            
+            currentPrinter?.printFormattedText(testText)
+            Thread.sleep(500)
+            
+            // 走纸
+            for (i in 1..8) {
+                currentConnection?.write(byteArrayOf(0x0A))
+                Thread.sleep(20)
+            }
+            
+            // 尝试切纸 - 直接尝试多种切纸命令
+            val cutCommands = arrayOf(
+                byteArrayOf(0x1D, 0x56, 0x01),       // GS V 1 (部分切纸)
+                byteArrayOf(0x1D, 0x56, 0x00),       // GS V 0 (完全切纸)
+                byteArrayOf(0x1D, 0x56, 0x41, 0x00), // GS V A 0
+                byteArrayOf(0x1D, 0x56, 0x42, 0x00), // GS V B 0
+                byteArrayOf(0x1B, 0x6D),             // ESC m
+                byteArrayOf(0x1B, 0x69),             // ESC i
+                byteArrayOf(27, 86, 1)               // ASCII格式
+            )
+            
+            Log.d(TAG, "尝试多种切纸命令")
+            for (cmd in cutCommands) {
+                currentConnection?.write(cmd)
+                // 记录发送的命令
+                val cmdHex = cmd.joinToString(" ") { String.format("0x%02X", it) }
+                Log.d(TAG, "发送切纸命令: $cmdHex")
+                Thread.sleep(300)
+            }
+            
+            // Star打印机专用命令
+            if (config.brand == PrinterBrand.STAR) {
+                currentConnection?.write(byteArrayOf(0x1B, 0x64, 0x02))
+                Log.d(TAG, "发送Star专用切纸命令")
+                Thread.sleep(300)
+            }
+            
+            Log.d(TAG, "切纸测试完成")
+            return true
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "切纸测试失败: ${e.message}")
+            return false
         }
     }
 }

@@ -342,4 +342,5 @@
     <string name="paper_width_setup">Paper Width Setting</string>
     <string name="set_default_printer">Set as default printer</string>
     <string name="request_bluetooth_location_permissions">Request Bluetooth and Location permissions</string>
+    <string name="auto_cut_paper">Auto Cut Paper</string>
 </resources>

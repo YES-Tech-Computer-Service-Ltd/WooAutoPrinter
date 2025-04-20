@@ -103,11 +103,11 @@ class WooCommerceApiImpl(
         client = clientBuilder.build()
             
         // 检查配置是否有效
-        Log.d("WooCommerceApiImpl", "初始化WooCommerceApiImpl，配置: $config, " +
-            "baseUrl: ${config.siteUrl}, 是否有效: ${config.isValid()}")
+//        Log.d("WooCommerceApiImpl", "初始化WooCommerceApiImpl，配置: $config, " +
+//            "baseUrl: ${config.siteUrl}, 是否有效: ${config.isValid()}")
             
         if (!config.isValid()) {
-            Log.w("WooCommerceApiImpl", "警告: WooCommerce配置无效，API请求可能会失败")
+//            Log.w("WooCommerceApiImpl", "警告: WooCommerce配置无效，API请求可能会失败")
         }
     }
     
@@ -119,7 +119,7 @@ class WooCommerceApiImpl(
         
         // 添加合法性检查
         if (baseUrl.isBlank()) {
-            Log.e("WooCommerceApiImpl", "错误: 站点URL为空")
+//            Log.e("WooCommerceApiImpl", "错误: 站点URL为空")
             return "https://example.com/wp-json/wc/v3/"
         }
         
@@ -131,7 +131,7 @@ class WooCommerceApiImpl(
         
         // 仅在调试模式保留最终URL日志
         if (BuildConfig.DEBUG && false) { // 添加false条件使其不执行
-            Log.d("WooCommerceApiImpl", "最终API基础URL: $result")
+//            Log.d("WooCommerceApiImpl", "最终API基础URL: $result")
         }
         return result
     }

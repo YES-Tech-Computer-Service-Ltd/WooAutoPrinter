@@ -152,6 +152,7 @@ fun PrinterDetailsScreen(
     var type by remember { mutableStateOf(printerConfig.type) }
     var paperWidth by remember { mutableStateOf(printerConfig.paperWidth.toString()) }
     var isDefault by remember { mutableStateOf(printerConfig.isDefault) }
+    var autoCut by remember { mutableStateOf(printerConfig.autoCut) }
     
     // 页面加载时扫描打印机列表
     LaunchedEffect(key1 = Unit) {
@@ -234,7 +235,8 @@ fun PrinterDetailsScreen(
                         type = type,
                         paperWidth = paperWidth.toIntOrNull() ?: PrinterConfig.PAPER_WIDTH_57MM,
                         isDefault = isDefault,
-                        brand = printerConfig.brand
+                        brand = printerConfig.brand,
+                        autoCut = autoCut
                     )
                     
                     viewModel.savePrinterConfig(updatedConfig)
@@ -465,6 +467,9 @@ fun ConfigurationScreen(
 ) {
     val connectionErrorMessage by viewModel.connectionErrorMessage.collectAsState()
     
+    // 添加自动切纸设置状态
+    var autoCut by remember { mutableStateOf(viewModel.currentPrinterConfig.value?.autoCut ?: false) }
+    
     LaunchedEffect(connectionErrorMessage) {
         connectionErrorMessage?.let {
             snackbarHostState.showSnackbar(it)
@@ -574,13 +579,32 @@ fun ConfigurationScreen(
                     modifier = Modifier.clickable { onIsDefaultChange(!isDefault) }
                 )
             }
+            
+            // 添加自动切纸选项
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Checkbox(
+                    checked = autoCut,
+                    onCheckedChange = { autoCut = it }
+                )
+                Text(
+                    text = stringResource(id = R.string.auto_cut_paper),
+                    modifier = Modifier.clickable { autoCut = !autoCut }
+                )
+            }
         }
         
         Spacer(modifier = Modifier.weight(1f))
         
         // 保存按钮
         Button(
-            onClick = onSave,
+            onClick = {
+                // 保存时更新autoCut属性
+                viewModel.updateAutoCut(autoCut)
+                onSave()
+            },
             modifier = Modifier.fillMaxWidth()
         ) {
             Icon(

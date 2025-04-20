@@ -532,36 +532,64 @@ class SettingsViewModel @Inject constructor(
     fun savePrinterConfig(config: PrinterConfig) {
         viewModelScope.launch {
             try {
-                // 如果设置了该打印机为默认打印机，则将其他打印机设为非默认
+                // 如果设置为默认打印机，则将其他打印机设置为非默认
                 if (config.isDefault) {
-                    // 先获取所有现有打印机
-                    val allPrinters = _printerConfigs.value
-                    
-                    // 将其他默认打印机改为非默认
-                    allPrinters.forEach { printer ->
-                        if (printer.id != config.id && printer.isDefault) {
-                            // 更新其他打印机为非默认
-                            val updatedPrinter = printer.copy(isDefault = false)
-                            settingsRepository.savePrinterConfig(updatedPrinter)
-                            Log.d("SettingsViewModel", "将打印机 ${printer.name} 设置为非默认")
+                    printerConfigs.value.forEach { printerConfig ->
+                        if (printerConfig.id != config.id && printerConfig.isDefault) {
+                            val updatedConfig = printerConfig.copy(isDefault = false)
+                            settingsRepository.savePrinterConfig(updatedConfig)
                         }
                     }
                 }
                 
-                // 保存当前打印机配置
+                // 保存当前配置
                 settingsRepository.savePrinterConfig(config)
-                Log.d("SettingsViewModel", "保存打印机配置: ${config.name}, 默认: ${config.isDefault}")
                 
-                // 刷新打印机列表
-                loadPrinterConfigs()
-                
-                // 如果是默认打印机，更新当前打印机
-                if (config.isDefault) {
+                // 如果设置了当前配置
+                if (_currentPrinterConfig.value?.id == config.id) {
                     _currentPrinterConfig.value = config
                 }
+                
+                // 重新加载列表
+                loadPrinterConfigs()
+                
+                // 如果配置为默认，连接到该打印机
+                if (config.isDefault) {
+                    // 修正调用，直接传递config对象而不是id
+                    viewModelScope.launch {
+                        printerManager.connect(config)
+                    }
+                }
+                
+                Log.d(TAG, "成功保存打印机配置: $config")
             } catch (e: Exception) {
-                Log.e("SettingsViewModel", "保存打印机配置失败", e)
+                Log.e(TAG, "保存打印机配置失败", e)
             }
+        }
+    }
+    
+    /**
+     * 更新打印机autoCut属性（自动切纸）
+     * 在保存前临时保存autoCut属性值
+     */
+    fun updateAutoCut(autoCut: Boolean) {
+        val currentConfig = _currentPrinterConfig.value
+        if (currentConfig != null) {
+            _currentPrinterConfig.value = currentConfig.copy(autoCut = autoCut)
+            Log.d(TAG, "更新打印机自动切纸设置: ${currentConfig.name}, autoCut=$autoCut")
+        }
+    }
+
+    /**
+     * 获取打印机配置
+     * @param printerId 打印机ID
+     * @return 打印机配置，如果未找到则返回null
+     */
+    fun getPrinterConfig(printerId: String): PrinterConfig? {
+        return printerConfigs.value.find { it.id == printerId }?.let {
+            // 确保当前编辑的配置是最新的
+            _currentPrinterConfig.value = it
+            it
         }
     }
     
@@ -583,11 +611,6 @@ class SettingsViewModel @Inject constructor(
                 Log.e("SettingsViewModel", "删除打印机配置失败", e)
             }
         }
-    }
-    
-    // 获取特定ID的打印机配置
-    fun getPrinterConfig(printerId: String): PrinterConfig? {
-        return _printerConfigs.value.find { it.id == printerId }
     }
     
     /**
