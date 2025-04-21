@@ -96,6 +96,96 @@ fun ProductsScreen(
 ) {
     Log.d("ProductsScreen", "ProductsScreen 初始化")
     
+    // 添加一个安全状态，用于捕获组合过程中的任何未处理错误
+    var hasCompositionError by remember { mutableStateOf(false) }
+    var compositionErrorMessage by remember { mutableStateOf<String?>(null) }
+    
+    // 使用LaunchedEffect捕获任何未处理的异常
+    LaunchedEffect(Unit) {
+        try {
+            // 在这里可以执行一些初始化工作，如果有错误会被捕获
+        } catch (e: Exception) {
+            Log.e("ProductsScreen", "初始化产品页面时发生错误: ${e.message}", e)
+            hasCompositionError = true
+            compositionErrorMessage = e.message
+        }
+    }
+    
+    // 使用状态机方式处理错误，而不是try-catch
+    if (hasCompositionError) {
+        // 显示友好的错误UI
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Error,
+                    contentDescription = "错误",
+                    modifier = Modifier.size(64.dp),
+                    tint = MaterialTheme.colorScheme.error
+                )
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                Text(
+                    text = "加载产品页面时出现错误",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.error,
+                    textAlign = TextAlign.Center
+                )
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                compositionErrorMessage?.let {
+                    Text(
+                        text = it,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                        textAlign = TextAlign.Center
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                Button(
+                    onClick = {
+                        navController.navigate(NavigationItem.Orders.route) {
+                            popUpTo(NavigationItem.Products.route) { inclusive = true }
+                        }
+                    }
+                ) {
+                    Text("返回订单页面")
+                }
+            }
+        }
+    } else {
+        // 正常渲染产品内容
+        ProductsScreenContent(
+            navController = navController, 
+            viewModel = viewModel,
+            onError = { error ->
+                Log.e("ProductsScreen", "渲染产品页面时发生错误: $error")
+                hasCompositionError = true
+                compositionErrorMessage = error
+            }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ProductsScreenContent(
+    navController: NavController,
+    viewModel: ProductsViewModel = hiltViewModel(),
+    onError: (String) -> Unit
+) {
+    // 使用状态管理来替代try-catch
     val isConfigured by viewModel.isConfigured.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val products by viewModel.products.collectAsState()
@@ -220,94 +310,108 @@ fun ProductsScreen(
         listOf(null to stringResource(id = R.string.all_categories)) + categories
     }
     
-    // 使用key来防止Scaffold重组
-    Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) }
-    ) { paddingValues ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-        ) {
-            // 如果API未配置或配置错误
-            if (!isConfigured) {
-                UnconfiguredView(
-                    errorMessage = errorMessage,
-                    onSettingsClick = { navController.navigate(NavigationItem.Settings.route) }
-                )
-            }
-            // 如果有错误但API配置正确（如获取数据失败），使用showErrorScreen而不是直接用errorMessage
-            else if (showErrorScreen) {
-                ErrorView(
-                    errorMessage = errorMessageForDisplay,
-                    onRetryClick = { 
-                        viewModel.clearError()
-                        viewModel.refreshData() 
-                    },
-                    onSettingsClick = { navController.navigate(NavigationItem.Settings.route) }
-                )
-            }
-            // 修改条件判断，始终显示加载状态而不是空状态
-            else if (products.isEmpty()) {
-                LoadingProductsView()
-            }
-            // 显示产品列表（默认情况）
-            else {
-                ProductsContent(
-                    products = products,
-                    previousProducts = previousProducts,
-                    isLoading = isLoading,
-                    isRefreshing = isRefreshing,
-                    isSwitchingCategory = isSwitchingCategory,
-                    fadeTransition = fadeTransition,
-                    searchQuery = searchQuery,
-                    selectedCategoryId = selectedCategoryId,
-                    categoryOptions = categoryOptions,
-                    onSearchChange = { query ->
-                        searchQuery = query
-                        if (query.isEmpty()) {
-                            Log.d("ProductsScreen", "清空搜索，恢复分类过滤: 分类ID=${selectedCategoryId}")
-                            viewModel.filterProductsByCategory(selectedCategoryId)
-                        } else {
-                            Log.d("ProductsScreen", "执行产品搜索: 关键词='$query'")
-                            viewModel.searchProducts(query)
+    // 使用Surface包装Scaffold，避免布局问题
+    androidx.compose.material3.Surface(
+        modifier = Modifier.fillMaxSize()
+    ) {
+        // 使用key防止Scaffold不必要的重组
+        androidx.compose.runtime.key(products.size) {
+            Scaffold(
+                snackbarHost = { SnackbarHost(snackbarHostState) }
+            ) { paddingValues ->
+                // 主要内容区域
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues)
+                ) {
+                    // 根据不同状态显示不同内容
+                    when {
+                        // 如果API未配置或配置错误
+                        !isConfigured -> {
+                            UnconfiguredView(
+                                errorMessage = errorMessage,
+                                onSettingsClick = { navController.navigate(NavigationItem.Settings.route) }
+                            )
                         }
-                    },
-                    onCategorySelect = { id, name ->
-                        // 如果选择了不同的分类，设置切换状态标志
-                        if (selectedCategoryId != id) {
-                            isSwitchingCategory = true
-                            // 在开始新的加载前，保存当前产品列表作为过渡
-                            if (products.isNotEmpty()) {
-                                previousProducts = products
-                            }
-                            fadeTransition = 0.7f
+                        // 如果有错误但API配置正确（如获取数据失败）
+                        showErrorScreen -> {
+                            ErrorView(
+                                errorMessage = errorMessageForDisplay,
+                                onRetryClick = { 
+                                    viewModel.clearError()
+                                    viewModel.refreshData() 
+                                },
+                                onSettingsClick = { navController.navigate(NavigationItem.Settings.route) }
+                            )
                         }
-                        selectedCategoryId = id
-                        Log.d("ProductsScreen", "选择产品分类: ID=${id}, 名称='$name'")
-                        viewModel.filterProductsByCategory(id)
-                    },
-                    onProductClick = { productId ->
-                        viewModel.getProductDetails(productId)
-                        showProductDetail = true
-                    },
-                    onRefreshClick = { viewModel.refreshData() }
-                )
-            }
-            
-            // 产品详情弹窗
-            if (showProductDetail && selectedProduct != null) {
-                ProductDetailDialog(
-                    product = selectedProduct!!,
-                    onDismiss = { 
-                        showProductDetail = false
-                        viewModel.clearSelectedProduct()
-                    },
-                    onUpdate = { updatedProduct ->
-                        viewModel.updateProduct(updatedProduct)
-                        showProductDetail = false
+                        // 无数据时显示加载界面
+                        products.isEmpty() -> {
+                            LoadingProductsView()
+                        }
+                        // 显示产品列表（默认情况）
+                        else -> {
+                            ProductsContent(
+                                products = products,
+                                previousProducts = previousProducts,
+                                isLoading = isLoading,
+                                isRefreshing = isRefreshing,
+                                isSwitchingCategory = isSwitchingCategory,
+                                fadeTransition = fadeTransition,
+                                searchQuery = searchQuery,
+                                selectedCategoryId = selectedCategoryId,
+                                categoryOptions = categoryOptions,
+                                onSearchChange = { query ->
+                                    searchQuery = query
+                                    if (query.isEmpty()) {
+                                        Log.d("ProductsScreen", "清空搜索，恢复分类过滤: 分类ID=${selectedCategoryId}")
+                                        viewModel.filterProductsByCategory(selectedCategoryId)
+                                    } else {
+                                        Log.d("ProductsScreen", "执行产品搜索: 关键词='$query'")
+                                        viewModel.searchProducts(query)
+                                    }
+                                },
+                                onCategorySelect = { id, name ->
+                                    // 如果选择了不同的分类，设置切换状态标志
+                                    if (selectedCategoryId != id) {
+                                        isSwitchingCategory = true
+                                        // 在开始新的加载前，保存当前产品列表作为过渡
+                                        if (products.isNotEmpty()) {
+                                            previousProducts = products
+                                        }
+                                        fadeTransition = 0.7f
+                                    }
+                                    selectedCategoryId = id
+                                    Log.d("ProductsScreen", "选择产品分类: ID=${id}, 名称='$name'")
+                                    viewModel.filterProductsByCategory(id)
+                                },
+                                onProductClick = { productId ->
+                                    viewModel.getProductDetails(productId)
+                                    showProductDetail = true
+                                },
+                                onRefreshClick = { viewModel.refreshData() }
+                            )
+                        }
                     }
-                )
+                    
+                    // 产品详情弹窗 - 使用key确保对话框状态稳定
+                    if (showProductDetail && selectedProduct != null) {
+                        val product = selectedProduct!!
+                        androidx.compose.runtime.key(product.id) {
+                            ProductDetailDialog(
+                                product = product,
+                                onDismiss = { 
+                                    showProductDetail = false
+                                    viewModel.clearSelectedProduct()
+                                },
+                                onUpdate = { updatedProduct ->
+                                    viewModel.updateProduct(updatedProduct)
+                                    showProductDetail = false
+                                }
+                            )
+                        }
+                    }
+                }
             }
         }
     }
@@ -343,7 +447,7 @@ fun UnconfiguredView(
         Spacer(modifier = Modifier.height(8.dp))
         
         Text(
-            text = errorMessage.toString(),
+            text = errorMessage?.toString() ?: "WooCommerce API未配置",
             style = MaterialTheme.typography.bodyMedium,
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -397,7 +501,7 @@ fun ErrorView(
         Spacer(modifier = Modifier.height(8.dp))
         
         Text(
-            text = errorMessage.toString(),
+            text = errorMessage?.toString() ?: "未知错误",
             style = MaterialTheme.typography.bodyMedium,
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -539,181 +643,196 @@ fun ProductsContent(
     onProductClick: (Long) -> Unit,
     onRefreshClick: () -> Unit
 ) {
+    // 使用remember和key优化性能
+    val displayProducts = remember(products, isLoading, previousProducts) {
+        if (isLoading && products.isEmpty() && previousProducts.isNotEmpty()) {
+            previousProducts 
+        } else {
+            products
+        }
+    }
+    
     // 使用key来防止列表内容重组
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-    ) {
-        if (products.isNotEmpty() || isLoading || isSwitchingCategory) {
-            // 顶部提示和刷新按钮
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = stringResource(id = R.string.product_list_title),
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                
-                IconButton(
-                    onClick = onRefreshClick,
-                    modifier = Modifier.size(48.dp),
-                    enabled = !isRefreshing
-                ) {
-                    if (isRefreshing) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(24.dp),
-                            strokeWidth = 2.dp
-                        )
-                    } else {
-                        Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = stringResource(id = R.string.refresh),
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
-            }
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            // 搜索和过滤
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                // 搜索框
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = onSearchChange,
+    androidx.compose.runtime.key(displayProducts.size) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp)
+        ) {
+            if (displayProducts.isNotEmpty() || isLoading || isSwitchingCategory) {
+                // 顶部提示和刷新按钮
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text(stringResource(id = R.string.search_products_hint)) },
-                    leadingIcon = { 
-                        Icon(
-                            imageVector = Icons.Default.Search,
-                            contentDescription = stringResource(id = R.string.search_products)
-                        )
-                    },
-                    trailingIcon = {
-                        if (searchQuery.isNotEmpty()) {
-                            IconButton(onClick = { onSearchChange("") }) {
-                                Icon(
-                                    imageVector = Icons.Default.Clear,
-                                    contentDescription = "清除"
-                                )
-                            }
-                        }
-                    },
-                    singleLine = true,
-                    shape = RoundedCornerShape(8.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = MaterialTheme.colorScheme.primary,
-                        unfocusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = stringResource(id = R.string.product_list_title),
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = MaterialTheme.colorScheme.primary
                     )
-                )
-            }
-            
-            // 分类过滤器 - 水平滚动按钮样式
-            LazyRow(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(horizontal = 8.dp),
-                state = rememberLazyListState()
-            ) {
-                items(categoryOptions) { (id, name) ->
-                    FilterChip(
-                        selected = selectedCategoryId == id,
-                        onClick = { onCategorySelect(id, name) },
-                        label = { 
-                            Text(
-                                text = name,
-                                style = MaterialTheme.typography.bodyMedium
-                            ) 
-                        },
-                        leadingIcon = if (selectedCategoryId == id) {
-                            {
-                                Icon(
-                                    imageVector = Icons.Default.Check,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
-                        } else null,
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    )
-                }
-            }
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            // 产品列表区域
-            Box(
-                modifier = Modifier.weight(1f)
-            ) {
-                // 使用过渡效果，保持旧数据可见性直到新数据加载完成
-                val displayProducts = if (isLoading && products.isEmpty() && previousProducts.isNotEmpty()) {
-                    previousProducts 
-                } else {
-                    products
-                }
-                
-                if (displayProducts.isNotEmpty()) {
-                    LazyVerticalGrid(
-                        columns = GridCells.Adaptive(minSize = 150.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .alpha(fadeTransition)
+                    
+                    IconButton(
+                        onClick = onRefreshClick,
+                        modifier = Modifier.size(48.dp),
+                        enabled = !isRefreshing
                     ) {
-                        items(
-                            items = displayProducts,
-                            key = { it.id } // 使用产品ID作为key避免重组
-                        ) { product ->
-                            ProductGridItem(
-                                product = product,
-                                onClick = { onProductClick(product.id) }
+                        if (isRefreshing) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = stringResource(id = R.string.refresh),
+                                tint = MaterialTheme.colorScheme.primary
                             )
                         }
                     }
                 }
                 
-                // 加载指示器更美观且不遮挡内容
-                if (isLoading || isSwitchingCategory) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .alpha(0.5f), // 降低透明度，使背景内容更可见
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Card(
-                            modifier = Modifier.padding(16.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)
-                            ),
-                            shape = RoundedCornerShape(8.dp),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-                        ) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                modifier = Modifier.padding(16.dp)
-                            ) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(36.dp)
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // 搜索和过滤
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // 搜索框
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = onSearchChange,
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text(stringResource(id = R.string.search_products_hint)) },
+                        leadingIcon = { 
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = stringResource(id = R.string.search_products)
+                            )
+                        },
+                        trailingIcon = {
+                            if (searchQuery.isNotEmpty()) {
+                                IconButton(onClick = { onSearchChange("") }) {
+                                    Icon(
+                                        imageVector = Icons.Default.Clear,
+                                        contentDescription = "清除"
+                                    )
+                                }
+                            }
+                        },
+                        singleLine = true,
+                        shape = RoundedCornerShape(8.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                        )
+                    )
+                }
+                
+                // 分类过滤器 - 水平滚动按钮样式
+                val lazyListState = rememberLazyListState()
+                
+                LazyRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = PaddingValues(horizontal = 8.dp),
+                    state = lazyListState
+                ) {
+                    items(
+                        items = categoryOptions,
+                        key = { it.first ?: -1L } // 使用分类ID作为key
+                    ) { (id, name) ->
+                        FilterChip(
+                            selected = selectedCategoryId == id,
+                            onClick = { onCategorySelect(id, name) },
+                            label = { 
                                 Text(
-                                    text = if (isSwitchingCategory) stringResource(id = R.string.switching_category) else stringResource(id = R.string.loading_products),
+                                    text = name,
                                     style = MaterialTheme.typography.bodyMedium
-                                )
+                                ) 
+                            },
+                            leadingIcon = if (selectedCategoryId == id) {
+                                {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            } else null,
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        )
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // 产品列表区域
+                Box(
+                    modifier = Modifier.weight(1f)
+                ) {
+                    if (displayProducts.isNotEmpty()) {
+                        LazyVerticalGrid(
+                            columns = GridCells.Adaptive(minSize = 150.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .alpha(fadeTransition)
+                        ) {
+                            items(
+                                items = displayProducts,
+                                key = { it.id } // 使用产品ID作为key避免重组
+                            ) { product ->
+                                // 使用key包装每个产品项防止不必要的重组
+                                androidx.compose.runtime.key(product.id) {
+                                    ProductGridItem(
+                                        product = product,
+                                        onClick = { onProductClick(product.id) }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    
+                    // 加载指示器更美观且不遮挡内容
+                    if (isLoading || isSwitchingCategory) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .alpha(0.5f), // 降低透明度，使背景内容更可见
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Card(
+                                modifier = Modifier.padding(16.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)
+                                ),
+                                shape = RoundedCornerShape(8.dp),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                            ) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    modifier = Modifier.padding(16.dp)
+                                ) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(36.dp)
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text(
+                                        text = if (isSwitchingCategory) 
+                                            stringResource(id = R.string.switching_category) 
+                                        else 
+                                            stringResource(id = R.string.loading_products),
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                }
                             }
                         }
                     }

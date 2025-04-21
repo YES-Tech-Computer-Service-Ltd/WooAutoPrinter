@@ -96,7 +96,18 @@ fun AppContent() {
         topBar = { WooAppBar(navController = navController) },
         bottomBar = { 
             // 确保底部导航栏能够正确响应导航变化
-            WooBottomNavigation(navController = navController) 
+            // 使用条件渲染替代try-catch，Compose不支持在Composable中使用try-catch
+            val isSpecialScreen = currentRoute.startsWith("printer_") || 
+                        currentRoute == "printer_settings" || 
+                        currentRoute == "website_settings" ||
+                        currentRoute == "sound_settings" ||
+                        currentRoute == "automation_settings" ||
+                        currentRoute.startsWith("template_")
+            
+            // 仅在标准页面（非特殊设置页面）上显示底部导航栏
+            if (!isSpecialScreen) {
+                WooBottomNavigation(navController = navController)
+            }
         }
     ) { paddingValues ->
         // 添加额外日志，监控导航控制器
@@ -121,9 +132,17 @@ fun AppContent() {
         // 记录每次重组中的当前路由
         Log.d(TAG, "重组: 当前目的地路由 = $currentDestinationRoute")
         
+        // 安全获取默认起始路由
+        val startDestination = try {
+            NavigationItem.getDefaultRoute()
+        } catch (e: Exception) {
+            Log.e(TAG, "获取默认路由失败，使用硬编码路由: ${e.message}", e)
+            "orders"  // 硬编码回退路由
+        }
+        
         NavHost(
             navController = navController,
-            startDestination = NavigationItem.Orders.route,
+            startDestination = startDestination,
             modifier = Modifier.padding(paddingValues)
         ) {
             composable(NavigationItem.Orders.route) {

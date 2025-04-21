@@ -603,6 +603,41 @@ class ProductsViewModel @Inject constructor(
         }
     }
     
+    override fun onCleared() {
+        super.onCleared()
+        // 取消所有产品收集作业
+        productsCollectionJob?.cancel()
+        // 清空缓存
+        categoryProductsCache.clear()
+        lastAllProductsLoadTime = 0
+        Log.d("ProductsViewModel", "ViewModel已清除，所有作业已取消")
+    }
+    
+    // 取消所有产品相关协程
+    private fun cancelAllProductJobs() {
+        shouldCancelProductJobs = true
+        viewModelScope.launch {
+            delay(100) // 短暂延迟确保取消生效
+            shouldCancelProductJobs = false
+        }
+    }
+    
+    /**
+     * 安全地执行操作，捕获任何异常并转换为错误状态
+     */
+    private fun safeExecute(action: suspend () -> Unit) {
+        viewModelScope.launch {
+            try {
+                action()
+            } catch (e: Exception) {
+                Log.e("ProductsViewModel", "操作执行失败: ${e.message}", e)
+                _errorMessage.value = e.message ?: "未知错误"
+                _isLoading.value = false
+                _refreshing.value = false
+            }
+        }
+    }
+    
     // 用于在状态卡住时进行紧急重置
     fun resetLoadingState() {
         Log.d("ProductsViewModel", "紧急重置加载状态")
@@ -656,25 +691,6 @@ class ProductsViewModel @Inject constructor(
             } catch (e: Exception) {
                 Log.e("ProductsViewModel", "重置状态时出错: ${e.message}")
             }
-        }
-    }
-    
-    override fun onCleared() {
-        super.onCleared()
-        // 取消所有产品收集作业
-        productsCollectionJob?.cancel()
-        // 清空缓存
-        categoryProductsCache.clear()
-        lastAllProductsLoadTime = 0
-        Log.d("ProductsViewModel", "ViewModel已清除，所有作业已取消")
-    }
-    
-    // 取消所有产品相关协程
-    private fun cancelAllProductJobs() {
-        shouldCancelProductJobs = true
-        viewModelScope.launch {
-            delay(100) // 短暂延迟确保取消生效
-            shouldCancelProductJobs = false
         }
     }
 } 

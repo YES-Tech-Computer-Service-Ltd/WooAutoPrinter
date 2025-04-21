@@ -174,13 +174,13 @@ class NetworkModule {
             // 从配置中获取baseUrl
             val baseUrl = runBlocking { 
                 try {
-                    val url = config.siteUrl.first()
+                    val url = config.siteUrl.first().trim() // 添加trim()移除所有空白字符
                     if (url.isBlank()) {
                         Log.e("NetworkModule", "站点URL为空，将使用默认URL")
                         "https://example.com/"
                     } else {
-                        // 确保URL以斜杠结尾
-                        if (url.endsWith("/")) url else "$url/"
+                        // 确保URL以斜杠结尾且没有换行符
+                        if (url.endsWith("/")) url.trim() else "${url.trim()}/"
                     }
                 } catch (e: Exception) {
                     Log.e("NetworkModule", "获取站点URL出错", e)
@@ -188,26 +188,43 @@ class NetworkModule {
                 }
             }
             
+            Log.d("NetworkModule", "原始站点URL: $baseUrl")
+            
             // 构建API基础URL
             val apiBaseUrl = if (baseUrl.contains("wp-json/wc/v3")) {
                 // 如果已经包含API路径，直接使用
-                baseUrl
+                baseUrl.trim()
             } else {
                 // 否则，添加API路径
                 if (baseUrl.endsWith("/")) {
-                    "${baseUrl}wp-json/wc/v3/"
+                    "${baseUrl.trim()}wp-json/wc/v3/".trim()
                 } else {
-                    "$baseUrl/wp-json/wc/v3/"
+                    "${baseUrl.trim()}/wp-json/wc/v3/".trim()
                 }
             }
             
             Log.d("NetworkModule", "创建Retrofit实例，baseUrl: $apiBaseUrl")
-
-            return Retrofit.Builder()
-                .baseUrl(apiBaseUrl)
-                .client(okHttpClient)
-                .addConverterFactory(GsonConverterFactory.create(gson))
-                .build()
+            
+            try {
+                return Retrofit.Builder()
+                    .baseUrl(apiBaseUrl)
+                    .client(okHttpClient)
+                    .addConverterFactory(GsonConverterFactory.create(gson))
+                    .build()
+            } catch (e: IllegalArgumentException) {
+                // 如果发生URL错误，记录详细信息并尝试修复
+                Log.e("NetworkModule", "创建Retrofit实例时出错：${e.message}，URL='$apiBaseUrl'")
+                
+                // 尝试进一步清理URL
+                val cleanUrl = apiBaseUrl.replace(Regex("\\s+"), "")
+                Log.d("NetworkModule", "尝试清理后的URL: $cleanUrl")
+                
+                return Retrofit.Builder()
+                    .baseUrl(cleanUrl)
+                    .client(okHttpClient)
+                    .addConverterFactory(GsonConverterFactory.create(gson))
+                    .build()
+            }
         }
 
         /**

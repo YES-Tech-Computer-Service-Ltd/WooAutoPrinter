@@ -19,7 +19,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.navigation.NavController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import com.example.wooauto.R
-import com.example.wooauto.presentation.navigation.NavigationItem
+import com.example.wooauto.navigation.NavigationItem
 import com.example.wooauto.presentation.theme.WooAutoTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
