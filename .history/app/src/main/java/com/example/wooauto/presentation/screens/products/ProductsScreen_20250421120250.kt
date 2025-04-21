@@ -338,6 +338,15 @@ private fun ProductsScreenContent(
                         .fillMaxSize()
                         .padding(paddingValues)
                 ) {
+                    // 添加一个测试标记
+                    Box(
+                        modifier = Modifier
+                            .size(50.dp)
+                            .background(Color.Red, shape = CircleShape)
+                            .align(Alignment.TopEnd)
+                            .padding(16.dp)
+                    )
+                    
                     // 根据不同状态显示不同内容
                     when {
                         // 如果API未配置或配置错误
