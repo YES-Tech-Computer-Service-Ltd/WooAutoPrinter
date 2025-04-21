@@ -963,12 +963,6 @@ fun OrderDetailDialog(
     // 使用当前的订单信息（如果有更新）或者传入的订单
     val displayOrder = currentOrder ?: order
     
-    // 记录订单信息用于调试
-    Log.d("OrderDetailDialog", "【打印状态修复】初始化订单详情对话框:")
-    Log.d("OrderDetailDialog", "【打印状态修复】传入的order: ID=${order.id}, 打印状态=${order.isPrinted}")
-    Log.d("OrderDetailDialog", "【打印状态修复】currentOrder: ID=${currentOrder?.id}, 打印状态=${currentOrder?.isPrinted}")
-    Log.d("OrderDetailDialog", "【打印状态修复】最终使用的displayOrder: ID=${displayOrder.id}, 打印状态=${displayOrder.isPrinted}")
-    
     // 定义打印状态相关变量
     val printStatusText = if (displayOrder.isPrinted) stringResource(R.string.printed_yes) else stringResource(R.string.printed_no)
     val printStatusColor = if (displayOrder.isPrinted) Color(0xFF4CAF50) else Color(0xFFE53935)
@@ -1675,16 +1669,8 @@ fun OrderDetailDialog(
         TemplateSelectorDialog(
             onDismiss = { showTemplateOptions = false },
             onTemplateSelected = { templateType ->
-                // 记录打印前的状态
-                Log.d("OrderDetailDialog", "【打印状态修复】准备打印订单: ${displayOrder.id}, 当前打印状态: ${displayOrder.isPrinted}")
-                
                 // 使用选定的模板打印
                 viewModel.printOrder(displayOrder.id, templateType)
-                
-                // 记录打印后的状态
-                Log.d("OrderDetailDialog", "【打印状态修复】已提交打印请求，等待状态变更")
-                
-                // 关闭模板选择对话框
                 showTemplateOptions = false
             }
         )

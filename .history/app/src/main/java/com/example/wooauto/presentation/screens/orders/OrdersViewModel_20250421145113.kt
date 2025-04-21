@@ -342,45 +342,11 @@ class OrdersViewModel @Inject constructor(
             _isLoading.value = true
             
             try {
-                // 获取当前订单的打印状态映射，用于后续验证
-                val currentPrintedMap = _orders.value.associateBy({ it.id }, { it.isPrinted })
-                
-                Log.d("OrdersViewModel", "【打印状态保护】刷新前，当前有 ${currentPrintedMap.count { it.value }} 个已打印订单")
-                if (currentPrintedMap.any { it.value }) {
-                    Log.d("OrdersViewModel", "【打印状态保护】刷新前已打印订单: ${currentPrintedMap.filter { it.value }.keys}")
-                }
-                
                 val apiConfigured = checkApiConfiguration()
                 if (apiConfigured) {
                     val result = orderRepository.refreshOrders()
                     if (result.isSuccess) {
-                        val refreshedOrders = result.getOrDefault(emptyList())
-                        
-                        // 验证打印状态
-                        val refreshedPrintedMap = refreshedOrders.associateBy({ it.id }, { it.isPrinted })
-                        Log.d("OrdersViewModel", "【打印状态保护】刷新后，有 ${refreshedPrintedMap.count { it.value }} 个已打印订单")
-                        
-                        // 检查是否有任何打印状态丢失
-                        val lostPrintStatus = currentPrintedMap.filter { it.value && refreshedPrintedMap[it.key] == false }
-                        if (lostPrintStatus.isNotEmpty()) {
-                            Log.e("OrdersViewModel", "【打印状态保护】警告：刷新后丢失了 ${lostPrintStatus.size} 个订单的打印状态")
-                            Log.e("OrdersViewModel", "【打印状态保护】丢失打印状态的订单ID: ${lostPrintStatus.keys}")
-                            
-                            // 修复丢失的打印状态
-                            val correctedOrders = refreshedOrders.map { order ->
-                                if (lostPrintStatus.containsKey(order.id)) {
-                                    Log.d("OrdersViewModel", "【打印状态保护】修复订单 #${order.number} (ID=${order.id}) 的打印状态")
-                                    order.copy(isPrinted = true)
-                                } else {
-                                    order
-                                }
-                            }
-                            
-                            // 使用修复后的订单列表
-                            _orders.value = correctedOrders
-                        } else {
-                            _orders.value = refreshedOrders
-                        }
+                        _orders.value = result.getOrDefault(emptyList())
                         
                         // 确保所有订单已正确持久化到数据库后再加载未读订单
                         delay(300) // 添加短暂延迟确保数据库操作完成
@@ -614,45 +580,36 @@ class OrdersViewModel @Inject constructor(
     fun markOrderAsPrinted(orderId: Long) {
         viewModelScope.launch {
             try {
-                Log.d("OrdersViewModel", "【打印状态修复】开始标记订单为已打印: $orderId")
+                Log.d("OrdersViewModel", "开始标记订单为已打印: $orderId")
                 
                 // 先获取订单当前状态作为参考
                 val originalOrder = orderRepository.getOrderById(orderId)
-                Log.d("OrdersViewModel", "【打印状态修复】标记前订单状态: ID=$orderId, 已打印=${originalOrder?.isPrinted}, 选中订单打印状态=${_selectedOrder.value?.isPrinted}")
-                
-                // 先在本地更新选中的订单，确保UI能立即响应
-                _selectedOrder.value?.let { selected ->
-                    if (selected.id == orderId && !selected.isPrinted) {
-                        val updatedSelected = selected.copy(isPrinted = true)
-                        _selectedOrder.value = updatedSelected
-                        Log.d("OrdersViewModel", "【打印状态修复】预先更新_selectedOrder状态: ${updatedSelected.isPrinted}")
-                    }
-                }
+                Log.d("OrdersViewModel", "标记前订单状态: ID=$orderId, 已打印=${originalOrder?.isPrinted}, 选中订单打印状态=${_selectedOrder.value?.isPrinted}")
                 
                 // 调用仓库方法标记为已打印
                 val success = orderRepository.markOrderAsPrinted(orderId)
                 
                 if (success) {
-                    Log.d("OrdersViewModel", "【打印状态修复】成功调用markOrderAsPrinted方法, 开始更新UI状态")
+                    Log.d("OrdersViewModel", "成功调用markOrderAsPrinted方法, 开始更新UI状态")
                     
                     // 获取更新后的订单
                     val updatedOrder = orderRepository.getOrderById(orderId)
                     
                     updatedOrder?.let {
-                        Log.d("OrdersViewModel", "【打印状态修复】获取到更新后的订单, ID=${it.id}, 打印状态: ${it.isPrinted}")
+                        Log.d("OrdersViewModel", "获取到更新后的订单, ID=${it.id}, 打印状态: ${it.isPrinted}")
                         
                         // 更新选中的订单状态
                         _selectedOrder.value = it
-                        Log.d("OrdersViewModel", "【打印状态修复】已更新_selectedOrder流, 当前值: ${_selectedOrder.value?.id}, 打印状态: ${_selectedOrder.value?.isPrinted}")
+                        Log.d("OrdersViewModel", "已更新_selectedOrder流, 当前值: ${_selectedOrder.value?.id}, 打印状态: ${_selectedOrder.value?.isPrinted}")
                         
                         // 同步更新订单列表中该订单的打印状态
                         val currentOrders = _orders.value
-                        Log.d("OrdersViewModel", "【打印状态修复】当前订单列表有 ${currentOrders.size} 个订单")
+                        Log.d("OrdersViewModel", "当前订单列表有 ${currentOrders.size} 个订单")
                         
                         val updatedOrders = currentOrders.map { order ->
                             if (order.id == orderId) {
                                 val updated = order.copy(isPrinted = true)
-                                Log.d("OrdersViewModel", "【打印状态修复】更新订单列表项: #${order.number} (ID=${order.id}), 打印状态从 ${order.isPrinted} 改为 ${updated.isPrinted}")
+                                Log.d("OrdersViewModel", "更新订单列表项: #${order.number} (ID=${order.id}), 打印状态从 ${order.isPrinted} 改为 ${updated.isPrinted}")
                                 updated
                             } else {
                                 order
@@ -661,30 +618,22 @@ class OrdersViewModel @Inject constructor(
                         
                         // 设置更新后的订单列表
                         _orders.value = updatedOrders
-                        Log.d("OrdersViewModel", "【打印状态修复】已更新_orders流, 列表大小: ${_orders.value.size}")
+                        Log.d("OrdersViewModel", "已更新_orders流, 列表大小: ${_orders.value.size}")
                         
                         // 验证是否更新成功
                         val printedOrder = _orders.value.find { it.id == orderId }
-                        Log.d("OrdersViewModel", "【打印状态修复】验证更新: 订单 ID=$orderId 的最终打印状态: ${printedOrder?.isPrinted}")
-                        
-                        // 触发过滤订单重新加载，确保显示的列表与数据库一致
-                        // 获取当前过滤状态
-                        val currentStatus = _currentStatusFilter.value
-                        if (currentStatus != null) {
-                            Log.d("OrdersViewModel", "【打印状态修复】重新过滤订单列表，当前状态: $currentStatus")
-                            filterOrdersByStatus(currentStatus)
-                        }
+                        Log.d("OrdersViewModel", "验证更新: 订单 ID=$orderId 的最终打印状态: ${printedOrder?.isPrinted}")
                     } ?: run {
-                        Log.e("OrdersViewModel", "【打印状态修复】无法获取更新后的订单, ID=$orderId")
+                        Log.e("OrdersViewModel", "无法获取更新后的订单, ID=$orderId")
                     }
                     
                     // 不立即刷新订单列表，避免从API获取状态覆盖本地状态
                     // refreshOrders()
                 } else {
-                    Log.e("OrdersViewModel", "【打印状态修复】标记订单为已打印失败, ID=$orderId")
+                    Log.e("OrdersViewModel", "标记订单为已打印失败, ID=$orderId")
                 }
             } catch (e: Exception) {
-                Log.e("OrdersViewModel", "【打印状态修复】标记订单为已打印过程中出错: ${e.message}", e)
+                Log.e("OrdersViewModel", "标记订单为已打印过程中出错: ${e.message}", e)
                 _errorMessage.value = "无法标记订单为已打印: ${e.message}"
             }
         }
@@ -748,23 +697,15 @@ class OrdersViewModel @Inject constructor(
                 // 打印订单
                 val success = printerManager.printOrder(order, printerConfig)
                 if (success) {
-                    Log.d("OrdersViewModel", "【打印操作】打印订单成功: $orderId")
+                    Log.d("OrdersViewModel", "打印订单成功: $orderId")
                     // 标记订单为已打印
                     markOrderAsPrinted(orderId)
-                    
-                    // 等待一下，确保数据库操作完成
-                    delay(200)
-                    
                     // 刷新选中的订单，确保UI显示更新
                     val updatedOrder = orderRepository.getOrderById(orderId)
                     updatedOrder?.let {
-                        Log.d("OrdersViewModel", "【打印操作】更新选中订单为: ID=${it.id}, 打印状态=${it.isPrinted}")
+                        Log.d("OrdersViewModel", "更新选中订单为: ID=${it.id}, 打印状态=${it.isPrinted}")
                         _selectedOrder.value = it
-                        
-                        // 验证显示的打印状态
-                        Log.d("OrdersViewModel", "【打印操作】验证selectedOrder状态: ${_selectedOrder.value?.isPrinted}")
                     }
-                    
                     // 不刷新订单列表，避免从API获取状态覆盖本地状态
                     // refreshOrders()
                 } else {

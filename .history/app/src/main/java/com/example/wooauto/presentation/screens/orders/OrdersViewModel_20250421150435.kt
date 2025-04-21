@@ -342,45 +342,11 @@ class OrdersViewModel @Inject constructor(
             _isLoading.value = true
             
             try {
-                // 获取当前订单的打印状态映射，用于后续验证
-                val currentPrintedMap = _orders.value.associateBy({ it.id }, { it.isPrinted })
-                
-                Log.d("OrdersViewModel", "【打印状态保护】刷新前，当前有 ${currentPrintedMap.count { it.value }} 个已打印订单")
-                if (currentPrintedMap.any { it.value }) {
-                    Log.d("OrdersViewModel", "【打印状态保护】刷新前已打印订单: ${currentPrintedMap.filter { it.value }.keys}")
-                }
-                
                 val apiConfigured = checkApiConfiguration()
                 if (apiConfigured) {
                     val result = orderRepository.refreshOrders()
                     if (result.isSuccess) {
-                        val refreshedOrders = result.getOrDefault(emptyList())
-                        
-                        // 验证打印状态
-                        val refreshedPrintedMap = refreshedOrders.associateBy({ it.id }, { it.isPrinted })
-                        Log.d("OrdersViewModel", "【打印状态保护】刷新后，有 ${refreshedPrintedMap.count { it.value }} 个已打印订单")
-                        
-                        // 检查是否有任何打印状态丢失
-                        val lostPrintStatus = currentPrintedMap.filter { it.value && refreshedPrintedMap[it.key] == false }
-                        if (lostPrintStatus.isNotEmpty()) {
-                            Log.e("OrdersViewModel", "【打印状态保护】警告：刷新后丢失了 ${lostPrintStatus.size} 个订单的打印状态")
-                            Log.e("OrdersViewModel", "【打印状态保护】丢失打印状态的订单ID: ${lostPrintStatus.keys}")
-                            
-                            // 修复丢失的打印状态
-                            val correctedOrders = refreshedOrders.map { order ->
-                                if (lostPrintStatus.containsKey(order.id)) {
-                                    Log.d("OrdersViewModel", "【打印状态保护】修复订单 #${order.number} (ID=${order.id}) 的打印状态")
-                                    order.copy(isPrinted = true)
-                                } else {
-                                    order
-                                }
-                            }
-                            
-                            // 使用修复后的订单列表
-                            _orders.value = correctedOrders
-                        } else {
-                            _orders.value = refreshedOrders
-                        }
+                        _orders.value = result.getOrDefault(emptyList())
                         
                         // 确保所有订单已正确持久化到数据库后再加载未读订单
                         delay(300) // 添加短暂延迟确保数据库操作完成
