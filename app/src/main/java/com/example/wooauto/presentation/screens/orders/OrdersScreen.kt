@@ -143,6 +143,18 @@ import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.ime
+import androidx.compose.ui.draw.shadow
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.graphics.SolidColor
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -339,12 +351,20 @@ fun OrdersScreen(
                 isRefreshing = isRefreshing,
                 showUnreadOrders = showUnreadOrders,
                 onToggleUnreadOrders = { showUnreadOrders = !showUnreadOrders },
-                onRefresh = { viewModel.refreshOrders() }
+                onRefresh = { viewModel.refreshOrders() },
+                searchQuery = searchQuery,
+                onSearchQueryChange = { searchQuery = it }
             )
         },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
     ) { paddingValues ->
-        Box(modifier = Modifier.padding(paddingValues)) {
+        // 修改Box的padding，保留顶部padding但减少底部padding
+        Box(modifier = Modifier.padding(
+            top = paddingValues.calculateTopPadding(),
+            bottom = 0.dp, // 减少底部padding
+            start = 0.dp,
+            end = 0.dp
+        )) {
             // 先检查是否初始化完成
             if (!isInitialized.value) {
                 // 显示初始化加载界面
@@ -426,6 +446,7 @@ fun OrdersScreen(
                     orders = orders,
                     showUnreadOnly = showUnreadOrders,
                     selectedStatus = statusFilter,
+                    searchQuery = searchQuery,
                     onSelectOrder = { order ->
                         viewModel.getOrderDetails(order.id)
                         showOrderDetail = true
@@ -439,8 +460,90 @@ fun OrdersScreen(
                 )
             }
             
-            // 其余UI部分保持不变
-            // ... existing code ...
+            // 显示API配置对话框
+            if (showApiConfigDialog) {
+                Dialog(
+                    onDismissRequest = { showApiConfigDialog = false },
+                    properties = DialogProperties(dismissOnClickOutside = true)
+                ) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = if (locale.language == "zh") "请先配置API" else "Please Configure API",
+                                style = MaterialTheme.typography.headlineSmall,
+                                textAlign = TextAlign.Center
+                            )
+                            
+                            Spacer(modifier = Modifier.height(16.dp))
+                            
+                            Text(
+                                text = if (locale.language == "zh") 
+                                    "要使用订单功能，您需要先配置WooCommerce API设置。" 
+                                else 
+                                    "To use the order features, you need to configure the WooCommerce API settings first.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                textAlign = TextAlign.Center
+                            )
+                            
+                            Spacer(modifier = Modifier.height(24.dp))
+                            
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Button(
+                                    onClick = { showApiConfigDialog = false },
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text(if (locale.language == "zh") "稍后再说" else "Later")
+                                }
+                                
+                                Spacer(modifier = Modifier.width(16.dp))
+                                
+                                Button(
+                                    onClick = {
+                                        showApiConfigDialog = false
+                                        navController.navigate(NavigationItem.Settings.route) {
+                                            launchSingleTop = true
+                                        }
+                                        val intent = Intent("com.example.wooauto.ACTION_OPEN_API_SETTINGS")
+                                        context.sendBroadcast(intent)
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text(if (locale.language == "zh") "去设置" else "Settings")
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // 订单详情对话框
+            if (showOrderDetail && selectedOrder != null) {
+                OrderDetailDialog(
+                    order = selectedOrder!!,
+                    onDismiss = { showOrderDetail = false },
+                    onStatusChange = { orderId, newStatus ->
+                        // 调用状态变更逻辑
+                        viewModel.updateOrderStatus(orderId, newStatus)
+                    },
+                    onMarkAsPrinted = { orderId ->
+                        // 调用打印逻辑
+                        viewModel.printOrder(orderId)
+                    }
+                )
+            }
         }
     }
 }
@@ -454,41 +557,92 @@ private fun TopBar(
     isRefreshing: Boolean,
     showUnreadOrders: Boolean,
     onToggleUnreadOrders: () -> Unit,
-    onRefresh: () -> Unit
+    onRefresh: () -> Unit,
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit
 ) {
     val locale = LocalAppLocale.current
     
     TopAppBar(
-        title = { Text(text = if (locale.language == "zh") "订单" else "Orders") },
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // 调整标题样式和位置
+                Text(
+                    text = if (locale.language == "zh") "订单" else "Orders",
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 21.sp, // 稍微增大字体
+                        letterSpacing = 0.5.sp // 增加字间距
+                    ),
+                    modifier = Modifier
+                        .padding(start = 0.dp, end = 14.dp) // 增加右边距，与搜索框拉开距离
+                        .width(70.dp), // 固定宽度，确保布局稳定
+                    color = MaterialTheme.colorScheme.onPrimary
+                )
+                
+                // 搜索框样式
+                CustomSearchField(
+                    value = searchQuery,
+                    onValueChange = onSearchQueryChange,
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(vertical = 4.dp, horizontal = 4.dp),
+                    placeholder = if (locale.language == "zh") "搜索订单..." else "Search orders...",
+                    locale = locale
+                )
+            }
+        },
         actions = {
             // 未读订单按钮
             IconButton(
-                onClick = onToggleUnreadOrders
+                onClick = onToggleUnreadOrders,
+                modifier = Modifier
+                    .size(44.dp)
+                    .padding(end = 2.dp) // 减少右边距，使按钮更紧凑
             ) {
                 Icon(
                     imageVector = Icons.Default.Email,
-                    contentDescription = if (locale.language == "zh") "未读订单" else "Unread Orders"
+                    contentDescription = if (locale.language == "zh") "未读订单" else "Unread Orders",
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(22.dp) // 调整图标大小
                 )
             }
             
             // 刷新按钮
             IconButton(
                 onClick = onRefresh,
-                enabled = !isRefreshing
+                enabled = !isRefreshing,
+                modifier = Modifier
+                    .size(44.dp)
+                    .padding(end = 2.dp) // 减少右边距
             ) {
                 if (isRefreshing) {
                     CircularProgressIndicator(
-                        modifier = Modifier.size(24.dp),
-                        strokeWidth = 2.dp
+                        modifier = Modifier.size(22.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onPrimary
                     )
                 } else {
                     Icon(
                         imageVector = Icons.Default.Refresh,
-                        contentDescription = if (locale.language == "zh") "刷新" else "Refresh"
+                        contentDescription = if (locale.language == "zh") "刷新" else "Refresh",
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(22.dp) // 调整图标大小
                     )
                 }
             }
-        }
+        },
+        modifier = Modifier
+            .height(68.dp) // 保持适当的高度
+            .fillMaxWidth(),
+        colors = TopAppBarDefaults.topAppBarColors(
+            containerColor = MaterialTheme.colorScheme.primary,
+            titleContentColor = MaterialTheme.colorScheme.onPrimary,
+            actionIconContentColor = MaterialTheme.colorScheme.onPrimary
+        )
     )
 }
 
@@ -500,11 +654,11 @@ private fun OrdersList(
     orders: List<Order>,
     showUnreadOnly: Boolean,
     selectedStatus: String,
+    searchQuery: String,
     onSelectOrder: (Order) -> Unit,
     onStatusSelected: (String) -> Unit
 ) {
     val locale = LocalAppLocale.current
-    var searchQuery by remember { mutableStateOf("") }
     
     // 定义状态选项列表
     val statusOptions = listOf(
@@ -519,51 +673,34 @@ private fun OrdersList(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 8.dp)
+            .padding(horizontal = 8.dp, vertical = 0.dp) // 移除底部padding
     ) {
-        // 搜索栏
-        OutlinedTextField(
-            value = searchQuery,
-            onValueChange = { searchQuery = it },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 8.dp),
-            placeholder = { Text(if (locale.language == "zh") "搜索订单..." else "Search orders...") },
-            leadingIcon = { 
-                Icon(
-                    imageVector = Icons.Default.Search,
-                    contentDescription = if (locale.language == "zh") "搜索" else "Search"
-                )
-            },
-            trailingIcon = {
-                if (searchQuery.isNotEmpty()) {
-                    IconButton(
-                        onClick = { searchQuery = "" }
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Clear,
-                            contentDescription = if (locale.language == "zh") "清除" else "Clear"
-                        )
-                    }
-                }
-            },
-            singleLine = true,
-            shape = RoundedCornerShape(8.dp)
-        )
-        
         // 状态过滤器
         LazyRow(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                .padding(top = 2.dp, bottom = 4.dp), // 减少顶部和底部内边距
+            horizontalArrangement = Arrangement.spacedBy(6.dp), // 减少水平间距
+            contentPadding = PaddingValues(horizontal = 4.dp)
         ) {
             items(statusOptions) { statusOption ->
-                val (status, label) = statusOption  // 正确的解构语法
+                val (status, label) = statusOption
                 FilterChip(
                     selected = selectedStatus == status,
                     onClick = { onStatusSelected(status) },
-                    label = { Text(text = label) }  // 明确指定text参数
+                    label = { 
+                        Text(
+                            text = label,
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontWeight = if (selectedStatus == status) FontWeight.Bold else FontWeight.Normal,
+                                fontSize = 13.sp // 稍微减小字体大小
+                            )
+                        ) 
+                    },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                        selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
                 )
             }
         }
@@ -602,8 +739,10 @@ private fun OrdersList(
             LazyColumn(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                    .weight(1f)
+                    .offset(y = 0.dp, x = 0.dp), // 可以添加垂直偏移以调整位置
+                verticalArrangement = Arrangement.spacedBy(4.dp), // 减少项目之间的间距
+                contentPadding = PaddingValues(top = 0.dp, bottom = 2.dp) // 微调底部内边距
             ) {
                 items(filteredOrders) { order ->
                     OrderCard(
@@ -625,7 +764,7 @@ fun OrderCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 8.dp),
+            .padding(horizontal = 6.dp, vertical = 3.dp), // 减少垂直方向的padding
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
@@ -636,7 +775,7 @@ fun OrderCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(14.dp),  // 增加内边距
+                .padding(12.dp),  // 减少内部padding
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
@@ -2149,4 +2288,86 @@ fun UnreadOrderItem(
             )
         }
     }
+}
+
+/**
+ * 自定义搜索框组件
+ */
+@Composable
+private fun CustomSearchField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    placeholder: String = "",
+    locale: Locale
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    
+    BasicTextField(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = modifier
+            .heightIn(min = 48.dp, max = 56.dp)
+            .shadow(
+                elevation = 4.dp,
+                shape = RoundedCornerShape(12.dp),
+                spotColor = Color.Black.copy(alpha = 0.2f)
+            )
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color.White),
+        textStyle = MaterialTheme.typography.bodyMedium.copy(
+            fontSize = 15.sp,
+            color = Color.Black
+        ),
+        singleLine = true,
+        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+        keyboardActions = KeyboardActions(onSearch = { /* TODO: 可以触发搜索动作 */ }),
+        interactionSource = interactionSource,
+        decorationBox = { innerTextField ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Search,
+                    contentDescription = if (locale.language == "zh") "搜索" else "Search",
+                    modifier = Modifier.size(18.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                
+                Spacer(modifier = Modifier.width(8.dp))
+                
+                Box(modifier = Modifier.weight(1f)) {
+                    if (value.isEmpty()) {
+                        Text(
+                            text = placeholder,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontSize = 14.sp,
+                            color = Color.Gray.copy(alpha = 0.7f)
+                        )
+                    }
+                    innerTextField()
+                }
+                
+                if (value.isNotEmpty()) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    
+                    IconButton(
+                        onClick = { onValueChange("") },
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Clear,
+                            contentDescription = if (locale.language == "zh") "清除" else "Clear",
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            }
+        }
+    )
 } 
