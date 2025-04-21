@@ -808,8 +808,6 @@ class OrderRepositoryImpl @Inject constructor(
                             order
                         }
                     }
-                } else {
-                    Log.d("OrderRepositoryImpl", "【打印状态同步】数据库中没有已打印订单")
                 }
             } catch (e: Exception) {
                 Log.e("OrderRepositoryImpl", "【打印状态同步】获取数据库已打印订单失败: ${e.message}")

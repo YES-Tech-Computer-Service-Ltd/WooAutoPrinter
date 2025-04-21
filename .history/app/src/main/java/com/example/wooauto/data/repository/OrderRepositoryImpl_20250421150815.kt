@@ -210,24 +210,13 @@ class OrderRepositoryImpl @Inject constructor(
             }
             val existingOrderMap = existingOrders.associateBy { it.id }
             
-            // 找出所有已打印的订单ID，确保我们不会丢失打印状态
-            val printedOrderIds = existingOrders.filter { it.isPrinted }.map { it.id }
-            if (printedOrderIds.isNotEmpty()) {
-                Log.d("OrderRepositoryImpl", "【应用启动】数据库中找到 ${printedOrderIds.size} 个已打印订单，将保留其打印状态")
-            }
-            
             // 转换为领域模型并保留已读状态
             val orders = response.map { orderDto -> 
                 val order = orderDto.toOrder()
                 
                 // 首先检查是否在已读列表中
                 if (order.id in readOrderIds) {
-                    // 同时检查是否已打印
-                    if (order.id in printedOrderIds) {
-                        order.copy(isRead = true, isPrinted = true)
-                    } else {
-                        order.copy(isRead = true)
-                    }
+                    order.copy(isRead = true)
                 } else {
                     // 然后检查数据库中的现有状态
                     val existingOrder = existingOrderMap[order.id]
@@ -259,30 +248,19 @@ class OrderRepositoryImpl @Inject constructor(
                     // 保留已读状态和打印状态
                     val isRead = if (entity.isRead || existingEntity.isRead) true else false
                     
-                    // 保留打印状态 - 数据库中的状态优先级高于API
+                    // 保留打印状态
                     val isPrinted = existingEntity.isPrinted || entity.isPrinted
                     
                     // 日志记录状态变化
                     if (isRead != entity.isRead || isPrinted != entity.isPrinted) {
-                        Log.d("OrderRepositoryImpl", "【应用启动】订单 #${entity.number} (ID=${entity.id}) 状态更新: 已读=${isRead}, 已打印=${isPrinted}, API状态=${entity.isPrinted}")
+                        Log.d("OrderRepositoryImpl", "订单 #${entity.number} (ID=${entity.id}) 状态更新: 已读=${isRead}, 已打印=${isPrinted}, API状态=${entity.isPrinted}")
                     }
                     
-                    // 特别检查是否在已打印订单列表中，确保状态正确
-                    if (entity.id in printedOrderIds && !isPrinted) {
-                        Log.d("OrderRepositoryImpl", "【应用启动】警告：订单 #${entity.number} (ID=${entity.id}) 在已打印列表中但状态不一致，强制设为已打印")
-                        entity.copy(isRead = isRead, isPrinted = true)
-                    } else {
-                        entity.copy(isRead = isRead, isPrinted = isPrinted)
-                    }
+                    entity.copy(isRead = isRead, isPrinted = isPrinted)
                 } else {
                     // 新订单，检查是否在已读ID列表中
                     if (entity.id in readOrderIds) {
-                        // 同时检查是否已打印
-                        if (entity.id in printedOrderIds) {
-                            entity.copy(isRead = true, isPrinted = true)
-                        } else {
-                            entity.copy(isRead = true)
-                        }
+                        entity.copy(isRead = true)
                     } else if (entity.dateCreated < thirtyDaysAgo) {
                         // 老订单自动标记为已读
                         entity.copy(isRead = true)
@@ -808,8 +786,6 @@ class OrderRepositoryImpl @Inject constructor(
                             order
                         }
                     }
-                } else {
-                    Log.d("OrderRepositoryImpl", "【打印状态同步】数据库中没有已打印订单")
                 }
             } catch (e: Exception) {
                 Log.e("OrderRepositoryImpl", "【打印状态同步】获取数据库已打印订单失败: ${e.message}")

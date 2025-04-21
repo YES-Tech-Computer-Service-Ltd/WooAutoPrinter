@@ -547,19 +547,8 @@ class BackgroundPollingService : Service() {
                 
                 // 如果打印成功，更新订单已打印状态
                 if (printResult) {
-                    Log.d(TAG, "【自动打印调试】打印成功，现在标记订单为已打印, ID: ${order.id}")
                     val markResult = orderRepository.markOrderAsPrinted(order.id)
                     Log.d(TAG, "【自动打印调试】标记订单为已打印结果: $markResult, 订单ID: ${order.id}")
-                    
-                    // 验证更新是否成功
-                    val finalOrder = orderRepository.getOrderById(order.id)
-                    if (finalOrder?.isPrinted == true) {
-                        Log.d(TAG, "【自动打印调试】成功验证订单 #${order.number} 已被标记为已打印")
-                    } else {
-                        Log.e(TAG, "【自动打印调试】警告：订单 #${order.number} 状态更新验证失败，数据库记录: ${finalOrder?.isPrinted}")
-                    }
-                } else {
-                    Log.e(TAG, "【自动打印调试】打印失败，订单 #${order.number} 维持未打印状态")
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "【自动打印调试】自动打印订单时发生异常: ${e.message}", e)

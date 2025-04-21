@@ -30,7 +30,6 @@ import kotlinx.coroutines.SupervisorJob
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.Calendar
-import kotlinx.coroutines.runBlocking
 
 @Singleton
 class OrderRepositoryImpl @Inject constructor(
@@ -210,24 +209,13 @@ class OrderRepositoryImpl @Inject constructor(
             }
             val existingOrderMap = existingOrders.associateBy { it.id }
             
-            // 找出所有已打印的订单ID，确保我们不会丢失打印状态
-            val printedOrderIds = existingOrders.filter { it.isPrinted }.map { it.id }
-            if (printedOrderIds.isNotEmpty()) {
-                Log.d("OrderRepositoryImpl", "【应用启动】数据库中找到 ${printedOrderIds.size} 个已打印订单，将保留其打印状态")
-            }
-            
             // 转换为领域模型并保留已读状态
             val orders = response.map { orderDto -> 
                 val order = orderDto.toOrder()
                 
                 // 首先检查是否在已读列表中
                 if (order.id in readOrderIds) {
-                    // 同时检查是否已打印
-                    if (order.id in printedOrderIds) {
-                        order.copy(isRead = true, isPrinted = true)
-                    } else {
-                        order.copy(isRead = true)
-                    }
+                    order.copy(isRead = true)
                 } else {
                     // 然后检查数据库中的现有状态
                     val existingOrder = existingOrderMap[order.id]
@@ -259,30 +247,19 @@ class OrderRepositoryImpl @Inject constructor(
                     // 保留已读状态和打印状态
                     val isRead = if (entity.isRead || existingEntity.isRead) true else false
                     
-                    // 保留打印状态 - 数据库中的状态优先级高于API
+                    // 保留打印状态
                     val isPrinted = existingEntity.isPrinted || entity.isPrinted
                     
                     // 日志记录状态变化
                     if (isRead != entity.isRead || isPrinted != entity.isPrinted) {
-                        Log.d("OrderRepositoryImpl", "【应用启动】订单 #${entity.number} (ID=${entity.id}) 状态更新: 已读=${isRead}, 已打印=${isPrinted}, API状态=${entity.isPrinted}")
+                        Log.d("OrderRepositoryImpl", "订单 #${entity.number} (ID=${entity.id}) 状态更新: 已读=${isRead}, 已打印=${isPrinted}, API状态=${entity.isPrinted}")
                     }
                     
-                    // 特别检查是否在已打印订单列表中，确保状态正确
-                    if (entity.id in printedOrderIds && !isPrinted) {
-                        Log.d("OrderRepositoryImpl", "【应用启动】警告：订单 #${entity.number} (ID=${entity.id}) 在已打印列表中但状态不一致，强制设为已打印")
-                        entity.copy(isRead = isRead, isPrinted = true)
-                    } else {
-                        entity.copy(isRead = isRead, isPrinted = isPrinted)
-                    }
+                    entity.copy(isRead = isRead, isPrinted = isPrinted)
                 } else {
                     // 新订单，检查是否在已读ID列表中
                     if (entity.id in readOrderIds) {
-                        // 同时检查是否已打印
-                        if (entity.id in printedOrderIds) {
-                            entity.copy(isRead = true, isPrinted = true)
-                        } else {
-                            entity.copy(isRead = true)
-                        }
+                        entity.copy(isRead = true)
                     } else if (entity.dateCreated < thirtyDaysAgo) {
                         // 老订单自动标记为已读
                         entity.copy(isRead = true)
@@ -499,42 +476,24 @@ class OrderRepositoryImpl @Inject constructor(
     }
 
     override suspend fun markOrderAsPrinted(orderId: Long): Boolean = withContext(Dispatchers.IO) {
-        Log.d("OrderRepositoryImpl", "【打印状态操作】开始标记订单为已打印: $orderId")
+//        Log.d("OrderRepositoryImpl", "标记订单为已打印: $orderId")
         
         try {
             // 先获取订单当前状态并记录日志
             val orderBefore = orderDao.getOrderById(orderId)
-            Log.d("OrderRepositoryImpl", "【打印状态操作】打印前订单状态: ID=$orderId, 已打印=${orderBefore?.isPrinted}, 状态=${orderBefore?.status}, 订单号=${orderBefore?.number}")
+//            Log.d("OrderRepositoryImpl", "打印前订单状态: ID=$orderId, 已打印=${orderBefore?.isPrinted}, 状态=${orderBefore?.status}")
             
             // 更新数据库
             orderDao.updateOrderPrintStatus(orderId, true)
             
             // 验证更新是否成功
             val orderAfter = orderDao.getOrderById(orderId)
-            Log.d("OrderRepositoryImpl", "【打印状态操作】打印后订单状态: ID=$orderId, 已打印=${orderAfter?.isPrinted}, 状态=${orderAfter?.status}")
-            
-            // 检查更新是否成功
-            if (orderAfter?.isPrinted != true) {
-                Log.e("OrderRepositoryImpl", "【打印状态操作】打印状态更新失败，数据库中订单状态未变更为已打印")
-            }
+//            Log.d("OrderRepositoryImpl", "打印后订单状态: ID=$orderId, 已打印=${orderAfter?.isPrinted}, 状态=${orderAfter?.status}")
             
             // 更新缓存和流
             val updatedList = cachedOrders.map { 
-                if (it.id == orderId) {
-                    val updated = it.copy(isPrinted = true)
-                    Log.d("OrderRepositoryImpl", "【打印状态操作】内存缓存中更新订单 #${it.number}: 打印状态从 ${it.isPrinted} 变为 ${updated.isPrinted}")
-                    updated
-                } else {
-                    it 
-                }
+                if (it.id == orderId) it.copy(isPrinted = true) else it 
             }
-            
-            // 检查缓存中是否找到并更新了订单
-            val updatedInCache = updatedList.any { it.id == orderId && it.isPrinted }
-            if (!updatedInCache) {
-                Log.w("OrderRepositoryImpl", "【打印状态操作】警告：未在缓存中找到订单 $orderId 或更新失败")
-            }
-            
             cachedOrders = updatedList
             _ordersFlow.value = updatedList
             
@@ -544,16 +503,13 @@ class OrderRepositoryImpl @Inject constructor(
             // 获取并更新具体订单
             val orderEntity = orderDao.getOrderById(orderId)
             orderEntity?.let {
-                val domainModel = mapToOrderModel(it)
-                Log.d("OrderRepositoryImpl", "【打印状态操作】发送订单单独更新事件: ID=${domainModel.id}, 打印状态=${domainModel.isPrinted}")
                 // 单独发送更新事件
-                _orderByIdFlow[orderId]?.emit(domainModel)
+                _orderByIdFlow[orderId]?.emit(mapToOrderModel(it))
             }
             
-            Log.d("OrderRepositoryImpl", "【打印状态操作】完成标记订单为已打印: $orderId")
             return@withContext true
         } catch (e: Exception) {
-            Log.e("OrderRepositoryImpl", "【打印状态操作】标记订单为已打印失败", e)
+            Log.e("OrderRepositoryImpl", "标记订单为已打印失败", e)
             return@withContext false
         }
     }
@@ -793,33 +749,7 @@ class OrderRepositoryImpl @Inject constructor(
         val printedOrderIds = mutableListOf<Long>()
         val printedCountByStatus = mutableMapOf<String, Int>()
         
-        // 首先从数据库获取所有标记为已打印的订单ID
-        runBlocking {
-            try {
-                val printedOrdersInDB = orderDao.getAllOrders().first().filter { it.isPrinted }.map { it.id }
-                if (printedOrdersInDB.isNotEmpty()) {
-                    Log.d("OrderRepositoryImpl", "【打印状态同步】数据库中找到 ${printedOrdersInDB.size} 个已打印订单: $printedOrdersInDB")
-                    // 确保内存中的订单状态与数据库一致
-                    cachedOrders = cachedOrders.map { order ->
-                        if (printedOrdersInDB.contains(order.id) && !order.isPrinted) {
-                            Log.d("OrderRepositoryImpl", "【打印状态同步】订单 #${order.number} (ID=${order.id}) 在数据库中已打印，但内存中未打印，更新内存状态")
-                            order.copy(isPrinted = true)
-                        } else {
-                            order
-                        }
-                    }
-                } else {
-                    Log.d("OrderRepositoryImpl", "【打印状态同步】数据库中没有已打印订单")
-                }
-            } catch (e: Exception) {
-                Log.e("OrderRepositoryImpl", "【打印状态同步】获取数据库已打印订单失败: ${e.message}")
-            }
-        }
-        
-        // 使用更新后的内存状态重新分组
-        val updatedGroupedOrders = cachedOrders.groupBy { it.status }
-        
-        updatedGroupedOrders.forEach { (status, orders) ->
+        groupedOrders.forEach { (status, orders) ->
             val printedCount = orders.count { it.isPrinted }
             printedCountByStatus[status] = printedCount
             Log.d("OrderRepositoryImpl", "【状态分组】'$status' 状态有 ${orders.size} 个订单，其中已打印 $printedCount 个")
@@ -841,7 +771,7 @@ class OrderRepositoryImpl @Inject constructor(
             Log.d("OrderRepositoryImpl", "【打印状态分布】各状态已打印数量: $printedCountByStatus")
         }
         
-        _ordersByStatusFlow.value = updatedGroupedOrders
+        _ordersByStatusFlow.value = groupedOrders
     }
 
     override suspend fun clearCache() {
