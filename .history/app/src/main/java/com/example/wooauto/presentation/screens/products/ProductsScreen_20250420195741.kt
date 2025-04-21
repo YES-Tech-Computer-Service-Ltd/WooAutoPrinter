@@ -1,0 +1,1131 @@
+package com.example.wooauto.presentation.screens.products
+
+import android.util.Log
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Restaurant
+import androidx.compose.material.icons.filled.Fastfood
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.navigation.NavController
+import androidx.navigation.compose.rememberNavController
+import com.example.wooauto.R
+import com.example.wooauto.domain.models.Product
+import com.example.wooauto.navigation.NavigationItem
+import com.example.wooauto.presentation.theme.WooAutoTheme
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.collectLatest
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.ui.draw.alpha
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ProductsScreen(
+    navController: NavController,
+    viewModel: ProductsViewModel = hiltViewModel()
+) {
+    Log.d("ProductsScreen", "ProductsScreen 初始化")
+    
+    // 添加一个安全状态，用于捕获组合过程中的任何未处理错误
+    var hasCompositionError by remember { mutableStateOf(false) }
+    var compositionErrorMessage by remember { mutableStateOf<String?>(null) }
+    
+    // 使用LaunchedEffect捕获任何未处理的异常
+    LaunchedEffect(Unit) {
+        try {
+            // 在这里可以执行一些初始化工作，如果有错误会被捕获
+        } catch (e: Exception) {
+            Log.e("ProductsScreen", "初始化产品页面时发生错误: ${e.message}", e)
+            hasCompositionError = true
+            compositionErrorMessage = e.message
+        }
+    }
+    
+    // 使用状态机方式处理错误，而不是try-catch
+    if (hasCompositionError) {
+        // 显示友好的错误UI
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Error,
+                    contentDescription = "错误",
+                    modifier = Modifier.size(64.dp),
+                    tint = MaterialTheme.colorScheme.error
+                )
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                Text(
+                    text = "加载产品页面时出现错误",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.error,
+                    textAlign = TextAlign.Center
+                )
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                compositionErrorMessage?.let {
+                    Text(
+                        text = it,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                        textAlign = TextAlign.Center
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                Button(
+                    onClick = {
+                        navController.navigate(NavigationItem.Orders.route) {
+                            popUpTo(NavigationItem.Products.route) { inclusive = true }
+                        }
+                    }
+                ) {
+                    Text("返回订单页面")
+                }
+            }
+        }
+    } else {
+        // 正常渲染产品内容
+        ProductsScreenContent(
+            navController = navController, 
+            viewModel = viewModel,
+            onError = { error ->
+                Log.e("ProductsScreen", "渲染产品页面时发生错误: $error")
+                hasCompositionError = true
+                compositionErrorMessage = error
+            }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ProductsScreenContent(
+    navController: NavController,
+    viewModel: ProductsViewModel = hiltViewModel(),
+    onError: (String) -> Unit
+) {
+    // 使用状态管理来替代try-catch
+    val isConfigured by viewModel.isConfigured.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
+    val products by viewModel.products.collectAsState()
+    val categories by viewModel.categories.collectAsState()
+    val errorMessage by viewModel.errorMessage.collectAsState()
+    val selectedProduct by viewModel.selectedProduct.collectAsState()
+    val isRefreshing by viewModel.refreshing.collectAsState()
+    
+    // 添加日志跟踪产品数量变化，但避免过多日志
+    LaunchedEffect(products.size) {
+        Log.d("ProductsScreen", "产品列表更新，当前数量: ${products.size}")
+    }
+    
+    val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
+    
+    // 当进入此屏幕时执行刷新操作 - 仅当配置有效时触发一次
+    LaunchedEffect(key1 = isConfigured) {
+        if (isConfigured) {
+            Log.d("ProductsScreen", "配置有效，检查并刷新数据")
+            viewModel.checkAndRefreshConfig()
+        }
+    }
+    
+    // 显示错误消息
+    LaunchedEffect(errorMessage) {
+        errorMessage?.let {
+            coroutineScope.launch {
+                snackbarHostState.showSnackbar(it)
+                viewModel.clearError()
+            }
+        }
+    }
+    
+    // 优化防抖动延迟逻辑，提供更长的缓冲时间
+    var showErrorScreen by remember { mutableStateOf(false) }
+    var errorMessageForDisplay by remember { mutableStateOf<String?>(null) }
+    
+    // 使用更长的延迟时间，确保有足够的加载时间
+    LaunchedEffect(errorMessage, isLoading) {
+        if (errorMessage != null && !isLoading) {
+            // 保存当前错误消息用于显示
+            errorMessageForDisplay = errorMessage
+            // 设置较长的延迟，确保有足够的加载时间（3秒）
+            kotlinx.coroutines.delay(3000)
+            // 如果延迟后错误消息仍然存在且不在加载中，才显示错误界面
+            if (errorMessage != null && !isLoading) {
+                showErrorScreen = true
+                Log.d("ProductsScreen", "显示错误界面: $errorMessage")
+            }
+        } else {
+            // 如果错误消息消失或开始加载，立即隐藏错误界面
+            showErrorScreen = false
+        }
+    }
+    
+    var searchQuery by remember { mutableStateOf("") }
+    var showProductDetail by remember { mutableStateOf(false) }
+    var selectedCategoryId by remember { mutableStateOf<Long?>(null) }
+    
+    // 添加切换分类时的加载状态跟踪
+    var isSwitchingCategory by remember { mutableStateOf(false) }
+    
+    // 记录上一次显示的产品列表，用于平滑过渡
+    var previousProducts by remember { mutableStateOf<List<Product>>(emptyList()) }
+    
+    // 分类加载时的过渡动画控制
+    var fadeTransition by remember { mutableStateOf(1f) }
+    
+    // 更新产品数据的副作用 - 优化性能
+    LaunchedEffect(products.size) {
+        // 当获取到新数据时，更新上一次的产品列表
+        if (products.isNotEmpty() && !isLoading) {
+            previousProducts = products
+            fadeTransition = 1f
+        }
+    }
+    
+    // 监听加载状态变化 - 只关注实际状态变化
+    LaunchedEffect(isLoading, isSwitchingCategory) {
+        if (isLoading && isSwitchingCategory) {
+            // 加载开始时，逐渐降低透明度但不完全消失
+            fadeTransition = 0.7f  // 更高的透明度，提高可见性
+        } else if (!isLoading) {
+            // 加载完成时，恢复透明度
+            fadeTransition = 1f
+            isSwitchingCategory = false
+        }
+    }
+    
+    // 添加安全超时，防止切换状态卡住
+    LaunchedEffect(isSwitchingCategory) {
+        if (isSwitchingCategory) {
+            // 如果切换状态持续超过3秒，自动重置
+            kotlinx.coroutines.delay(3000)  // 减少超时时间
+            if (isSwitchingCategory) {
+                Log.d("ProductsScreen", "切换分类超时，自动重置状态")
+                isSwitchingCategory = false
+                fadeTransition = 1f
+                // 如果加载状态也卡住了，也重置它
+                if (isLoading) {
+                    viewModel.resetLoadingState()
+                }
+            }
+        }
+    }
+    
+    // 同步ViewModel中的分类ID状态
+    val currentSelectedCategoryId by viewModel.currentSelectedCategoryId.collectAsState()
+    
+    // 确保UI的selectedCategoryId和ViewModel中的保持同步
+    LaunchedEffect(currentSelectedCategoryId) {
+        if (currentSelectedCategoryId != selectedCategoryId) {
+            selectedCategoryId = currentSelectedCategoryId
+            Log.d("ProductsScreen", "同步分类ID: $selectedCategoryId")
+        }
+    }
+    
+    val categoryOptions = if (categories.isEmpty()) {
+        listOf(null to stringResource(id = R.string.all_categories))
+    } else {
+        listOf(null to stringResource(id = R.string.all_categories)) + categories
+    }
+    
+    // 使用Surface包装Scaffold，避免布局问题
+    androidx.compose.material3.Surface(
+        modifier = Modifier.fillMaxSize()
+    ) {
+        Scaffold(
+            snackbarHost = { SnackbarHost(snackbarHostState) }
+        ) { paddingValues ->
+            // 主要内容区域
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+            ) {
+                // 根据不同状态显示不同内容
+                when {
+                    // 如果API未配置或配置错误
+                    !isConfigured -> {
+                        UnconfiguredView(
+                            errorMessage = errorMessage,
+                            onSettingsClick = { navController.navigate(NavigationItem.Settings.route) }
+                        )
+                    }
+                    // 如果有错误但API配置正确（如获取数据失败）
+                    showErrorScreen -> {
+                        ErrorView(
+                            errorMessage = errorMessageForDisplay,
+                            onRetryClick = { 
+                                viewModel.clearError()
+                                viewModel.refreshData() 
+                            },
+                            onSettingsClick = { navController.navigate(NavigationItem.Settings.route) }
+                        )
+                    }
+                    // 无数据时显示加载界面
+                    products.isEmpty() -> {
+                        LoadingProductsView()
+                    }
+                    // 显示产品列表（默认情况）
+                    else -> {
+                        ProductsContent(
+                            products = products,
+                            previousProducts = previousProducts,
+                            isLoading = isLoading,
+                            isRefreshing = isRefreshing,
+                            isSwitchingCategory = isSwitchingCategory,
+                            fadeTransition = fadeTransition,
+                            searchQuery = searchQuery,
+                            selectedCategoryId = selectedCategoryId,
+                            categoryOptions = categoryOptions,
+                            onSearchChange = { query ->
+                                searchQuery = query
+                                if (query.isEmpty()) {
+                                    Log.d("ProductsScreen", "清空搜索，恢复分类过滤: 分类ID=${selectedCategoryId}")
+                                    viewModel.filterProductsByCategory(selectedCategoryId)
+                                } else {
+                                    Log.d("ProductsScreen", "执行产品搜索: 关键词='$query'")
+                                    viewModel.searchProducts(query)
+                                }
+                            },
+                            onCategorySelect = { id, name ->
+                                // 如果选择了不同的分类，设置切换状态标志
+                                if (selectedCategoryId != id) {
+                                    isSwitchingCategory = true
+                                    // 在开始新的加载前，保存当前产品列表作为过渡
+                                    if (products.isNotEmpty()) {
+                                        previousProducts = products
+                                    }
+                                    fadeTransition = 0.7f
+                                }
+                                selectedCategoryId = id
+                                Log.d("ProductsScreen", "选择产品分类: ID=${id}, 名称='$name'")
+                                viewModel.filterProductsByCategory(id)
+                            },
+                            onProductClick = { productId ->
+                                viewModel.getProductDetails(productId)
+                                showProductDetail = true
+                            },
+                            onRefreshClick = { viewModel.refreshData() }
+                        )
+                    }
+                }
+                
+                // 产品详情弹窗
+                if (showProductDetail && selectedProduct != null) {
+                    ProductDetailDialog(
+                        product = selectedProduct!!,
+                        onDismiss = { 
+                            showProductDetail = false
+                            viewModel.clearSelectedProduct()
+                        },
+                        onUpdate = { updatedProduct ->
+                            viewModel.updateProduct(updatedProduct)
+                            showProductDetail = false
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun UnconfiguredView(
+    errorMessage: String?,
+    onSettingsClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            imageVector = Icons.Default.Info,
+            contentDescription = null,
+            modifier = Modifier.size(72.dp),
+            tint = MaterialTheme.colorScheme.primary
+        )
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        Text(
+            text = stringResource(id = R.string.error_api_not_configured),
+            style = MaterialTheme.typography.headlineSmall,
+            textAlign = TextAlign.Center
+        )
+        
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        Text(
+            text = errorMessage?.toString() ?: "WooCommerce API未配置",
+            style = MaterialTheme.typography.bodyMedium,
+            textAlign = TextAlign.Center,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        
+        Spacer(modifier = Modifier.height(24.dp))
+        
+        Button(
+            onClick = onSettingsClick,
+            modifier = Modifier.padding(8.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Settings,
+                contentDescription = null,
+                modifier = Modifier.size(ButtonDefaults.IconSize)
+            )
+            Spacer(modifier = Modifier.width(ButtonDefaults.IconSpacing))
+            Text(text = stringResource(id = R.string.go_to_settings))
+        }
+    }
+}
+
+@Composable
+fun ErrorView(
+    errorMessage: String?,
+    onRetryClick: () -> Unit,
+    onSettingsClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            imageVector = Icons.Default.Error,
+            contentDescription = null,
+            modifier = Modifier.size(72.dp),
+            tint = MaterialTheme.colorScheme.error
+        )
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        Text(
+            text = stringResource(id = R.string.error_loading_products),
+            style = MaterialTheme.typography.headlineSmall,
+            textAlign = TextAlign.Center
+        )
+        
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        Text(
+            text = errorMessage?.toString() ?: "未知错误",
+            style = MaterialTheme.typography.bodyMedium,
+            textAlign = TextAlign.Center,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        
+        Spacer(modifier = Modifier.height(24.dp))
+        
+        Row(
+            horizontalArrangement = Arrangement.Center,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Button(
+                onClick = onRetryClick,
+                modifier = Modifier.padding(horizontal = 8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Refresh,
+                    contentDescription = null,
+                    modifier = Modifier.size(ButtonDefaults.IconSize)
+                )
+                Spacer(modifier = Modifier.width(ButtonDefaults.IconSpacing))
+                Text(text = stringResource(id = R.string.retry))
+            }
+            
+            Button(
+                onClick = onSettingsClick,
+                modifier = Modifier.padding(horizontal = 8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Settings,
+                    contentDescription = null,
+                    modifier = Modifier.size(ButtonDefaults.IconSize)
+                )
+                Spacer(modifier = Modifier.width(ButtonDefaults.IconSpacing))
+                Text(text = stringResource(id = R.string.check_settings))
+            }
+        }
+    }
+}
+
+@Composable
+fun LoadingProductsView() {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        CircularProgressIndicator(
+            modifier = Modifier.size(48.dp),
+            color = MaterialTheme.colorScheme.primary
+        )
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        Text(
+            text = stringResource(id = R.string.loading_products),
+            style = MaterialTheme.typography.headlineSmall,
+            textAlign = TextAlign.Center
+        )
+        
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        Text(
+            text = stringResource(id = R.string.loading_message),
+            style = MaterialTheme.typography.bodyMedium,
+            textAlign = TextAlign.Center,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+// 保留原来的EmptyProductsView作为备用，但不再直接使用
+@Composable
+private fun EmptyProductsView(onRefreshClick: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.List,
+            contentDescription = null,
+            modifier = Modifier.size(72.dp),
+            tint = MaterialTheme.colorScheme.secondary
+        )
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        Text(
+            text = "没有产品数据",
+            style = MaterialTheme.typography.headlineSmall,
+            textAlign = TextAlign.Center
+        )
+        
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        Text(
+            text = "您的WooCommerce商店中可能还没有产品，或API访问权限不足",
+            style = MaterialTheme.typography.bodyMedium,
+            textAlign = TextAlign.Center,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        
+        Spacer(modifier = Modifier.height(24.dp))
+        
+        Button(
+            onClick = onRefreshClick,
+            modifier = Modifier.padding(8.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Refresh,
+                contentDescription = null,
+                modifier = Modifier.size(ButtonDefaults.IconSize)
+            )
+            Spacer(modifier = Modifier.width(ButtonDefaults.IconSpacing))
+            Text(text = "刷新数据")
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ProductsContent(
+    products: List<Product>,
+    previousProducts: List<Product>,
+    isLoading: Boolean,
+    isRefreshing: Boolean,
+    isSwitchingCategory: Boolean,
+    fadeTransition: Float,
+    searchQuery: String,
+    selectedCategoryId: Long?,
+    categoryOptions: List<Pair<Long?, String>>,
+    onSearchChange: (String) -> Unit,
+    onCategorySelect: (Long?, String) -> Unit,
+    onProductClick: (Long) -> Unit,
+    onRefreshClick: () -> Unit
+) {
+    // 使用key来防止列表内容重组
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        if (products.isNotEmpty() || isLoading || isSwitchingCategory) {
+            // 顶部提示和刷新按钮
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = stringResource(id = R.string.product_list_title),
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                
+                IconButton(
+                    onClick = onRefreshClick,
+                    modifier = Modifier.size(48.dp),
+                    enabled = !isRefreshing
+                ) {
+                    if (isRefreshing) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = stringResource(id = R.string.refresh),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // 搜索和过滤
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // 搜索框
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = onSearchChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text(stringResource(id = R.string.search_products_hint)) },
+                    leadingIcon = { 
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = stringResource(id = R.string.search_products)
+                        )
+                    },
+                    trailingIcon = {
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(onClick = { onSearchChange("") }) {
+                                Icon(
+                                    imageVector = Icons.Default.Clear,
+                                    contentDescription = "清除"
+                                )
+                            }
+                        }
+                    },
+                    singleLine = true,
+                    shape = RoundedCornerShape(8.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                    )
+                )
+            }
+            
+            // 分类过滤器 - 水平滚动按钮样式
+            LazyRow(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(horizontal = 8.dp),
+                state = rememberLazyListState()
+            ) {
+                items(categoryOptions) { (id, name) ->
+                    FilterChip(
+                        selected = selectedCategoryId == id,
+                        onClick = { onCategorySelect(id, name) },
+                        label = { 
+                            Text(
+                                text = name,
+                                style = MaterialTheme.typography.bodyMedium
+                            ) 
+                        },
+                        leadingIcon = if (selectedCategoryId == id) {
+                            {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        } else null,
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // 产品列表区域
+            Box(
+                modifier = Modifier.weight(1f)
+            ) {
+                // 使用过渡效果，保持旧数据可见性直到新数据加载完成
+                val displayProducts = if (isLoading && products.isEmpty() && previousProducts.isNotEmpty()) {
+                    previousProducts 
+                } else {
+                    products
+                }
+                
+                if (displayProducts.isNotEmpty()) {
+                    LazyVerticalGrid(
+                        columns = GridCells.Adaptive(minSize = 150.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .alpha(fadeTransition)
+                    ) {
+                        items(
+                            items = displayProducts,
+                            key = { it.id } // 使用产品ID作为key避免重组
+                        ) { product ->
+                            ProductGridItem(
+                                product = product,
+                                onClick = { onProductClick(product.id) }
+                            )
+                        }
+                    }
+                }
+                
+                // 加载指示器更美观且不遮挡内容
+                if (isLoading || isSwitchingCategory) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .alpha(0.5f), // 降低透明度，使背景内容更可见
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Card(
+                            modifier = Modifier.padding(16.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)
+                            ),
+                            shape = RoundedCornerShape(8.dp),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.padding(16.dp)
+                            ) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(36.dp)
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = if (isSwitchingCategory) stringResource(id = R.string.switching_category) else stringResource(id = R.string.loading_products),
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ProductGridItem(
+    product: Product,
+    onClick: () -> Unit
+) {
+    Card(
+        onClick = onClick,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(220.dp),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = 2.dp
+        )
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(8.dp),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            // 顶部容器（图片和标题）
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.weight(1f)
+            ) {
+                // 产品图片
+                Box(
+                    modifier = Modifier
+                        .size(100.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .align(Alignment.CenterHorizontally),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (product.images.isNotEmpty()) {
+                        AsyncImage(
+                            model = ImageRequest.Builder(LocalContext.current)
+                                .data(product.images.first().src)
+                                .crossfade(true)
+                                .build(),
+                            contentDescription = product.name,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop,
+                            error = painterResource(id = R.drawable.ic_launcher_foreground),
+                            placeholder = painterResource(id = R.drawable.ic_launcher_foreground)
+                        )
+                    } else {
+                        // 使用与列表项相同的占位符样式
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(color = MaterialTheme.colorScheme.secondaryContainer),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Restaurant,
+                                contentDescription = product.name,
+                                modifier = Modifier.size(40.dp),
+                                tint = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        }
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                // 产品ID和名称
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    // 产品ID (如B8, C2等)
+                    Text(
+                        text = product.sku.ifEmpty { product.id.toString() },
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                    )
+                    
+                    // 产品名称 - 确保居中对齐
+                    Text(
+                        text = product.name,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+            
+            // 底部容器（价格和库存）
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                // 分隔线
+                Spacer(
+                    modifier = Modifier
+                        .padding(vertical = 4.dp)
+                        .height(1.dp)
+                        .fillMaxWidth()
+                        .background(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f))
+                )
+                
+                // 价格
+                Text(
+                    text = "C$${product.regularPrice}",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                )
+                
+                // 库存
+                Text(
+                    text = if (product.stockStatus == "instock") 
+                             stringResource(id = R.string.stock_status_in_stock)
+                           else 
+                             stringResource(id = R.string.stock_status_out_of_stock),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (product.stockStatus == "instock") 
+                        MaterialTheme.colorScheme.primary 
+                    else 
+                        MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ProductDetailDialog(
+    product: Product,
+    onDismiss: () -> Unit,
+    onUpdate: (Product) -> Unit
+) {
+    var regularPrice by remember { mutableStateOf(product.regularPrice) }
+    var stockStatus by remember { mutableStateOf(product.stockStatus) }
+    var stockStatusExpanded by remember { mutableStateOf(false) }
+    
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface
+            ),
+            shape = MaterialTheme.shapes.medium
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = stringResource(id = R.string.product_details),
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center
+                )
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // 产品图片
+                Box(
+                    modifier = Modifier
+                        .size(120.dp)
+                        .clip(RoundedCornerShape(4.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (product.images.isNotEmpty()) {
+                        AsyncImage(
+                            model = ImageRequest.Builder(LocalContext.current)
+                                .data(product.images.first().src)
+                                .crossfade(true)
+                                .build(),
+                            contentDescription = product.name,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop,
+                            error = painterResource(id = R.drawable.ic_launcher_foreground),
+                            placeholder = painterResource(id = R.drawable.ic_launcher_foreground)
+                        )
+                    } else {
+                        // 使用与列表项相同的占位符样式
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(color = MaterialTheme.colorScheme.secondaryContainer),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Restaurant,
+                                contentDescription = product.name,
+                                modifier = Modifier.size(48.dp),
+                                tint = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        }
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // 产品名称
+                Text(
+                    text = product.name,
+                    style = MaterialTheme.typography.titleMedium
+                )
+                
+                if (product.categories.isNotEmpty()) {
+                    Text(
+                        text = stringResource(id = R.string.product_category, product.categories.joinToString(", ") { it.name }),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // 可编辑字段
+                OutlinedTextField(
+                    value = regularPrice,
+                    onValueChange = { regularPrice = it },
+                    label = { Text("价格") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                // 库存状态下拉框
+                ExposedDropdownMenuBox(
+                    expanded = stockStatusExpanded,
+                    onExpandedChange = { stockStatusExpanded = it },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    OutlinedTextField(
+                        value = when(stockStatus) {
+                            "instock" -> stringResource(id = R.string.stock_status_in_stock)
+                            "outofstock" -> stringResource(id = R.string.stock_status_out_of_stock)
+                            else -> stockStatus
+                        },
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text(stringResource(id = R.string.status)) },
+                        modifier = Modifier
+                            .menuAnchor()
+                            .fillMaxWidth(),
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = stockStatusExpanded) }
+                    )
+                    
+                    ExposedDropdownMenu(
+                        expanded = stockStatusExpanded,
+                        onDismissRequest = { stockStatusExpanded = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(id = R.string.stock_status_in_stock)) },
+                            onClick = {
+                                stockStatus = "instock"
+                                stockStatusExpanded = false
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(id = R.string.stock_status_out_of_stock)) },
+                            onClick = {
+                                stockStatus = "outofstock"
+                                stockStatusExpanded = false
+                            }
+                        )
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // 按钮区域
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    Button(
+                        onClick = {
+                            // 创建更新后的产品对象
+                            val updatedProduct = product.copy(
+                                regularPrice = regularPrice,
+                                salePrice = "", // 移除折扣价
+                                stockStatus = stockStatus,
+                                stockQuantity = null, // 不再管理具体库存数量
+                                status = "publish" // 始终使用发布状态
+                            )
+                            Log.d("ProductsScreen", "更新产品: ID=${product.id}, 名称='${product.name}', 价格=${regularPrice}, 库存状态=${stockStatus}")
+                            onUpdate(updatedProduct)
+                        }
+                    ) {
+                        Text(stringResource(id = R.string.save))
+                    }
+                    
+                    Button(
+                        onClick = onDismiss
+                    ) {
+                        Text(stringResource(id = R.string.cancel))
+                    }
+                }
+            }
+        }
+    }
+} 

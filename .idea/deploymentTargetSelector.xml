@@ -4,10 +4,10 @@
     <selectionStates>
       <SelectionState runConfigName="test">
         <option name="selectionMode" value="DROPDOWN" />
-        <DropdownSelection timestamp="2025-04-20T18:34:11.409482100Z">
+        <DropdownSelection timestamp="2025-04-20T19:00:49.844259300Z">
           <Target type="DEFAULT_BOOT">
             <handle>
-              <DeviceId pluginId="PhysicalDevice" identifier="serial=ENJO1CGLEF" />
+              <DeviceId pluginId="LocalEmulator" identifier="path=C:\Users\wuche\.android\avd\Medium_Tablet.avd" />
             </handle>
           </Target>
         </DropdownSelection>
