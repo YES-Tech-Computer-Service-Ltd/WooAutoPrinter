@@ -1305,32 +1305,6 @@ class BluetoothPrinterManager @Inject constructor(
     }
 
     /**
-     * 确保打印内容有适当的结尾，添加特殊触发打印字符
-     */
-    private fun ensureProperEnding(content: String): String {
-        // 添加调试日志
-        Log.d(TAG, "【打印机】添加结尾和触发打印字符")
-        
-        // 确保内容以换行结束
-        val contentWithNewLine = if (content.endsWith("\n")) content else "$content\n"
-        
-        // 添加特殊的打印触发字符和额外的换行符
-        // 只使用控制字符，避免添加任何可见文本
-        val triggerSequence = "\n" + 
-                              // 部分切纸命令 (GS V 1)
-                              "\u001D\u0056\u0001" + 
-                              // 走纸和换行
-                              "\u000A\u000D\u000A" +
-                              // 增加一个空格后立即结束，不添加可见文本
-                              " \u000A"
-        
-        // 记录特殊字符添加情况
-        Log.d(TAG, "【打印机】添加了非可见触发打印字符序列")
-        
-        return contentWithNewLine + triggerSequence
-    }
-    
-    /**
      * 分块打印流程
      * 将打印内容分成小块进行打印，确保每块内容都能被处理
      * @param content 要打印的内容
@@ -1365,7 +1339,7 @@ class BluetoothPrinterManager @Inject constructor(
                     
                     // 每个块之后立即刷新缓冲区，确保完全打印
                     forcePrinterFlush()
-                    delay(500) // 给打印机处理时间
+                    delay(300) // 给打印机处理时间
                 }
                 
                 // 移动到下一块
@@ -1374,31 +1348,39 @@ class BluetoothPrinterManager @Inject constructor(
             
             // 确保所有内容都已打印完毕
             forcePrinterFlush()
-            delay(100) // 减少等待时间
+            delay(100) // 短暂等待确保内容已打印
             
-            // 最后清除缓冲区，但不再单独发送切纸命令
-            Log.d(TAG, "所有内容打印完成，刷新缓冲区")
+            // 在所有内容打印完成后，单独执行切纸命令
+            Log.d(TAG, "所有内容打印完成，单独执行切纸命令")
             
             try {
-                // 添加虚拟微型打印任务，触发硬件执行上一个打印任务中的切纸命令
-                try {
-                    Log.d(TAG, "【打印机】添加虚拟打印任务触发切纸执行")
-                    
-                    // 1. 初始化打印机
-                    currentConnection?.write(byteArrayOf(0x1B, 0x40))  // ESC @
-                    Thread.sleep(50)
-                    
-                    // 2. 小走纸，触发处理
-                    currentConnection?.write(byteArrayOf(0x1B, 0x64, 0x01))  // ESC d 1
-                    Thread.sleep(50)
-                    
-                    Log.d(TAG, "【打印机】虚拟打印任务完成")
-                } catch (e: Exception) {
-                    // 忽略错误继续执行
-                    Log.e(TAG, "【打印机】虚拟打印任务失败: ${e.message}")
-                }
+                // 先进行一次短距离走纸确保内容完全打印并留出切纸空间
+                val feedCommand = byteArrayOf(0x1B, 0x64, 5)  // ESC d 5 - 走纸5行
+                currentConnection?.write(feedCommand)
+                delay(100)
+                
+                // 再初始化打印机
+                val initCommand = byteArrayOf(0x1B, 0x40)  // ESC @
+                currentConnection?.write(initCommand)
+                delay(50)
+                
+                // 直接执行切纸命令，不作为内容的一部分
+                Log.d(TAG, "【打印机】发送切纸命令")
+                val cutCommand = byteArrayOf(0x1D, 0x56, 0x01)  // GS V 1 - 部分切纸
+                currentConnection?.write(cutCommand)
+                delay(200)
+                
+                // 针对某些不能立即执行命令的打印机，发送额外的触发命令
+                val triggerCommands = byteArrayOf(
+                    0x0A, // LF
+                    0x0D, // CR
+                    0x0A  // LF
+                )
+                currentConnection?.write(triggerCommands)
+                
+                Log.d(TAG, "【打印机】切纸命令发送完成")
             } catch (e: Exception) {
-                Log.e(TAG, "【打印机】刷新缓冲区失败: ${e.message}")
+                Log.e(TAG, "【打印机】最终切纸命令失败: ${e.message}")
                 // 打印仍然算成功，只是切纸失败
             }
             
@@ -1453,6 +1435,19 @@ class BluetoothPrinterManager @Inject constructor(
             
             
         """.trimIndent()
+    }
+
+    /**
+     * 确保打印内容有适当的结尾
+     * 只添加必要的换行符，不添加任何控制字符
+     */
+    private fun ensureProperEnding(content: String): String {
+        // 确保内容以换行结束
+        val contentWithNewLine = if (content.endsWith("\n")) content else "$content\n"
+        
+        // 只添加两个额外的换行符，不再添加任何控制字符
+        Log.d(TAG, "【打印机】添加适当的结尾换行符")
+        return "$contentWithNewLine\n\n"
     }
 
     private fun addToPrintQueue(job: PrintJob) {
