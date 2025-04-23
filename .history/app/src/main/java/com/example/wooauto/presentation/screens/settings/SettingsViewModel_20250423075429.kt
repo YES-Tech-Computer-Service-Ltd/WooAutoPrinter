@@ -136,10 +136,6 @@ class SettingsViewModel @Inject constructor(
     private val _defaultTemplateType = MutableStateFlow(TemplateType.FULL_DETAILS)
     val defaultTemplateType: StateFlow<TemplateType> = _defaultTemplateType.asStateFlow()
 
-    // 添加状态消息流
-    private val _statusMessage = MutableStateFlow<String?>(null)
-    val statusMessage: StateFlow<String?> = _statusMessage.asStateFlow()
-
     init {
         Log.d("SettingsViewModel", "初始化ViewModel")
         loadSettings()
@@ -1059,23 +1055,6 @@ class SettingsViewModel @Inject constructor(
     fun handleQrCodeScan() {
         viewModelScope.launch {
             _scanQrCodeEvent.emit(Unit)
-        }
-    }
-
-    /**
-     * 更新状态消息
-     * 用于显示打印机操作的状态信息
-     */
-    private fun updateStatusMessage(message: String) {
-        _connectionErrorMessage.value = message
-        Log.d(TAG, "状态消息更新: $message")
-        
-        // 3秒后清除消息
-        viewModelScope.launch {
-            delay(3000)
-            if (_connectionErrorMessage.value == message) {
-                _connectionErrorMessage.value = null
-            }
         }
     }
 

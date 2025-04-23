@@ -1063,23 +1063,6 @@ class SettingsViewModel @Inject constructor(
     }
 
     /**
-     * 更新状态消息
-     * 用于显示打印机操作的状态信息
-     */
-    private fun updateStatusMessage(message: String) {
-        _connectionErrorMessage.value = message
-        Log.d(TAG, "状态消息更新: $message")
-        
-        // 3秒后清除消息
-        viewModelScope.launch {
-            delay(3000)
-            if (_connectionErrorMessage.value == message) {
-                _connectionErrorMessage.value = null
-            }
-        }
-    }
-
-    /**
      * 执行打印机测试
      */
     fun testPrinter() {
@@ -1128,6 +1111,23 @@ class SettingsViewModel @Inject constructor(
             } catch (e: Exception) {
                 Log.e(TAG, "测试切纸功能失败: ${e.message}", e)
                 updateStatusMessage("切纸测试异常: ${e.message}")
+            }
+        }
+    }
+
+    /**
+     * 更新状态消息
+     * 用于显示打印机操作的状态信息
+     */
+    private fun updateStatusMessage(message: String) {
+        _statusMessage.value = message
+        Log.d(TAG, "状态消息更新: $message")
+        
+        // 3秒后清除消息
+        viewModelScope.launch {
+            delay(3000)
+            if (_statusMessage.value == message) {
+                _statusMessage.value = null
             }
         }
     }
