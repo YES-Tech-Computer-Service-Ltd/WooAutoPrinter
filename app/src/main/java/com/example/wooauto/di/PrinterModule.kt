@@ -11,8 +11,7 @@ import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 
 /**
- * 打印机模块
- * 提供打印相关的依赖
+ * 打印机相关依赖注入模块
  */
 @Module
 @InstallIn(SingletonComponent::class)
@@ -20,6 +19,7 @@ abstract class PrinterModule {
     
     /**
      * 提供打印机管理器实现
+     * 目前使用蓝牙打印机管理器作为默认实现
      */
     @Binds
     @Singleton
@@ -29,6 +29,7 @@ abstract class PrinterModule {
     
     /**
      * 提供订单打印模板实现
+     * 使用默认订单打印模板作为实现
      */
     @Binds
     @Singleton
