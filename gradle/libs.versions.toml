@@ -63,6 +63,7 @@ workRuntimeKtx = "2.10.0"
 playServicesAnalyticsImpl = "18.2.0"
 firebaseFunctionsKtx = "21.1.0"
 annotations = "15.0"
+roomRuntimeAndroid = "2.7.1"
 
 [libraries]
 # Android core
@@ -157,6 +158,7 @@ ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview" }
 play-services-analytics-impl = { group = "com.google.android.gms", name = "play-services-analytics-impl", version.ref = "playServicesAnalyticsImpl" }
 firebase-functions-ktx = { group = "com.google.firebase", name = "firebase-functions-ktx", version.ref = "firebaseFunctionsKtx" }
 annotations = { group = "org.jetbrains", name = "annotations", version.ref = "annotations" }
+androidx-room-runtime-android = { group = "androidx.room", name = "room-runtime-android", version.ref = "roomRuntimeAndroid" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "androidGradlePlugin" }
