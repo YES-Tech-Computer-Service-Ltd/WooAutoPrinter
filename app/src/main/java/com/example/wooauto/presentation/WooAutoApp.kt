@@ -54,7 +54,7 @@ class WooAutoApp {
         @Composable
         fun getContent() {
             // 获取当前语言状态并提供给整个应用
-            val context = LocalContext.current
+            LocalContext.current
             
             // 使用rememberUpdatedState确保每次重组时获取最新的语言状态
             val currentLocale by rememberUpdatedState(LocaleManager.currentLocale)
@@ -78,7 +78,7 @@ class WooAutoApp {
 @Composable
 fun AppContent() {
     val navController = rememberNavController()
-    val context = LocalContext.current
+    LocalContext.current
     
     // 使用currentBackStackEntryAsState获取当前路由
     val navBackStackEntry = navController.currentBackStackEntryAsState()

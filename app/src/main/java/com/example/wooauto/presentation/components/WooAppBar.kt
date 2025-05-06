@@ -23,7 +23,6 @@ import com.example.wooauto.presentation.theme.WooAutoTheme
 @Composable
 fun WooAppBar(
     navController: NavController? = null,
-    onMenuClick: () -> Unit = {}
 ) {
     // 根据当前路径获取标题
     val currentTitle = if (navController != null) {
