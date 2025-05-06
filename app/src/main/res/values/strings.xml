@@ -102,6 +102,7 @@
     <string name="connection_failed">Connection Failed</string>
     <string name="plugin_selection">Order Plugin Selection</string>
     <string name="plugin_woocommerce_food">WooCommerce Food</string>
+    <string name="use_woocommerce_food">Use WooCommerce Food Plugin</string>
     <string name="api_test_success" translatable="false">API connected！</string>
 
     <!-- Printer Setup -->

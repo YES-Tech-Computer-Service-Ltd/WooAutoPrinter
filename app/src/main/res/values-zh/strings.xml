@@ -102,6 +102,7 @@
     <string name="connection_failed">连接失败</string>
     <string name="plugin_selection">订单插件选择</string>
     <string name="plugin_woocommerce_food">WooCommerce Food</string>
+    <string name="use_woocommerce_food">使用WooCommerce Food插件</string>
     <string name="api_test_success">API 连接成功！</string>
 
     <!-- Printer Setup -->
