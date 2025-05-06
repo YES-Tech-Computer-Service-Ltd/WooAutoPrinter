@@ -100,6 +100,7 @@ import com.example.wooauto.navigation.NavigationItem
 import com.example.wooauto.presentation.theme.WooAutoTheme
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -207,10 +208,10 @@ private fun ProductsScreenContent(
     val selectedProduct by viewModel.selectedProduct.collectAsState()
     val isRefreshing by viewModel.refreshing.collectAsState()
     
-    // 添加日志跟踪产品数量变化，但避免过多日志
-    LaunchedEffect(products.size) {
-        Log.d("ProductsScreen", "产品列表更新，当前数量: ${products.size}")
-    }
+//    // 添加日志跟踪产品数量变化，但避免过多日志
+//    LaunchedEffect(products.size) {
+//        Log.d("ProductsScreen", "产品列表更新，当前数量: ${products.size}")
+//    }
     
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
@@ -438,7 +439,7 @@ fun UnconfiguredView(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
+            .padding(horizontal = 12.dp, vertical = 0.dp), // 修改为只有水平padding
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
@@ -670,14 +671,16 @@ fun ProductsContent(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(12.dp) // 减少整体内边距
+                .padding(horizontal = 12.dp, vertical = 0.dp) // 修改为只有水平padding
         ) {
+            Spacer(modifier = Modifier.height(2.dp))
+            
             if (displayProducts.isNotEmpty() || isLoading || isSwitchingCategory) {
-                // 删除了顶部"Product List"标题
-                
                 // 搜索和刷新按钮并排放置
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp), // 减少垂直内边距为4dp
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
@@ -686,7 +689,8 @@ fun ProductsContent(
                         value = searchQuery,
                         onValueChange = onSearchChange,
                         modifier = Modifier.weight(1f),
-                        placeholder = stringResource(id = R.string.search_products_hint)
+                        placeholder = stringResource(id = R.string.search_products_hint),
+                        locale = Locale.getDefault()
                     )
                     
                     // 刷新按钮 - 修改了大小和颜色使变化更明显
@@ -717,7 +721,7 @@ fun ProductsContent(
                 LazyRow(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 6.dp), // 减少垂直边距
+                        .padding(vertical = 2.dp), // 减少垂直边距为2dp
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     contentPadding = PaddingValues(horizontal = 4.dp), // 减少水平内边距
                     state = lazyListState
@@ -1140,7 +1144,8 @@ private fun CustomSearchField(
     value: String,
     onValueChange: (String) -> Unit,
     modifier: Modifier = Modifier,
-    placeholder: String = ""
+    placeholder: String = "",
+    locale: Locale = Locale.getDefault()
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     
@@ -1148,17 +1153,17 @@ private fun CustomSearchField(
         value = value,
         onValueChange = onValueChange,
         modifier = modifier
-            .heightIn(min = 48.dp, max = 56.dp)
+            .heightIn(min = 48.dp, max = 48.dp) // 统一高度为48.dp
             .shadow(
-                elevation = 4.dp,
-                shape = RoundedCornerShape(8.dp),
-                spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+                elevation = 5.dp, // 增加阴影效果
+                shape = RoundedCornerShape(16.dp), // 增加圆角
+                spotColor = Color.Black.copy(alpha = 0.25f)
             )
-            .clip(RoundedCornerShape(8.dp))
-            .background(MaterialTheme.colorScheme.surface), // 使用主题表面颜色
+            .clip(RoundedCornerShape(16.dp)) // 与阴影圆角保持一致
+            .background(Color.White),
         textStyle = MaterialTheme.typography.bodyMedium.copy(
             fontSize = 15.sp,
-            color = MaterialTheme.colorScheme.onSurface
+            color = Color.Black
         ),
         singleLine = true,
         cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
@@ -1169,14 +1174,14 @@ private fun CustomSearchField(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                    .padding(horizontal = 12.dp, vertical = 10.dp), // 增加垂直内边距
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
                     imageVector = Icons.Default.Search,
-                    contentDescription = stringResource(id = R.string.search_products),
-                    modifier = Modifier.size(24.dp),
-                    tint = MaterialTheme.colorScheme.primary  // 使用主题主色调
+                    contentDescription = if (locale.language == "zh") "搜索" else "Search",
+                    modifier = Modifier.size(18.dp),
+                    tint = MaterialTheme.colorScheme.primary
                 )
                 
                 Spacer(modifier = Modifier.width(8.dp))
@@ -1187,7 +1192,7 @@ private fun CustomSearchField(
                             text = placeholder,
                             style = MaterialTheme.typography.bodyMedium,
                             fontSize = 14.sp,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)  // 使用主题颜色
+                            color = Color.Gray.copy(alpha = 0.7f)
                         )
                     }
                     innerTextField()
@@ -1202,9 +1207,9 @@ private fun CustomSearchField(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Clear,
-                            contentDescription = "清除",
-                            modifier = Modifier.size(18.dp),
-                            tint = MaterialTheme.colorScheme.primary  // 使用主题主色调
+                            contentDescription = if (locale.language == "zh") "清除" else "Clear",
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.primary
                         )
                     }
                 }

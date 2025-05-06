@@ -41,6 +41,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -83,164 +85,97 @@ import com.journeyapps.barcodescanner.ScanOptions
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
-    viewModel: SettingsViewModel = hiltViewModel(),
-    navController: NavController
+    navController: NavController,
+    viewModel: SettingsViewModel = hiltViewModel()
 ) {
-    val scrollState = rememberScrollState()
-    val snackbarHostState = remember { SnackbarHostState() }
-    val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
     
-    // API配置相关状态
+    // 获取当前设置
     val siteUrl by viewModel.siteUrl.collectAsState()
     val consumerKey by viewModel.consumerKey.collectAsState()
     val consumerSecret by viewModel.consumerSecret.collectAsState()
-    val pollingInterval by viewModel.pollingInterval.collectAsState()
-    val useWooCommerceFood by viewModel.useWooCommerceFood.collectAsState()
-    val isTestingConnection by viewModel.isTestingConnection.collectAsState()
-    val connectionTestResult by viewModel.connectionTestResult.collectAsState()
     
-    // 获取当前语言
-    val currentLocale by viewModel.currentLocale.collectAsState()
+    // 添加更多初始状态
+    var autoUpdate by remember { mutableStateOf(false) }
     
-    // 预先获取需要在非Composable上下文中使用的字符串资源
-    val scanSuccessText = stringResource(R.string.scan_successful)
-    val scanQrCodePromptText = stringResource(R.string.scan_woocommerce_site_url_qr)
-    val connectionSuccessText = stringResource(R.string.connection_test_success)
-    val connectionFailedText = stringResource(R.string.connection_test_failed)
+    // 预先获取需要用到的字符串资源
     val featureComingSoonText = stringResource(R.string.feature_coming_soon)
     val appVersionText = stringResource(R.string.app_version)
     val fillAllFieldsText = stringResource(R.string.fill_all_fields)
     
-    // 自动化任务状态
-    var automaticOrderProcessing by remember { mutableStateOf(true) }
-    var automaticPrinting by remember { mutableStateOf(false) }
-    var inventoryAlerts by remember { mutableStateOf(true) }
-    var dailyBackup by remember { mutableStateOf(false) }
+    val currentLocale by viewModel.currentLocale.collectAsState(initial = Locale.getDefault())
+
+    // 各种对话框状态
+    var showApiDialog by remember { mutableStateOf(false) }
+    var showLanguageDialog by remember { mutableStateOf(false) }
+    var showAboutDialog by remember { mutableStateOf(false) }
+    var showResetDialog by remember { mutableStateOf(false) }
+    var showLicenseDialog by remember { mutableStateOf(false) }
+    var showTestOrderDialog by remember { mutableStateOf(false) }
+    var showTestResultDialog by remember { mutableStateOf(false) }
     
-    // 默认打印模板选择
-    var selectedTemplate by remember { 
-        mutableStateOf(
-            runBlocking { 
-                viewModel.getDefaultTemplateType() ?: TemplateType.FULL_DETAILS 
+    // 测试订单的结果
+    var testOrderResult by remember { mutableStateOf<String?>(null) }
+    var isTestingApi by remember { mutableStateOf(false) }
+    
+    // 编辑用的临时字段
+    var tempSiteUrl by remember { mutableStateOf(siteUrl) }
+    var tempConsumerKey by remember { mutableStateOf(consumerKey) }
+    var tempConsumerSecret by remember { mutableStateOf(consumerSecret) }
+    var showPassword by remember { mutableStateOf(false) }
+    var pollingIntervalInput by remember { mutableStateOf("30") }
+    var useWooCommerceFoodInput by remember { mutableStateOf(false) }
+    
+    // 显示测试结果对话框
+    if (showTestResultDialog && testOrderResult != null) {
+        AlertDialog(
+            onDismissRequest = { showTestResultDialog = false },
+            title = { Text("API测试结果") },
+            text = {
+                Column {
+                    Text(testOrderResult!!)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showTestResultDialog = false }) {
+                    Text("确定")
+                }
             }
         )
-    }
-    
-    // 自动更新状态
-    var autoUpdate by remember { mutableStateOf(false) }
-    
-    // 显示不同设置对话框的状态
-    var showLanguageDialog by remember { mutableStateOf(false) }
-    var showApiDialog by remember { mutableStateOf(false) }
-    var showAutomationDialog by remember { mutableStateOf(false) }
-    
-    // API设置表单状态
-    var siteUrlInput by remember { mutableStateOf(siteUrl) }
-    var consumerKeyInput by remember { mutableStateOf(consumerKey) }
-    var consumerSecretInput by remember { mutableStateOf(consumerSecret) }
-    var pollingIntervalInput by remember { mutableStateOf(pollingInterval.toString()) }
-    var useWooCommerceFoodInput by remember { mutableStateOf(useWooCommerceFood) }
-    
-    // 注册广播接收器，用于在收到广播时打开API设置对话框
-    androidx.compose.runtime.DisposableEffect(context) {
-        val intentFilter = android.content.IntentFilter("com.example.wooauto.ACTION_OPEN_API_SETTINGS")
-        val receiver = object : android.content.BroadcastReceiver() {
-            override fun onReceive(context: android.content.Context?, intent: android.content.Intent?) {
-                Log.d("SettingsScreen", "收到打开API设置广播")
-                showApiDialog = true
-            }
-        }
-        
-        // 根据API级别使用相应的注册方法
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-            context.registerReceiver(receiver, intentFilter, android.content.Context.RECEIVER_NOT_EXPORTED)
-            Log.d("SettingsScreen", "使用RECEIVER_NOT_EXPORTED标志注册API设置广播接收器(Android 13+)")
-        } else {
-            context.registerReceiver(receiver, intentFilter)
-            Log.d("SettingsScreen", "标准方式注册API设置广播接收器(Android 12及以下)")
-        }
-        
-        // 在效果结束时注销接收器
-        onDispose {
-            try {
-                context.unregisterReceiver(receiver)
-                Log.d("SettingsScreen", "注销API设置广播接收器")
-            } catch (e: Exception) {
-                Log.e("SettingsScreen", "注销API设置广播接收器失败", e)
-            }
-        }
-    }
-    
-    // 二维码扫描器
-    val barcodeLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
-        result.contents?.let { scanResult ->
-            // 不直接设置siteUrlInput，而是交给ViewModel处理
-            viewModel.handleQrCodeResult(scanResult)
-            coroutineScope.launch {
-                snackbarHostState.showSnackbar(scanSuccessText)
-            }
-        }
-    }
-    
-    // 处理二维码扫描事件
-    LaunchedEffect(viewModel) {
-        viewModel.scanQrCodeEvent.collect {
-            val options = ScanOptions().apply {
-                setPrompt(scanQrCodePromptText)
-                setBeepEnabled(true)
-                setOrientationLocked(false)
-            }
-            barcodeLauncher.launch(options)
-        }
-    }
-    
-    // 当配置发生变化时更新输入值
-    LaunchedEffect(siteUrl, consumerKey, consumerSecret, pollingInterval, useWooCommerceFood) {
-        siteUrlInput = siteUrl
-        consumerKeyInput = consumerKey
-        consumerSecretInput = consumerSecret
-        pollingIntervalInput = pollingInterval.toString()
-        useWooCommerceFoodInput = useWooCommerceFood
-    }
-    
-    // 连接测试结果处理
-    LaunchedEffect(connectionTestResult) {
-        connectionTestResult?.let {
-            when (it) {
-                is SettingsViewModel.ConnectionTestResult.Success -> {
-                    coroutineScope.launch {
-                        snackbarHostState.showSnackbar(connectionSuccessText)
-                    }
-                }
-                is SettingsViewModel.ConnectionTestResult.Error -> {
-                    coroutineScope.launch {
-                        snackbarHostState.showSnackbar(connectionFailedText + ": " + it.message)
-                    }
-                }
-            }
-            viewModel.clearConnectionTestResult()
-        }
     }
     
     Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { 
+                    Text(
+                        text = stringResource(id = R.string.settings),
+                        style = MaterialTheme.typography.titleMedium
+                    ) 
+                },
+                modifier = Modifier
+                    .height(56.dp) // 设置固定高度
+                    .fillMaxWidth(),
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    titleContentColor = MaterialTheme.colorScheme.onPrimary
+                )
+            )
+        },
         snackbarHost = { SnackbarHost(snackbarHostState) }
-    ) { paddingValues ->
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-                .padding(paddingValues)
-            .padding(16.dp)
-            .verticalScroll(scrollState)
-    ) {
-        Text(
-                text = stringResource(R.string.settings),
-            style = MaterialTheme.typography.headlineMedium,
-            color = MaterialTheme.colorScheme.primary
-        )
-        
-        Spacer(modifier = Modifier.height(16.dp))
-        
+    ) { innerPadding ->
+        // 设置页面的内容
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .padding(horizontal = 16.dp)
+                .verticalScroll(rememberScrollState())
+        ) {
+            Spacer(modifier = Modifier.height(8.dp))
+
             // API配置卡片
             SettingsCategoryCard {
                 SettingsNavigationItem(
@@ -250,31 +185,31 @@ fun SettingsScreen(
                     } else {
                         stringResource(R.string.api_not_configured)
                     },
-            icon = Icons.Filled.Cloud,
+                    icon = Icons.Filled.Cloud,
                     onClick = {
                         Log.d("设置导航", "点击了API配置项")
                         showApiDialog = true
                     }
                 )
-        }
-        
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        // 自动化任务卡片
-        SettingsCategoryCard {
-            SettingsNavigationItem(
-                title = stringResource(R.string.automation_tasks),
-                subTitle = stringResource(R.string.automatic_order_processing_desc),
-                icon = Icons.Filled.AutoAwesome,
-                onClick = {
-                    Log.d("设置导航", "点击了自动化任务项")
-                    navController.navigate(Screen.AutomationSettings.route)
-                }
-            )
-        }
-        
-        Spacer(modifier = Modifier.height(16.dp))
-        
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // 自动化任务卡片
+            SettingsCategoryCard {
+                SettingsNavigationItem(
+                    title = stringResource(R.string.automation_tasks),
+                    subTitle = stringResource(R.string.automatic_order_processing_desc),
+                    icon = Icons.Filled.AutoAwesome,
+                    onClick = {
+                        Log.d("设置导航", "点击了自动化任务项")
+                        navController.navigate(Screen.AutomationSettings.route)
+                    }
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
             // 其他设置卡片
             SettingsCategoryCard {
                 SettingsNavigationItem(
@@ -324,7 +259,13 @@ fun SettingsScreen(
                 SettingItem(
                     icon = Icons.Outlined.Language,
                     title = stringResource(id = R.string.language),
-                    subtitle = if (currentLocale.language == "zh") stringResource(id = R.string.chinese) else stringResource(id = R.string.english),
+                    subtitle = remember(currentLocale) { 
+                        when (currentLocale.language) {
+                            "zh" -> "中文"
+                            "en" -> "English"
+                            else -> "English"
+                        }
+                    },
                     onClick = {
                         Log.d("设置", "点击了语言设置")
                         showLanguageDialog = true
@@ -443,13 +384,13 @@ fun SettingsScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             OutlinedTextField(
-                                value = siteUrlInput,
-                                onValueChange = { siteUrlInput = it },
+                                value = tempSiteUrl,
+                                onValueChange = { tempSiteUrl = it },
                                 label = { Text(stringResource(R.string.website_url)) },
                                 placeholder = { Text(stringResource(R.string.website_url_placeholder)) },
                                 singleLine = true,
                                 modifier = Modifier.weight(1f),
-                                isError = !siteUrlInput.contains("http")
+                                isError = !tempSiteUrl.contains("http")
                             )
                             
                             IconButton(
@@ -465,13 +406,13 @@ fun SettingsScreen(
                         Spacer(modifier = Modifier.height(16.dp))
                         
                         OutlinedTextField(
-                            value = consumerKeyInput,
-                            onValueChange = { consumerKeyInput = it },
+                            value = tempConsumerKey,
+                            onValueChange = { tempConsumerKey = it },
                             label = { Text(stringResource(R.string.api_key)) },
                             placeholder = { Text(stringResource(R.string.api_key_placeholder)) },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
-                            isError = consumerKeyInput.contains("http"),
+                            isError = tempConsumerKey.contains("http"),
                             colors = OutlinedTextFieldDefaults.colors(
                                 errorBorderColor = MaterialTheme.colorScheme.error,
                                 errorLabelColor = MaterialTheme.colorScheme.error
@@ -481,13 +422,13 @@ fun SettingsScreen(
                         Spacer(modifier = Modifier.height(16.dp))
                         
                         OutlinedTextField(
-                            value = consumerSecretInput,
-                            onValueChange = { consumerSecretInput = it },
+                            value = tempConsumerSecret,
+                            onValueChange = { tempConsumerSecret = it },
                             label = { Text(stringResource(R.string.api_secret)) },
                             placeholder = { Text(stringResource(R.string.api_secret_placeholder)) },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
-                            isError = consumerSecretInput.contains("http"),
+                            isError = tempConsumerSecret.contains("http"),
                             colors = OutlinedTextFieldDefaults.colors(
                                 errorBorderColor = MaterialTheme.colorScheme.error,
                                 errorLabelColor = MaterialTheme.colorScheme.error
@@ -496,10 +437,10 @@ fun SettingsScreen(
                         
                         OutlinedTextField(
                             value = pollingIntervalInput,
-                            onValueChange = { 
+                            onValueChange = { newValue -> 
                                 // 确保只输入数字
-                                if (it.isEmpty() || it.all { char -> char.isDigit() }) {
-                                    pollingIntervalInput = it
+                                if (newValue.isEmpty() || newValue.all { char -> char.isDigit() }) {
+                                    pollingIntervalInput = newValue
                                 }
                             },
                             label = { Text(stringResource(R.string.polling_interval)) },
@@ -526,7 +467,7 @@ fun SettingsScreen(
                             )
                         }
                         
-                        if (isTestingConnection) {
+                        if (isTestingApi) {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -551,11 +492,11 @@ fun SettingsScreen(
                     ) {
                         TextButton(
                             onClick = {
-                                if (siteUrlInput.isNotEmpty() && consumerKeyInput.isNotEmpty() && consumerSecretInput.isNotEmpty()) {
+                                if (tempSiteUrl.isNotEmpty() && tempConsumerKey.isNotEmpty() && tempConsumerSecret.isNotEmpty()) {
                                     // 保存配置
-                                    viewModel.updateSiteUrl(siteUrlInput)
-                                    viewModel.updateConsumerKey(consumerKeyInput)
-                                    viewModel.updateConsumerSecret(consumerSecretInput)
+                                    viewModel.updateSiteUrl(tempSiteUrl)
+                                    viewModel.updateConsumerKey(tempConsumerKey)
+                                    viewModel.updateConsumerSecret(tempConsumerSecret)
                                     viewModel.updatePollingInterval(pollingIntervalInput.toIntOrNull() ?: 30)
                                     viewModel.updateUseWooCommerceFood(useWooCommerceFoodInput)
                                     
@@ -568,7 +509,7 @@ fun SettingsScreen(
                                     }
                                 }
                             },
-                            enabled = !isTestingConnection
+                            enabled = !isTestingApi
                         ) {
                             Text(stringResource(R.string.save_and_test))
                         }
