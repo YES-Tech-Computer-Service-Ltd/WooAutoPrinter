@@ -22,6 +22,8 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import com.example.wooauto.R
 import com.example.wooauto.navigation.NavigationItem
 import com.example.wooauto.presentation.theme.WooAutoTheme
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.room.util.copy
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -68,7 +70,12 @@ fun WooAppBar(
             navigationIconContentColor = MaterialTheme.colorScheme.onPrimary,
             actionIconContentColor = MaterialTheme.colorScheme.onPrimary
         ),
-        windowInsets = TopAppBarDefaults.windowInsets
+        windowInsets = TopAppBarDefaults.windowInsets.copy(
+            top = 0.dp,
+            bottom = 0.dp,
+            start = 0.dp,
+            end = 0.dp
+        )
     )
 }
 

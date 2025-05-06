@@ -156,7 +156,12 @@ fun SoundSettingsScreen(
                     navigationIconContentColor = MaterialTheme.colorScheme.onPrimary,
                     actionIconContentColor = MaterialTheme.colorScheme.onPrimary
                 ),
-                windowInsets = TopAppBarDefaults.windowInsets
+                windowInsets = TopAppBarDefaults.windowInsets.copy(
+                    top = 0.dp,
+                    bottom = 0.dp,
+                    start = 0.dp,
+                    end = 0.dp
+                )
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },

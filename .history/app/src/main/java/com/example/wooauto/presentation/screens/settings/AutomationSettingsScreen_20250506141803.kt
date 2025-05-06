@@ -81,7 +81,10 @@ fun AutomationSettingsScreen(
                     titleContentColor = MaterialTheme.colorScheme.onPrimary,
                     navigationIconContentColor = MaterialTheme.colorScheme.onPrimary
                 ),
-                windowInsets = TopAppBarDefaults.windowInsets
+                windowInsets = TopAppBarDefaults.windowInsets.copyInsets(
+                    top = 0.dp,
+                    bottom = 0.dp
+                )
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
