@@ -147,166 +147,188 @@ fun SettingsScreen(
     }
     
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { 
-                    Text(
-                        text = stringResource(id = R.string.settings),
-                        style = MaterialTheme.typography.titleMedium
-                    ) 
-                },
-                modifier = Modifier
-                    .height(56.dp) // 设置固定高度
-                    .fillMaxWidth(),
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary
-                )
-            )
-        },
-        snackbarHost = { SnackbarHost(snackbarHostState) }
-    ) { innerPadding ->
-        // 设置页面的内容
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
+    ) { paddingValues ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
-                .padding(horizontal = 16.dp)
-                .verticalScroll(rememberScrollState())
+                .padding(
+                    top = 0.dp,
+                    bottom = 0.dp,
+                    start = 0.dp,
+                    end = 0.dp
+                )
         ) {
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // API配置卡片
-            SettingsCategoryCard {
-                SettingsNavigationItem(
-                    title = stringResource(R.string.api_configuration),
-                    subTitle = if (siteUrl.isNotEmpty() && consumerKey.isNotEmpty() && consumerSecret.isNotEmpty()) {
-                        stringResource(R.string.api_configured)
-                    } else {
-                        stringResource(R.string.api_not_configured)
-                    },
-                    icon = Icons.Filled.Cloud,
-                    onClick = {
-                        Log.d("设置导航", "点击了API配置项")
-                        showApiDialog = true
-                    }
-                )
-            }
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            // 自动化任务卡片
-            SettingsCategoryCard {
-                SettingsNavigationItem(
-                    title = stringResource(R.string.automation_tasks),
-                    subTitle = stringResource(R.string.automatic_order_processing_desc),
-                    icon = Icons.Filled.AutoAwesome,
-                    onClick = {
-                        Log.d("设置导航", "点击了自动化任务项")
-                        navController.navigate(Screen.AutomationSettings.route)
-                    }
-                )
-            }
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            // 其他设置卡片
-            SettingsCategoryCard {
-                SettingsNavigationItem(
-                    title = stringResource(R.string.printer_settings),
-                    icon = Icons.Filled.Print,
-                    onClick = {
-                        Log.d("设置导航", "点击了打印设置项")
-                        navController.navigate(Screen.PrinterSettings.route)
-                    }
-                )
-                
-                Spacer(modifier = Modifier.height(8.dp))
-                HorizontalDivider()
-                Spacer(modifier = Modifier.height(8.dp))
-                
-                SettingsNavigationItem(
-                    title = stringResource(R.string.sound_settings),
-                    icon = Icons.Default.VolumeUp,
-                    onClick = {
-                        Log.d("设置导航", "点击了声音设置项")
-                        navController.navigate(Screen.SoundSettings.route)
-                    }
-                )
-                
-                Spacer(modifier = Modifier.height(8.dp))
-                HorizontalDivider()
-                Spacer(modifier = Modifier.height(8.dp))
-                
-                SettingsNavigationItem(
-                    title = stringResource(R.string.store_settings),
-                    icon = Icons.Default.Store,
-                    onClick = { 
-                        /* 导航到店铺设置 */
-                        Log.d("设置导航", "点击了店铺信息设置项")
-                        coroutineScope.launch {
-                            snackbarHostState.showSnackbar(featureComingSoonText)
-                        }
-                    }
-                )
-            }
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            // 应用程序设置
-            SettingsCategoryCard {
-                // 语言设置
-                SettingItem(
-                    icon = Icons.Outlined.Language,
-                    title = stringResource(id = R.string.language),
-                    subtitle = remember(currentLocale) { 
-                        when (currentLocale.language) {
-                            "zh" -> "中文"
-                            "en" -> "English"
-                            else -> "English"
-                        }
-                    },
-                    onClick = {
-                        Log.d("设置", "点击了语言设置")
-                        showLanguageDialog = true
-                    }
-                )
-                
-                Spacer(modifier = Modifier.height(8.dp))
-                HorizontalDivider()
-                
-                // 关于
-                SettingsNavigationItem(
-                    icon = Icons.Outlined.Info,
-                    title = stringResource(R.string.about),
-                    onClick = {
-                        Log.d("设置", "点击了关于")
-                        coroutineScope.launch {
-                            snackbarHostState.showSnackbar(appVersionText)
-                        }
-                    }
-                )
-            }
-            
-            // 自动更新
-            Spacer(modifier = Modifier.height(24.dp))
-            
-            Row(
+            // 外层Column，包含统一的水平内边距
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                    .fillMaxSize()
+                    .padding(horizontal = 12.dp, vertical = 0.dp)
             ) {
-                Text(
-                    text = stringResource(R.string.auto_update),
-                    style = MaterialTheme.typography.bodyLarge
-                )
+                // 增加顶部间距
+                Spacer(modifier = Modifier.height(16.dp))
                 
-                Switch(
-                    checked = autoUpdate,
-                    onCheckedChange = { autoUpdate = it }
-                )
+                // 顶部标题行，类似于其他页面的TopBar
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = stringResource(id = R.string.settings),
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                
+                // 设置页面的内容区域
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // API配置卡片
+                    SettingsCategoryCard {
+                        SettingsNavigationItem(
+                            title = stringResource(R.string.api_configuration),
+                            subTitle = if (siteUrl.isNotEmpty() && consumerKey.isNotEmpty() && consumerSecret.isNotEmpty()) {
+                                stringResource(R.string.api_configured)
+                            } else {
+                                stringResource(R.string.api_not_configured)
+                            },
+                            icon = Icons.Filled.Cloud,
+                            onClick = {
+                                Log.d("设置导航", "点击了API配置项")
+                                showApiDialog = true
+                            }
+                        )
+                    }
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    // 自动化任务卡片
+                    SettingsCategoryCard {
+                        SettingsNavigationItem(
+                            title = stringResource(R.string.automation_tasks),
+                            subTitle = stringResource(R.string.automatic_order_processing_desc),
+                            icon = Icons.Filled.AutoAwesome,
+                            onClick = {
+                                Log.d("设置导航", "点击了自动化任务项")
+                                navController.navigate(Screen.AutomationSettings.route)
+                            }
+                        )
+                    }
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    // 其他设置卡片
+                    SettingsCategoryCard {
+                        SettingsNavigationItem(
+                            title = stringResource(R.string.printer_settings),
+                            icon = Icons.Filled.Print,
+                            onClick = {
+                                Log.d("设置导航", "点击了打印设置项")
+                                navController.navigate(Screen.PrinterSettings.route)
+                            }
+                        )
+                        
+                        Spacer(modifier = Modifier.height(8.dp))
+                        HorizontalDivider()
+                        Spacer(modifier = Modifier.height(8.dp))
+                        
+                        SettingsNavigationItem(
+                            title = stringResource(R.string.sound_settings),
+                            icon = Icons.AutoMirrored.Filled.VolumeUp,
+                            onClick = {
+                                Log.d("设置导航", "点击了声音设置项")
+                                navController.navigate(Screen.SoundSettings.route)
+                            }
+                        )
+                        
+                        Spacer(modifier = Modifier.height(8.dp))
+                        HorizontalDivider()
+                        Spacer(modifier = Modifier.height(8.dp))
+                        
+                        SettingsNavigationItem(
+                            title = stringResource(R.string.store_settings),
+                            icon = Icons.Default.Store,
+                            onClick = { 
+                                /* 导航到店铺设置 */
+                                Log.d("设置导航", "点击了店铺信息设置项")
+                                coroutineScope.launch {
+                                    snackbarHostState.showSnackbar(featureComingSoonText)
+                                }
+                            }
+                        )
+                    }
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    // 应用程序设置
+                    SettingsCategoryCard {
+                        // 语言设置
+                        SettingItem(
+                            icon = Icons.Outlined.Language,
+                            title = stringResource(id = R.string.language),
+                            subtitle = remember(currentLocale) { 
+                                when (currentLocale.language) {
+                                    "zh" -> "中文"
+                                    "en" -> "English"
+                                    else -> "English"
+                                }
+                            },
+                            onClick = {
+                                Log.d("设置", "点击了语言设置")
+                                showLanguageDialog = true
+                            }
+                        )
+                        
+                        Spacer(modifier = Modifier.height(8.dp))
+                        HorizontalDivider()
+                        Spacer(modifier = Modifier.height(8.dp))
+                        
+                        // 关于
+                        SettingsNavigationItem(
+                            icon = Icons.Outlined.Info,
+                            title = stringResource(R.string.about),
+                            onClick = {
+                                Log.d("设置", "点击了关于")
+                                coroutineScope.launch {
+                                    snackbarHostState.showSnackbar(appVersionText)
+                                }
+                            }
+                        )
+                    }
+                    
+                    // 自动更新
+                    Spacer(modifier = Modifier.height(24.dp))
+                    
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = stringResource(R.string.auto_update),
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                        
+                        Switch(
+                            checked = autoUpdate,
+                            onCheckedChange = { autoUpdate = it }
+                        )
+                    }
+
+                    // 底部空间
+                    Spacer(modifier = Modifier.height(24.dp))
+                }
             }
         }
         
@@ -372,7 +394,7 @@ fun SettingsScreen(
             )
         }
         
-        // API配置对话框
+        // API配置对话框  
         if (showApiDialog) {
             AlertDialog(
                 onDismissRequest = { showApiDialog = false },
@@ -449,16 +471,16 @@ fun SettingsScreen(
                                 .padding(vertical = 8.dp)
                         )
                         
+                        // WooCommerce Food设置
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 12.dp),
+                                .padding(vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text(
-                                text = stringResource(R.string.plugin_woocommerce_food),
-                                style = MaterialTheme.typography.bodyMedium
+                                text = stringResource(R.string.use_woocommerce_food)
                             )
                             
                             Switch(
@@ -535,7 +557,7 @@ fun SettingsCategoryCard(
             containerColor = MaterialTheme.colorScheme.surface
         ),
         elevation = CardDefaults.cardElevation(
-            defaultElevation = 2.dp
+            defaultElevation = 5.dp
         )
     ) {
         Column(

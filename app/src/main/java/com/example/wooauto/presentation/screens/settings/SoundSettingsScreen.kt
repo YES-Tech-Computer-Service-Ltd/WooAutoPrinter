@@ -134,31 +134,6 @@ fun SoundSettingsScreen(
     }
     
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { 
-                    Text(
-                        text = stringResource(id = R.string.sound_settings),
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                },
-                modifier = Modifier
-                    .height(56.dp)
-                    .fillMaxWidth(),
-                navigationIcon = {
-                    IconButton(onClick = { navController.navigateUp() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(id = R.string.back))
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary,
-                    actionIconContentColor = MaterialTheme.colorScheme.onPrimary
-                ),
-                windowInsets = TopAppBarDefaults.windowInsets
-            )
-        },
         snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
             Surface(
@@ -190,83 +165,131 @@ fun SoundSettingsScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(scrollState)
-                .padding(16.dp)
+                .padding(
+                    top = 0.dp,
+                    bottom = padding.calculateBottomPadding(),
+                    start = 0.dp,
+                    end = 0.dp
+                )
         ) {
-            // 声音开关
-            SoundEnabledSwitch(
-                enabled = soundEnabled,
-                onEnabledChange = { 
-                    coroutineScope.launch {
-                        viewModel.setSoundEnabled(it)
+            // 外层Column，包含统一的水平内边距
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .padding(horizontal = 12.dp, vertical = 0.dp)
+            ) {
+                // 增加顶部间距
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // 顶部标题行，使用与其他页面一致的样式
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // 返回按钮
+                    IconButton(
+                        onClick = { navController.navigateUp() },
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(id = R.string.back),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
                     }
+                    
+                    // 标题
+                    Text(
+                        text = stringResource(id = R.string.sound_settings),
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.primary
+                    )
                 }
-            )
-            
-            Spacer(modifier = Modifier.height(24.dp))
-            
-            // 音量调节部分
-            Text(
-                text = stringResource(id = R.string.notification_volume),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
-            
-            Spacer(modifier = Modifier.height(8.dp))
-            
-            Text(
-                text = stringResource(id = R.string.notification_volume_desc),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            VolumeSlider(
-                value = volume,
-                onValueChange = { 
-                    coroutineScope.launch {
-                        viewModel.setVolume(it)
-                    }
-                },
-                enabled = soundEnabled
-            )
-            
-            Spacer(modifier = Modifier.height(32.dp))
-            
-            // 声音类型选择部分
-            Text(
-                text = stringResource(id = R.string.sound_type_title),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
-            
-            Spacer(modifier = Modifier.height(8.dp))
-            
-            Text(
-                text = stringResource(id = R.string.sound_type_desc),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            SoundTypeSelector(
-                selectedType = soundType,
-                customSoundUri = customSoundUri,
-                onTypeSelected = { 
-                    coroutineScope.launch {
-                        viewModel.setSoundType(it)
-                    }
-                },
-                onSelectCustomSound = {
-                    openAudioFilePicker()
-                },
-                enabled = soundEnabled
-            )
-            
-            Spacer(modifier = Modifier.height(16.dp)) // 为底部按钮留出空间
+                
+                // 内容区域
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(scrollState)
+                        .padding(vertical = 8.dp)
+                ) {
+                    // 声音开关
+                    SoundEnabledSwitch(
+                        enabled = soundEnabled,
+                        onEnabledChange = { 
+                            coroutineScope.launch {
+                                viewModel.setSoundEnabled(it)
+                            }
+                        }
+                    )
+                    
+                    Spacer(modifier = Modifier.height(24.dp))
+                    
+                    // 音量调节部分
+                    Text(
+                        text = stringResource(id = R.string.notification_volume),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    Text(
+                        text = stringResource(id = R.string.notification_volume_desc),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    VolumeSlider(
+                        value = volume,
+                        onValueChange = { 
+                            coroutineScope.launch {
+                                viewModel.setVolume(it)
+                            }
+                        },
+                        enabled = soundEnabled
+                    )
+                    
+                    Spacer(modifier = Modifier.height(32.dp))
+                    
+                    // 声音类型选择部分
+                    Text(
+                        text = stringResource(id = R.string.sound_type_title),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    Text(
+                        text = stringResource(id = R.string.sound_type_desc),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    SoundTypeSelector(
+                        selectedType = soundType,
+                        customSoundUri = customSoundUri,
+                        onTypeSelected = { 
+                            coroutineScope.launch {
+                                viewModel.setSoundType(it)
+                            }
+                        },
+                        onSelectCustomSound = {
+                            openAudioFilePicker()
+                        },
+                        enabled = soundEnabled
+                    )
+                }
+            }
         }
     }
 }
