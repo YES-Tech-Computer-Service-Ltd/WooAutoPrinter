@@ -21,45 +21,29 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccessTime
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Article
 import androidx.compose.material.icons.filled.AttachMoney
-import androidx.compose.material.icons.filled.Call
-import androidx.compose.material.icons.filled.Cancel
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Payment
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
-import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.ShoppingCart
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Store
 import androidx.compose.material.icons.filled.Tag
 import androidx.compose.material.icons.filled.TextSnippet
@@ -67,20 +51,13 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SmallTopAppBar
-import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -111,53 +88,36 @@ import androidx.navigation.compose.rememberNavController
 import com.example.wooauto.domain.models.Order
 import com.example.wooauto.domain.models.OrderItem
 import com.example.wooauto.navigation.NavigationItem
-import com.example.wooauto.presentation.theme.WooAutoTheme
-import com.example.wooauto.utils.LocaleHelper
-import com.example.wooauto.presentation.screens.settings.SettingsViewModel
-import com.google.gson.Gson
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import org.json.JSONArray
-import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Locale
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.TopAppBar
 import coil.compose.AsyncImage
-import coil.request.CachePolicy
 import coil.request.ImageRequest
 import com.example.wooauto.R
 import com.example.wooauto.utils.LocalAppLocale
-import com.example.wooauto.utils.LocaleManager
 import com.example.wooauto.domain.templates.TemplateType
 import androidx.compose.material3.Divider
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.material.icons.filled.AccountBalance
-import androidx.compose.material.icons.filled.Discount
-import androidx.compose.material.icons.filled.List
-import androidx.compose.material.icons.filled.AttachMoney
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.ime
 import androidx.compose.ui.draw.shadow
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.automirrored.filled.Article
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.automirrored.filled.TextSnippet
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.graphics.SolidColor
+import androidx.core.content.ContextCompat
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -245,6 +205,12 @@ fun OrdersScreen(
             context.registerReceiver(receiver, intentFilter, android.content.Context.RECEIVER_NOT_EXPORTED)
             Log.d("OrdersScreen", "使用RECEIVER_NOT_EXPORTED标志注册订单详情广播接收器(Android 13+)")
         } else {
+            ContextCompat.registerReceiver(
+                context,
+                receiver,
+                intentFilter,
+                ContextCompat.RECEIVER_NOT_EXPORTED
+            )
             Log.d("OrdersScreen", "标准方式注册订单详情广播接收器(Android 12及以下)")
         }
         
@@ -321,227 +287,229 @@ fun OrdersScreen(
             Log.e("OrdersScreen", "监听导航变化出错", e)
         }
     }
-
+    
+    // 根据当前语言环境提供状态选项
+    if (locale.language == "zh") {
+        listOf(
+            "" to "全部状态",
+            "processing" to "处理中",
+            "pending" to "待处理",
+            "on-hold" to "保留",
+            "completed" to "已完成",
+            "cancelled" to "已取消",
+            "refunded" to "已退款",
+            "failed" to "失败"
+        )
+    } else {
+        listOf(
+            "" to "All Status",
+            "processing" to "Processing",
+            "pending" to "Pending",
+            "on-hold" to "On Hold",
+            "completed" to "Completed",
+            "cancelled" to "Cancelled",
+            "refunded" to "Refunded",
+            "failed" to "Failed"
+        )
+    }
     
     Scaffold(
-        // 移除专用的topBar参数，我们将在内容区域内手动添加TopBar
+        topBar = {
+            TopBar(
+                isRefreshing = isRefreshing,
+                onToggleUnreadOrders = { showUnreadOrders = !showUnreadOrders },
+                onRefresh = { viewModel.refreshOrders() },
+                searchQuery = searchQuery,
+                onSearchQueryChange = { searchQuery = it }
+            )
+        },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
-    ) { _ ->
-        // 修改Column的padding，减少顶部padding
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(
-                    top = 0.dp, // 完全移除顶部padding
-                    bottom = 0.dp,
-                    start = 0.dp,
-                    end = 0.dp
-                )
-        ) {
-            // 添加一个外层Column，包含统一的水平内边距
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 12.dp, vertical = 0.dp) // 统一水平内边距
-            ) {
-                // 增加顶部间距
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                // 添加TopBar作为Column的第一个元素
-                TopBar(
-                    isRefreshing = isRefreshing,
-                    showUnreadOrders = showUnreadOrders,
-                    onToggleUnreadOrders = { showUnreadOrders = !showUnreadOrders },
-                    onRefresh = { viewModel.refreshOrders() },
-                    searchQuery = searchQuery,
-                    onSearchQueryChange = { searchQuery = it }
-                )
-                
-                // 包装内容区域到Box中
-                Box(modifier = Modifier.weight(1f)) {
-                    // 先检查是否初始化完成
-                    if (!isInitialized.value) {
-                        // 显示初始化加载界面
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center
-                            ) {
-                                CircularProgressIndicator()
-                                Spacer(modifier = Modifier.height(16.dp))
-                                Text(text = "正在加载订单数据...", style = MaterialTheme.typography.bodyLarge)
-                            }
-                        }
-                    } else if (isLoading && orders.isEmpty()) {
-                        // 已初始化但正在加载且没有订单数据
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            CircularProgressIndicator()
-                        }
-                    } else if (orders.isEmpty() && !isConfigured) {
-                        // 没有订单且API未配置
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(16.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            Text(
-                                text = "请先配置WooCommerce API",
-                                style = MaterialTheme.typography.headlineSmall,
-                                textAlign = TextAlign.Center
-                            )
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Button(
-                                onClick = {
-                                    // 直接导航到设置页面的API设置部分，而非独立页面
-                                    navController.navigate(NavigationItem.Settings.route) {
-                                        // 确保是单一顶部实例
-                                        launchSingleTop = true
-                                    }
-                                    // 发送广播通知设置页面直接打开API设置
-                                    val intent = Intent("com.example.wooauto.ACTION_OPEN_API_SETTINGS")
-                                    context.sendBroadcast(intent)
-                                }
-                            ) {
-                                Text("前往API设置")
-                            }
-                        }
-                    } else if (orders.isEmpty()) {
-                        // 已配置但没有订单
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(16.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            Text(
-                                text = "没有订单数据",
-                                style = MaterialTheme.typography.headlineSmall,
-                                textAlign = TextAlign.Center
-                            )
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Button(
-                                onClick = { viewModel.refreshOrders() }
-                            ) {
-                                Text("刷新")
-                            }
-                        }
-                    } else {
-                        // 有订单数据，显示订单列表
-                        OrdersList(
-                            orders = orders,
-                            showUnreadOnly = showUnreadOrders,
-                            selectedStatus = statusFilter,
-                            searchQuery = searchQuery,
-                            onSelectOrder = { order ->
-                                viewModel.getOrderDetails(order.id)
-                                showOrderDetail = true
-                                // 标记订单为已读
-                                viewModel.markOrderAsRead(order.id)
-                            },
-                            onStatusSelected = { status ->
-                                statusFilter = status
-                                viewModel.filterOrdersByStatus(status)
-                            }
-                        )
-                    }
-                    
-                    // 显示API配置对话框
-                    if (showApiConfigDialog) {
-                        Dialog(
-                            onDismissRequest = { showApiConfigDialog = false },
-                            properties = DialogProperties(dismissOnClickOutside = true)
-                        ) {
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp),
-                                shape = RoundedCornerShape(16.dp)
-                            ) {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(16.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    Text(
-                                        text = if (locale.language == "zh") "请先配置API" else "Please Configure API",
-                                        style = MaterialTheme.typography.headlineSmall,
-                                        textAlign = TextAlign.Center
-                                    )
-                                    
-                                    Spacer(modifier = Modifier.height(16.dp))
-                                    
-                                    Text(
-                                        text = if (locale.language == "zh") 
-                                            "要使用订单功能，您需要先配置WooCommerce API设置。" 
-                                        else 
-                                            "To use the order features, you need to configure the WooCommerce API settings first.",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        textAlign = TextAlign.Center
-                                    )
-                                    
-                                    Spacer(modifier = Modifier.height(24.dp))
-                                    
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Button(
-                                            onClick = { showApiConfigDialog = false },
-                                            modifier = Modifier.weight(1f)
-                                        ) {
-                                            Text(if (locale.language == "zh") "稍后再说" else "Later")
-                                        }
-                                        
-                                        Spacer(modifier = Modifier.width(16.dp))
-                                        
-                                        Button(
-                                            onClick = {
-                                                showApiConfigDialog = false
-                                                navController.navigate(NavigationItem.Settings.route) {
-                                                    launchSingleTop = true
-                                                }
-                                                val intent = Intent("com.example.wooauto.ACTION_OPEN_API_SETTINGS")
-                                                context.sendBroadcast(intent)
-                                            },
-                                            modifier = Modifier.weight(1f)
-                                        ) {
-                                            Text(if (locale.language == "zh") "去设置" else "Settings")
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    
-                    // 订单详情对话框
-                    if (showOrderDetail && selectedOrder != null) {
-                        OrderDetailDialog(
-                            order = selectedOrder!!,
-                            onDismiss = { showOrderDetail = false },
-                            onStatusChange = { orderId, newStatus ->
-                                // 调用状态变更逻辑
-                                viewModel.updateOrderStatus(orderId, newStatus)
-                                // 关闭详情对话框
-                                showOrderDetail = false
-                            },
-                            onPrintClick = { order ->
-                                // 调用打印逻辑
-                                viewModel.printOrder(order)
-                            },
-                            viewModel = viewModel
-                        )
+    ) { paddingValues ->
+        // 修改Box的padding，保留顶部padding但减少底部padding
+        Box(modifier = Modifier.padding(
+            top = paddingValues.calculateTopPadding(),
+            bottom = 0.dp, // 减少底部padding
+            start = 0.dp,
+            end = 0.dp
+        )) {
+            // 先检查是否初始化完成
+            if (!isInitialized.value) {
+                // 显示初始化加载界面
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        CircularProgressIndicator()
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(text = "正在加载订单数据...", style = MaterialTheme.typography.bodyLarge)
                     }
                 }
+            } else if (isLoading && orders.isEmpty()) {
+                // 已初始化但正在加载且没有订单数据
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+            } else if (orders.isEmpty() && !isConfigured) {
+                // 没有订单且API未配置
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = "请先配置WooCommerce API",
+                        style = MaterialTheme.typography.headlineSmall,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Button(
+                        onClick = {
+                            // 直接导航到设置页面的API设置部分，而非独立页面
+                            navController.navigate(NavigationItem.Settings.route) {
+                                // 确保是单一顶部实例
+                                launchSingleTop = true
+                            }
+                            // 发送广播通知设置页面直接打开API设置
+                            val intent = Intent("com.example.wooauto.ACTION_OPEN_API_SETTINGS")
+                            context.sendBroadcast(intent)
+                        }
+                    ) {
+                        Text("前往API设置")
+                    }
+                }
+            } else if (orders.isEmpty()) {
+                // 已配置但没有订单
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = "没有订单数据",
+                        style = MaterialTheme.typography.headlineSmall,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Button(
+                        onClick = { viewModel.refreshOrders() }
+                    ) {
+                        Text("刷新")
+                    }
+                }
+            } else {
+                // 有订单数据，显示订单列表
+                OrdersList(
+                    orders = orders,
+                    showUnreadOnly = showUnreadOrders,
+                    selectedStatus = statusFilter,
+                    searchQuery = searchQuery,
+                    onSelectOrder = { order ->
+                        viewModel.getOrderDetails(order.id)
+                        showOrderDetail = true
+                        // 标记订单为已读
+                        viewModel.markOrderAsRead(order.id)
+                    },
+                    onStatusSelected = { status ->
+                        statusFilter = status
+                        viewModel.filterOrdersByStatus(status)
+                    }
+                )
+            }
+            
+            // 显示API配置对话框
+            if (showApiConfigDialog) {
+                Dialog(
+                    onDismissRequest = { showApiConfigDialog = false },
+                    properties = DialogProperties(dismissOnClickOutside = true)
+                ) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = if (locale.language == "zh") "请先配置API" else "Please Configure API",
+                                style = MaterialTheme.typography.headlineSmall,
+                                textAlign = TextAlign.Center
+                            )
+                            
+                            Spacer(modifier = Modifier.height(16.dp))
+                            
+                            Text(
+                                text = if (locale.language == "zh") 
+                                    "要使用订单功能，您需要先配置WooCommerce API设置。" 
+                                else 
+                                    "To use the order features, you need to configure the WooCommerce API settings first.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                textAlign = TextAlign.Center
+                            )
+                            
+                            Spacer(modifier = Modifier.height(24.dp))
+                            
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Button(
+                                    onClick = { showApiConfigDialog = false },
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text(if (locale.language == "zh") "稍后再说" else "Later")
+                                }
+                                
+                                Spacer(modifier = Modifier.width(16.dp))
+                                
+                                Button(
+                                    onClick = {
+                                        showApiConfigDialog = false
+                                        navController.navigate(NavigationItem.Settings.route) {
+                                            launchSingleTop = true
+                                        }
+                                        val intent = Intent("com.example.wooauto.ACTION_OPEN_API_SETTINGS")
+                                        context.sendBroadcast(intent)
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text(if (locale.language == "zh") "去设置" else "Settings")
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // 订单详情对话框
+            if (showOrderDetail && selectedOrder != null) {
+                OrderDetailDialog(
+                    order = selectedOrder!!,
+                    onDismiss = { showOrderDetail = false },
+                    onStatusChange = { orderId, newStatus ->
+                        // 调用状态变更逻辑
+                        viewModel.updateOrderStatus(orderId, newStatus)
+                    },
+                    onMarkAsPrinted = { orderId ->
+                        // 直接调用标记为已打印的方法，不需要调用打印逻辑
+                        viewModel.markOrderAsPrinted(orderId)
+                    }
+                )
             }
         }
     }
@@ -554,7 +522,6 @@ fun OrdersScreen(
 @Composable
 private fun TopBar(
     isRefreshing: Boolean,
-    showUnreadOrders: Boolean,
     onToggleUnreadOrders: () -> Unit,
     onRefresh: () -> Unit,
     searchQuery: String,
@@ -562,72 +529,73 @@ private fun TopBar(
 ) {
     val locale = LocalAppLocale.current
     
-    // 使用与Products页面一致的普通Row布局，而不是TopAppBar
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp), // 减少垂直内边距为4dp
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        // 搜索框（使用与Products页面一致的样式）
-        CustomSearchField(
-            value = searchQuery,
-            onValueChange = onSearchQueryChange,
-            modifier = Modifier.weight(1f),
-            placeholder = if (locale.language == "zh") "搜索订单..." else "Search orders...",
-            locale = locale
-        )
-        
-        // 未读订单按钮
-        IconButton(
-            onClick = onToggleUnreadOrders,
-            modifier = Modifier.size(40.dp)
-        ) {
-            Box {
+    TopAppBar(
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // 搜索框样式
+                CustomSearchField(
+                    value = searchQuery,
+                    onValueChange = onSearchQueryChange,
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(vertical = 4.dp, horizontal = 4.dp),
+                    placeholder = if (locale.language == "zh") "搜索订单..." else "Search orders...",
+                    locale = locale
+                )
+            }
+        },
+        actions = {
+            // 未读订单按钮
+            IconButton(
+                onClick = onToggleUnreadOrders,
+                modifier = Modifier
+                    .size(44.dp)
+                    .padding(end = 2.dp) // 减少右边距，使按钮更紧凑
+            ) {
                 Icon(
                     imageVector = Icons.Default.Email,
                     contentDescription = if (locale.language == "zh") "未读订单" else "Unread Orders",
-                    tint = if (showUnreadOrders) 
-                        MaterialTheme.colorScheme.primary 
-                    else 
-                        MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(24.dp)
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(22.dp) // 调整图标大小
                 )
-                
-                // 如果选中"未读"模式，添加一个小指示器
-                if (showUnreadOrders) {
-                    Box(
-                        modifier = Modifier
-                            .size(8.dp)
-                            .background(MaterialTheme.colorScheme.primary, CircleShape)
-                            .align(Alignment.TopEnd)
+            }
+            
+            // 刷新按钮
+            IconButton(
+                onClick = onRefresh,
+                enabled = !isRefreshing,
+                modifier = Modifier
+                    .size(44.dp)
+                    .padding(end = 2.dp) // 减少右边距
+            ) {
+                if (isRefreshing) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(22.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = if (locale.language == "zh") "刷新" else "Refresh",
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(22.dp) // 调整图标大小
                     )
                 }
             }
-        }
-        
-        // 刷新按钮
-        IconButton(
-            onClick = onRefresh,
-            modifier = Modifier.size(40.dp),
-            enabled = !isRefreshing
-        ) {
-            if (isRefreshing) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(24.dp),
-                    strokeWidth = 2.dp
-                )
-            } else {
-                Icon(
-                    imageVector = Icons.Default.Refresh,
-                    contentDescription = if (locale.language == "zh") "刷新" else "Refresh",
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(28.dp)
-                )
-            }
-        }
-    }
+        },
+        modifier = Modifier
+            .height(68.dp) // 保持适当的高度
+            .fillMaxWidth(),
+        colors = TopAppBarDefaults.topAppBarColors(
+            containerColor = MaterialTheme.colorScheme.primary,
+            titleContentColor = MaterialTheme.colorScheme.onPrimary,
+            actionIconContentColor = MaterialTheme.colorScheme.onPrimary
+        )
+    )
 }
 
 /**
@@ -657,14 +625,14 @@ private fun OrdersList(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(vertical = 0.dp) // 只保留垂直内边距，水平内边距由外层Column提供
+            .padding(horizontal = 8.dp, vertical = 0.dp) // 移除底部padding
     ) {
         // 状态过滤器
         LazyRow(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 2.dp), // 减少垂直padding为2dp
-            horizontalArrangement = Arrangement.spacedBy(8.dp), // 调整为8.dp，与Products页面一致
+                .padding(top = 2.dp, bottom = 4.dp), // 减少顶部和底部内边距
+            horizontalArrangement = Arrangement.spacedBy(6.dp), // 减少水平间距
             contentPadding = PaddingValues(horizontal = 4.dp)
         ) {
             items(statusOptions) { statusOption ->
@@ -675,18 +643,12 @@ private fun OrdersList(
                     label = { 
                         Text(
                             text = label,
-                            style = MaterialTheme.typography.bodyMedium
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontWeight = if (selectedStatus == status) FontWeight.Bold else FontWeight.Normal,
+                                fontSize = 13.sp // 稍微减小字体大小
+                            )
                         ) 
                     },
-                    leadingIcon = if (selectedStatus == status) {
-                        {
-                            Icon(
-                                imageVector = Icons.Default.Check,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
-                    } else null,
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
                         selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
@@ -694,9 +656,6 @@ private fun OrdersList(
                 )
             }
         }
-        
-        // 添加8dp的垂直间距，与Products页面保持一致
-        Spacer(modifier = Modifier.height(8.dp))
         
         // 订单列表
         val filteredOrders = orders.filter {
@@ -734,7 +693,7 @@ private fun OrdersList(
                     .fillMaxWidth()
                     .weight(1f)
                     .offset(y = 0.dp, x = 0.dp), // 可以添加垂直偏移以调整位置
-                verticalArrangement = Arrangement.spacedBy(8.dp), // 调整为8.dp，与Products页面一致
+                verticalArrangement = Arrangement.spacedBy(4.dp), // 减少项目之间的间距
                 contentPadding = PaddingValues(top = 0.dp, bottom = 2.dp) // 微调底部内边距
             ) {
                 items(filteredOrders) { order ->
@@ -756,7 +715,8 @@ fun OrderCard(
 ) {
     Card(
         modifier = Modifier
-            .fillMaxWidth(),
+            .fillMaxWidth()
+            .padding(horizontal = 6.dp, vertical = 3.dp), // 减少垂直方向的padding
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
@@ -954,30 +914,30 @@ fun OrderDetailDialog(
     order: Order,
     onDismiss: () -> Unit,
     onStatusChange: (Long, String) -> Unit,
-    onPrintClick: (Order) -> Unit,
-    viewModel: OrdersViewModel = hiltViewModel()
+    onMarkAsPrinted: (Long) -> Unit
 ) {
     var showStatusOptions by remember { mutableStateOf(false) }
     var showTemplateOptions by remember { mutableStateOf(false) }
-    
-    // 创建本地备份，以确保在操作过程中不会修改原始对象
-    val displayOrder = remember { order }
+    val viewModel: OrdersViewModel = hiltViewModel()
     val scrollState = rememberScrollState()
-    val locale = LocalAppLocale.current
-
-
     
-    val printStatusColor = if (displayOrder.isPrinted) {
-        Color(0xFF4CAF50)  // 绿色
-    } else {
-        Color(0xFF9E9E9E)  // 灰色
-    }
+    // 观察当前选中的订单，以便实时更新UI
+    val currentOrder by viewModel.selectedOrder.collectAsState()
     
-    val printStatusText = if (displayOrder.isPrinted) {
-        if (locale.language == "zh") "已打印" else "Printed"
-    } else {
-        if (locale.language == "zh") "未打印" else "Not Printed"
-    }
+    // 使用当前的订单信息（如果有更新）或者传入的订单
+    val displayOrder = currentOrder ?: order
+    
+    // 记录订单信息用于调试
+    Log.d("OrderDetailDialog", "【打印状态修复】初始化订单详情对话框:")
+    Log.d("OrderDetailDialog", "【打印状态修复】传入的order: ID=${order.id}, 打印状态=${order.isPrinted}")
+    Log.d("OrderDetailDialog", "【打印状态修复】currentOrder: ID=${currentOrder?.id}, 打印状态=${currentOrder?.isPrinted}")
+    Log.d("OrderDetailDialog", "【打印状态修复】最终使用的displayOrder: ID=${displayOrder.id}, 打印状态=${displayOrder.isPrinted}")
+    
+    // 定义打印状态相关变量
+    val printStatusText = if (displayOrder.isPrinted) stringResource(R.string.printed_yes) else stringResource(R.string.printed_no)
+    val printStatusColor = if (displayOrder.isPrinted) Color(0xFF4CAF50) else Color(0xFFE53935)
+    
+    Log.d("OrderDetailDialog", "显示订单详情，订单ID: ${displayOrder.id}, 打印状态: ${displayOrder.isPrinted}")
     
     Dialog(
         onDismissRequest = onDismiss,
@@ -1036,7 +996,7 @@ fun OrderDetailDialog(
                         }
                     )
                 }
-            ) { _ ->
+            ) { paddingValues ->
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1148,7 +1108,7 @@ fun OrderDetailDialog(
                             Spacer(modifier = Modifier.width(16.dp))
                             
                             OutlinedButton(
-                                onClick = { onPrintClick(displayOrder) },
+                                onClick = { onMarkAsPrinted(displayOrder.id) },
                                 modifier = Modifier.height(28.dp),
                                 contentPadding = PaddingValues(horizontal = 8.dp)
                             ) {
@@ -1478,7 +1438,6 @@ fun OrderDetailDialog(
                             )
                         }
                     }
-
                     
                     // 记录一下所有税费行，方便调试
                     if (displayOrder.taxLines.isNotEmpty()) {
@@ -2300,7 +2259,7 @@ private fun CustomSearchField(
     onValueChange: (String) -> Unit,
     modifier: Modifier = Modifier,
     placeholder: String = "",
-    locale: Locale = Locale.getDefault()
+    locale: Locale
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     
@@ -2308,13 +2267,13 @@ private fun CustomSearchField(
         value = value,
         onValueChange = onValueChange,
         modifier = modifier
-            .heightIn(min = 48.dp, max = 48.dp) // 统一高度为48.dp
+            .heightIn(min = 48.dp, max = 56.dp)
             .shadow(
-                elevation = 5.dp, // 增加阴影效果
-                shape = RoundedCornerShape(16.dp), // 增加圆角
-                spotColor = Color.Black.copy(alpha = 0.25f)
+                elevation = 4.dp,
+                shape = RoundedCornerShape(12.dp),
+                spotColor = Color.Black.copy(alpha = 0.2f)
             )
-            .clip(RoundedCornerShape(16.dp)) // 与阴影圆角保持一致
+            .clip(RoundedCornerShape(12.dp))
             .background(Color.White),
         textStyle = MaterialTheme.typography.bodyMedium.copy(
             fontSize = 15.sp,
@@ -2323,13 +2282,13 @@ private fun CustomSearchField(
         singleLine = true,
         cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-        keyboardActions = KeyboardActions(onSearch = { /* 可以触发搜索动作 */ }),
+//        keyboardActions = KeyboardActions(onSearch = { /* TODO: 可以触发搜索动作 */ }),
         interactionSource = interactionSource,
         decorationBox = { innerTextField ->
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 10.dp), // 增加垂直内边距
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(

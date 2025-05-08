@@ -351,7 +351,7 @@ fun NewOrderPopup(
     onViewDetails: () -> Unit,
     onPrintOrder: () -> Unit
 ) {
-    val scrollState = rememberScrollState()
+    rememberScrollState()
     val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
     val formattedDate = dateFormat.format(order.dateCreated)
     
@@ -359,7 +359,7 @@ fun NewOrderPopup(
     val totalItems = order.items.sumOf { it.quantity }
     
     // 定义未读样式
-    val unreadBadgeColor = MaterialTheme.colorScheme.error
+    MaterialTheme.colorScheme.error
     
     Dialog(
         onDismissRequest = onDismiss,

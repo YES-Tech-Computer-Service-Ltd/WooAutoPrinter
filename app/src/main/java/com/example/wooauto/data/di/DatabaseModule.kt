@@ -36,7 +36,7 @@ object DatabaseModule {
             AppDatabase::class.java,
             "wooauto_database"
         )
-        .fallbackToDestructiveMigration() // 当数据库版本更新时，将删除旧数据库并创建新的（适用于开发阶段）
+            .fallbackToDestructiveMigration(false) // 当数据库版本更新时，将删除旧数据库并创建新的（适用于开发阶段）
                                          // 注意：这会导致所有数据丢失，在生产环境中应该使用适当的迁移策略
         .build()
     }

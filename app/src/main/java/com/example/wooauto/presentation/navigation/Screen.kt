@@ -33,6 +33,5 @@ sealed class Screen(val route: String) {
     }
     
     companion object {
-        // 其他方法可以放在这里
     }
 } 

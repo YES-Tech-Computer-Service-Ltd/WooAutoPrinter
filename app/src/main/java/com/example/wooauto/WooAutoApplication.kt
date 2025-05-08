@@ -87,7 +87,7 @@ class WooAutoApplication : MultiDexApplication(), Configuration.Provider {
             Log.d("WooAutoApplication", "初始化元数据处理系统")
             
             // 初始化元数据处理器工厂
-            val factory = MetadataProcessorFactory.createDefaultRegistry()
+            MetadataProcessorFactory.createDefaultRegistry()
             
             // 确保元数据处理器注册表已初始化
             MetadataProcessorRegistry.getInstance().initialize()

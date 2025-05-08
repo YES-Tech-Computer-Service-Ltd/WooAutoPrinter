@@ -52,6 +52,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import androidx.annotation.RequiresPermission
 import java.io.ByteArrayOutputStream
 import kotlin.math.max
 
@@ -172,7 +173,7 @@ class BluetoothPrinterManager @Inject constructor(
 
                     device?.let {
                         // 增加详细日志帮助调试
-                        val rssi = intent.getShortExtra(BluetoothDevice.EXTRA_RSSI, Short.MIN_VALUE)
+                        intent.getShortExtra(BluetoothDevice.EXTRA_RSSI, Short.MIN_VALUE)
                             .toInt()
 
                         // 保存设备，不过滤任何设备
@@ -209,7 +210,7 @@ class BluetoothPrinterManager @Inject constructor(
 
                     val bondState =
                         intent.getIntExtra(BluetoothDevice.EXTRA_BOND_STATE, BluetoothDevice.ERROR)
-                    val prevBondState = intent.getIntExtra(
+                    intent.getIntExtra(
                         BluetoothDevice.EXTRA_PREVIOUS_BOND_STATE,
                         BluetoothDevice.ERROR
                     )
@@ -243,7 +244,7 @@ class BluetoothPrinterManager @Inject constructor(
 
                 val bondState =
                     intent.getIntExtra(BluetoothDevice.EXTRA_BOND_STATE, BluetoothDevice.BOND_NONE)
-                val prevBondState = intent.getIntExtra(
+                intent.getIntExtra(
                     BluetoothDevice.EXTRA_PREVIOUS_BOND_STATE,
                     BluetoothDevice.BOND_NONE
                 )
@@ -304,22 +305,7 @@ class BluetoothPrinterManager @Inject constructor(
 
             // 连接到打印机
             updatePrinterStatus(config, PrinterStatus.CONNECTING)
-            
-            // 尝试连接
-            val isConnected = try {
-                connection.connect()
-                true
-            } catch (e: Exception) {
-                Log.e(TAG, "打印机连接失败: ${e.message}", e)
-                updatePrinterStatus(config, PrinterStatus.ERROR)
-                return false
-            }
 
-            if (!isConnected) {
-                Log.e(TAG, "无法建立打印机连接")
-                updatePrinterStatus(config, PrinterStatus.DISCONNECTED)
-                return false
-            }
 
             // 保存当前连接
             currentConnection = connection
@@ -462,8 +448,7 @@ class BluetoothPrinterManager @Inject constructor(
      */
     private fun executeUnifiedPaperCut(
         config: PrinterConfig, 
-        forceCut: Boolean = false, 
-        additionalFeed: Boolean = true
+        forceCut: Boolean = false,
     ): Boolean {
         try {
             // 检查是否应该切纸
@@ -495,15 +480,6 @@ class BluetoothPrinterManager @Inject constructor(
             } catch (e: Exception) {
                 Log.e(TAG, "【打印机】切纸前清理缓冲区失败: ${e.message}")
                 // 继续执行，不要因为这个错误中断
-            }
-            
-            // 简化的走纸和切纸实现
-            if (additionalFeed) {
-                // 简单的走纸命令
-                val feedLines = 10 // 适中的走纸量
-                val feedCommand = byteArrayOf(0x1B, 0x64, feedLines.toByte())  // ESC d n
-                currentConnection?.write(feedCommand)
-                Thread.sleep(100)
             }
             
             // 直接使用标准切纸命令 (GS V)
@@ -542,56 +518,11 @@ class BluetoothPrinterManager @Inject constructor(
     }
 
     /**
-     * 发送通用切纸命令
-     * 根据打印机品牌和配置决定使用什么切纸命令
-     * @param printerConfig 打印机配置
-     */
-    private fun sendPaperCutCommand(printerConfig: PrinterConfig) {
-        // 直接调用统一的切纸方法，保持额外走纸以兼容现有代码
-        executeUnifiedPaperCut(printerConfig, forceCut = false, additionalFeed = true)
-    }
-    
-    /**
-     * 最终化打印过程
-     * 发送最后的走纸和切纸命令
-     * @param config 打印机配置
-     */
-    private fun finalizePrinting(config: PrinterConfig) {
-        // 直接调用统一的切纸方法，强制执行切纸(设置forceCut=true)
-        executeUnifiedPaperCut(config, forceCut = true, additionalFeed = true)
-    }
-    
-    // 保留旧的发送额外走纸和切纸命令方法，用于兼容其他地方的调用
-    private fun sendExtraPaperFeedCommands() {
-        try {
-            if (currentConnection == null) {
-                Log.e(TAG, "【打印机】没有有效连接，无法发送额外命令")
-                return
-            }
-
-            Log.d(TAG, "【打印机】发送额外走纸和切纸命令")
-
-            // 使用当前打印机配置，如果没有则创建一个默认配置，强制启用切纸
-            val configWithCut = currentPrinterConfig?.copy(autoCut = true) ?: PrinterConfig(
-                name = "Default",
-                address = "",
-                autoCut = true
-            )
-            
-            // 调用统一的切纸方法
-            executeUnifiedPaperCut(configWithCut, forceCut = true, additionalFeed = true)
-            
-            Log.d(TAG, "【打印机】额外命令发送完成")
-        } catch (e: Exception) {
-            Log.e(TAG, "【打印机】发送额外命令失败: ${e.message}")
-        }
-    }
-
-    /**
      * 获取蓝牙设备扫描结果Flow
      */
     fun getScanResultFlow(): Flow<List<PrinterDevice>> = scanResultFlow.asStateFlow()
 
+    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
     override suspend fun scanPrinters(type: String): List<PrinterDevice> {
         if (type != PrinterConfig.PRINTER_TYPE_BLUETOOTH) {
             Log.e(TAG, "不支持的打印机类型: $type")
@@ -650,6 +581,20 @@ class BluetoothPrinterManager @Inject constructor(
             // 确保已停止之前的扫描
             if (isScanning) {
 //                Log.d(TAG, "已有扫描正在进行，先停止它")
+                if (ActivityCompat.checkSelfPermission(
+                        context,
+                        Manifest.permission.BLUETOOTH_SCAN
+                    ) != PackageManager.PERMISSION_GRANTED
+                ) {
+                    // TODO: Consider calling
+                    //    ActivityCompat#requestPermissions
+                    // here to request the missing permissions, and then overriding
+                    //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
+                    //                                          int[] grantResults)
+                    // to handle the case where the user grants the permission. See the documentation
+                    // for ActivityCompat#requestPermissions for more details.
+                    return emptyList()
+                }
                 bluetoothAdapter.cancelDiscovery()
                 isScanning = false
                 // 给适配器一点时间恢复
@@ -713,6 +658,7 @@ class BluetoothPrinterManager @Inject constructor(
     /**
      * 手动停止设备发现 (公共方法)
      */
+    @RequiresPermission(Manifest.permission.BLUETOOTH_SCAN)
     fun stopDiscovery() {
         try {
             if (isScanning) {
@@ -1903,6 +1849,7 @@ class BluetoothPrinterManager @Inject constructor(
      * @param deviceAddress 蓝牙设备地址
      * @return 连接结果
      */
+    @RequiresPermission(Manifest.permission.BLUETOOTH_SCAN)
     suspend fun tryConnectWithDevice(deviceAddress: String): Boolean {
         Log.d(TAG, "尝试连接设备: $deviceAddress")
         try {
@@ -1919,7 +1866,7 @@ class BluetoothPrinterManager @Inject constructor(
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 if (ActivityCompat.checkSelfPermission(
                         context,
-                        android.Manifest.permission.BLUETOOTH_CONNECT
+                        Manifest.permission.BLUETOOTH_CONNECT
                     ) != PackageManager.PERMISSION_GRANTED
                 ) {
                     Log.e(TAG, "没有BLUETOOTH_CONNECT权限")
@@ -2302,8 +2249,7 @@ class BluetoothPrinterManager @Inject constructor(
             // 使用强制切纸选项和额外走纸
             val result = executeUnifiedPaperCut(
                 config.copy(autoCut = true),
-                forceCut = true,
-                additionalFeed = true
+                forceCut = true
             )
             
             Log.d(TAG, "切纸测试完成，结果: ${if (result) "成功" else "失败"}")

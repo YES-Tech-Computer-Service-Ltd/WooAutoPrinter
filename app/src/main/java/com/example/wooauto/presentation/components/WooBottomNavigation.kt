@@ -24,13 +24,12 @@ import com.example.wooauto.presentation.theme.WooAutoTheme
 
 @Composable
 fun WooBottomNavigation(navController: NavController) {
-    // 添加详细日志
-    Log.d("WooBottomNavigation", "开始初始化底部导航栏")
+//    Log.d("WooBottomNavigation", "开始初始化底部导航栏")
     
     // 使用remember缓存导航项列表
     val navigationItems = remember {
         val items = NavigationItem.items
-        Log.d("WooBottomNavigation", "获取到的导航项: ${items.size}")
+//        Log.d("WooBottomNavigation", "获取到的导航项: ${items.size}")
         if (items.isEmpty()) {
             Log.w("WooBottomNavigation", "警告: NavigationItem.items返回空列表")
         }
@@ -54,14 +53,14 @@ fun WooBottomNavigation(navController: NavController) {
         
         // 记录当前路由以便调试
         val currentRoute = currentDestination?.route
-        Log.d("WooBottomNavigation", "当前路由: $currentRoute")
+//        Log.d("WooBottomNavigation", "当前路由: $currentRoute")
         
         // 检查是否在特殊屏幕上（这些屏幕不应该被视为导航栏的一部分）
         val isOnSpecialScreen = currentRoute?.let { route ->
             route.startsWith("printer_") || route == "printer_settings" || route == "website_settings"
         } ?: false
         
-        Log.d("WooBottomNavigation", "是否在特殊屏幕上: $isOnSpecialScreen, 当前路由: $currentRoute")
+//        Log.d("WooBottomNavigation", "是否在特殊屏幕上: $isOnSpecialScreen, 当前路由: $currentRoute")
         
         // 显示每个导航项目，使用明确的类型以避免Kotlin编译器混淆
         navigationItems.forEach { item: NavigationItem -> 
@@ -71,19 +70,19 @@ fun WooBottomNavigation(navController: NavController) {
                 val selected = currentDestination?.hierarchy?.any { 
                     it.route == itemRoute 
                 } == true
-                
-                Log.d("WooBottomNavigation", "导航项 $itemRoute 是否选中: $selected")
+
+//                Log.d("WooBottomNavigation", "导航项 $itemRoute 是否选中: $selected")
                 
                 // 使用key包装每个导航项
                 androidx.compose.runtime.key(itemRoute) {
                     NavigationBarItem(
                         selected = selected,
                         onClick = {
-                            Log.d("WooBottomNavigation", "点击了导航项: $itemRoute")
+//                            Log.d("WooBottomNavigation", "点击了导航项: $itemRoute")
                             
                             // 确保导航到目标
                             if (currentRoute != itemRoute) {
-                                Log.d("WooBottomNavigation", "正在导航从 $currentRoute 到 $itemRoute")
+//                                Log.d("WooBottomNavigation", "正在导航从 $currentRoute 到 $itemRoute")
                                 
                                 // 导航逻辑
                                 navController.navigate(itemRoute) {
@@ -98,10 +97,10 @@ fun WooBottomNavigation(navController: NavController) {
                                 // 延迟记录，检查导航是否成功
                                 Handler(Looper.getMainLooper()).postDelayed({
                                     val newRoute = navController.currentBackStackEntry?.destination?.route
-                                    Log.d("WooBottomNavigation", "导航后的当前路由: $newRoute")
+//                                    Log.d("WooBottomNavigation", "导航后的当前路由: $newRoute")
                                 }, 100)
                             } else {
-                                Log.d("WooBottomNavigation", "已经在目标路由上，无需导航")
+//                                Log.d("WooBottomNavigation", "已经在目标路由上，无需导航")
                             }
                         },
                         icon = {
