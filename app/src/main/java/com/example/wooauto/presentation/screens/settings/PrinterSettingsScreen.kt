@@ -1,7 +1,10 @@
 package com.example.wooauto.presentation.screens.settings
 
+import android.Manifest
 import android.bluetooth.BluetoothAdapter
+import android.os.Build
 import android.util.Log
+import androidx.annotation.RequiresPermission
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -41,6 +44,7 @@ import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -395,7 +399,7 @@ fun PrinterSettingsScreen(
                             
                             // 在每个项目之间添加分隔线
                             if (printer != printerConfigs.last()) {
-                                Divider(
+                                HorizontalDivider(
                                     modifier = Modifier.padding(vertical = 8.dp),
                                     color = MaterialTheme.colorScheme.surfaceVariant
                                 )
@@ -573,7 +577,7 @@ fun PrinterSettingsScreen(
                                             }
                                             
                                             if (device != availablePrinters.last()) {
-                                                Divider(
+                                                HorizontalDivider(
                                                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                                                 )
                                             }
@@ -592,7 +596,7 @@ fun PrinterSettingsScreen(
                         dismissButton = {
                             if (isScanning) {
                                 TextButton(
-                                    onClick = { 
+                                    onClick = {
                                         // 停止扫描
                                         if (printerManager is BluetoothPrinterManager) {
                                             printerManager.stopDiscovery()
@@ -732,7 +736,7 @@ fun PrinterConfigItem(
                 style = MaterialTheme.typography.bodyMedium
             )
             
-            if (printerConfig.brand != null && printerConfig.brand != PrinterBrand.UNKNOWN) {
+            if (printerConfig.brand != PrinterBrand.UNKNOWN) {
                 Text(
                     text = stringResource(id = R.string.printer_brand_label, printerConfig.brand.displayName, printerConfig.brand.commandLanguage),
                     style = MaterialTheme.typography.bodyMedium,
@@ -854,10 +858,12 @@ fun PrinterConfigItem(
 /**
  * 检查设备是否已配对 (不需要Composable上下文的版本)
  */
+@RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
 private fun isPairedDevice(device: PrinterDevice): Boolean {
     val bluetoothAdapter = BluetoothAdapter.getDefaultAdapter() ?: return false
     try {
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            //todo
             // Android 12及以上需要特殊权限处理，但这里我们直接尝试读取已配对设备
             // 如果失败会抛出异常，由catch块处理
         }

@@ -63,16 +63,11 @@ fun AutomationSettingsScreen(
     
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) }
-    ) {
+    ) { innerPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(
-                    top = 0.dp,
-                    bottom = 0.dp,
-                    start = 0.dp,
-                    end = 0.dp
-                )
+                .padding(innerPadding)
         ) {
             // 外层Column，包含统一的水平内边距
             Column(

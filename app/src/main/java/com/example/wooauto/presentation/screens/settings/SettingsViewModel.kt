@@ -387,12 +387,7 @@ class SettingsViewModel @Inject constructor(
                 
                 // 获取打印机管理器
                 val printerManager = getPrinterManager()
-                if (printerManager == null) {
-                    _isScanning.value = false
-                    _connectionErrorMessage.value = "打印机管理器初始化失败"
-                    return@launch
-                }
-                
+
                 // 打印诊断日志
                 if (printerManager is BluetoothPrinterManager) {
                     printerManager.logBluetoothDiagnostics()

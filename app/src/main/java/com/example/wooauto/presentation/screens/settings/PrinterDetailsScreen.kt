@@ -127,7 +127,7 @@ fun PrinterDetailsScreen(
     // 添加一个状态，用于跟踪是否已经选择了设备
     var hasSelectedDevice by remember { mutableStateOf(!isNewPrinter) }
     
-    var printerConfig by remember {
+    val printerConfig by remember {
         mutableStateOf(
             if (isNewPrinter) {
                 PrinterConfig(
@@ -150,10 +150,10 @@ fun PrinterDetailsScreen(
     // 表单状态
     var name by remember { mutableStateOf(printerConfig.name) }
     var address by remember { mutableStateOf(printerConfig.address) }
-    var type by remember { mutableStateOf(printerConfig.type) }
+    val type by remember { mutableStateOf(printerConfig.type) }
     var paperWidth by remember { mutableStateOf(printerConfig.paperWidth.toString()) }
     var isDefault by remember { mutableStateOf(printerConfig.isDefault) }
-    var autoCut by remember { mutableStateOf(printerConfig.autoCut) }
+    val autoCut by remember { mutableStateOf(printerConfig.autoCut) }
     
     // 页面加载时扫描打印机列表
     LaunchedEffect(key1 = Unit) {

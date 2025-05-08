@@ -88,7 +88,7 @@ fun SettingsScreen(
     navController: NavController,
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
-    val context = LocalContext.current
+    LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
     
@@ -110,21 +110,16 @@ fun SettingsScreen(
     // 各种对话框状态
     var showApiDialog by remember { mutableStateOf(false) }
     var showLanguageDialog by remember { mutableStateOf(false) }
-    var showAboutDialog by remember { mutableStateOf(false) }
-    var showResetDialog by remember { mutableStateOf(false) }
-    var showLicenseDialog by remember { mutableStateOf(false) }
-    var showTestOrderDialog by remember { mutableStateOf(false) }
     var showTestResultDialog by remember { mutableStateOf(false) }
     
     // 测试订单的结果
-    var testOrderResult by remember { mutableStateOf<String?>(null) }
-    var isTestingApi by remember { mutableStateOf(false) }
+    val testOrderResult by remember { mutableStateOf<String?>(null) }
+    val isTestingApi by remember { mutableStateOf(false) }
     
     // 编辑用的临时字段
     var tempSiteUrl by remember { mutableStateOf(siteUrl) }
     var tempConsumerKey by remember { mutableStateOf(consumerKey) }
     var tempConsumerSecret by remember { mutableStateOf(consumerSecret) }
-    var showPassword by remember { mutableStateOf(false) }
     var pollingIntervalInput by remember { mutableStateOf("30") }
     var useWooCommerceFoodInput by remember { mutableStateOf(false) }
     
