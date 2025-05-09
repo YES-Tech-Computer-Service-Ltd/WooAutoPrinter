@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.util.Log
+import androidx.core.content.ContextCompat
 import com.example.wooauto.domain.models.Order
 import com.example.wooauto.domain.repositories.DomainOrderRepository
 import com.example.wooauto.utils.SoundManager
@@ -146,7 +147,12 @@ class OrderNotificationManager @Inject constructor(
             context.registerReceiver(newOrderReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
             Log.d(TAG, "使用RECEIVER_NOT_EXPORTED标志注册新订单广播接收器(Android 13+)")
         } else {
-            context.registerReceiver(newOrderReceiver, filter)
+            ContextCompat.registerReceiver(
+                context,
+                newOrderReceiver,
+                filter,
+                ContextCompat.RECEIVER_NOT_EXPORTED
+            )
             Log.d(TAG, "标准方式注册新订单广播接收器(Android 12及以下)")
         }
     }
