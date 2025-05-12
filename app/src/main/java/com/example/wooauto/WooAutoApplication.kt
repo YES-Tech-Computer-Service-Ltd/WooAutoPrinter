@@ -18,6 +18,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import javax.inject.Inject
 
 @HiltAndroidApp
@@ -29,7 +31,8 @@ class WooAutoApplication : MultiDexApplication(), Configuration.Provider {
     @Inject
     lateinit var orderNotificationManager: OrderNotificationManager
 
-    private val applicationScope = CoroutineScope(Dispatchers.Main)
+    // 使用IO调度器而非Main调度器，减少主线程负担
+    private val applicationScope = CoroutineScope(Dispatchers.IO)
     private val mainHandler = Handler(Looper.getMainLooper())
 
     // 实现Configuration.Provider接口，提供WorkManager配置
@@ -43,19 +46,38 @@ class WooAutoApplication : MultiDexApplication(), Configuration.Provider {
         
         Log.d("WooAutoApplication", "应用程序启动")
         
-        // 初始化元数据处理系统
-        initializeMetadataProcessors()
+        // 使用协程并行初始化，提高启动效率
+        applicationScope.launch {
+            try {
+                // 并行执行初始化任务
+                coroutineScope {
+                    // 初始化元数据处理系统（异步）
+                    val metadataJob = async { initializeMetadataProcessors() }
+                    
+                    // 初始化订单通知管理器（异步）
+                    val notificationJob = async { initializeOrderNotificationManager() }
+                    
+                    // 等待所有初始化完成
+                    metadataJob.await()
+                    notificationJob.await()
+                    
+                    Log.d("WooAutoApplication", "所有并行初始化任务完成")
+                }
+            } catch (e: Exception) {
+                Log.e("WooAutoApplication", "并行初始化过程中出错: ${e.message}", e)
+            }
+        }
         
-        // 确保WorkManager正确初始化
-        WorkManager.initialize(this, workManagerConfiguration)
+        // 确保WorkManager正确初始化 - 必须在主线程执行
+        try {
+            WorkManager.initialize(this, workManagerConfiguration)
+            Log.d("WooAutoApplication", "WorkManager初始化完成")
+        } catch (e: Exception) {
+            Log.e("WooAutoApplication", "WorkManager初始化失败: ${e.message}", e)
+        }
         
-        // 初始化订单通知管理器
-        initializeOrderNotificationManager()
-        
-        // 降低延迟时间，加速启动过程
-        mainHandler.postDelayed({
-            checkConfigAndStartService()
-        }, 500) // 降低延迟到500毫秒，提高响应速度
+        // 立即启动服务检查，不再延迟
+        checkConfigAndStartService()
     }
     
     override fun onTerminate() {
@@ -80,18 +102,16 @@ class WooAutoApplication : MultiDexApplication(), Configuration.Provider {
     }
     
     /**
-     * 初始化元数据处理系统
+     * 初始化元数据处理系统（懒加载方式）
      */
     private fun initializeMetadataProcessors() {
         try {
             Log.d("WooAutoApplication", "初始化元数据处理系统")
             
-            // 初始化元数据处理器工厂
+            // 使用懒加载模式，只创建注册表而不立即初始化所有处理器
             MetadataProcessorFactory.createDefaultRegistry()
             
-            // 确保元数据处理器注册表已初始化
-            MetadataProcessorRegistry.getInstance().initialize()
-            
+            // 注册表初始化推迟到首次使用时，减少启动负担
             Log.d("WooAutoApplication", "元数据处理系统初始化完成")
         } catch (e: Exception) {
             Log.e("WooAutoApplication", "初始化元数据处理系统时出错: ${e.message}", e)

@@ -7,11 +7,13 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import com.example.wooauto.MainActivity
 import com.example.wooauto.R
 import com.example.wooauto.data.local.WooCommerceConfig
@@ -25,10 +27,10 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.StateFlow
 import java.util.*
 import javax.inject.Inject
 import kotlin.collections.HashSet
-import com.example.wooauto.utils.SoundManager
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 
 @AndroidEntryPoint
@@ -44,6 +46,15 @@ class BackgroundPollingService : Service() {
         const val ACTION_ORDERS_UPDATED = "com.example.wooauto.ORDERS_UPDATED"
         const val EXTRA_ORDER_COUNT = "order_count"
         const val EXTRA_RESTART_POLLING = "com.example.wooauto.RESTART_POLLING"
+        
+        // 轮询间隔常量
+        private const val DEFAULT_POLLING_INTERVAL = 30 // 默认轮询间隔（秒）
+        private const val INITIAL_POLLING_INTERVAL = 5 // 初始轮询间隔（秒）
+        private const val MIN_POLLING_INTERVAL = 5 // 最小轮询间隔（秒）
+        
+        // 清理间隔
+        private const val CLEANUP_INTERVAL = 10 * 60 * 1000L // 10分钟清理一次
+        private const val MAX_PROCESSED_IDS = 500 // 最大保留订单ID数量
     }
 
     @Inject
@@ -58,29 +69,118 @@ class BackgroundPollingService : Service() {
     @Inject
     lateinit var settingsRepository: DomainSettingRepository
 
+    // 使用IO调度器创建协程作用域，减少主线程负担
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var pollingJob: Job? = null
     private var latestPolledDate: Date? = null
-    private val processedOrderIds = HashSet<Long>()
-    private var currentPollingInterval = 30 // 默认30秒
+    
+    // 使用LRU方式管理处理过的订单ID，减少内存占用
+    private val processedOrderIds = LinkedHashSet<Long>(MAX_PROCESSED_IDS)
+    
+    // 轮询控制参数
+    private var currentPollingInterval = DEFAULT_POLLING_INTERVAL
+    private var isAppInForeground = false // 追踪应用是否在前台
+    private var initialPollingComplete = false // 标记初始快速轮询是否完成
+    
+    // 定义一个在前台时使用较短轮询间隔的倍数因子
+    private val FOREGROUND_INTERVAL_FACTOR = 0.5f // 前台时轮询间隔是后台的一半
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
+        // 创建通知渠道并启动前台服务
         createNotificationChannel()
         startForeground()
         
         // 创建协程作用域
         serviceScope.launch {
             try {
+                // 读取保存的轮询间隔设置
                 currentPollingInterval = wooCommerceConfig.pollingInterval.first()
+                if (currentPollingInterval < MIN_POLLING_INTERVAL) {
+                    currentPollingInterval = DEFAULT_POLLING_INTERVAL
+                }
+                
                 Log.d(TAG, "服务初始化，当前轮询间隔: ${currentPollingInterval}秒")
             } catch (e: Exception) {
                 Log.e(TAG, "初始化轮询间隔失败: ${e.message}")
-                currentPollingInterval = 30 // 使用默认值
+                currentPollingInterval = DEFAULT_POLLING_INTERVAL
             }
         }
+        
+        // 注册前台状态监听器
+        registerForegroundStateReceiver()
+    }
+    
+    /**
+     * 注册前台状态监听器
+     * 根据应用是否在前台调整轮询间隔
+     */
+    private fun registerForegroundStateReceiver() {
+        try {
+            val filter = IntentFilter().apply {
+                addAction("android.intent.action.SCREEN_ON")
+                addAction("android.intent.action.SCREEN_OFF")
+                addAction("android.intent.action.USER_PRESENT")
+            }
+            
+            ContextCompat.registerReceiver(
+                this,
+                object : android.content.BroadcastReceiver() {
+                    override fun onReceive(context: Context?, intent: Intent?) {
+                        when (intent?.action) {
+                            "android.intent.action.SCREEN_ON" -> {
+                                // 屏幕点亮，可能在前台
+                                isAppInForeground = true
+                                adjustPollingInterval()
+                            }
+                            "android.intent.action.SCREEN_OFF" -> {
+                                // 屏幕关闭，一定在后台
+                                isAppInForeground = false
+                                adjustPollingInterval()
+                            }
+                        }
+                    }
+                },
+                filter,
+                ContextCompat.RECEIVER_NOT_EXPORTED
+            )
+            
+            Log.d(TAG, "已注册前台状态监听器")
+        } catch (e: Exception) {
+            Log.e(TAG, "注册前台状态监听器失败: ${e.message}", e)
+        }
+    }
+    
+    /**
+     * 根据应用是否在前台调整轮询间隔
+     */
+    private fun adjustPollingInterval() {
+        // 获取当前保存的轮询间隔设置
+        var baseInterval = DEFAULT_POLLING_INTERVAL
+        
+        // 尝试安全地获取Flow的当前值
+        serviceScope.launch {
+            try {
+                baseInterval = wooCommerceConfig.pollingInterval.first()
+            } catch (e: Exception) {
+                Log.e(TAG, "获取轮询间隔失败，使用默认值: $DEFAULT_POLLING_INTERVAL")
+            }
+        }
+        
+        currentPollingInterval = if (isAppInForeground) {
+            // 前台使用较短的间隔
+            (baseInterval * FOREGROUND_INTERVAL_FACTOR).toInt().coerceAtLeast(MIN_POLLING_INTERVAL)
+        } else {
+            // 后台使用正常间隔
+            baseInterval
+        }
+        
+        Log.d(TAG, "调整轮询间隔: ${currentPollingInterval}秒 (前台状态: $isAppInForeground)")
+        
+        // 重启轮询以应用新间隔
+        restartPolling()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -111,7 +211,7 @@ class BackgroundPollingService : Service() {
             val channel = NotificationChannel(
                 CHANNEL_ID,
                 getString(R.string.app_name),
-                NotificationManager.IMPORTANCE_DEFAULT
+                NotificationManager.IMPORTANCE_LOW // 降低通知重要性以减少用户干扰
             ).apply {
                 description = "WooAuto订单同步服务"
             }
@@ -125,20 +225,21 @@ class BackgroundPollingService : Service() {
         
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+                try {
+                    startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+                    Log.d(TAG, "前台服务启动成功 (带类型)")
+                } catch (e: Exception) {
+                    // 如果带类型启动失败，尝试不带类型启动
+                    Log.w(TAG, "带类型启动前台服务失败，尝试不带类型启动: ${e.message}")
+                    startForeground(NOTIFICATION_ID, notification)
+                    Log.d(TAG, "前台服务启动成功 (不带类型)")
+                }
             } else {
                 startForeground(NOTIFICATION_ID, notification)
+                Log.d(TAG, "前台服务启动成功 (Android 9及以下)")
             }
-            Log.d(TAG, "前台服务启动成功")
         } catch (e: Exception) {
             Log.e(TAG, "前台服务启动失败: ${e.message}", e)
-            // 降级处理：尝试不带类型启动
-            try {
-                startForeground(NOTIFICATION_ID, notification)
-                Log.d(TAG, "降级方式启动前台服务成功")
-            } catch (e2: Exception) {
-                Log.e(TAG, "降级方式启动前台服务仍然失败: ${e2.message}", e2)
-            }
         }
     }
 
@@ -147,7 +248,11 @@ class BackgroundPollingService : Service() {
             this,
             0,
             Intent(this, MainActivity::class.java),
-            PendingIntent.FLAG_IMMUTABLE
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                PendingIntent.FLAG_IMMUTABLE
+            } else {
+                0
+            }
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
@@ -155,6 +260,7 @@ class BackgroundPollingService : Service() {
             .setContentText(content)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentIntent(pendingIntent)
+            .setPriority(NotificationCompat.PRIORITY_LOW) // 降低通知优先级
             .build()
     }
 
@@ -171,21 +277,30 @@ class BackgroundPollingService : Service() {
     private fun startPolling() {
         pollingJob?.cancel()
         pollingJob = serviceScope.launch {
+            // 应用启动后先使用短间隔进行初始轮询
+            var useInitialInterval = !initialPollingComplete
+            
+            if (useInitialInterval) {
+                Log.d(TAG, "使用初始快速轮询间隔: ${INITIAL_POLLING_INTERVAL}秒")
+            }
+            
             // 首先获取一次当前轮询间隔
             val initialInterval = try {
                 wooCommerceConfig.pollingInterval.first().also { 
-                    currentPollingInterval = it
-                    Log.d(TAG, "初始化轮询间隔: ${it}秒")
+                    if (!useInitialInterval) {
+                        currentPollingInterval = it
+                        Log.d(TAG, "初始化轮询间隔: ${it}秒")
+                    }
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "获取初始轮询间隔失败，使用默认值: 30秒", e)
-                30
+                Log.e(TAG, "获取初始轮询间隔失败，使用默认值: ${DEFAULT_POLLING_INTERVAL}秒", e)
+                DEFAULT_POLLING_INTERVAL
             }
             
             // 监听轮询间隔变化
             launch {
                 wooCommerceConfig.pollingInterval.collect { newInterval ->
-                    if (newInterval != currentPollingInterval) {
+                    if (newInterval != currentPollingInterval && !useInitialInterval) {
                         Log.d(TAG, "轮询间隔变更: ${currentPollingInterval}秒 -> ${newInterval}秒")
                         currentPollingInterval = newInterval
                         // 重新启动轮询以立即应用新间隔
@@ -197,26 +312,42 @@ class BackgroundPollingService : Service() {
             // 主轮询循环
             while (isActive) {
                 try {
+                    // 使用当前有效轮询间隔
+                    val effectiveInterval = if (useInitialInterval) {
+                        INITIAL_POLLING_INTERVAL
+                    } else {
+                        currentPollingInterval
+                    }
+                    
                     // 检查配置有效性
                     val isValid = checkConfigurationValid()
                     if (isValid) {
-                        Log.d(TAG, "开始执行轮询周期，间隔: ${currentPollingInterval}秒")
-                        
-                        // 先进行打印机状态检查
-                        checkPrinterConnection()
+                        Log.d(TAG, "开始执行轮询周期，间隔: ${effectiveInterval}秒")
                         
                         // 记录轮询开始时间
                         val pollStartTime = System.currentTimeMillis()
                         
+                        // 自适应打印机检查 - 只在应用启动和有必要时检查
+                        if (!initialPollingComplete || (pollStartTime - (latestPolledDate?.time ?: 0)) > 5 * 60 * 1000) { // 5分钟检查一次
+                            checkPrinterConnection()
+                        }
+                        
                         // 执行轮询操作
                         pollOrders()
+                        
+                        // 如果这是初始轮询，标记完成
+                        if (useInitialInterval) {
+                            useInitialInterval = false
+                            initialPollingComplete = true
+                            Log.d(TAG, "初始快速轮询完成，切换到正常轮询间隔: ${currentPollingInterval}秒")
+                        }
                         
                         // 计算轮询执行时间
                         val pollExecutionTime = System.currentTimeMillis() - pollStartTime
                         Log.d(TAG, "轮询执行耗时: ${pollExecutionTime}ms")
                         
                         // 计算需要等待的时间，确保按照用户设置的间隔精确轮询
-                        val waitTime = (currentPollingInterval * 1000L) - pollExecutionTime
+                        val waitTime = (effectiveInterval * 1000L) - pollExecutionTime
                         if (waitTime > 0) {
                             Log.d(TAG, "等待下次轮询: ${waitTime}ms")
                             delay(waitTime)
@@ -225,8 +356,8 @@ class BackgroundPollingService : Service() {
                             delay(100) // 短暂等待以避免CPU占用过高
                         }
                     } else {
-                        Log.d(TAG, "配置未完成，跳过轮询，等待${currentPollingInterval}秒后重试")
-                        delay(currentPollingInterval * 1000L)
+                        Log.d(TAG, "配置未完成，跳过轮询，等待${effectiveInterval}秒后重试")
+                        delay(effectiveInterval * 1000L)
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "轮询周期执行出错: ${e.message}", e)
@@ -292,7 +423,11 @@ class BackgroundPollingService : Service() {
                     // 通知UI层刷新数据
                     sendRefreshOrdersBroadcast()
                 } else {
-                    Log.d(TAG, "【自动打印调试】轮询成功，但没有新的处理中订单")
+                    // 减少无新订单时的日志输出频率
+                    val minutes = System.currentTimeMillis() / 60000
+                    if (!initialPollingComplete || (minutes % 10L == 0L)) { // 每10分钟记录一次，修改为Long类型比较
+                        Log.d(TAG, "【自动打印调试】轮询成功，但没有新的处理中订单")
+                    }
                 }
             } else {
                 // 处理错误
@@ -319,29 +454,33 @@ class BackgroundPollingService : Service() {
                 // 如果打印机未连接或处于错误状态，尝试重新连接
                 if (status == PrinterStatus.DISCONNECTED || status == PrinterStatus.ERROR) {
                     Log.d(TAG, "打印机未连接，尝试重新连接...")
+                    
+                    // 延迟一点时间再连接，防止频繁连接请求
+                    delay(500)
+                    
                     // 尝试连接打印机
-                    val connected = printerManager.connect(printerConfig)
+                    val connected = withTimeoutOrNull(5000) { // 增加5秒超时
+                        printerManager.connect(printerConfig)
+                    } ?: false
+                    
                     if (connected) {
                         Log.d(TAG, "成功重新连接打印机")
                     } else {
                         Log.e(TAG, "无法重新连接打印机")
-                        // 添加重试逻辑
-                        delay(3000) // 等待3秒后重试
-                        val retryConnect = printerManager.connect(printerConfig)
-                        if (retryConnect) {
-                            Log.d(TAG, "第二次尝试连接成功")
-                        } else {
-                            Log.e(TAG, "第二次尝试连接仍然失败")
-                        }
+                        // 如果连接失败，我们不立即重试，而是等待下一个轮询周期
+                        // 这样可以降低对蓝牙系统的压力
                     }
                 } else if (status == PrinterStatus.CONNECTED) {
-                    // 即使显示已连接，也发送测试指令确认连接状态
-                    Log.d(TAG, "打印机显示已连接，发送测试指令确认状态")
-                    val testResult = printerManager.testConnection(printerConfig)
-                    if (!testResult) {
-                        Log.w(TAG, "打印机测试指令失败，尝试重新连接")
-                        val reconnected = printerManager.connect(printerConfig)
-                        Log.d(TAG, "重新连接结果: ${if (reconnected) "成功" else "失败"}")
+                    // 即使显示已连接，也发送测试指令确认连接状态 - 但减少频率
+                    val minutes = System.currentTimeMillis() / 60000
+                    if (minutes % 5L == 0L) { // 每5分钟测试一次，修改为Long类型比较
+                        Log.d(TAG, "打印机显示已连接，发送测试指令确认状态")
+                        val testResult = printerManager.testConnection(printerConfig)
+                        if (!testResult) {
+                            Log.w(TAG, "打印机测试指令失败，尝试重新连接")
+                            val reconnected = printerManager.connect(printerConfig)
+                            Log.d(TAG, "重新连接结果: ${if (reconnected) "成功" else "失败"}")
+                        }
                     }
                 }
             } else {
@@ -366,9 +505,14 @@ class BackgroundPollingService : Service() {
         // 计算5分钟前的时间戳，用于过滤旧订单
         val fiveMinutesAgo = currentTime - (5 * 60 * 1000)
         
-        orders.forEach { order ->
+        for (order in orders) {
+            // 首先检查订单是否已处理，避免在同步块中进行复杂操作
+            val isProcessed = synchronized(processedOrderIds) {
+                processedOrderIds.contains(order.id)
+            }
+            
             // 检查是否处理过此订单
-            val isNewOrder = !processedOrderIds.contains(order.id)
+            val isNewOrder = !isProcessed
             
             // 首次轮询时，只处理5分钟内的新订单，避免处理历史订单
             val isRecentOrder = if (isFirstPolling) {
@@ -407,9 +551,6 @@ class BackgroundPollingService : Service() {
                 // 发送通知
                 sendNewOrderNotification(finalOrder)
                 
-                // 播放声音
-                playOrderSound()
-                
                 // 启用自动打印功能，并添加详细日志
                 Log.d(TAG, "====== 开始处理订单自动打印 ======")
                 
@@ -424,26 +565,37 @@ class BackgroundPollingService : Service() {
                     Log.d(TAG, "【打印状态保护】订单 #${finalOrder.number} 已标记为已打印，跳过打印")
                 }
                 
-                // 添加到已处理集合
-                processedOrderIds.add(finalOrder.id)
-                newOrderCount++
-                
-                // 标记订单通知已显示
+                // 先标记订单通知已显示，然后再添加到已处理集合
                 orderRepository.markOrderNotificationShown(finalOrder.id)
+                
+                // 添加到已处理集合
+                synchronized(processedOrderIds) {
+                    processedOrderIds.add(finalOrder.id)
+                    
+                    // 维护LRU缓存大小
+                    if (processedOrderIds.size > MAX_PROCESSED_IDS) {
+                        removeOldestProcessedId()
+                    }
+                }
+                
+                newOrderCount++
             } else {
                 val skipReason = if (!isNewOrder) "已处理过" else "非最近订单"
                 Log.d(TAG, "订单跳过处理，原因: $skipReason: #${order.number}")
             }
         }
-        
-        // 限制已处理订单ID的数量，避免内存泄漏
-        if (processedOrderIds.size > 1000) {
-            val iterator = processedOrderIds.iterator()
-            var count = 0
-            while (iterator.hasNext() && count < 500) {
-                iterator.next()
-                iterator.remove()
-                count++
+    }
+    
+    /**
+     * 移除最旧的处理过的订单ID
+     * 使用LinkedHashSet实现LRU缓存功能
+     */
+    private fun removeOldestProcessedId() {
+        synchronized(processedOrderIds) {
+            if (processedOrderIds.isNotEmpty()) {
+                val oldestId = processedOrderIds.iterator().next()
+                processedOrderIds.remove(oldestId)
+                Log.d(TAG, "从处理记录中移除最旧的订单ID: $oldestId, 当前缓存大小: ${processedOrderIds.size}")
             }
         }
     }
@@ -465,18 +617,6 @@ class BackgroundPollingService : Service() {
         val intent = Intent("com.example.wooauto.NEW_ORDER_RECEIVED")
         intent.putExtra("orderId", order.id)
         sendBroadcast(intent)
-    }
-
-    private fun playOrderSound() {
-        // 使用声音管理器播放订单提示音
-        try {
-            // 注意：现在声音由OrderNotificationManager统一管理
-            // 我们不再需要在这里直接播放声音
-            // 保留这个方法只是为了兼容性，但不执行任何操作
-            Log.d(TAG, "声音播放已移至OrderNotificationManager处理")
-        } catch (e: Exception) {
-            Log.e(TAG, "处理订单声音失败", e)
-        }
     }
 
     private fun printOrder(order: Order) {
@@ -522,7 +662,12 @@ class BackgroundPollingService : Service() {
                 
                 if (printerStatus != PrinterStatus.CONNECTED) {
                     Log.d(TAG, "【自动打印调试】打印机未连接，尝试连接打印机: ${printerConfig.name}")
-                    val connected = printerManager.connect(printerConfig)
+                    
+                    // 使用超时机制避免连接挂起
+                    val connected = withTimeoutOrNull(10000) { // 10秒超时
+                        printerManager.connect(printerConfig)
+                    } ?: false
+                    
                     Log.d(TAG, "【自动打印调试】打印机连接结果: $connected")
                     
                     if (!connected) {
@@ -542,7 +687,12 @@ class BackgroundPollingService : Service() {
                 
                 // 打印订单
                 Log.d(TAG, "【自动打印调试】开始执行打印订单: #${order.number}")
-                val printResult = printerManager.printOrder(order, printerConfig)
+                
+                // 使用超时机制避免打印操作挂起
+                val printResult = withTimeoutOrNull(30000) { // 30秒超时
+                    printerManager.printOrder(order, printerConfig)
+                } ?: false
+                
                 Log.d(TAG, "【自动打印调试】打印结果: ${if (printResult) "成功" else "失败"}")
                 
                 // 如果打印成功，更新订单已打印状态
@@ -604,20 +754,32 @@ class BackgroundPollingService : Service() {
 
     /**
      * 启动定期清理任务
-     * 每15分钟重置处理队列，确保不会因为旧数据而跳过新订单
+     * 每10分钟清理一次处理队列和缓存
      */
     private fun startPeriodicCleanupTask() {
         serviceScope.launch {
             while (true) {
                 try {
-                    // 等待15分钟
-                    delay(15 * 60 * 1000L)
+                    // 等待清理间隔
+                    delay(CLEANUP_INTERVAL)
                     
-                    // 清理处理队列
-                    val oldSize = processedOrderIds.size
-                    processedOrderIds.clear()
+                    synchronized(processedOrderIds) {
+                        // 如果处理队列过大，清理到最大限制的一半
+                        if (processedOrderIds.size > MAX_PROCESSED_IDS) {
+                            val targetSize = MAX_PROCESSED_IDS / 2
+                            val sizeBefore = processedOrderIds.size
+                            
+                            while (processedOrderIds.size > targetSize) {
+                                // 移除最旧的元素
+                                removeOldestProcessedId()
+                            }
+                            
+                            Log.d(TAG, "【自动打印调试】已清理订单处理队列: ${sizeBefore} -> ${processedOrderIds.size}")
+                        }
+                    }
                     
-                    Log.d(TAG, "【自动打印调试】已清理订单处理队列，释放 $oldSize 个订单ID")
+                    // 释放运行时内存
+                    System.gc()
                 } catch (e: Exception) {
                     Log.e(TAG, "【自动打印调试】定期清理任务异常: ${e.message}", e)
                 }

@@ -55,6 +55,9 @@ import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Locale
 import javax.inject.Inject
+import kotlinx.coroutines.async
+import kotlinx.coroutines.Job
+import java.util.concurrent.atomic.AtomicBoolean
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity(), OrderNotificationManager.NotificationCallback {
@@ -71,31 +74,42 @@ class MainActivity : ComponentActivity(), OrderNotificationManager.NotificationC
     private var showNewOrderDialog by mutableStateOf(false)
     private var currentNewOrder by mutableStateOf<Order?>(null)
     
-    // 蓝牙相关权限
-    private val bluetoothPermissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        arrayOf(
-            Manifest.permission.BLUETOOTH_CONNECT,
-            Manifest.permission.BLUETOOTH_SCAN
-        )
-    } else {
-        arrayOf(
-            Manifest.permission.BLUETOOTH,
-            Manifest.permission.BLUETOOTH_ADMIN,
-            Manifest.permission.ACCESS_FINE_LOCATION,
-            Manifest.permission.ACCESS_COARSE_LOCATION
-        )
+    // 初始化标志和任务
+    private val isInitialized = AtomicBoolean(false)
+    private var languageInitJob: Job? = null
+    
+    // 蓝牙相关权限 - 根据SDK版本优化
+    private val bluetoothPermissions by lazy {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            arrayOf(
+                Manifest.permission.BLUETOOTH_CONNECT,
+                Manifest.permission.BLUETOOTH_SCAN
+            )
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            arrayOf(
+                Manifest.permission.BLUETOOTH,
+                Manifest.permission.BLUETOOTH_ADMIN,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            )
+        } else {
+            // Android 6.0以下的兼容性处理
+            arrayOf(
+                Manifest.permission.BLUETOOTH,
+                Manifest.permission.BLUETOOTH_ADMIN
+            )
+        }
     }
     
-    // 通知权限
-    private val notificationPermission = 
+    // 通知权限 - 只在Android 13+请求
+    private val notificationPermission by lazy { 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             arrayOf(Manifest.permission.POST_NOTIFICATIONS)
         } else {
             emptyArray()
         }
+    }
     
     // 权限请求回调
-    @RequiresApi(Build.VERSION_CODES.S)
     private val requestPermissionsLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
@@ -110,10 +124,11 @@ class MainActivity : ComponentActivity(), OrderNotificationManager.NotificationC
             
             // 检查被拒绝的权限类型
             val hasBluetoothDenied = deniedPermissions.any { 
-                it == Manifest.permission.BLUETOOTH_CONNECT || 
-                it == Manifest.permission.BLUETOOTH_SCAN ||
-                it == Manifest.permission.BLUETOOTH ||
-                it == Manifest.permission.BLUETOOTH_ADMIN
+                it.contains("BLUETOOTH", ignoreCase = true)
+            }
+            
+            val hasLocationDenied = deniedPermissions.any {
+                it.contains("LOCATION", ignoreCase = true)
             }
             
             val hasNotificationDenied = deniedPermissions.any {
@@ -124,6 +139,11 @@ class MainActivity : ComponentActivity(), OrderNotificationManager.NotificationC
             if (hasBluetoothDenied) {
                 Log.w(TAG, "蓝牙相关权限被拒绝，蓝牙打印功能将无法正常工作")
                 showPermissionSettings("蓝牙权限对于打印机功能至关，请在设置中手动开启")
+            }
+            
+            if (hasLocationDenied && Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+                Log.w(TAG, "位置权限被拒绝，蓝牙扫描功能将受限")
+                showPermissionSettings("位置权限用于蓝牙设备扫描，请在设置中手动开启")
             }
             
             if (hasNotificationDenied && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -137,15 +157,21 @@ class MainActivity : ComponentActivity(), OrderNotificationManager.NotificationC
         }
     }
     
-    @RequiresApi(Build.VERSION_CODES.S)
     override fun onCreate(savedInstanceState: Bundle?) {
-        // 在super.onCreate之前初始化应用语言
-        initAppLanguage()
+        // 异步初始化应用语言，减少启动时间
+        languageInitJob = lifecycleScope.launch(Dispatchers.IO) {
+            initAppLanguage()
+        }
         
         super.onCreate(savedInstanceState)
         
-        // 请求所需权限
-        requestRequiredPermissions()
+        // 请求所需权限 - 延迟执行确保UI已加载
+        lifecycleScope.launch {
+            // 延迟权限请求，等待UI完全加载
+            launch {
+                requestRequiredPermissions()
+            }
+        }
         
         // 注册通知回调
         orderNotificationManager.registerCallback(this)
@@ -153,6 +179,9 @@ class MainActivity : ComponentActivity(), OrderNotificationManager.NotificationC
         setContent {
             MainAppContent()
         }
+        
+        // 标记初始化完成
+        isInitialized.set(true)
     }
     
     @Composable
@@ -204,6 +233,9 @@ class MainActivity : ComponentActivity(), OrderNotificationManager.NotificationC
         super.onDestroy()
         // 注销通知回调
         orderNotificationManager.unregisterCallback()
+        
+        // 取消所有正在执行的协程
+        languageInitJob?.cancel()
     }
     
     // 实现NotificationCallback接口
@@ -216,7 +248,7 @@ class MainActivity : ComponentActivity(), OrderNotificationManager.NotificationC
     /**
      * 初始化应用语言设置
      */
-    private fun initAppLanguage() {
+    private suspend fun initAppLanguage() {
         try {
             Log.d(TAG, "开始初始化应用语言设置")
             
@@ -224,20 +256,24 @@ class MainActivity : ComponentActivity(), OrderNotificationManager.NotificationC
             LocaleManager.initialize(applicationContext)
             
             // 从SharedPreferences加载保存的语言设置
-            val savedLocale = LocaleHelper.loadSavedLocale(this)
+            val savedLocale = withContext(Dispatchers.IO) {
+                LocaleHelper.loadSavedLocale(this@MainActivity)
+            }
             
             if (savedLocale != null) {
                 // 找到保存的语言设置，应用它
                 Log.d(TAG, "从SharedPreferences加载语言设置: ${savedLocale.language}")
                 
                 // 使用更完整的语言设置方法
-                LocaleManager.setLocale(this, savedLocale)
-                
-                // 确保状态也更新
-                LocaleManager.updateLocale(savedLocale)
+                withContext(Dispatchers.Main) {
+                    LocaleManager.setLocale(this@MainActivity, savedLocale)
+                    
+                    // 确保状态也更新
+                    LocaleManager.updateLocale(savedLocale)
+                }
             } else {
                 // 没有保存的语言设置，使用系统语言
-                val systemLocale = LocaleHelper.getSystemLocale(this)
+                val systemLocale = LocaleHelper.getSystemLocale(this@MainActivity)
                 // 确保使用的是我们支持的语言之一
                 val supportedLocale = LocaleHelper.SUPPORTED_LOCALES.find { 
                     it.language == systemLocale.language 
@@ -246,31 +282,50 @@ class MainActivity : ComponentActivity(), OrderNotificationManager.NotificationC
                 Log.d(TAG, "没有保存的语言设置，使用系统语言: ${supportedLocale.language}")
                 
                 // 使用更完整的语言设置方法
-                LocaleManager.setLocale(this, supportedLocale)
+                withContext(Dispatchers.Main) {
+                    LocaleManager.setLocale(this@MainActivity, supportedLocale)
+                    
+                    // 更新UI状态
+                    LocaleManager.updateLocale(supportedLocale)
+                }
                 
-                // 更新UI状态
-                LocaleManager.updateLocale(supportedLocale)
-                
-                // 保存语言设置
-                LocaleHelper.saveLocalePreference(this, supportedLocale)
+                // 保存语言设置 (IO线程)
+                withContext(Dispatchers.IO) {
+                    LocaleHelper.saveLocalePreference(this@MainActivity, supportedLocale)
+                }
             }
             
-            // 应用当前语言到上下文
-            // API 24+, 使用createConfigurationContext方法
-            val locale = LocaleManager.currentLocale
-            val localeList = android.os.LocaleList(locale)
-            val config = resources.configuration.apply {
-                setLocales(localeList)
+            // 应用当前语言到上下文 (必须在主线程)
+            withContext(Dispatchers.Main) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    // API 24+, 使用createConfigurationContext方法
+                    val locale = LocaleManager.currentLocale
+                    val localeList = android.os.LocaleList(locale)
+                    val config = resources.configuration.apply {
+                        setLocales(localeList)
+                    }
+                    createConfigurationContext(config)
+                } else {
+                    // API 23及以下，使用旧方法
+                    val locale = LocaleManager.currentLocale
+                    // 创建新的Configuration对象而不是使用copy()
+                    val config = android.content.res.Configuration(resources.configuration)
+                    @Suppress("DEPRECATION")
+                    config.locale = locale
+                    @Suppress("DEPRECATION")
+                    resources.updateConfiguration(config, resources.displayMetrics)
+                }
             }
-            createConfigurationContext(config)
 
             Log.d(TAG, "应用语言初始化完成: ${LocaleManager.currentLocale.language}")
         } catch (e: Exception) {
             Log.e(TAG, "初始化应用语言失败", e)
             // 如果初始化失败，使用英语作为默认语言
             try {
-                LocaleManager.setLocale(this, Locale.ENGLISH)
-                LocaleManager.updateLocale(Locale.ENGLISH)
+                withContext(Dispatchers.Main) {
+                    LocaleManager.setLocale(this@MainActivity, Locale.ENGLISH)
+                    LocaleManager.updateLocale(Locale.ENGLISH)
+                }
             } catch (e2: Exception) {
                 Log.e(TAG, "回退到英语也失败了", e2)
             }
@@ -280,7 +335,6 @@ class MainActivity : ComponentActivity(), OrderNotificationManager.NotificationC
     /**
      * 请求应用所需权限
      */
-    @RequiresApi(Build.VERSION_CODES.S)
     private fun requestRequiredPermissions() {
         val permissionsToRequest = mutableListOf<String>()
         val missingPermissions = mutableListOf<String>()
@@ -333,7 +387,6 @@ class MainActivity : ComponentActivity(), OrderNotificationManager.NotificationC
      * 提供给外部组件的方法，用于重新请求所有权限
      * 可以在扫描蓝牙等功能失败时调用
      */
-    @RequiresApi(Build.VERSION_CODES.S)
     fun requestAllPermissions() {
         Log.d(TAG, "外部组件请求权限")
         requestRequiredPermissions()

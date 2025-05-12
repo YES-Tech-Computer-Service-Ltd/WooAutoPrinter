@@ -4,6 +4,7 @@ import com.example.wooauto.data.remote.dto.MetaDataDto
 import com.google.gson.stream.JsonReader
 import com.google.gson.stream.JsonToken
 import android.util.Log
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * 元数据处理器注册表
@@ -11,7 +12,7 @@ import android.util.Log
  */
 class MetadataProcessorRegistry {
     private val processors = mutableListOf<MetadataProcessor>()
-    private var isInitialized = false
+    private val isInitialized = AtomicBoolean(false)
     
     /**
      * 注册元数据处理器
@@ -45,13 +46,14 @@ class MetadataProcessorRegistry {
     
     /**
      * 确保注册表已经初始化
+     * 懒加载方式，只在首次使用时初始化
      */
     private fun ensureInitialized() {
-        if (!isInitialized) {
+        if (!isInitialized.get()) {
             synchronized(this) {
-                if (!isInitialized) {
+                if (!isInitialized.get()) {
                     initialize()
-                    isInitialized = true
+                    isInitialized.set(true)
                 }
             }
         }
@@ -183,11 +185,11 @@ class MetadataProcessorRegistry {
         // 注册WooFood处理器
         registerProcessor(WooFoodMetadataProcessor())
         
-        isInitialized = true
+        isInitialized.set(true)
     }
     
     companion object {
-        // 单例实例
+        // 单例实例，使用双重检查锁定
         @Volatile
         private var instance: MetadataProcessorRegistry? = null
         
