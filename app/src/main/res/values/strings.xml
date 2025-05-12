@@ -268,7 +268,7 @@
     <string name="store_settings">Store Settings</string>
     <string name="auto_update">Auto Update</string>
     <string name="feature_coming_soon">This feature is coming soon</string>
-    <string name="app_version">WooAuto - Version 1.0.0</string>
+    <string name="app_version">WooAuto - Version %1$s</string>
 
     <!-- API Settings -->
     <string name="website_url_placeholder">https://your-site.com</string>
@@ -344,4 +344,11 @@
     <string name="set_default_printer">Set as default printer</string>
     <string name="request_bluetooth_location_permissions">Request Bluetooth and Location permissions</string>
     <string name="auto_cut_paper">Auto Cut Paper</string>
+
+    <!-- 更新版本相关字符串资源 -->
+    <string name="checking_for_updates">Checking for updates...</string>
+    <string name="update_available">Update available</string>
+    <string name="latest_version">Latest version: %1$s</string>
+    <string name="current_version">Current version: %1$s</string>
+    <string name="no_update_available">Your app is up to date</string>
 </resources>

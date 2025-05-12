@@ -270,7 +270,7 @@
     <string name="store_settings">店铺信息设置</string>
     <string name="auto_update">自动更新</string>
     <string name="feature_coming_soon">此功能即将推出</string>
-    <string name="app_version">WooAuto - 版本 1.0.0</string>
+    <string name="app_version">WooAuto - 版本 %1$s</string>
 
     <!-- API Settings -->
     <string name="website_url_placeholder">https://your-site.com</string>
@@ -343,4 +343,11 @@
     <string name="set_default_printer">设为默认打印机</string>
     <string name="request_bluetooth_location_permissions">请求蓝牙和位置权限</string>
     <string name="auto_cut_paper">自动切纸</string>
+
+    <!-- 更新版本相关字符串资源 -->
+    <string name="checking_for_updates">检查更新中...</string>
+    <string name="update_available">发现新版本</string>
+    <string name="latest_version">最新版本: %1$s</string>
+    <string name="current_version">当前版本: %1$s</string>
+    <string name="no_update_available">您的应用已是最新版本</string>
 </resources>

@@ -37,6 +37,8 @@ import com.example.wooauto.service.BackgroundPollingService
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import com.example.wooauto.updater.UpdaterInterface
+import com.example.wooauto.updater.model.UpdateInfo
 
 /**
  * 系统设置ViewModel
@@ -48,6 +50,7 @@ class SettingsViewModel @Inject constructor(
     private val productRepository: DomainProductRepository,
     private val orderRepository: DomainOrderRepository,
     private val printerManager: PrinterManager,
+    private val updater: UpdaterInterface,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -140,12 +143,33 @@ class SettingsViewModel @Inject constructor(
     private val _statusMessage = MutableStateFlow<String?>(null)
     val statusMessage: StateFlow<String?> = _statusMessage.asStateFlow()
 
+    // 添加版本相关状态
+    private val _currentAppVersion = MutableStateFlow(updater.getCurrentVersion().toFullVersionString())
+    val currentAppVersion: StateFlow<String> = _currentAppVersion.asStateFlow()
+    
+    private val _updateInfo = MutableStateFlow<UpdateInfo?>(null)
+    val updateInfo: StateFlow<UpdateInfo?> = _updateInfo.asStateFlow()
+    
+    private val _isCheckingUpdate = MutableStateFlow(false)
+    val isCheckingUpdate: StateFlow<Boolean> = _isCheckingUpdate.asStateFlow()
+    
+    private val _hasUpdate = MutableStateFlow(false)
+    val hasUpdate: StateFlow<Boolean> = _hasUpdate.asStateFlow()
+
+    // 添加下载相关状态
+    private val _isDownloading = MutableStateFlow(false)
+    val isDownloading: StateFlow<Boolean> = _isDownloading.asStateFlow()
+
+    private val _downloadProgress = MutableStateFlow(0)
+    val downloadProgress: StateFlow<Int> = _downloadProgress.asStateFlow()
+
     init {
         Log.d("SettingsViewModel", "初始化ViewModel")
         loadSettings()
         loadPrinterConfigs()
         loadStoreInfo()
         loadAutomationSettings()
+        checkAppUpdate() // 初始化时检查更新
         
         // 监听打印机扫描结果
         viewModelScope.launch {
@@ -1123,6 +1147,100 @@ class SettingsViewModel @Inject constructor(
             } catch (e: Exception) {
                 Log.e(TAG, "测试切纸功能失败: ${e.message}", e)
                 updateStatusMessage("切纸测试异常: ${e.message}")
+            }
+        }
+    }
+
+    /**
+     * 检查应用更新
+     */
+    fun checkAppUpdate() {
+        viewModelScope.launch {
+            try {
+                _isCheckingUpdate.value = true
+                
+                // 使用更新器检查更新
+                updater.checkForUpdates().collect { updateInfo ->
+                    _updateInfo.value = updateInfo
+                    _hasUpdate.value = updateInfo.needsUpdate()
+                    _isCheckingUpdate.value = false
+                    
+                    if (updateInfo.needsUpdate()) {
+                        Log.d(TAG, "发现新版本: ${updateInfo.latestVersion.toVersionString()}, 当前版本: ${updateInfo.currentVersion.toVersionString()}")
+                    } else {
+                        Log.d(TAG, "当前已是最新版本: ${updateInfo.currentVersion.toVersionString()}")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "检查更新失败", e)
+                _isCheckingUpdate.value = false
+            }
+        }
+    }
+    
+    /**
+     * 获取关于信息文本，包括版本和更新状态
+     */
+    fun getAboutInfoText(): String {
+        val baseVersionText = "WooAuto - 版本 ${updater.getCurrentVersion().toVersionString()}"
+        val updateInfo = _updateInfo.value
+        
+        return if (updateInfo != null && updateInfo.needsUpdate()) {
+            "$baseVersionText\n发现新版本: ${updateInfo.latestVersion.toVersionString()}"
+        } else {
+            baseVersionText
+        }
+    }
+    
+    /**
+     * 设置自动更新
+     */
+    fun setAutoUpdate(enabled: Boolean) {
+        viewModelScope.launch {
+            try {
+                // 设置更新器的自动检查
+                updater.setAutoCheckEnabled(enabled)
+                
+                // 可以保存到设置
+                settingsRepository.setAutoUpdate(enabled)
+                
+                Log.d(TAG, "自动更新设置为: $enabled")
+            } catch (e: Exception) {
+                Log.e(TAG, "设置自动更新失败", e)
+            }
+        }
+    }
+
+    /**
+     * 下载更新
+     */
+    fun downloadUpdate() {
+        if (_updateInfo.value == null || !_hasUpdate.value) {
+            Log.d(TAG, "无更新可下载")
+            return
+        }
+        
+        viewModelScope.launch {
+            try {
+                _isDownloading.value = true
+                _downloadProgress.value = 0
+                
+                updater.downloadAndInstall(_updateInfo.value!!).collect { progress ->
+                    if (progress < 0) {
+                        // 下载出错
+                        _statusMessage.value = "下载更新失败，请重试"
+                        _isDownloading.value = false
+                    } else {
+                        _downloadProgress.value = progress
+                        if (progress >= 100) {
+                            _isDownloading.value = false
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "下载更新出错", e)
+                _statusMessage.value = "下载更新出错: ${e.message}"
+                _isDownloading.value = false
             }
         }
     }

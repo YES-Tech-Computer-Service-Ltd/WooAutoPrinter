@@ -23,6 +23,7 @@ import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Store
 import androidx.compose.material.icons.filled.Print
+import androidx.compose.material.icons.filled.GetApp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -82,6 +83,7 @@ import androidx.compose.material3.IconButton
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 import com.example.wooauto.presentation.components.WooTopBar
+import androidx.compose.material3.LinearProgressIndicator
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -290,10 +292,60 @@ fun SettingsScreen(
                             onClick = {
                                 Log.d("设置", "点击了关于")
                                 coroutineScope.launch {
-                                    snackbarHostState.showSnackbar(appVersionText)
+                                    snackbarHostState.showSnackbar(viewModel.getAboutInfoText())
                                 }
                             }
                         )
+                        
+                        // 如果有更新可用，显示下载更新按钮
+                        if (viewModel.hasUpdate.collectAsState().value) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            HorizontalDivider()
+                            Spacer(modifier = Modifier.height(8.dp))
+                            
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 8.dp)
+                                    .clickable { viewModel.downloadUpdate() },
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.GetApp,
+                                    contentDescription = "下载更新",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier
+                                        .padding(8.dp)
+                                        .size(24.dp)
+                                )
+                                
+                                Spacer(modifier = Modifier.width(16.dp))
+                                
+                                Column(modifier = Modifier.weight(1f)) {
+                                    val isDownloading = viewModel.isDownloading.collectAsState().value
+                                    val downloadProgress = viewModel.downloadProgress.collectAsState().value
+                                    
+                                    Text(
+                                        text = if (isDownloading) "正在下载更新..." else "下载并安装更新",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    
+                                    if (isDownloading) {
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        LinearProgressIndicator(
+                                            progress = { downloadProgress / 100f },
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                        Text(
+                                            text = "$downloadProgress%",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                     
                     // 自动更新
@@ -306,14 +358,41 @@ fun SettingsScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text(
-                            text = stringResource(R.string.auto_update),
-                            style = MaterialTheme.typography.bodyLarge
-                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = stringResource(R.string.auto_update),
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                            if (viewModel.isCheckingUpdate.collectAsState().value) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        strokeWidth = 2.dp
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "检查更新中...",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.outline
+                                    )
+                                }
+                            } else if (viewModel.hasUpdate.collectAsState().value) {
+                                Text(
+                                    text = "发现新版本",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
                         
                         Switch(
                             checked = autoUpdate,
-                            onCheckedChange = { autoUpdate = it }
+                            onCheckedChange = { 
+                                autoUpdate = it
+                                viewModel.setAutoUpdate(it)
+                            }
                         )
                     }
 

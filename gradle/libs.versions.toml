@@ -33,7 +33,7 @@ navigationCompose = "2.7.7"
 material3 = "1.2.0"
 
 # Room
-room = "2.6.1"
+room = "2.5.2"
 
 # Networking
 retrofit = "2.9.0"
@@ -63,7 +63,8 @@ workRuntimeKtx = "2.10.0"
 playServicesAnalyticsImpl = "18.2.0"
 firebaseFunctionsKtx = "21.1.0"
 annotations = "15.0"
-roomRuntimeAndroid = "2.7.1"
+roomRuntimeAndroid = "2.5.2"
+roomCompiler = "2.5.2"
 
 [libraries]
 # Android core
@@ -159,6 +160,7 @@ play-services-analytics-impl = { group = "com.google.android.gms", name = "play-
 firebase-functions-ktx = { group = "com.google.firebase", name = "firebase-functions-ktx", version.ref = "firebaseFunctionsKtx" }
 annotations = { group = "org.jetbrains", name = "annotations", version.ref = "annotations" }
 androidx-room-runtime-android = { group = "androidx.room", name = "room-runtime-android", version.ref = "roomRuntimeAndroid" }
+room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "roomCompiler" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "androidGradlePlugin" }

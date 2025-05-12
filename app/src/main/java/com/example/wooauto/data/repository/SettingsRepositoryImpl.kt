@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.example.wooauto.data.local.dao.SettingDao
@@ -31,7 +32,8 @@ import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
+// 将扩展属性改为伴生对象中的工厂方法
+private val Context.dataStore by preferencesDataStore(name = "settings")
 
 @Singleton
 class SettingsRepositoryImpl @Inject constructor(
@@ -40,6 +42,9 @@ class SettingsRepositoryImpl @Inject constructor(
     private val wooCommerceConfig: LocalWooCommerceConfig,
     private val gson: Gson
 ) : DomainSettingRepository {
+
+    // 获取DataStore实例
+    private val dataStore: DataStore<Preferences> = context.dataStore
 
     private object PreferencesKeys {
         val SITE_URL = stringPreferencesKey("site_url")
@@ -88,6 +93,9 @@ class SettingsRepositoryImpl @Inject constructor(
         private const val KEY_SOUND_ENABLED = "sound_enabled"
         private const val KEY_CUSTOM_SOUND_URI = "custom_sound_uri"
     }
+
+    private val autoUpdateKey = "auto_update"
+    private val lastUpdateCheckTimeKey = "last_update_check_time"
 
     init {
         // 在初始化时检查配置并更新状态
@@ -590,5 +598,46 @@ class SettingsRepositoryImpl @Inject constructor(
             "自定义提示音URI"
         )
         settingDao.insertOrUpdateSetting(entity)
+    }
+
+    /**
+     * 获取自动更新状态
+     */
+    override suspend fun getAutoUpdate(): Boolean {
+        return dataStore.data.first()[booleanPreferencesKey(autoUpdateKey)] ?: false
+    }
+
+    /**
+     * 设置自动更新状态
+     */
+    override suspend fun setAutoUpdate(enabled: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[booleanPreferencesKey(autoUpdateKey)] = enabled
+        }
+    }
+
+    /**
+     * 获取自动更新状态Flow
+     */
+    override fun getAutoUpdateFlow(): Flow<Boolean> {
+        return dataStore.data.map { preferences ->
+            preferences[booleanPreferencesKey(autoUpdateKey)] ?: false
+        }
+    }
+
+    /**
+     * 获取上次检查更新时间
+     */
+    override suspend fun getLastUpdateCheckTime(): Long {
+        return dataStore.data.first()[longPreferencesKey(lastUpdateCheckTimeKey)] ?: 0L
+    }
+
+    /**
+     * 设置上次检查更新时间
+     */
+    override suspend fun setLastUpdateCheckTime(timestamp: Long) {
+        dataStore.edit { preferences ->
+            preferences[longPreferencesKey(lastUpdateCheckTimeKey)] = timestamp
+        }
     }
 } 
