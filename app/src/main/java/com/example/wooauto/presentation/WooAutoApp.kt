@@ -93,7 +93,8 @@ fun AppContent() {
     }
     
     Scaffold(
-        topBar = { WooAppBar(navController = navController) },
+        // 移除顶部导航栏，由各页面自己管理顶部导航
+        // topBar = { WooAppBar(navController = navController) },
         bottomBar = { 
             // 确保底部导航栏能够正确响应导航变化
             // 使用条件渲染替代try-catch，Compose不支持在Composable中使用try-catch

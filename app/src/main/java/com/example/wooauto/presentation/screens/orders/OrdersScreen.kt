@@ -118,6 +118,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.graphics.SolidColor
 import androidx.core.content.ContextCompat
+import com.example.wooauto.presentation.components.WooTopBar
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -146,8 +147,6 @@ fun OrdersScreen(
     
     // 修改API检查状态逻辑
     var showApiConfigDialog by remember { mutableStateOf(false) }
-    // 不再使用api检查延迟
-    // var apiCheckDelayCompleted by remember { mutableStateOf(false) }
     
     var searchQuery by remember { mutableStateOf("") }
     var showOrderDetail by remember { mutableStateOf(false) }
@@ -315,12 +314,31 @@ fun OrdersScreen(
     
     Scaffold(
         topBar = {
-            TopBar(
-                isRefreshing = isRefreshing,
-                onToggleUnreadOrders = { showUnreadOrders = !showUnreadOrders },
-                onRefresh = { viewModel.refreshOrders() },
+            WooTopBar(
+                title = stringResource(id = R.string.orders),
+                showSearch = true, // 显示搜索框
                 searchQuery = searchQuery,
-                onSearchQueryChange = { searchQuery = it }
+                onSearchQueryChange = { searchQuery = it },
+                searchPlaceholder = if (locale.language == "zh") "搜索订单..." else "Search orders...",
+                isRefreshing = isRefreshing,
+                onRefresh = { viewModel.refreshOrders() },
+                locale = locale,
+                additionalActions = {
+                    // 未读订单按钮
+                    IconButton(
+                        onClick = { showUnreadOrders = !showUnreadOrders },
+                        modifier = Modifier
+                            .size(44.dp)
+                            .padding(end = 2.dp) // 减少右边距，使按钮更紧凑
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Email,
+                            contentDescription = if (locale.language == "zh") "未读订单" else "Unread Orders",
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.size(22.dp) // 调整图标大小
+                        )
+                    }
+                }
             )
         },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
@@ -513,89 +531,6 @@ fun OrdersScreen(
             }
         }
     }
-}
-
-/**
- * 订单列表顶部栏
- */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun TopBar(
-    isRefreshing: Boolean,
-    onToggleUnreadOrders: () -> Unit,
-    onRefresh: () -> Unit,
-    searchQuery: String,
-    onSearchQueryChange: (String) -> Unit
-) {
-    val locale = LocalAppLocale.current
-    
-    TopAppBar(
-        title = {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // 搜索框样式
-                CustomSearchField(
-                    value = searchQuery,
-                    onValueChange = onSearchQueryChange,
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(vertical = 4.dp, horizontal = 4.dp),
-                    placeholder = if (locale.language == "zh") "搜索订单..." else "Search orders...",
-                    locale = locale
-                )
-            }
-        },
-        actions = {
-            // 未读订单按钮
-            IconButton(
-                onClick = onToggleUnreadOrders,
-                modifier = Modifier
-                    .size(44.dp)
-                    .padding(end = 2.dp) // 减少右边距，使按钮更紧凑
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Email,
-                    contentDescription = if (locale.language == "zh") "未读订单" else "Unread Orders",
-                    tint = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier.size(22.dp) // 调整图标大小
-                )
-            }
-            
-            // 刷新按钮
-            IconButton(
-                onClick = onRefresh,
-                enabled = !isRefreshing,
-                modifier = Modifier
-                    .size(44.dp)
-                    .padding(end = 2.dp) // 减少右边距
-            ) {
-                if (isRefreshing) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(22.dp),
-                        strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.onPrimary
-                    )
-                } else {
-                    Icon(
-                        imageVector = Icons.Default.Refresh,
-                        contentDescription = if (locale.language == "zh") "刷新" else "Refresh",
-                        tint = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.size(22.dp) // 调整图标大小
-                    )
-                }
-            }
-        },
-        modifier = Modifier
-            .height(68.dp) // 保持适当的高度
-            .fillMaxWidth(),
-        colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.primary,
-            titleContentColor = MaterialTheme.colorScheme.onPrimary,
-            actionIconContentColor = MaterialTheme.colorScheme.onPrimary
-        )
-    )
 }
 
 /**
@@ -2248,86 +2183,4 @@ fun UnreadOrderItem(
             )
         }
     }
-}
-
-/**
- * 自定义搜索框组件
- */
-@Composable
-private fun CustomSearchField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    modifier: Modifier = Modifier,
-    placeholder: String = "",
-    locale: Locale
-) {
-    val interactionSource = remember { MutableInteractionSource() }
-    
-    BasicTextField(
-        value = value,
-        onValueChange = onValueChange,
-        modifier = modifier
-            .heightIn(min = 48.dp, max = 56.dp)
-            .shadow(
-                elevation = 4.dp,
-                shape = RoundedCornerShape(12.dp),
-                spotColor = Color.Black.copy(alpha = 0.2f)
-            )
-            .clip(RoundedCornerShape(12.dp))
-            .background(Color.White),
-        textStyle = MaterialTheme.typography.bodyMedium.copy(
-            fontSize = 15.sp,
-            color = Color.Black
-        ),
-        singleLine = true,
-        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-//        keyboardActions = KeyboardActions(onSearch = { /* TODO: 可以触发搜索动作 */ }),
-        interactionSource = interactionSource,
-        decorationBox = { innerTextField ->
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Search,
-                    contentDescription = if (locale.language == "zh") "搜索" else "Search",
-                    modifier = Modifier.size(18.dp),
-                    tint = MaterialTheme.colorScheme.primary
-                )
-                
-                Spacer(modifier = Modifier.width(8.dp))
-                
-                Box(modifier = Modifier.weight(1f)) {
-                    if (value.isEmpty()) {
-                        Text(
-                            text = placeholder,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontSize = 14.sp,
-                            color = Color.Gray.copy(alpha = 0.7f)
-                        )
-                    }
-                    innerTextField()
-                }
-                
-                if (value.isNotEmpty()) {
-                    Spacer(modifier = Modifier.width(8.dp))
-                    
-                    IconButton(
-                        onClick = { onValueChange("") },
-                        modifier = Modifier.size(24.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Clear,
-                            contentDescription = if (locale.language == "zh") "清除" else "Clear",
-                            modifier = Modifier.size(16.dp),
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
-            }
-        }
-    )
 } 

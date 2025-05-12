@@ -87,6 +87,8 @@ import coil.request.ImageRequest
 import com.example.wooauto.R
 import com.example.wooauto.domain.models.Product
 import com.example.wooauto.navigation.NavigationItem
+import com.example.wooauto.presentation.components.WooTopBar
+import com.example.wooauto.utils.LocalAppLocale
 import kotlinx.coroutines.launch
 import java.util.*
 
@@ -306,6 +308,9 @@ private fun ProductsScreenContent(
         listOf(null to stringResource(id = R.string.all_categories)) + categories
     }
     
+    // 获取当前语言环境
+    val locale = LocalAppLocale.current
+    
     // 使用Surface包装Scaffold，避免布局问题
     androidx.compose.material3.Surface(
         modifier = Modifier.fillMaxSize()
@@ -313,6 +318,27 @@ private fun ProductsScreenContent(
         // 使用key防止Scaffold不必要的重组
         androidx.compose.runtime.key(products.size) {
             Scaffold(
+                topBar = {
+                    WooTopBar(
+                        title = stringResource(id = R.string.products),
+                        showSearch = true, // 显示搜索框
+                        searchQuery = searchQuery,
+                        onSearchQueryChange = { query ->
+                            searchQuery = query
+                            if (query.isEmpty()) {
+//                                Log.d("ProductsScreen", "清空搜索，恢复分类过滤: 分类ID=${selectedCategoryId}")
+                                viewModel.filterProductsByCategory(selectedCategoryId)
+                            } else {
+//                                Log.d("ProductsScreen", "执行产品搜索: 关键词='$query'")
+                                viewModel.searchProducts(query)
+                            }
+                        },
+                        searchPlaceholder = if (locale.language == "zh") "搜索产品..." else "Search products...",
+                        isRefreshing = isRefreshing,
+                        onRefresh = { viewModel.refreshData() },
+                        locale = locale
+                    )
+                },
                 snackbarHost = { SnackbarHost(snackbarHostState) }
             ) { paddingValues ->
                 // 主要内容区域
@@ -639,168 +665,130 @@ fun ProductsContent(
     onProductClick: (Long) -> Unit,
     onRefreshClick: () -> Unit
 ) {
-    // 使用remember和key优化性能
-    val displayProducts = remember(products, isLoading, previousProducts) {
-        if (isLoading && products.isEmpty() && previousProducts.isNotEmpty()) {
-            previousProducts 
-        } else {
-            products
-        }
+    // 使用列表状态，支持滚动到指定位置
+    val lazyListState = rememberLazyListState()
+    
+    // 计算要显示的产品列表，根据不同状态选择
+    val displayProducts = if (products.isEmpty() && previousProducts.isNotEmpty() && isSwitchingCategory) {
+        // 如果切换分类正在加载，且之前有数据，则显示previousProducts
+        previousProducts
+    } else {
+        // 否则显示当前产品列表
+        products
     }
     
-    // 使用key来防止列表内容重组
-    androidx.compose.runtime.key(displayProducts.size) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 12.dp, vertical = 8.dp)
+    ) {
+        // 分类选择区域
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 12.dp, vertical = 0.dp) // 修改为只有水平padding
+                .fillMaxWidth()
+                .padding(bottom = 4.dp) // 减少底部边距
         ) {
-            Spacer(modifier = Modifier.height(2.dp))
-            
-            if (displayProducts.isNotEmpty() || isLoading || isSwitchingCategory) {
-                // 搜索和刷新按钮并排放置
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp), // 减少垂直内边距为4dp
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    // 搜索框 - 修改了样式使其更明显
-                    CustomSearchField(
-                        value = searchQuery,
-                        onValueChange = onSearchChange,
-                        modifier = Modifier.weight(1f),
-                        placeholder = stringResource(id = R.string.search_products_hint),
-                        locale = Locale.getDefault()
+            // 分类筛选器
+            LazyRow(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 2.dp), // 减少垂直边距为2dp
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(horizontal = 4.dp), // 减少水平内边距
+                state = lazyListState
+            ) {
+                items(
+                    items = categoryOptions,
+                    key = { it.first ?: -1L } // 使用分类ID作为key
+                ) { (id, name) ->
+                    FilterChip(
+                        selected = selectedCategoryId == id,
+                        onClick = { onCategorySelect(id, name) },
+                        label = { 
+                            Text(
+                                text = name,
+                                style = MaterialTheme.typography.bodyMedium
+                            ) 
+                        },
+                        leadingIcon = if (selectedCategoryId == id) {
+                            {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        } else null,
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
                     )
-                    
-                    // 刷新按钮 - 修改了大小和颜色使变化更明显
-                    IconButton(
-                        onClick = onRefreshClick,
-                        modifier = Modifier.size(40.dp),
-                        enabled = !isRefreshing
-                    ) {
-                        if (isRefreshing) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(24.dp),
-                                strokeWidth = 2.dp
-                            )
-                        } else {
-                            Icon(
-                                imageVector = Icons.Default.Refresh,
-                                contentDescription = stringResource(id = R.string.refresh),
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(28.dp) // 增大图标尺寸
-                            )
-                        }
-                    }
                 }
-                
-                // 分类过滤器 - 水平滚动按钮样式
-                val lazyListState = rememberLazyListState()
-                
-                LazyRow(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 2.dp), // 减少垂直边距为2dp
+            }
+            
+            Spacer(modifier = Modifier.height(8.dp)) // 减少垂直空间
+        }
+            
+        // 产品列表区域
+        Box(
+            modifier = Modifier.weight(1f)
+        ) {
+            if (displayProducts.isNotEmpty()) {
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(minSize = 150.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    contentPadding = PaddingValues(horizontal = 4.dp), // 减少水平内边距
-                    state = lazyListState
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .alpha(fadeTransition)
                 ) {
                     items(
-                        items = categoryOptions,
-                        key = { it.first ?: -1L } // 使用分类ID作为key
-                    ) { (id, name) ->
-                        FilterChip(
-                            selected = selectedCategoryId == id,
-                            onClick = { onCategorySelect(id, name) },
-                            label = { 
-                                Text(
-                                    text = name,
-                                    style = MaterialTheme.typography.bodyMedium
-                                ) 
-                            },
-                            leadingIcon = if (selectedCategoryId == id) {
-                                {
-                                    Icon(
-                                        imageVector = Icons.Default.Check,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
-                            } else null,
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                        items = displayProducts,
+                        key = { it.id } // 使用产品ID作为key避免重组
+                    ) { product ->
+                        // 使用key包装每个产品项防止不必要的重组
+                        androidx.compose.runtime.key(product.id) {
+                            ProductGridItem(
+                                product = product,
+                                onClick = { onProductClick(product.id) }
                             )
-                        )
-                    }
-                }
-                
-                Spacer(modifier = Modifier.height(8.dp)) // 减少垂直空间
-                
-                // 产品列表区域
-                Box(
-                    modifier = Modifier.weight(1f)
-                ) {
-                    if (displayProducts.isNotEmpty()) {
-                        LazyVerticalGrid(
-                            columns = GridCells.Adaptive(minSize = 150.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .alpha(fadeTransition)
-                        ) {
-                            items(
-                                items = displayProducts,
-                                key = { it.id } // 使用产品ID作为key避免重组
-                            ) { product ->
-                                // 使用key包装每个产品项防止不必要的重组
-                                androidx.compose.runtime.key(product.id) {
-                                    ProductGridItem(
-                                        product = product,
-                                        onClick = { onProductClick(product.id) }
-                                    )
-                                }
-                            }
                         }
                     }
-                    
-                    // 加载指示器更美观且不遮挡内容
-                    if (isLoading || isSwitchingCategory) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .alpha(0.5f), // 降低透明度，使背景内容更可见
-                            contentAlignment = Alignment.Center
+                }
+            }
+            
+            // 加载指示器更美观且不遮挡内容
+            if (isLoading || isSwitchingCategory) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .alpha(0.5f), // 降低透明度，使背景内容更可见
+                    contentAlignment = Alignment.Center
+                ) {
+                    Card(
+                        modifier = Modifier.padding(16.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)
+                        ),
+                        shape = RoundedCornerShape(8.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(16.dp)
                         ) {
-                            Card(
-                                modifier = Modifier.padding(16.dp),
-                                colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)
-                                ),
-                                shape = RoundedCornerShape(8.dp),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-                            ) {
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    modifier = Modifier.padding(16.dp)
-                                ) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(36.dp)
-                                    )
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Text(
-                                        text = if (isSwitchingCategory) 
-                                            stringResource(id = R.string.switching_category) 
-                                        else 
-                                            stringResource(id = R.string.loading_products),
-                                        style = MaterialTheme.typography.bodyMedium
-                                    )
-                                }
-                            }
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(36.dp)
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = if (isSwitchingCategory) 
+                                    stringResource(id = R.string.switching_category) 
+                                else 
+                                    stringResource(id = R.string.loading_products),
+                                style = MaterialTheme.typography.bodyMedium
+                            )
                         }
                     }
                 }
@@ -1116,86 +1104,4 @@ fun ProductDetailDialog(
             }
         }
     }
-}
-
-/**
- * 自定义搜索框组件
- */
-@Composable
-private fun CustomSearchField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    modifier: Modifier = Modifier,
-    placeholder: String = "",
-    locale: Locale = Locale.getDefault()
-) {
-    val interactionSource = remember { MutableInteractionSource() }
-    
-    BasicTextField(
-        value = value,
-        onValueChange = onValueChange,
-        modifier = modifier
-            .heightIn(min = 48.dp, max = 48.dp) // 统一高度为48.dp
-            .shadow(
-                elevation = 5.dp, // 增加阴影效果
-                shape = RoundedCornerShape(16.dp), // 增加圆角
-                spotColor = Color.Black.copy(alpha = 0.25f)
-            )
-            .clip(RoundedCornerShape(16.dp)) // 与阴影圆角保持一致
-            .background(Color.White),
-        textStyle = MaterialTheme.typography.bodyMedium.copy(
-            fontSize = 15.sp,
-            color = Color.Black
-        ),
-        singleLine = true,
-        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-        keyboardActions = KeyboardActions(onSearch = { /* 可以触发搜索动作 */ }),
-        interactionSource = interactionSource,
-        decorationBox = { innerTextField ->
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 10.dp), // 增加垂直内边距
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Search,
-                    contentDescription = if (locale.language == "zh") "搜索" else "Search",
-                    modifier = Modifier.size(18.dp),
-                    tint = MaterialTheme.colorScheme.primary
-                )
-                
-                Spacer(modifier = Modifier.width(8.dp))
-                
-                Box(modifier = Modifier.weight(1f)) {
-                    if (value.isEmpty()) {
-                        Text(
-                            text = placeholder,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontSize = 14.sp,
-                            color = Color.Gray.copy(alpha = 0.7f)
-                        )
-                    }
-                    innerTextField()
-                }
-                
-                if (value.isNotEmpty()) {
-                    Spacer(modifier = Modifier.width(8.dp))
-                    
-                    IconButton(
-                        onClick = { onValueChange("") },
-                        modifier = Modifier.size(24.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Clear,
-                            contentDescription = if (locale.language == "zh") "清除" else "Clear",
-                            modifier = Modifier.size(16.dp),
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
-            }
-        }
-    )
 } 

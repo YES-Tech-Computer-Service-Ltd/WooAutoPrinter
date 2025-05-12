@@ -81,6 +81,7 @@ import kotlinx.coroutines.runBlocking
 import androidx.compose.material3.IconButton
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
+import com.example.wooauto.presentation.components.WooTopBar
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -142,14 +143,24 @@ fun SettingsScreen(
     }
     
     Scaffold(
+        topBar = {
+            WooTopBar(
+                title = stringResource(id = R.string.settings),
+                showSearch = false,
+                isRefreshing = false,
+                onRefresh = { /* 设置页面不需要刷新功能 */ },
+                showRefreshButton = false,
+                locale = currentLocale
+            )
+        },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
     ) { paddingValues ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(
-                    top = 0.dp,
-                    bottom = 0.dp,
+                    top = paddingValues.calculateTopPadding(),
+                    bottom = paddingValues.calculateBottomPadding(),
                     start = 0.dp,
                     end = 0.dp
                 )
@@ -161,22 +172,7 @@ fun SettingsScreen(
                     .padding(horizontal = 12.dp, vertical = 0.dp)
             ) {
                 // 增加顶部间距
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                // 顶部标题行，类似于其他页面的TopBar
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = stringResource(id = R.string.settings),
-                        style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
+                Spacer(modifier = Modifier.height(8.dp))
                 
                 // 设置页面的内容区域
                 Column(
