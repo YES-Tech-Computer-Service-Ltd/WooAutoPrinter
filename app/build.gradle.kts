@@ -1,8 +1,108 @@
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("com.google.devtools.ksp")
     id("com.google.dagger.hilt.android")
+}
+
+// 读取版本属性
+val versionPropsFile = file("../version.properties")
+val versionProps = Properties().apply {
+    if (versionPropsFile.exists()) {
+        load(FileInputStream(versionPropsFile))
+    } else {
+        // 如果文件不存在，设置默认值
+        setProperty("major", "0")
+        setProperty("minor", "1")
+        setProperty("patch", "0")
+        setProperty("build", "1")
+        setProperty("versionCode", "1")
+        setProperty("versionName", "0.1.0")
+        setProperty("isBeta", "true")
+    }
+}
+
+// 提取版本信息
+val major = versionProps.getProperty("major").toInt()
+val minor = versionProps.getProperty("minor").toInt()
+val patch = versionProps.getProperty("patch").toInt()
+val build = versionProps.getProperty("build").toInt()
+val versionCode = versionProps.getProperty("versionCode").toInt()
+val versionName = versionProps.getProperty("versionName")
+val isBeta = versionProps.getProperty("isBeta").toBoolean()
+
+// 更新构建号和版本信息的任务
+tasks.register("updateVersionCode") {
+    doLast {
+        val newBuild = build + 1
+        val newVersionCode = versionCode + 1
+        
+        versionProps.setProperty("build", newBuild.toString())
+        versionProps.setProperty("versionCode", newVersionCode.toString())
+        
+        versionProps.store(
+            versionPropsFile.outputStream(), 
+            "版本信息自动更新 - 构建号：$newBuild, 版本代号：$newVersionCode"
+        )
+    }
+}
+
+// 创建新版本的任务
+tasks.register("createNewVersion") {
+    doLast {
+        // 读取参数，格式: ./gradlew createNewVersion -PnewVersion=major|minor|patch
+        val newVersionType = project.properties["newVersion"] as? String ?: "patch"
+        
+        val newMajor = when(newVersionType) {
+            "major" -> major + 1
+            else -> major
+        }
+        
+        val newMinor = when(newVersionType) {
+            "major" -> 0
+            "minor" -> minor + 1
+            else -> minor
+        }
+        
+        val newPatch = when(newVersionType) {
+            "major", "minor" -> 0
+            "patch" -> patch + 1
+            else -> patch
+        }
+        
+        val newVersionName = "$newMajor.$newMinor.$newPatch"
+        println("创建新版本: $newVersionName")
+        
+        // 更新版本信息
+        versionProps.setProperty("major", newMajor.toString())
+        versionProps.setProperty("minor", newMinor.toString())
+        versionProps.setProperty("patch", newPatch.toString())
+        versionProps.setProperty("versionName", newVersionName)
+        versionProps.setProperty("build", "1") // 重置构建号
+        versionProps.setProperty("versionCode", (versionCode + 1).toString())
+        
+        versionProps.store(
+            versionPropsFile.outputStream(), 
+            "版本信息更新: $newVersionName"
+        )
+    }
+}
+
+// 修改Beta状态的任务
+tasks.register("setBetaState") {
+    doLast {
+        // 读取参数，格式: ./gradlew setBetaState -PisBeta=true|false
+        val betaState = (project.properties["isBeta"] as? String ?: "true").toBoolean()
+        
+        versionProps.setProperty("isBeta", betaState.toString())
+        versionProps.store(
+            versionPropsFile.outputStream(), 
+            "更新测试版状态: $betaState"
+        )
+    }
 }
 
 android {
@@ -13,14 +113,22 @@ android {
         applicationId = "com.example.wooauto"
         minSdk = 24
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = versionProps.getProperty("versionCode").toInt()
+        versionName = versionProps.getProperty("versionName") + 
+                      (if (isBeta) "-beta" else "")
         multiDexEnabled = true
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
             useSupportLibrary = true
         }
+        
+        // 在BuildConfig中添加版本信息
+        buildConfigField("boolean", "IS_BETA", isBeta.toString())
+        buildConfigField("int", "VERSION_MAJOR", major.toString())
+        buildConfigField("int", "VERSION_MINOR", minor.toString())
+        buildConfigField("int", "VERSION_PATCH", patch.toString())
+        buildConfigField("int", "VERSION_BUILD", build.toString())
     }
 
     // 禁用密度分包，避免 bundle 工具错误
@@ -62,12 +170,12 @@ android {
     }
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_1_8
-        targetCompatibility = JavaVersion.VERSION_1_8
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
     }
 
     kotlinOptions {
-        jvmTarget = "1.8"
+        jvmTarget = "11"
     }
 
     buildFeatures {
@@ -106,7 +214,6 @@ dependencies {
     
     // 添加ZXing二维码扫描库
     implementation("com.journeyapps:zxing-android-embedded:4.3.0")
-    implementation(libs.androidx.room.runtime.android)
 
     // JUnit 5
     testImplementation(libs.junit.jupiter)
@@ -118,7 +225,8 @@ dependencies {
     // Coroutines 测试支持
     testImplementation(libs.kotlinx.coroutines.test)
 
-    testImplementation(libs.androidx.room.testing)
+    // 明确指定Room测试库版本
+    testImplementation("androidx.room:room-testing:2.5.2")
     testImplementation(libs.jetbrains.kotlinx.coroutines.test)
     testImplementation (libs.org.jetbrains.kotlinx.kotlinx.coroutines.test)
     implementation(libs.hilt.android)
@@ -134,14 +242,19 @@ dependencies {
     implementation(libs.androidx.swiperefreshlayout)
     implementation(libs.play.services.analytics.impl)
 
-    // 排除重复的 XML 解析器依赖
+    
     configurations.all {
         resolutionStrategy {
             exclude(group = "xmlpull", module = "xmlpull")
             exclude(group = "xpp3", module = "xpp3")
-            // 添加更多排除规则
+
             exclude(group = "org.jetbrains.kotlin", module = "kotlin-stdlib-jdk8")
             exclude(group = "org.jetbrains.kotlin", module = "kotlin-stdlib-jdk7")
+
+            exclude(group = "com.android.support")
+
+            exclude(group = "com.intellij", module = "annotations")
+
             force("org.jetbrains.kotlin:kotlin-stdlib:1.9.22")
             force("org.jetbrains.kotlin:kotlin-stdlib-common:1.9.22")
         }
@@ -159,7 +272,7 @@ dependencies {
     implementation("androidx.navigation:navigation-compose:2.7.7")
 
     // Room Database
-    val roomVersion = "2.6.1"
+    val roomVersion = "2.5.2"
     implementation("androidx.room:room-runtime:$roomVersion")
     implementation("androidx.room:room-ktx:$roomVersion")
     ksp("androidx.room:room-compiler:$roomVersion")
@@ -201,4 +314,12 @@ dependencies {
 
     // Hilt
     ksp(libs.hilt.android.compiler)
+
+    // 应用更新相关依赖
+    implementation("com.github.javiersantos:AppUpdater:2.7") {
+        // 排除旧版support库，解决冲突
+        exclude(group = "com.android.support")
+    }
+    implementation("org.jsoup:jsoup:1.16.2") // 用于解析HTML
+    implementation("com.squareup.okhttp3:okhttp:4.12.0") // 网络请求
 }

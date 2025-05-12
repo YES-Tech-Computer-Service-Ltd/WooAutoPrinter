@@ -334,4 +334,34 @@ interface DomainSettingRepository {
      * @param uri 自定义声音URI
      */
     suspend fun setCustomSoundUri(uri: String)
+    
+    /**
+     * 获取自动更新状态
+     * @return 是否开启自动更新
+     */
+    suspend fun getAutoUpdate(): Boolean
+    
+    /**
+     * 设置自动更新状态
+     * @param enabled 是否开启自动更新
+     */
+    suspend fun setAutoUpdate(enabled: Boolean)
+    
+    /**
+     * 获取自动更新状态Flow
+     * @return 自动更新状态的数据流
+     */
+    fun getAutoUpdateFlow(): Flow<Boolean>
+    
+    /**
+     * 获取上次检查更新时间
+     * @return 上次检查更新的时间戳
+     */
+    suspend fun getLastUpdateCheckTime(): Long
+    
+    /**
+     * 设置上次检查更新时间
+     * @param timestamp 检查更新的时间戳
+     */
+    suspend fun setLastUpdateCheckTime(timestamp: Long)
 } 

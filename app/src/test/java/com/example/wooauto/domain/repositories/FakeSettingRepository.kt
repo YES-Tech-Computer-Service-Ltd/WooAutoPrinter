@@ -7,10 +7,6 @@ import com.example.wooauto.domain.templates.TemplateType
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
-import android.util.Log
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.viewModelScope
 
 /**
  * 用于测试的设置仓库假实现
@@ -54,6 +50,11 @@ class FakeSettingRepository : DomainSettingRepository {
     private val _notificationVolume = MutableStateFlow(70)
     private val _soundType = MutableStateFlow("default")
     private val _soundEnabled = MutableStateFlow(true)
+    private val _customSoundUri = MutableStateFlow("")
+    
+    // 自动更新设置
+    private val _autoUpdate = MutableStateFlow(true)
+    private var _lastUpdateCheckTime: Long = 0
 
     override suspend fun getWooCommerceConfig(): WooCommerceConfig {
         return WooCommerceConfig(_apiUrl.value, _consumerKey.value, _consumerSecret.value)
@@ -248,40 +249,33 @@ class FakeSettingRepository : DomainSettingRepository {
     override suspend fun setSoundEnabled(enabled: Boolean) {
         _soundEnabled.value = enabled
     }
-
-    private fun checkConfiguration() {
-        launch {
-            try {
-                _isLoading.value = true
-                
-                // 直接从本地配置获取 - 与ProductsViewModel保持一致
-                val config = getWooCommerceConfig()
-                
-                // 先检查配置是否有效
-                if (config.isValid()) {
-                    Log.d(TAG, "API配置有效，更新全局状态")
-                    _isConfigured.value = true
-                    WooCommerceConfig.updateConfigurationStatus(true)
-                    
-                    // 配置有效后再尝试刷新订单
-                    refreshOrders()
-                } else {
-                    Log.d(TAG, "API配置无效")
-                    _isConfigured.value = false
-                    WooCommerceConfig.updateConfigurationStatus(false)
-                    _isLoading.value = false
-                }
-
-                // 监听配置变化
-                viewModelScope.launch {
-                    WooCommerceConfig.isConfigured.collectLatest { configured ->
-                        Log.d(TAG, "API配置状态变更: $configured")
-                        _isConfigured.value = configured
-                    }
-                }
-            } catch (e: Exception) {
-                // 异常处理...
-            }
-        }
+    
+    override suspend fun getCustomSoundUri(): String {
+        return _customSoundUri.value
+    }
+    
+    override suspend fun setCustomSoundUri(uri: String) {
+        _customSoundUri.value = uri
+    }
+    
+    // 自动更新相关方法实现
+    override suspend fun getAutoUpdate(): Boolean {
+        return _autoUpdate.value
+    }
+    
+    override suspend fun setAutoUpdate(enabled: Boolean) {
+        _autoUpdate.value = enabled
+    }
+    
+    override fun getAutoUpdateFlow(): Flow<Boolean> {
+        return _autoUpdate.asStateFlow()
+    }
+    
+    override suspend fun getLastUpdateCheckTime(): Long {
+        return _lastUpdateCheckTime
+    }
+    
+    override suspend fun setLastUpdateCheckTime(timestamp: Long) {
+        _lastUpdateCheckTime = timestamp
     }
 } 
