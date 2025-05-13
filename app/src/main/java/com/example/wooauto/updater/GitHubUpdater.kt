@@ -49,7 +49,7 @@ class GitHubUpdater @Inject constructor(
 
     companion object {
         private const val TAG = "GitHubUpdater"
-        private const val GITHUB_USER = "wuchenhao0810"
+        private const val GITHUB_USER = "YES-Tech-Computer-Service-Ltd"
         private const val GITHUB_REPO = "WooAutoPrinter" 
         private const val RELEASES_URL = "https://github.com/$GITHUB_USER/$GITHUB_REPO/releases"
         private const val DEFAULT_CHECK_INTERVAL_HOURS = 24
@@ -241,7 +241,12 @@ class GitHubUpdater @Inject constructor(
             // 注册广播接收器
             context.registerReceiver(
                 receiver,
-                IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
+                IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE),
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    Context.RECEIVER_NOT_EXPORTED
+                } else {
+                    0
+                }
             )
             
             // 保存接收器引用以便后续清理
