@@ -1,0 +1,36 @@
+{
+  "projectName": "WooAutoPrinter",
+  "indexing": {
+    "exclude": [
+      ".git",
+      ".gradle",
+      "build",
+      ".idea",
+      "app/build",
+      ".history",
+      "gradle"
+    ],
+    "include": [
+      "app/src",
+      "build.gradle.kts",
+      "app/build.gradle.kts",
+      "settings.gradle.kts",
+      "gradle.properties"
+    ]
+  },
+  "language": {
+    "kotlin": {
+      "formatter": {
+        "style": "default"
+      }
+    }
+  },
+  "completion": {
+    "enable": true,
+    "generateDocstring": true,
+    "autoTrigger": true
+  },
+  "telemetry": {
+    "enable": false
+  }
+} 
