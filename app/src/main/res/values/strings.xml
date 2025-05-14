@@ -57,6 +57,7 @@
     <string name="reprint">Reprint</string>
     <string name="no_product_info">No product information</string>
     <string name="in_store_pickup">In-store Pickup</string>
+    <string name="no_orders_message">There is no order now</string>
     
     <!-- Print Template -->
     <string name="full_details_template">Full Order Details - All order information</string>
@@ -80,8 +81,8 @@
     <string name="stock_status_out_of_stock">Out of Stock</string>
     <string name="save_changes">Save Changes</string>
     <string name="no_products_found">No products found</string>
-    <string name="loading_products">Loading Products...</string>
-    <string name="switching_category">Switching Category...</string>
+    <string name="loading_products">Loading Products…</string>
+    <string name="switching_category">Switching Category…</string>
     <string name="loading_message">Please wait, fetching the latest data from your WooCommerce store</string>
 
     <!-- Settings -->
@@ -136,7 +137,7 @@
     <string name="delete_printer_confirm">Are you sure you want to delete printer \'%1$s\'? This action cannot be undone.</string>
     <string name="delete">Delete</string>
     <string name="bluetooth_devices">Bluetooth Devices</string>
-    <string name="scanning_bluetooth">Scanning for Bluetooth devices...</string>
+    <string name="scanning_bluetooth">Scanning for Bluetooth devices…</string>
     <string name="no_bluetooth_devices">No Bluetooth devices found</string>
     <string name="select_bluetooth_device">Select a Bluetooth device to connect</string>
     <string name="bluetooth_tip">Tip: Make sure the printer is turned on and discoverable. For Android 7 devices, you may need to pair the printer in system Bluetooth settings first.</string>
@@ -158,7 +159,7 @@
     <string name="printer_connected_success">Printer connected successfully</string>
     <string name="printer_disconnected">Printer disconnected</string>
     <string name="printer_connection_failed">Printer connection failed</string>
-    <string name="connecting_printer">Connecting printer...</string>
+    <string name="connecting_printer">Connecting printer…</string>
     <string name="test_print_success">Test print successful</string>
     <string name="test_print_failed">Test print failed, check printer connection</string>
     <string name="printer_error">Printer error: %1$s</string>
@@ -270,15 +271,18 @@
     <string name="feature_coming_soon">This feature is coming soon</string>
     <string name="app_version">WooAuto - Version %1$s</string>
 
-    <!-- API Settings -->
-    <string name="website_url_placeholder">https://your-site.com</string>
-    <string name="api_key_placeholder">ck_1234...</string>
-    <string name="api_secret_placeholder">cs_5678...</string>
-    <string name="save_and_test">Save and Test</string>
-    <string name="testing_connection">Testing connection...</string>
-    <string name="fill_all_fields">Please fill in all required fields</string>
+    <!-- API Configuration Messages -->
+    <string name="website_url_placeholder">For example：https://yourstore.com</string>
+    <string name="api_key_placeholder">WooCommerce Consumer Key</string>
+    <string name="api_secret_placeholder">WooCommerce Consumer Secret</string>
+    <string name="fill_all_fields">Please fill all the fields</string>
+    <string name="save_and_test">save</string>
+    <string name="testing_connection">testing the connection</string>
     <string name="scan_qr_code_prompt">Scan WooCommerce Site URL QR Code</string>
     <string name="scan_successful">Scan Successful</string>
+    
+    <!-- API Status Notifications -->
+    <string name="api_notification_not_configured">WooCommerce API is not configured yet</string>
 
     <!-- Automation Settings -->
     <string name="automatic_order_processing">Automatic Order Processing</string>
@@ -302,7 +306,7 @@
     <string name="please_fill_all_required_fields">Please fill all required fields</string>
 
     <!-- API Configuration Check -->
-    <string name="checking_api_configuration">Checking API configuration...</string>
+    <string name="checking_api_configuration">Checking API configuration…</string>
     <string name="api_config_required">API Configuration Required</string>
     <string name="api_config_message">Your WooCommerce API is not configured properly. Please check your settings.</string>
     <string name="go_to_api_settings">Go to API Settings</string>
@@ -319,7 +323,7 @@
     <string name="edit_printer">Edit Printer</string>
     <string name="select_bluetooth_printer">Select Bluetooth Printer</string>
     <string name="select_printer_instruction">Please select your printer from the list below, you can configure it after selection</string>
-    <string name="scanning_devices">Scanning...</string>
+    <string name="scanning_devices">Scanning…</string>
     <string name="refresh_device_list">Refresh device list</string>
     <string name="no_device_found">No Bluetooth devices found</string>
     <string name="ensure_bluetooth_paired">Please make sure Bluetooth is enabled and paired with your printer</string>
@@ -346,7 +350,7 @@
     <string name="auto_cut_paper">Auto Cut Paper</string>
 
     <!-- 更新版本相关字符串资源 -->
-    <string name="checking_for_updates">Checking for updates...</string>
+    <string name="checking_for_updates">Checking for updates…</string>
     <string name="update_available">Update available</string>
     <string name="latest_version">Latest version: %1$s</string>
     <string name="current_version">Current version: %1$s</string>

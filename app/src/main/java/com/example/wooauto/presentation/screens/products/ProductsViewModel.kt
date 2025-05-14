@@ -20,12 +20,15 @@ import java.io.IOException
 import java.net.UnknownHostException
 import com.google.gson.JsonParseException
 import java.util.concurrent.ConcurrentHashMap
+import android.content.Context
+import com.example.wooauto.R
 
 @HiltViewModel
 class ProductsViewModel @Inject constructor(
     private val wooCommerceConfig: WooCommerceConfig,
     private val productRepository: DomainProductRepository,
-    private val settingsRepository: DomainSettingRepository
+    private val settingsRepository: DomainSettingRepository,
+    private val context: Context
 ) : ViewModel() {
     
     private val _isConfigured = MutableStateFlow(false)
@@ -76,6 +79,11 @@ class ProductsViewModel @Inject constructor(
     // 取消所有产品集合作业的标志
     private var shouldCancelProductJobs = false
     
+    // API未配置时的默认错误消息
+    private val apiNotConfiguredMessage: String by lazy {
+        context.getString(R.string.api_notification_not_configured)
+    }
+    
     init {
         Log.d("ProductsViewModel", "初始化ProductsViewModel")
         viewModelScope.launch {
@@ -105,7 +113,7 @@ class ProductsViewModel @Inject constructor(
             if (!config.isValid()) {
                 Log.e("ProductsViewModel", "API配置无效: $config")
                 _isConfigured.value = false
-                _errorMessage.value = "WooCommerce API未正确配置，请在设置中检查"
+                _errorMessage.value = apiNotConfiguredMessage
                 _isLoading.value = false
                 return
             }
@@ -144,7 +152,7 @@ class ProductsViewModel @Inject constructor(
             
             // 配置错误时才显示错误消息
             if (_errorMessage.value == null) {
-                _errorMessage.value = "无法检查API配置: ${e.message}"
+                _errorMessage.value = apiNotConfiguredMessage
             }
         } finally {
             if (showLoadingIndicator) {

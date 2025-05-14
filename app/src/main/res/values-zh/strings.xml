@@ -58,6 +58,7 @@
     <string name="reprint">重新打印</string>
     <string name="no_product_info">无商品信息</string>
     <string name="in_store_pickup">店内自取</string>
+    <string name="no_orders_message">目前暂无订单</string>
     
     <!-- Print Template -->
     <string name="full_details_template">完整订单详情 - 包含所有订单信息</string>
@@ -345,9 +346,15 @@
     <string name="auto_cut_paper">自动切纸</string>
 
     <!-- 更新版本相关字符串资源 -->
-    <string name="checking_for_updates">检查更新中...</string>
+    <string name="checking_for_updates">检查更新中…</string>
     <string name="update_available">发现新版本</string>
     <string name="latest_version">最新版本: %1$s</string>
     <string name="current_version">当前版本: %1$s</string>
     <string name="no_update_available">您的应用已是最新版本</string>
+
+    <!-- API Status Notifications -->
+    <string name="api_notification_not_configured">WooCommerce API未配置，请先配置API</string>
+
+<!--    对齐翻译内容-->
+    <string name="search_products_hint">搜索产品…</string>
 </resources>

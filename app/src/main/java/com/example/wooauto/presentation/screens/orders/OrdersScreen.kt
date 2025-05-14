@@ -48,6 +48,7 @@ import androidx.compose.material.icons.filled.Store
 import androidx.compose.material.icons.filled.Tag
 import androidx.compose.material.icons.filled.TextSnippet
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -169,6 +170,12 @@ fun OrdersScreen(
             Log.d("OrdersScreen", "API未配置，显示配置对话框")
             // 虽然未配置API，但仍然可以展示UI
             isInitialized.value = true
+            
+            // 添加黑色Toast提示
+            val notConfiguredMessage = stringResource(R.string.api_notification_not_configured)
+            coroutineScope.launch {
+                snackbarHostState.showSnackbar(notConfiguredMessage)
+            }
         }
     }
     
