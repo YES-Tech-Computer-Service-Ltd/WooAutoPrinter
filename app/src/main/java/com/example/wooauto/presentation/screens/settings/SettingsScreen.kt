@@ -91,7 +91,7 @@ fun SettingsScreen(
     navController: NavController,
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
-    LocalContext.current
+    val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
     
@@ -125,6 +125,56 @@ fun SettingsScreen(
     var tempConsumerSecret by remember { mutableStateOf(consumerSecret) }
     var pollingIntervalInput by remember { mutableStateOf("30") }
     var useWooCommerceFoodInput by remember { mutableStateOf(false) }
+    
+    // 添加二维码扫描器
+    val barcodeLauncher = rememberLauncherForActivityResult(
+        contract = ScanContract(),
+        onResult = { result ->
+            Log.d("QRScan", "扫描返回结果: ${result.contents ?: "没有内容"}")
+            if (result.contents != null) {
+                // 处理扫描结果
+                viewModel.handleQrCodeResult(result.contents)
+                
+                // 如果API对话框处于打开状态，更新临时字段值
+                if (showApiDialog) {
+                    // 延迟一下等待viewModel处理完成
+                    coroutineScope.launch {
+                        delay(100) // 短暂延迟确保viewModel已处理数据
+                        tempSiteUrl = viewModel.siteUrl.value
+                        tempConsumerKey = viewModel.consumerKey.value
+                        tempConsumerSecret = viewModel.consumerSecret.value
+                        
+                        // 显示提示
+                        snackbarHostState.showSnackbar("API信息已从二维码更新")
+                    }
+                }
+            } else {
+                // 用户取消了扫描
+                coroutineScope.launch {
+                    snackbarHostState.showSnackbar("扫描已取消")
+                }
+            }
+        }
+    )
+    
+    // 监听二维码扫描事件
+    LaunchedEffect(viewModel) {
+        Log.d("QRScan", "开始监听扫描事件")
+        viewModel.scanQrCodeEvent.collect {
+            Log.d("QRScan", "收到扫描事件，准备启动扫描器")
+            // 配置扫描选项
+            val options = ScanOptions()
+                .setDesiredBarcodeFormats(ScanOptions.QR_CODE)
+                .setPrompt(context.getString(R.string.scan_woocommerce_site_url_qr))
+                .setCameraId(0) // 后置摄像头
+                .setBeepEnabled(true)
+                .setBarcodeImageEnabled(true)
+                .setOrientationLocked(false)
+            
+            // 启动扫描器
+            barcodeLauncher.launch(options)
+        }
+    }
     
     // 显示测试结果对话框
     if (showTestResultDialog && testOrderResult != null) {
