@@ -320,7 +320,7 @@ class MainActivity : ComponentActivity(), OrderNotificationManager.NotificationC
                 }
             }
 
-            Log.d(TAG, "应用语言初始化完成: ${LocaleManager.currentLocale.language}")
+//            Log.d(TAG, "应用语言初始化完成: ${LocaleManager.currentLocale.language}")
         } catch (e: Exception) {
             Log.e(TAG, "初始化应用语言失败", e)
             // 如果初始化失败，使用英语作为默认语言

@@ -48,6 +48,7 @@ import androidx.compose.material.icons.filled.Store
 import androidx.compose.material.icons.filled.Tag
 import androidx.compose.material.icons.filled.TextSnippet
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -119,6 +120,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.graphics.SolidColor
 import androidx.core.content.ContextCompat
 import com.example.wooauto.presentation.components.WooTopBar
+import com.example.wooauto.presentation.screens.products.UnconfiguredView
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -145,9 +147,6 @@ fun OrdersScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
     
-    // 修改API检查状态逻辑
-    var showApiConfigDialog by remember { mutableStateOf(false) }
-    
     var searchQuery by remember { mutableStateOf("") }
     var showOrderDetail by remember { mutableStateOf(false) }
     var statusFilter by remember { mutableStateOf("") }
@@ -169,9 +168,14 @@ fun OrdersScreen(
         } else {
             // API未配置，显示配置对话框
             Log.d("OrdersScreen", "API未配置，显示配置对话框")
-            showApiConfigDialog = true
             // 虽然未配置API，但仍然可以展示UI
             isInitialized.value = true
+            
+            // 添加黑色Toast提示
+            val notConfiguredMessage = stringResource(R.string.api_notification_not_configured)
+            coroutineScope.launch {
+                snackbarHostState.showSnackbar(notConfiguredMessage)
+            }
         }
     }
     
@@ -228,7 +232,6 @@ fun OrdersScreen(
         errorMessage?.let {
             coroutineScope.launch {
                 // 确保错误消息显示优先，关闭API配置对话框
-                showApiConfigDialog = false
                 snackbarHostState.showSnackbar(it)
                 viewModel.clearError()
             }
@@ -242,10 +245,12 @@ fun OrdersScreen(
         // 只有在没有错误消息的情况下才显示API配置对话框
         if (errorMessage == null && !isLoading && !isConfigured && orders.isEmpty()) {
             // 只有在未配置API且没有订单数据时才显示配置对话框
-            showApiConfigDialog = true
+            // 这里不再调用私有方法checkApiConfiguration，而是刷新订单
+            viewModel.refreshOrders()
         } else {
             // 已经加载了数据或API已配置或有错误消息，不显示配置对话框
-            showApiConfigDialog = false
+            // 这里不再调用私有方法checkApiConfiguration，而是刷新订单
+            viewModel.refreshOrders()
         }
     }
     
@@ -269,7 +274,6 @@ fun OrdersScreen(
             Log.d("OrdersScreen", "导航状态变化: $route")
             if (route == NavigationItem.Orders.route) {
                 if (isConfigured) {
-                    showApiConfigDialog = false
                     Log.d("OrdersScreen", "导航返回订单页面，API已配置，隐藏对话框")
                 } else {
                     Log.d("OrdersScreen", "导航返回订单页面，API未配置，检查是否需要显示对话框")
@@ -375,36 +379,19 @@ fun OrdersScreen(
                     CircularProgressIndicator()
                 }
             } else if (orders.isEmpty() && !isConfigured) {
-                // 没有订单且API未配置
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Text(
-                        text = "请先配置WooCommerce API",
-                        style = MaterialTheme.typography.headlineSmall,
-                        textAlign = TextAlign.Center
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Button(
-                        onClick = {
-                            // 直接导航到设置页面的API设置部分，而非独立页面
-                            navController.navigate(NavigationItem.Settings.route) {
-                                // 确保是单一顶部实例
-                                launchSingleTop = true
-                            }
-                            // 发送广播通知设置页面直接打开API设置
-                            val intent = Intent("com.example.wooauto.ACTION_OPEN_API_SETTINGS")
-                            context.sendBroadcast(intent)
+                // 没有订单且API未配置，使用UnconfiguredView
+                UnconfiguredView(
+                    errorMessage = errorMessage ?: stringResource(R.string.error_api_not_configured),
+                    onSettingsClick = { 
+                        navController.navigate(NavigationItem.Settings.route) {
+                            launchSingleTop = true
                         }
-                    ) {
-                        Text("前往API设置")
+                        // 保留广播以自动打开API配置对话框
+                        val intent = Intent("com.example.wooauto.ACTION_OPEN_API_SETTINGS")
+                        context.sendBroadcast(intent)
                     }
-                }
-            } else if (orders.isEmpty()) {
+                )
+            } else if (orders.isEmpty() && isConfigured) {
                 // 已配置但没有订单
                 Column(
                     modifier = Modifier
@@ -413,16 +400,43 @@ fun OrdersScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.List,
+                        contentDescription = null,
+                        modifier = Modifier.size(72.dp),
+                        tint = MaterialTheme.colorScheme.secondary
+                    )
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
                     Text(
-                        text = "没有订单数据",
+                        text = stringResource(R.string.no_orders_found),
                         style = MaterialTheme.typography.headlineSmall,
                         textAlign = TextAlign.Center
                     )
-                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    Text(
+                        text = stringResource(R.string.no_orders_message),
+                        style = MaterialTheme.typography.bodyMedium,
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    
+                    Spacer(modifier = Modifier.height(24.dp))
+                    
                     Button(
-                        onClick = { viewModel.refreshOrders() }
+                        onClick = { viewModel.refreshOrders() },
+                        modifier = Modifier.padding(8.dp)
                     ) {
-                        Text("刷新")
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = null,
+                            modifier = Modifier.size(ButtonDefaults.IconSize)
+                        )
+                        Spacer(modifier = Modifier.width(ButtonDefaults.IconSpacing))
+                        Text(text = stringResource(id = R.string.refresh))
                     }
                 }
             } else {
@@ -443,75 +457,6 @@ fun OrdersScreen(
                         viewModel.filterOrdersByStatus(status)
                     }
                 )
-            }
-            
-            // 显示API配置对话框
-            if (showApiConfigDialog) {
-                Dialog(
-                    onDismissRequest = { showApiConfigDialog = false },
-                    properties = DialogProperties(dismissOnClickOutside = true)
-                ) {
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        shape = RoundedCornerShape(16.dp)
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text(
-                                text = if (locale.language == "zh") "请先配置API" else "Please Configure API",
-                                style = MaterialTheme.typography.headlineSmall,
-                                textAlign = TextAlign.Center
-                            )
-                            
-                            Spacer(modifier = Modifier.height(16.dp))
-                            
-                            Text(
-                                text = if (locale.language == "zh") 
-                                    "要使用订单功能，您需要先配置WooCommerce API设置。" 
-                                else 
-                                    "To use the order features, you need to configure the WooCommerce API settings first.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                textAlign = TextAlign.Center
-                            )
-                            
-                            Spacer(modifier = Modifier.height(24.dp))
-                            
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Button(
-                                    onClick = { showApiConfigDialog = false },
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Text(if (locale.language == "zh") "稍后再说" else "Later")
-                                }
-                                
-                                Spacer(modifier = Modifier.width(16.dp))
-                                
-                                Button(
-                                    onClick = {
-                                        showApiConfigDialog = false
-                                        navController.navigate(NavigationItem.Settings.route) {
-                                            launchSingleTop = true
-                                        }
-                                        val intent = Intent("com.example.wooauto.ACTION_OPEN_API_SETTINGS")
-                                        context.sendBroadcast(intent)
-                                    },
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Text(if (locale.language == "zh") "去设置" else "Settings")
-                                }
-                            }
-                        }
-                    }
-                }
             }
             
             // 订单详情对话框

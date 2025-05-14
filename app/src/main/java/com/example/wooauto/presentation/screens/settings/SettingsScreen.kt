@@ -3,6 +3,8 @@ package com.example.wooauto.presentation.screens.settings
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.content.BroadcastReceiver
+import android.content.IntentFilter
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -84,6 +86,7 @@ import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 import com.example.wooauto.presentation.components.WooTopBar
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.runtime.DisposableEffect
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -114,6 +117,40 @@ fun SettingsScreen(
     var showApiDialog by remember { mutableStateOf(false) }
     var showLanguageDialog by remember { mutableStateOf(false) }
     var showTestResultDialog by remember { mutableStateOf(false) }
+    
+    // 注册广播接收器来监听API设置打开请求
+    DisposableEffect(context) {
+        val intentFilter = IntentFilter("com.example.wooauto.ACTION_OPEN_API_SETTINGS")
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                if (intent?.action == "com.example.wooauto.ACTION_OPEN_API_SETTINGS") {
+                    Log.d("SettingsScreen", "收到打开API设置对话框的广播")
+                    showApiDialog = true
+                }
+            }
+        }
+        
+        // 根据API级别使用相应的注册方法
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            context.registerReceiver(receiver, intentFilter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            androidx.core.content.ContextCompat.registerReceiver(
+                context,
+                receiver,
+                intentFilter,
+                androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED
+            )
+        }
+        
+        // 当组件被销毁时注销广播接收器
+        onDispose {
+            try {
+                context.unregisterReceiver(receiver)
+            } catch (e: Exception) {
+                Log.e("SettingsScreen", "注销广播接收器失败: ${e.message}")
+            }
+        }
+    }
     
     // 测试订单的结果
     val testOrderResult by remember { mutableStateOf<String?>(null) }
