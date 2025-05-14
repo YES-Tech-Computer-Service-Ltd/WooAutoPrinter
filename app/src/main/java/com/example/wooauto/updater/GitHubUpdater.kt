@@ -34,6 +34,8 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.TimeUnit
+import java.util.zip.ZipException
+import java.util.zip.ZipFile
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.resume
@@ -52,6 +54,7 @@ class GitHubUpdater @Inject constructor(
         private const val GITHUB_USER = "YES-Tech-Computer-Service-Ltd"
         private const val GITHUB_REPO = "WooAutoPrinter" 
         private const val RELEASES_URL = "https://github.com/$GITHUB_USER/$GITHUB_REPO/releases"
+        private const val DIRECT_DOWNLOAD_URL_PATTERN = "https://github.com/$GITHUB_USER/$GITHUB_REPO/releases/download/%s/app-release.apk"
         private const val DEFAULT_CHECK_INTERVAL_HOURS = 24
         
         // 下载相关常量
@@ -59,6 +62,9 @@ class GitHubUpdater @Inject constructor(
         private const val DOWNLOAD_FOLDER = "WooAutoPrinter"
         private const val DOWNLOAD_FILE_NAME = "WooAutoPrinter-update.apk"
         private const val DOWNLOAD_AUTHORITY = "${BuildConfig.APPLICATION_ID}.fileprovider"
+        
+        // 重试相关常量
+        private const val MAX_RETRY_COUNT = 3
     }
 
     // 当前版本信息
@@ -71,10 +77,20 @@ class GitHubUpdater @Inject constructor(
     // 下载相关变量
     private var downloadId: Long = -1L
     private var downloadReceiver: BroadcastReceiver? = null
+    private var downloadRetryCount = 0
+    private var _updateState = MutableStateFlow<UpdateStatus>(UpdateStatus.Idle)
     
     // 自动检查设置
     private var autoCheckEnabled = true
     private var checkIntervalHours = DEFAULT_CHECK_INTERVAL_HOURS
+
+    // 更新状态封闭类
+    sealed class UpdateStatus {
+        object Idle : UpdateStatus()
+        data class Downloading(val progress: Int) : UpdateStatus()
+        data class Downloaded(val file: File) : UpdateStatus()
+        data class Error(val message: String) : UpdateStatus()
+    }
 
     /**
      * 检查更新
@@ -95,6 +111,10 @@ class GitHubUpdater @Inject constructor(
                     cachedLatestVersion = latestVersion
                     lastCheckTime = System.currentTimeMillis()
                     
+                    // 修正下载URL，确保使用直接下载链接
+                    val correctDownloadUrl = getDirectDownloadUrl(latestVersion.toVersionString())
+                    Log.d(TAG, "使用直接下载链接: $correctDownloadUrl")
+                    
                     // 获取更新日志并发送结果
                     try {
                         val updateInfo = UpdateInfo(
@@ -103,7 +123,7 @@ class GitHubUpdater @Inject constructor(
                             hasUpdate = true,
                             changelog = "加载中...", // 先提供一个占位符
                             releaseDate = getCurrentDate(), // 使用当前日期作为发布日期
-                            downloadUrl = update.urlToDownload.toString(),
+                            downloadUrl = correctDownloadUrl,
                             isForceUpdate = false
                         )
                         
@@ -173,8 +193,12 @@ class GitHubUpdater @Inject constructor(
      */
     override suspend fun downloadAndInstall(updateInfo: UpdateInfo): Flow<Int> = callbackFlow {
         try {
+            // 重置重试计数
+            downloadRetryCount = 0
+            
             // 发送初始进度
             trySend(0)
+            _updateState.value = UpdateStatus.Downloading(0)
             
             // 准备下载
             val uri = Uri.parse(updateInfo.downloadUrl)
@@ -218,13 +242,24 @@ class GitHubUpdater @Inject constructor(
                             val status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
                             when (status) {
                                 DownloadManager.STATUS_SUCCESSFUL -> {
-                                    // 下载完成，安装APK
+                                    // 下载完成，验证APK文件
                                     trySend(100)
-                                    installApk(destinationFile)
+                                    _updateState.value = UpdateStatus.Downloaded(destinationFile)
+                                    
+                                    if (verifyApkFile(destinationFile)) {
+                                        // 文件验证成功，安装APK
+                                        installApk(destinationFile)
+                                    } else {
+                                        // 文件验证失败，尝试重试
+                                        Log.e(TAG, "APK文件验证失败，尝试重试下载")
+                                        retryDownloadIfNeeded(updateInfo)
+                                        trySend(-1) // 发送错误代码
+                                    }
                                 }
                                 DownloadManager.STATUS_FAILED -> {
                                     val reason = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON))
                                     Log.e(TAG, "下载失败，原因: $reason")
+                                    retryDownloadIfNeeded(updateInfo)
                                     trySend(-1) // 发送错误代码
                                 }
                             }
@@ -232,8 +267,12 @@ class GitHubUpdater @Inject constructor(
                         cursor.close()
                         
                         // 注销广播接收器
-                        context.unregisterReceiver(this)
-                        downloadReceiver = null
+                        try {
+                            context.unregisterReceiver(this)
+                            downloadReceiver = null
+                        } catch (e: Exception) {
+                            Log.e(TAG, "注销广播接收器失败", e)
+                        }
                     }
                 }
             }
@@ -256,6 +295,7 @@ class GitHubUpdater @Inject constructor(
             withContext(Dispatchers.IO) {
                 monitorDownloadProgress(downloadManager, downloadId) { progress ->
                     trySend(progress)
+                    _updateState.value = UpdateStatus.Downloading(progress)
                 }
             }
             
@@ -272,8 +312,57 @@ class GitHubUpdater @Inject constructor(
             }
         } catch (e: Exception) {
             Log.e(TAG, "下载过程中出错", e)
+            _updateState.value = UpdateStatus.Error("下载过程中出错: ${e.message}")
             trySend(-1) // 发送错误代码
             close(e)
+        }
+    }
+
+    /**
+     * 重试下载
+     */
+    private fun retryDownloadIfNeeded(updateInfo: UpdateInfo) {
+        if (downloadRetryCount < MAX_RETRY_COUNT) {
+            downloadRetryCount++
+            Log.d(TAG, "正在重试下载，第${downloadRetryCount}次")
+            _updateState.value = UpdateStatus.Idle // 重置状态
+            // 注意：这里不能直接调用downloadAndInstall()，因为它是suspend函数
+            // 而是应该通过外部调用者处理重试
+        } else {
+            Log.e(TAG, "下载重试达到最大次数: $MAX_RETRY_COUNT")
+            _updateState.value = UpdateStatus.Error("下载失败，请手动下载")
+        }
+    }
+
+    /**
+     * 验证APK文件
+     * 检查文件是否为有效的ZIP格式（APK本质上是ZIP文件）
+     */
+    private fun verifyApkFile(file: File): Boolean {
+        if (!file.exists() || file.length() < 100) {
+            Log.e(TAG, "APK文件不存在或大小异常: ${file.length()} bytes")
+            return false
+        }
+        
+        return try {
+            // 检查文件是否为有效的ZIP/APK
+            ZipFile(file).use { zipFile ->
+                // 检查是否包含必要的APK文件
+                val hasManifest = zipFile.getEntry("AndroidManifest.xml") != null
+                val hasClasses = zipFile.getEntry("classes.dex") != null
+                
+                if (!hasManifest || !hasClasses) {
+                    Log.e(TAG, "APK文件缺少关键组件: hasManifest=$hasManifest, hasClasses=$hasClasses")
+                }
+                
+                hasManifest && hasClasses
+            }
+        } catch (e: ZipException) {
+            Log.e(TAG, "APK文件不是有效的ZIP格式: ${e.message}")
+            false
+        } catch (e: Exception) {
+            Log.e(TAG, "APK文件验证失败: ${e.message}")
+            false
         }
     }
 
@@ -347,7 +436,16 @@ class GitHubUpdater @Inject constructor(
             Log.d(TAG, "APK安装请求已发送")
         } catch (e: Exception) {
             Log.e(TAG, "启动APK安装失败", e)
+            _updateState.value = UpdateStatus.Error("安装失败: ${e.message}")
         }
+    }
+
+    /**
+     * 获取直接下载URL
+     * 确保使用的是直接二进制文件下载链接而非GitHub页面链接
+     */
+    private fun getDirectDownloadUrl(version: String): String {
+        return String.format(DIRECT_DOWNLOAD_URL_PATTERN, "v$version")
     }
 
     /**
@@ -367,7 +465,7 @@ class GitHubUpdater @Inject constructor(
                 val targetVersion = version ?: cachedLatestVersion?.toVersionString() ?: return@withContext ""
                 
                 // 使用Jsoup解析GitHub release页面获取更新日志
-                val doc = Jsoup.connect("$RELEASES_URL/tag/$targetVersion").get()
+                val doc = Jsoup.connect("$RELEASES_URL/tag/v$targetVersion").get()
                 val releaseNotes = doc.select(".markdown-body").text()
                 releaseNotes.ifEmpty { "无更新日志" }
             } catch (e: Exception) {
