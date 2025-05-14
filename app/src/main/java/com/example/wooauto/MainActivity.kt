@@ -100,6 +100,9 @@ class MainActivity : ComponentActivity(), OrderNotificationManager.NotificationC
         }
     }
     
+    // 相机权限
+    private val cameraPermission = arrayOf(Manifest.permission.CAMERA)
+    
     // 通知权限 - 只在Android 13+请求
     private val notificationPermission by lazy { 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -341,6 +344,14 @@ class MainActivity : ComponentActivity(), OrderNotificationManager.NotificationC
         
         // 检查蓝牙权限
         bluetoothPermissions.forEach { permission ->
+            if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
+                permissionsToRequest.add(permission)
+                missingPermissions.add(permission)
+            }
+        }
+        
+        // 检查相机权限
+        cameraPermission.forEach { permission ->
             if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
                 permissionsToRequest.add(permission)
                 missingPermissions.add(permission)
