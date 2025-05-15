@@ -1,0 +1,648 @@
+package com.example.wooauto.presentation.screens.settings
+
+import android.provider.Settings
+import android.util.Log
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Science
+import androidx.compose.material.icons.filled.ThumbUp
+import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.VerifiedUser
+import androidx.compose.material3.*
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.navigation.NavController
+import com.example.wooauto.R
+import com.example.wooauto.licensing.LicenseDataStore
+import com.example.wooauto.licensing.LicenseValidator
+import com.example.wooauto.licensing.LicenseVerificationManager
+import com.example.wooauto.licensing.LicenseDetailsResult
+import com.example.wooauto.licensing.TrialTokenManager
+import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.*
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun LicenseInputSection(
+    onLicenseComplete: (String) -> Unit,
+    isEditable: Boolean,
+    savedLicenseKey: String
+) {
+    val context = LocalContext.current
+    val clipboardManager = LocalClipboardManager.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    // 4 个输入框
+    val focusRequesters = remember { List(4) { FocusRequester() } }
+    val inputs = remember(savedLicenseKey) {
+        mutableStateListOf(*savedLicenseKey.split("-").take(4).toTypedArray().map { it.take(4) }.toTypedArray())
+    }
+
+    var shouldPaste by remember { mutableStateOf(false) }
+
+    fun clipboardContainsValidLicense(): Boolean {
+        val clipText = clipboardManager.getText()?.text?.trim() ?: return false
+        val clean = clipText.filter { it.isLetterOrDigit() }.uppercase()
+        return clean.length == 16 && clean.chunked(4).size == 4
+    }
+
+    fun tryPasteFromClipboard() {
+        val clipText = clipboardManager.getText()?.text?.trim() ?: return
+        val clean = clipText.filter { it.isLetterOrDigit() }.uppercase()
+        val parts = clean.chunked(4)
+        if (parts.size == 4 && parts.all { it.length == 4 }) {
+            inputs.forEachIndexed { index, _ ->
+                inputs[index] = parts[index].trim()
+            }
+            val license = parts.joinToString("-")
+            onLicenseComplete(license)
+            focusRequesters[3].freeFocus()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        if (isEditable) {
+            focusRequesters[0].requestFocus()
+            tryPasteFromClipboard()
+        }
+    }
+
+    DisposableEffect(Unit) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                shouldPaste = true
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    LaunchedEffect(shouldPaste) {
+        if (shouldPaste && isEditable) {
+            tryPasteFromClipboard()
+            shouldPaste = false
+        }
+    }
+
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        for (i in 0 until 4) {
+            OutlinedTextField(
+                value = inputs[i].trim(),
+                onValueChange = { value ->
+                    if (!isEditable) return@OutlinedTextField
+
+                    val filtered = value.filter { it.isLetterOrDigit() }.uppercase()
+
+                    if (filtered.length == 16 && i == 0) {
+                        val parts = filtered.chunked(4)
+                        if (parts.size == 4) {
+                            inputs.forEachIndexed { index, _ ->
+                                inputs[index] = parts[index].trim()
+                            }
+                            val license = parts.joinToString("-")
+                            onLicenseComplete(license)
+                            focusRequesters[3].freeFocus()
+                            return@OutlinedTextField
+                        }
+                    }
+
+                    if (filtered.length <= 4) {
+                        inputs[i] = filtered
+                        if (filtered.length == 4 && i < 3) {
+                            focusRequesters[i + 1].requestFocus()
+                        }
+                    }
+
+                    if (inputs.all { it.length == 4 }) {
+                        val license = inputs.joinToString("-")
+                        onLicenseComplete(license)
+                    }
+                },
+                enabled = isEditable,
+                modifier = Modifier
+                    .width(90.dp)
+                    .height(56.dp)
+                    .focusRequester(focusRequesters[i]),
+                singleLine = true,
+                visualTransformation = VisualTransformation.None,
+                textStyle = LocalTextStyle.current.copy(
+                    textAlign = TextAlign.Center,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    letterSpacing = 0.sp
+                ),
+                colors = TextFieldDefaults.outlinedTextFieldColors(
+                    disabledTextColor = Color.Gray,
+                    disabledBorderColor = Color.Gray,
+                    disabledLabelColor = Color.Gray,
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.onSurface
+                )
+            )
+        }
+    }
+}
+
+@Composable
+fun LicenseInfoRow(icon: ImageVector, label: String, value: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Row(
+            modifier = Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(24.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun LicenseSettingsScreen(
+    navController: NavController,
+    onLicenseActivated: () -> Unit,
+    onGoToAppClicked: () -> Unit
+) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val isLicensed by LicenseDataStore.isLicensed(context).collectAsState(initial = false)
+    val savedStartDate by LicenseDataStore.getLicenseStartDate(context).collectAsState(initial = null)
+    val savedEndDate by LicenseDataStore.getLicenseEndDate(context).collectAsState(initial = null)
+    val licenseEdition by LicenseDataStore.getLicenseEdition(context).collectAsState(initial = "Spire")
+    val capabilities by LicenseDataStore.getCapabilities(context).collectAsState(initial = "cap1, cap2")
+    val licensedTo by LicenseDataStore.getLicensedTo(context).collectAsState(initial = "MockCustomer")
+    val licenseKey by LicenseDataStore.getLicenseKey(context).collectAsState(initial = "")
+    var licenseCode by remember { mutableStateOf(licenseKey) }
+    var isLicenseActivated by remember { mutableStateOf(isLicensed) }
+
+    // 获取 deviceId 和 appId
+    val deviceId = Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID)
+    val appId = "wooauto_app"
+
+    // 异步加载 Trial 剩余天数
+    var trialDaysRemaining by remember { mutableStateOf<Int?>(null) }
+    LaunchedEffect(Unit) {
+        trialDaysRemaining = TrialTokenManager.getRemainingDays(context, deviceId, appId)
+    }
+
+    // 获取屏幕宽度
+    val configuration = LocalConfiguration.current
+    val screenWidthDp = configuration.screenWidthDp
+    val isSmallScreen = screenWidthDp < 512
+
+    // 状态：许可证是否已过期
+    var isLicenseExpired by remember { mutableStateOf(false) }
+    var hasParseError by remember { mutableStateOf(false) }
+
+    // 在 LaunchedEffect 中解析日期并更新状态
+    LaunchedEffect(savedEndDate) {
+        if (savedEndDate != null) {
+            try {
+                val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+                sdf.timeZone = TimeZone.getDefault()
+                val endDateParsed = sdf.parse(savedEndDate) ?: Date(0)
+                val currentCalendar = Calendar.getInstance(TimeZone.getDefault())
+                isLicenseExpired = endDateParsed.before(currentCalendar.time)
+                hasParseError = false
+                Log.d("LicenseSettingsScreen", "License expiration check - isExpired: $isLicenseExpired")
+            } catch (e: Exception) {
+                Log.e("LicenseSettingsScreen", "Error parsing end date: ${e.message}", e)
+                hasParseError = true
+                isLicenseExpired = false
+            }
+        } else {
+            isLicenseExpired = false
+            hasParseError = false
+        }
+    }
+
+    // 确保 isLicenseActivated 随 isLicensed 更新
+    LaunchedEffect(isLicensed) {
+        isLicenseActivated = isLicensed
+        Log.d("LicenseSettingsScreen", "isLicensed changed to $isLicensed, isLicenseActivated set to $isLicenseActivated")
+    }
+
+    // 同步 licenseCode with licenseKey
+    LaunchedEffect(licenseKey) {
+        if (licenseKey.isNotEmpty() && licenseCode != licenseKey) {
+            licenseCode = licenseKey
+            Log.d("LicenseSettingsScreen", "licenseKey updated to $licenseKey, licenseCode set to $licenseCode")
+        }
+    }
+
+    // 只在 isLicensed == true 且不在 Trial 模式时执行服务器验证
+    LaunchedEffect(trialDaysRemaining) {
+        if (isLicensed && (trialDaysRemaining == null || trialDaysRemaining!! <= 0)) {
+            coroutineScope.launch {
+                LicenseVerificationManager.forceServerValidation(
+                    context = context,
+                    coroutineScope = coroutineScope,
+                    onInvalid = {
+                        snackbarHostState.showSnackbar("License verification failed. Please renew or activate a new license.")
+                        Log.d("LicenseSettingsScreen", "License verification failed - placeholder for future restrictions (e.g., disable new orders)")
+                    }
+                )
+            }
+        }
+    }
+
+    // 等待 trialDaysRemaining 加载完成
+    if (trialDaysRemaining == null) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator()
+        }
+        return
+    }
+
+    // 改进状态显示逻辑，考虑 Trial 模式
+    val (licenseStatusText, statusIcon, statusBackgroundColor) = when {
+        !isLicensed && trialDaysRemaining!! > 0 -> {
+            Triple(
+                "Trial Mode - $trialDaysRemaining days remaining",
+                Icons.Default.Timer,
+                Color(0xFFE0F7E0)
+            )
+        }
+        isLicensed && !isLicenseExpired -> {
+            Triple(
+                "License is valid",
+                Icons.Default.CheckCircle,
+                Color(0xFFE0F7E0)
+            )
+        }
+        isLicensed -> {
+            Triple(
+                "License has expired",
+                Icons.Default.Timer,
+                Color(0xFFFFE0E0)
+            )
+        }
+        else -> {
+            Triple(
+                "Trial expired, please activate a license",
+                Icons.Default.Timer,
+                Color(0xFFFFE0E0)
+            )
+        }
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(text = stringResource(id = R.string.license_settings)) },
+                navigationIcon = {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(
+                            imageVector = Icons.Default.ArrowBack,
+                            contentDescription = "Back"
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            )
+        },
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .padding(horizontal = 16.dp)
+                .verticalScroll(rememberScrollState())
+        ) {
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 状态框
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = statusBackgroundColor,
+                shape = MaterialTheme.shapes.medium
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = statusIcon,
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp),
+                        tint = if (isLicensed && !isLicenseExpired) Color.Green else Color.Red
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column {
+                        Text(
+                            text = licenseStatusText,
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = when {
+                                !isLicensed && trialDaysRemaining!! > 0 -> "You are in trial mode."
+                                isLicensed && !isLicenseExpired -> "No action required."
+                                else -> "Please activate a new license."
+                            },
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 输入框和激活按钮
+            if (isSmallScreen) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.Start
+                ) {
+                    LicenseInputSection(
+                        onLicenseComplete = { finalKey ->
+                            licenseCode = finalKey
+                        },
+                        isEditable = !isLicenseActivated,
+                        savedLicenseKey = licenseCode
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Button(
+                        onClick = {
+                            coroutineScope.launch {
+                                try {
+                                    val deviceId = Settings.Secure.getString(
+                                        context.contentResolver,
+                                        Settings.Secure.ANDROID_ID
+                                    )
+                                    val clean = licenseCode.filter { it.isLetterOrDigit() || it == '-' }
+                                    Log.d("LicenseDebug", "Activating license: $clean")
+                                    val result = LicenseValidator.activateLicense(clean, deviceId)
+                                    Log.d(
+                                        "LicenseDebug",
+                                        "Activation result: success=${result.success}, message=${result.message}"
+                                    )
+
+                                    if (result.success) {
+                                        when (val details = LicenseValidator.getLicenseDetails(clean)) {
+                                            is LicenseDetailsResult.Success -> {
+                                                val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+                                                sdf.timeZone = TimeZone.getDefault()
+                                                val localStartDate = sdf.format(Calendar.getInstance().time)
+
+                                                val calcEnd = LicenseDataStore.calculateEndDate(
+                                                    localStartDate,
+                                                    details.validity
+                                                )
+                                                Log.d("LicenseDebug", "Activation: calcEnd=$calcEnd")
+                                                LicenseDataStore.clearLicenseInfo(context)
+                                                LicenseDataStore.saveLicenseStartDate(context, localStartDate)
+                                                LicenseDataStore.saveLicenseEndDate(context, calcEnd)
+                                                LicenseDataStore.saveLicenseInfo(
+                                                    context,
+                                                    true,
+                                                    calcEnd,
+                                                    clean,
+                                                    details.edition,
+                                                    details.capabilities,
+                                                    details.licensedTo
+                                                )
+                                                LicenseDataStore.setLicensed(context, true)
+                                                TrialTokenManager.simulateTrialExpired(context)
+                                                Log.d("LicenseSettingsScreen", "License activated, isLicensed set to true")
+                                                isLicenseActivated = true
+                                                trialDaysRemaining = TrialTokenManager.getRemainingDays(context, deviceId, appId)
+                                                snackbarHostState.showSnackbar(
+                                                    context.getString(R.string.license_success, calcEnd)
+                                                )
+                                                onLicenseActivated()
+                                            }
+                                            is LicenseDetailsResult.Error -> {
+                                                Log.e("LicenseDebug", "Activation error: ${details.message}")
+                                                snackbarHostState.showSnackbar("Failed to get license details: ${details.message}")
+                                            }
+                                        }
+                                    } else {
+                                        snackbarHostState.showSnackbar("Failed to activate license: ${result.message}")
+                                    }
+                                } catch (e: Exception) {
+                                    Log.e("LicenseSettingsScreen", "Error during activation: ${e.message}", e)
+                                    snackbarHostState.showSnackbar("Error: ${e.message}")
+                                }
+                            }
+                        },
+                        modifier = Modifier
+                            .width(120.dp)
+                            .height(48.dp),
+                        enabled = !isLicenseActivated,
+                        colors = ButtonDefaults.buttonColors(
+                            disabledContainerColor = Color.Gray.copy(alpha = 0.3f),
+                            disabledContentColor = Color.White.copy(alpha = 0.5f)
+                        )
+                    ) {
+                        Text(stringResource(R.string.activate))
+                    }
+                }
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    LicenseInputSection(
+                        onLicenseComplete = { finalKey ->
+                            licenseCode = finalKey
+                        },
+                        isEditable = !isLicenseActivated,
+                        savedLicenseKey = licenseCode
+                    )
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Button(
+                        onClick = {
+                            coroutineScope.launch {
+                                try {
+                                    val deviceId = Settings.Secure.getString(
+                                        context.contentResolver,
+                                        Settings.Secure.ANDROID_ID
+                                    )
+                                    val clean = licenseCode.filter { it.isLetterOrDigit() || it == '-' }
+                                    Log.d("LicenseDebug", "Activating license: $clean")
+                                    val result = LicenseValidator.activateLicense(clean, deviceId)
+                                    Log.d(
+                                        "LicenseDebug",
+                                        "Activation result: success=${result.success}, message=${result.message}"
+                                    )
+
+                                    if (result.success) {
+                                        when (val details = LicenseValidator.getLicenseDetails(clean)) {
+                                            is LicenseDetailsResult.Success -> {
+                                                val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+                                                sdf.timeZone = TimeZone.getDefault()
+                                                val localStartDate = sdf.format(Calendar.getInstance().time)
+
+                                                val calcEnd = LicenseDataStore.calculateEndDate(
+                                                    localStartDate,
+                                                    details.validity
+                                                )
+                                                Log.d("LicenseDebug", "Activation: calcEnd=$calcEnd")
+                                                LicenseDataStore.clearLicenseInfo(context)
+                                                LicenseDataStore.saveLicenseStartDate(context, localStartDate)
+                                                LicenseDataStore.saveLicenseEndDate(context, calcEnd)
+                                                LicenseDataStore.saveLicenseInfo(
+                                                    context,
+                                                    true,
+                                                    calcEnd,
+                                                    clean,
+                                                    details.edition,
+                                                    details.capabilities,
+                                                    details.licensedTo
+                                                )
+                                                LicenseDataStore.setLicensed(context, true)
+                                                TrialTokenManager.simulateTrialExpired(context)
+                                                Log.d("LicenseSettingsScreen", "License activated, isLicensed set to true")
+                                                isLicenseActivated = true
+                                                trialDaysRemaining = TrialTokenManager.getRemainingDays(context, deviceId, appId)
+                                                snackbarHostState.showSnackbar(
+                                                    context.getString(R.string.license_success, calcEnd)
+                                                )
+                                                onLicenseActivated()
+                                            }
+                                            is LicenseDetailsResult.Error -> {
+                                                Log.e("LicenseDebug", "Activation error: ${details.message}")
+                                                snackbarHostState.showSnackbar("Failed to get license details: ${details.message}")
+                                            }
+                                        }
+                                    } else {
+                                        snackbarHostState.showSnackbar("Failed to activate license: ${result.message}")
+                                    }
+                                } catch (e: Exception) {
+                                    Log.e("LicenseSettingsScreen", "Error during activation: ${e.message}", e)
+                                    snackbarHostState.showSnackbar("Error: ${e.message}")
+                                }
+                            }
+                        },
+                        modifier = Modifier
+                            .width(120.dp)
+                            .height(48.dp),
+                        enabled = !isLicenseActivated,
+                        colors = ButtonDefaults.buttonColors(
+                            disabledContainerColor = Color.Gray.copy(alpha = 0.3f),
+                            disabledContentColor = Color.White.copy(alpha = 0.5f)
+                        )
+                    ) {
+                        Text(stringResource(R.string.activate))
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 许可信息框
+            LicenseInfoRow(
+                icon = Icons.Default.Timer,
+                label = "Expiration Date",
+                value = LicenseDataStore.formatDate(savedEndDate) ?: "Not set"
+            )
+            LicenseInfoRow(
+                icon = Icons.Default.ThumbUp,
+                label = "Valid For Version",
+                value = "All"
+            )
+            LicenseInfoRow(
+                icon = Icons.Default.Lock,
+                label = "License Edition",
+                value = licenseEdition
+            )
+            LicenseInfoRow(
+                icon = Icons.Default.Science,
+                label = "Capabilities",
+                value = capabilities
+            )
+            LicenseInfoRow(
+                icon = Icons.Default.Science,
+                label = "Trial",
+                value = if (trialDaysRemaining!! > 0) "Yes" else "No"
+            )
+            LicenseInfoRow(
+                icon = Icons.Default.VerifiedUser,
+                label = "Licensed To",
+                value = licensedTo
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // 底部
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(onClick = { /* 空链接，未来填充 */ }) {
+                    Text(
+                        text = "End User License Agreement",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                Button(
+                    onClick = onGoToAppClicked,
+                    modifier = Modifier
+                        .width(120.dp)
+                        .height(48.dp)
+                ) {
+                    Text("Go to App")
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+    }
+}

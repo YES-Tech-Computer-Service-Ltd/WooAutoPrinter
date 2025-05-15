@@ -346,4 +346,6 @@ dependencies {
     }
     implementation("org.jsoup:jsoup:1.16.2") // 用于解析HTML
     implementation("com.squareup.okhttp3:okhttp:4.12.0") // 网络请求
+    implementation("com.squareup.moshi:moshi:1.15.0")
+    implementation("com.squareup.moshi:moshi-kotlin:1.15.0")
 }

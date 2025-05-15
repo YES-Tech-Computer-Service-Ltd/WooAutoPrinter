@@ -162,7 +162,7 @@ firebase-functions-ktx = { group = "com.google.firebase", name = "firebase-funct
 annotations = { group = "org.jetbrains", name = "annotations", version.ref = "annotations" }
 androidx-room-runtime-android = { group = "androidx.room", name = "room-runtime-android", version.ref = "roomRuntimeAndroid" }
 room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "roomCompiler" }
-androidx-security-crypto = { group = "androidx.security", name = "security-crypto", version.ref = "securityCrypto" }
+androidx-security-crypto-ktx = { group = "androidx.security", name = "security-crypto-ktx", version.ref = "securityCryptoKtx" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "androidGradlePlugin" }

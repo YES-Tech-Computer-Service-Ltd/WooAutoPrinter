@@ -389,7 +389,7 @@ fun SettingsScreen(
                             onClick = {
                                 Log.d("设置", "点击了关于")
                                 coroutineScope.launch {
-                                    snackbarHostState.showSnackbar(viewModel.getAboutInfoText())
+                                    snackbarHostState.showSnackbar(appVersionText)
                                 }
                             }
                         )

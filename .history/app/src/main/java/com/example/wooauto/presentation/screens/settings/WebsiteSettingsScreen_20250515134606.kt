@@ -1,8 +1,6 @@
 package com.example.wooauto.presentation.screens.settings
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
@@ -17,8 +15,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.navigation.NavController
 import com.example.wooauto.R
+import androidx.navigation.NavController
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -33,7 +31,6 @@ fun WebsiteSettingsScreen(
     val useWooCommerceFood by viewModel.useWooCommerceFood.collectAsState()
     val isTestingConnection by viewModel.isTestingConnection.collectAsState()
     val connectionTestResult by viewModel.connectionTestResult.collectAsState()
-    val scrollState = rememberScrollState()
     
     var siteUrlInput by remember { mutableStateOf(siteUrl) }
     var consumerKeyInput by remember { mutableStateOf(consumerKey) }
@@ -85,7 +82,6 @@ fun WebsiteSettingsScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp)
-                .verticalScroll(scrollState)
         ) {
             // 站点URL输入框
             OutlinedTextField(
