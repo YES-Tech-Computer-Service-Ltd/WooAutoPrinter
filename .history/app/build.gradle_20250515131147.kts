@@ -237,7 +237,7 @@ dependencies {
     
     // 添加ZXing二维码扫描库
     implementation("com.journeyapps:zxing-android-embedded:4.3.0")
-    implementation("androidx.security:security-crypto:1.1.0-alpha06")
+    implementation("androidx.security:security-crypto:1.0.0")
 
     // JUnit 5
     testImplementation(libs.junit.jupiter)

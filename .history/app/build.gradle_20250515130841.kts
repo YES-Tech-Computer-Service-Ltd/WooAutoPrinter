@@ -25,14 +25,6 @@ val versionProps = Properties().apply {
     }
 }
 
-// 读取API密钥从local.properties
-val localProperties = Properties()
-val localPropertiesFile = rootProject.file("local.properties")
-if (localPropertiesFile.exists()) {
-    localProperties.load(localPropertiesFile.inputStream())
-}
-val licenseApiKey = localProperties.getProperty("LICENSE_API_KEY") ?: "missing-api-key"
-
 // 提取版本信息
 val major = versionProps.getProperty("major").toInt()
 val minor = versionProps.getProperty("minor").toInt()
@@ -137,7 +129,7 @@ android {
         buildConfigField("int", "VERSION_MINOR", minor.toString())
         buildConfigField("int", "VERSION_PATCH", patch.toString())
         buildConfigField("int", "VERSION_BUILD", build.toString())
-        buildConfigField("String", "LICENSE_API_KEY", "\"${licenseApiKey}\"")
+        buildConfigField("String", "LICENSE_API_KEY", "\"your_license_api_key_here\"")
     }
 
     // 禁用密度分包，避免 bundle 工具错误
@@ -178,7 +170,6 @@ android {
                 "proguard-rules.pro"
             )
             signingConfig = signingConfigs.getByName("release")
-            buildConfigField("String", "LICENSE_API_KEY", "\"$licenseApiKey\"")
         }
         debug {
             isMinifyEnabled = false
@@ -188,7 +179,6 @@ android {
                 "proguard-rules.pro"
             )
             signingConfig = signingConfigs.getByName("release")
-            buildConfigField("String", "LICENSE_API_KEY", "\"$licenseApiKey\"")
         }
     }
 
@@ -237,7 +227,7 @@ dependencies {
     
     // 添加ZXing二维码扫描库
     implementation("com.journeyapps:zxing-android-embedded:4.3.0")
-    implementation("androidx.security:security-crypto:1.1.0-alpha06")
+    implementation("androidx.security:security-crypto:1.0.0")
 
     // JUnit 5
     testImplementation(libs.junit.jupiter)

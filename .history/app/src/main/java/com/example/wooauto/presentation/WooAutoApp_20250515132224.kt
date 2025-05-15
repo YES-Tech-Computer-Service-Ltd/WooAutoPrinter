@@ -1,7 +1,6 @@
 package com.example.wooauto.presentation
 
 import android.content.Context
-import android.os.Build
 import android.provider.Settings
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -31,7 +30,6 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.navArgument
 import android.util.Log
-import androidx.annotation.RequiresApi
 import com.example.wooauto.licensing.LicenseDataStore
 import com.example.wooauto.licensing.LicenseVerificationManager
 import com.example.wooauto.licensing.TrialTokenManager
@@ -67,7 +65,6 @@ class WooAutoApp {
             }
         }
 
-        @RequiresApi(Build.VERSION_CODES.S)
         @Composable
         fun getContent() {
             // 获取当前语言状态并提供给整个应用
@@ -92,7 +89,6 @@ class WooAutoApp {
     }
 }
 
-@RequiresApi(Build.VERSION_CODES.S)
 @Composable
 fun AppContent() {
     val navController = rememberNavController()
@@ -442,7 +438,6 @@ fun AppContent() {
     }
 }
 
-@RequiresApi(Build.VERSION_CODES.S)
 @Preview(showBackground = true)
 @Composable
 fun AppPreview() {
