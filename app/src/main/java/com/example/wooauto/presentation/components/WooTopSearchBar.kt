@@ -1,6 +1,7 @@
 package com.example.wooauto.presentation.components
 
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import java.util.Locale
 
@@ -17,7 +18,9 @@ fun WooTopSearchBar(
     locale: Locale,
     modifier: Modifier = Modifier,
     additionalActions: @Composable (() -> Unit)? = null,
-    showRefreshButton: Boolean = true
+    showRefreshButton: Boolean = true,
+    showTitle: Boolean = false,
+    titleAlignment: Alignment.Horizontal = Alignment.CenterHorizontally
 ) {
     // 使用新的WooTopBar作为实现
     WooTopBar(
@@ -30,6 +33,8 @@ fun WooTopSearchBar(
         locale = locale,
         modifier = modifier,
         additionalActions = additionalActions,
-        showRefreshButton = showRefreshButton
+        showRefreshButton = showRefreshButton,
+        showTitle = showTitle,
+        titleAlignment = titleAlignment
     )
 } 

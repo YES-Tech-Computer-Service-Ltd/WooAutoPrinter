@@ -121,6 +121,9 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.core.content.ContextCompat
 import com.example.wooauto.presentation.components.WooTopBar
 import com.example.wooauto.presentation.screens.products.UnconfiguredView
+import com.example.wooauto.presentation.EventBus
+import com.example.wooauto.presentation.SearchEvent
+import com.example.wooauto.presentation.RefreshEvent
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -158,6 +161,31 @@ fun OrdersScreen(
     var showOrderDetail by remember { mutableStateOf(false) }
     var statusFilter by remember { mutableStateOf("") }
     var showUnreadOrders by remember { mutableStateOf(false) }
+    
+    // 接收搜索和刷新事件
+    LaunchedEffect(Unit) {
+        // 订阅搜索事件
+        launch {
+            EventBus.searchEvents.collect { event ->
+                if (event.screenRoute == NavigationItem.Orders.route) {
+                    Log.d("OrdersScreen", "收到搜索事件：${event.query}")
+                    searchQuery = event.query
+                    // 这里可以添加搜索逻辑
+                    // viewModel.searchOrders(event.query)
+                }
+            }
+        }
+        
+        // 订阅刷新事件
+        launch {
+            EventBus.refreshEvents.collect { event ->
+                if (event.screenRoute == NavigationItem.Orders.route) {
+                    Log.d("OrdersScreen", "收到刷新事件")
+                    viewModel.refreshOrders()
+                }
+            }
+        }
+    }
     
     // 当进入此屏幕时执行初始化操作
     LaunchedEffect(key1 = Unit) {
@@ -322,35 +350,7 @@ fun OrdersScreen(
         )
     }
     
-    Scaffold(
-        topBar = {
-            WooTopBar(
-                title = ordersTitle,
-                showSearch = true, // 显示搜索框
-                searchQuery = searchQuery,
-                onSearchQueryChange = { searchQuery = it },
-                searchPlaceholder = searchOrdersPlaceholder,
-                isRefreshing = isRefreshing,
-                onRefresh = { viewModel.refreshOrders() },
-                locale = locale,
-                additionalActions = {
-                    // 未读订单按钮
-                    IconButton(
-                        onClick = { showUnreadOrders = !showUnreadOrders },
-                        modifier = Modifier
-                            .size(44.dp)
-                            .padding(end = 2.dp) // 减少右边距，使按钮更紧凑
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Email,
-                            contentDescription = unreadOrdersText,
-                            tint = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.size(22.dp) // 调整图标大小
-                        )
-                    }
-                }
-            )
-        },
+        Scaffold(
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
     ) { paddingValues ->
         // 修改Box的padding，保留顶部padding但减少底部padding

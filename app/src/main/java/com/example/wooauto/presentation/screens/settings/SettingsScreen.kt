@@ -232,17 +232,7 @@ fun SettingsScreen(
         )
     }
     
-    Scaffold(
-        topBar = {
-            WooTopBar(
-                title = stringResource(id = R.string.settings),
-                showSearch = false,
-                isRefreshing = false,
-                onRefresh = { /* 设置页面不需要刷新功能 */ },
-                showRefreshButton = false,
-                locale = currentLocale
-            )
-        },
+        Scaffold(
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
     ) { paddingValues ->
         Column(

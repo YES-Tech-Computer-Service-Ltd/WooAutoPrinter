@@ -13,6 +13,9 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -62,10 +65,15 @@ fun WooTopBar(
     showRefreshButton: Boolean = true,
     locale: Locale = Locale.getDefault(),
     modifier: Modifier = Modifier,
-    additionalActions: @Composable (() -> Unit)? = null
+    additionalActions: @Composable (() -> Unit)? = null,
+    showTitle: Boolean = true,
+    titleAlignment: Alignment.Horizontal = Alignment.CenterHorizontally
 ) {
     // 定义纯色背景，不使用透明度
     val primaryColor = MaterialTheme.colorScheme.primary
+    
+    // 获取系统状态栏高度
+    val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     
     // 使用Column而不是Box，这样可以添加底部分隔线
     Column(
@@ -73,11 +81,14 @@ fun WooTopBar(
             .fillMaxWidth()
             .background(color = primaryColor)
     ) {
+        // 添加顶部安全区域，避免与系统状态栏重叠
+        Spacer(modifier = Modifier.height(statusBarHeight))
+        
         // 主要内容行
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(56.dp)
+                .heightIn(min = 56.dp, max = 56.dp)
                 .padding(horizontal = 12.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -94,8 +105,8 @@ fun WooTopBar(
                     locale = locale,
                     primaryColor = primaryColor
                 )
-            } else {
-                // 否则显示标题
+            } else if (showTitle && title.isNotEmpty()) {
+                // 显示标题
                 Text(
                     text = title,
                     style = MaterialTheme.typography.titleLarge.copy(
@@ -104,11 +115,18 @@ fun WooTopBar(
                         letterSpacing = 0.5.sp
                     ),
                     color = Color.White,
-                    textAlign = TextAlign.Start,
+                    textAlign = when(titleAlignment) {
+                        Alignment.Start -> TextAlign.Start
+                        Alignment.End -> TextAlign.End
+                        else -> TextAlign.Center
+                    },
                     modifier = Modifier
                         .weight(1f)
-                        .padding(start = 8.dp, top = 2.dp)
+                        .padding(start = if (titleAlignment == Alignment.Start) 8.dp else 0.dp, top = 2.dp)
                 )
+            } else {
+                // 空白占位符
+                Spacer(modifier = Modifier.weight(1f))
             }
             
             // 附加操作按钮
