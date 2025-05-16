@@ -44,6 +44,7 @@ import com.example.wooauto.licensing.TrialTokenManager
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
+import androidx.compose.material3.OutlinedTextFieldDefaults
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -169,7 +170,7 @@ fun LicenseInputSection(
                     fontSize = 18.sp,
                     letterSpacing = 0.sp
                 ),
-                colors = TextFieldDefaults.outlinedTextFieldColors(
+                colors = OutlinedTextFieldDefaults.colors(
                     disabledTextColor = Color.Gray,
                     disabledBorderColor = Color.Gray,
                     disabledLabelColor = Color.Gray,
