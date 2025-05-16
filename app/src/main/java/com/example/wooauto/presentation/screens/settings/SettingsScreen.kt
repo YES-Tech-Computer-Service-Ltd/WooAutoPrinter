@@ -232,8 +232,17 @@ fun SettingsScreen(
         )
     }
     
-        Scaffold(
-        snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
+    Scaffold(
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
+        topBar = {
+            WooTopBar(
+                title = stringResource(id = R.string.settings),
+                showSearch = false,
+                isRefreshing = false,
+                showRefreshButton = false,
+                locale = currentLocale
+            )
+        }
     ) { paddingValues ->
         Column(
             modifier = Modifier

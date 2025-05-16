@@ -352,7 +352,27 @@ private fun ProductsScreenContent(
         // 使用key防止Scaffold不必要的重组
         androidx.compose.runtime.key(products.size) {
                         Scaffold(
-                snackbarHost = { SnackbarHost(snackbarHostState) }
+                snackbarHost = { SnackbarHost(snackbarHostState) },
+                topBar = {
+                    WooTopBar(
+                        title = stringResource(id = R.string.products),
+                        showSearch = true,
+                        searchQuery = searchQuery,
+                        onSearchQueryChange = { newQuery -> 
+                            searchQuery = newQuery
+                            if (newQuery.isEmpty()) {
+                                viewModel.filterProductsByCategory(selectedCategoryId)
+                            } else {
+                                viewModel.searchProducts(newQuery)
+                            }
+                        },
+                        searchPlaceholder = if (locale.language == "zh") "搜索商品..." else "Search products...",
+                        isRefreshing = isRefreshing,
+                        onRefresh = { viewModel.refreshData() },
+                        showRefreshButton = true,
+                        locale = locale
+                    )
+                }
             ) { paddingValues ->
                 // 主要内容区域
                 Box(
@@ -716,6 +736,7 @@ fun ProductsContent(
                 ) { (id, name) ->
                     FilterChip(
                         selected = selectedCategoryId == id,
+                        enabled = true,
                         onClick = { onCategorySelect(id, name) },
                         label = { 
                             Text(
