@@ -36,15 +36,13 @@ import androidx.compose.runtime.setValue
 @Composable
 fun WooAppBar(
     navController: NavController? = null,
-    onSearch: (query: String, route: String) -> Unit = { _, _ -> },
-    onRefresh: (route: String) -> Unit = { _ -> }
 ) {
     // 获取当前语言环境
     val locale = LocalAppLocale.current
     
     // 根据当前路径获取标题和决定是否显示搜索框
     val navBackStackEntry by navController?.currentBackStackEntryAsState() ?: remember { mutableStateOf(null) }
-    val currentRoute = navBackStackEntry?.destination?.route ?: ""
+    val currentRoute = navBackStackEntry?.destination?.route
     
     // 搜索相关状态
     var searchQuery by remember { mutableStateOf("") }
@@ -53,25 +51,27 @@ fun WooAppBar(
     // 决定显示哪种顶部栏
     when (currentRoute) {
         NavigationItem.Orders.route -> {
-            // 订单页面特有的顶部栏 - 只显示搜索框和未读订单按钮，不显示标题
+            // 订单页面特有的顶部栏 - 带搜索功能和未读订单按钮
+            val ordersTitle = stringResource(id = R.string.orders)
             val searchOrdersPlaceholder = if (locale.language == "zh") "搜索订单..." else "Search orders..."
             val unreadOrdersText = if (locale.language == "zh") "未读订单" else "Unread Orders"
             
             WooTopBar(
-                title = "", // 空标题，不显示
-                showSearch = true, // 显示搜索框
+                title = ordersTitle,
+                showSearch = true,
                 searchQuery = searchQuery,
-                onSearchQueryChange = { query -> 
-                    searchQuery = query 
-                    onSearch(query, NavigationItem.Orders.route)
+                onSearchQueryChange = { 
+                    searchQuery = it 
+                    // 发送搜索请求到订单页面
+                    // 这里我们将搜索逻辑交给页面处理，这部分需要在页面实现
                 },
                 searchPlaceholder = searchOrdersPlaceholder,
-                isRefreshing = false,
+                isRefreshing = false, // 这里从页面获取
                 onRefresh = { 
-                    onRefresh(NavigationItem.Orders.route)
+                    // 发送刷新请求到订单页面
+                    // 这里我们将刷新逻辑交给页面处理
                 },
                 locale = locale,
-                showTitle = false, // 禁用标题显示
                 additionalActions = {
                     // 未读订单按钮
                     IconButton(
@@ -91,28 +91,30 @@ fun WooAppBar(
             )
         }
         NavigationItem.Products.route -> {
-            // 产品页面特有的顶部栏 - 只显示搜索框，不显示标题
+            // 产品页面特有的顶部栏 - 带搜索功能
+            val productsTitle = stringResource(id = R.string.products)
             val searchProductsPlaceholder = if (locale.language == "zh") "搜索产品..." else "Search products..."
             
             WooTopBar(
-                title = "", // 空标题，不显示
+                title = productsTitle,
                 showSearch = true,
                 searchQuery = searchQuery,
                 onSearchQueryChange = { query -> 
                     searchQuery = query
-                    onSearch(query, NavigationItem.Products.route)
+                    // 发送搜索请求到产品页面
+                    // 这里我们将搜索逻辑交给页面处理
                 },
                 searchPlaceholder = searchProductsPlaceholder,
-                isRefreshing = false,
+                isRefreshing = false, // 这里从页面获取
                 onRefresh = { 
-                    onRefresh(NavigationItem.Products.route)
+                    // 发送刷新请求到产品页面
+                    // 这里我们将刷新逻辑交给页面处理
                 },
-                locale = locale,
-                showTitle = false // 禁用标题显示
+                locale = locale
             )
         }
         else -> {
-            // 其他页面(如Settings)使用默认顶部栏 - 显示左侧标题
+            // 其他页面使用默认顶部栏 - 仅显示标题
             val title = when (currentRoute) {
                 NavigationItem.Settings.route -> stringResource(id = R.string.settings)
                 else -> stringResource(id = R.string.app_name)
@@ -124,9 +126,7 @@ fun WooAppBar(
                 isRefreshing = false,
                 onRefresh = { },
                 showRefreshButton = false,
-                locale = locale,
-                showTitle = true, // 启用标题显示
-                titleAlignment = Alignment.Start // 左对齐标题
+                locale = locale
             )
         }
     }

@@ -203,10 +203,6 @@ private fun ProductsScreenContent(
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
     
-    // 搜索和分类相关状态
-    var searchQuery by remember { mutableStateOf("") }
-    var selectedCategoryId by remember { mutableStateOf<Long?>(null) }
-    
     // 接收搜索和刷新事件
     LaunchedEffect(Unit) {
         // 订阅搜索事件
@@ -275,8 +271,9 @@ private fun ProductsScreenContent(
         }
     }
     
-    // 其他UI状态变量
+    var searchQuery by remember { mutableStateOf("") }
     var showProductDetail by remember { mutableStateOf(false) }
+    var selectedCategoryId by remember { mutableStateOf<Long?>(null) }
     
     // 添加切换分类时的加载状态跟踪
     var isSwitchingCategory by remember { mutableStateOf(false) }

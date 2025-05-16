@@ -23,7 +23,6 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -56,37 +55,8 @@ import kotlinx.coroutines.withTimeoutOrNull
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.asSharedFlow
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.statusBars
-import androidx.compose.ui.unit.dp
 
 private const val TAG = "WooAutoApp"
-
-// 定义搜索事件数据类
-data class SearchEvent(val query: String, val screenRoute: String)
-
-// 刷新事件数据类
-data class RefreshEvent(val screenRoute: String)
-
-// 应用级事件总线
-object EventBus {
-    private val _searchEvents = MutableSharedFlow<SearchEvent>()
-    val searchEvents = _searchEvents.asSharedFlow()
-    
-    private val _refreshEvents = MutableSharedFlow<RefreshEvent>()
-    val refreshEvents = _refreshEvents.asSharedFlow()
-    
-    suspend fun emitSearchEvent(query: String, screenRoute: String) {
-        _searchEvents.emit(SearchEvent(query, screenRoute))
-    }
-    
-    suspend fun emitRefreshEvent(screenRoute: String) {
-        _refreshEvents.emit(RefreshEvent(screenRoute))
-    }
-}
 
 class WooAutoApp {
     companion object {
@@ -234,37 +204,13 @@ fun AppContent() {
             currentRoute == Screen.LicenseSettings.route ||
             currentRoute.startsWith("template_")
 
-    // 获取系统状态栏高度
-    val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-
     Scaffold(
         // 仅在不是特殊屏幕时显示顶部导航栏
         topBar = {
             if (!isSpecialScreen) {
-                WooAppBar(
-                    navController = navController,
-                    onSearch = { query, route ->
-                        // 使用协程作用域发送搜索事件
-                        coroutineScope.launch {
-                            EventBus.emitSearchEvent(query, route)
-                        }
-                    },
-                    onRefresh = { route ->
-                        // 使用协程作用域发送刷新事件
-                        coroutineScope.launch {
-                            EventBus.emitRefreshEvent(route)
-                        }
-                    }
-                )
+                WooAppBar(                    navController = navController,                     // 注意：这里我们不提供ViewModel，在各页面内部获取并处理搜索逻辑                )
             }
         },
-        // 使用windowInsets设置来适应系统状态栏
-        contentWindowInsets = WindowInsets(
-            left = 0.dp,
-            top = statusBarHeight,
-            right = 0.dp,
-            bottom = 0.dp
-        ),
         bottomBar = {
             // 确保底部导航栏能够正确响应导航变化
             // 仅在标准页面（非特殊设置页面）上显示底部导航栏
@@ -306,13 +252,7 @@ fun AppContent() {
         NavHost(
             navController = navController,
             startDestination = startDestination,
-            modifier = Modifier.padding(
-                // 如果是特殊屏幕，添加顶部内边距；否则WooTopBar已经处理
-                top = if (isSpecialScreen) statusBarHeight else 0.dp,
-                bottom = paddingValues.calculateBottomPadding(),
-                start = paddingValues.calculateLeftPadding(LocalLayoutDirection.current),
-                end = paddingValues.calculateRightPadding(LocalLayoutDirection.current)
-            )
+            modifier = Modifier.padding(paddingValues)
         ) {
             // 许可设置页面
             composable(Screen.LicenseSettings.route) {

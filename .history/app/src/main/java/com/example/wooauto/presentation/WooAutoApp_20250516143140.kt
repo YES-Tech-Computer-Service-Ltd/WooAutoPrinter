@@ -59,8 +59,6 @@ import java.util.Locale
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.ui.unit.dp
 
 private const val TAG = "WooAutoApp"
@@ -235,7 +233,7 @@ fun AppContent() {
             currentRoute.startsWith("template_")
 
     // 获取系统状态栏高度
-    val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val statusBarHeight = androidx.compose.foundation.layout.WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
     Scaffold(
         // 仅在不是特殊屏幕时显示顶部导航栏
@@ -259,7 +257,7 @@ fun AppContent() {
             }
         },
         // 使用windowInsets设置来适应系统状态栏
-        contentWindowInsets = WindowInsets(
+        contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(
             left = 0.dp,
             top = statusBarHeight,
             right = 0.dp,
@@ -307,11 +305,10 @@ fun AppContent() {
             navController = navController,
             startDestination = startDestination,
             modifier = Modifier.padding(
-                // 如果是特殊屏幕，添加顶部内边距；否则WooTopBar已经处理
-                top = if (isSpecialScreen) statusBarHeight else 0.dp,
+                top = 0.dp,  // 顶部内边距已经由WooTopBar处理
                 bottom = paddingValues.calculateBottomPadding(),
-                start = paddingValues.calculateLeftPadding(LocalLayoutDirection.current),
-                end = paddingValues.calculateRightPadding(LocalLayoutDirection.current)
+                start = paddingValues.calculateStartPadding(LocalLayoutDirection.current),
+                end = paddingValues.calculateEndPadding(LocalLayoutDirection.current)
             )
         ) {
             // 许可设置页面

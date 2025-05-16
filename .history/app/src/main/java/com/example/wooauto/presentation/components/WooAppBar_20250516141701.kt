@@ -53,25 +53,27 @@ fun WooAppBar(
     // 决定显示哪种顶部栏
     when (currentRoute) {
         NavigationItem.Orders.route -> {
-            // 订单页面特有的顶部栏 - 只显示搜索框和未读订单按钮，不显示标题
+            // 订单页面特有的顶部栏 - 带搜索功能和未读订单按钮
+            val ordersTitle = stringResource(id = R.string.orders)
             val searchOrdersPlaceholder = if (locale.language == "zh") "搜索订单..." else "Search orders..."
             val unreadOrdersText = if (locale.language == "zh") "未读订单" else "Unread Orders"
             
             WooTopBar(
-                title = "", // 空标题，不显示
-                showSearch = true, // 显示搜索框
+                title = ordersTitle,
+                showSearch = true,
                 searchQuery = searchQuery,
                 onSearchQueryChange = { query -> 
                     searchQuery = query 
+                    // 通过回调将搜索查询传递给应用
                     onSearch(query, NavigationItem.Orders.route)
                 },
                 searchPlaceholder = searchOrdersPlaceholder,
-                isRefreshing = false,
+                isRefreshing = false, // 这里应该从应用获取刷新状态，目前简化处理
                 onRefresh = { 
+                    // 通过回调触发刷新
                     onRefresh(NavigationItem.Orders.route)
                 },
                 locale = locale,
-                showTitle = false, // 禁用标题显示
                 additionalActions = {
                     // 未读订单按钮
                     IconButton(
@@ -91,28 +93,30 @@ fun WooAppBar(
             )
         }
         NavigationItem.Products.route -> {
-            // 产品页面特有的顶部栏 - 只显示搜索框，不显示标题
+            // 产品页面特有的顶部栏 - 带搜索功能
+            val productsTitle = stringResource(id = R.string.products)
             val searchProductsPlaceholder = if (locale.language == "zh") "搜索产品..." else "Search products..."
             
             WooTopBar(
-                title = "", // 空标题，不显示
+                title = productsTitle,
                 showSearch = true,
                 searchQuery = searchQuery,
                 onSearchQueryChange = { query -> 
                     searchQuery = query
+                    // 通过回调将搜索查询传递给应用
                     onSearch(query, NavigationItem.Products.route)
                 },
                 searchPlaceholder = searchProductsPlaceholder,
-                isRefreshing = false,
+                isRefreshing = false, // 这里应该从应用获取刷新状态，目前简化处理
                 onRefresh = { 
+                    // 通过回调触发刷新
                     onRefresh(NavigationItem.Products.route)
                 },
-                locale = locale,
-                showTitle = false // 禁用标题显示
+                locale = locale
             )
         }
         else -> {
-            // 其他页面(如Settings)使用默认顶部栏 - 显示左侧标题
+            // 其他页面使用默认顶部栏 - 仅显示标题
             val title = when (currentRoute) {
                 NavigationItem.Settings.route -> stringResource(id = R.string.settings)
                 else -> stringResource(id = R.string.app_name)
@@ -124,9 +128,7 @@ fun WooAppBar(
                 isRefreshing = false,
                 onRefresh = { },
                 showRefreshButton = false,
-                locale = locale,
-                showTitle = true, // 启用标题显示
-                titleAlignment = Alignment.Start // 左对齐标题
+                locale = locale
             )
         }
     }

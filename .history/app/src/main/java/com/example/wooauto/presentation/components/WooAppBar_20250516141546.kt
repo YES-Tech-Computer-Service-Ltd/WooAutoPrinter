@@ -28,23 +28,23 @@ import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.setValue
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.wooauto.presentation.screens.orders.OrdersViewModel
+import com.example.wooauto.presentation.screens.products.ProductsViewModel
 
-/**
- * 全局顶部栏组件
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WooAppBar(
     navController: NavController? = null,
-    onSearch: (query: String, route: String) -> Unit = { _, _ -> },
-    onRefresh: (route: String) -> Unit = { _ -> }
+    ordersViewModel: OrdersViewModel? = null,
+    productsViewModel: ProductsViewModel? = null
 ) {
     // 获取当前语言环境
     val locale = LocalAppLocale.current
     
     // 根据当前路径获取标题和决定是否显示搜索框
     val navBackStackEntry by navController?.currentBackStackEntryAsState() ?: remember { mutableStateOf(null) }
-    val currentRoute = navBackStackEntry?.destination?.route ?: ""
+    val currentRoute = navBackStackEntry?.destination?.route
     
     // 搜索相关状态
     var searchQuery by remember { mutableStateOf("") }
@@ -53,25 +53,25 @@ fun WooAppBar(
     // 决定显示哪种顶部栏
     when (currentRoute) {
         NavigationItem.Orders.route -> {
-            // 订单页面特有的顶部栏 - 只显示搜索框和未读订单按钮，不显示标题
+            // 订单页面特有的顶部栏 - 带搜索功能和未读订单按钮
+            val ordersTitle = stringResource(id = R.string.orders)
             val searchOrdersPlaceholder = if (locale.language == "zh") "搜索订单..." else "Search orders..."
             val unreadOrdersText = if (locale.language == "zh") "未读订单" else "Unread Orders"
+            val isRefreshing = ordersViewModel?.refreshing?.value ?: false
             
             WooTopBar(
-                title = "", // 空标题，不显示
-                showSearch = true, // 显示搜索框
+                title = ordersTitle,
+                showSearch = true,
                 searchQuery = searchQuery,
-                onSearchQueryChange = { query -> 
-                    searchQuery = query 
-                    onSearch(query, NavigationItem.Orders.route)
+                onSearchQueryChange = { 
+                    searchQuery = it 
+                    // 如果有订单视图模型，更新其搜索状态
+                    // 这里可以添加订单搜索的实现
                 },
                 searchPlaceholder = searchOrdersPlaceholder,
-                isRefreshing = false,
-                onRefresh = { 
-                    onRefresh(NavigationItem.Orders.route)
-                },
+                isRefreshing = isRefreshing,
+                onRefresh = { ordersViewModel?.refreshOrders() },
                 locale = locale,
-                showTitle = false, // 禁用标题显示
                 additionalActions = {
                     // 未读订单按钮
                     IconButton(
@@ -91,28 +91,34 @@ fun WooAppBar(
             )
         }
         NavigationItem.Products.route -> {
-            // 产品页面特有的顶部栏 - 只显示搜索框，不显示标题
+            // 产品页面特有的顶部栏 - 带搜索功能
+            val productsTitle = stringResource(id = R.string.products)
             val searchProductsPlaceholder = if (locale.language == "zh") "搜索产品..." else "Search products..."
+            val isRefreshing = productsViewModel?.isRefreshing?.value ?: false
             
             WooTopBar(
-                title = "", // 空标题，不显示
+                title = productsTitle,
                 showSearch = true,
                 searchQuery = searchQuery,
                 onSearchQueryChange = { query -> 
                     searchQuery = query
-                    onSearch(query, NavigationItem.Products.route)
+                    // 如果有产品视图模型，更新其搜索状态
+                    productsViewModel?.let { viewModel ->
+                        if (query.isEmpty()) {
+                            viewModel.filterProductsByCategory(viewModel.currentSelectedCategoryId.value)
+                        } else {
+                            viewModel.searchProducts(query)
+                        }
+                    }
                 },
                 searchPlaceholder = searchProductsPlaceholder,
-                isRefreshing = false,
-                onRefresh = { 
-                    onRefresh(NavigationItem.Products.route)
-                },
-                locale = locale,
-                showTitle = false // 禁用标题显示
+                isRefreshing = isRefreshing,
+                onRefresh = { productsViewModel?.refreshData() },
+                locale = locale
             )
         }
         else -> {
-            // 其他页面(如Settings)使用默认顶部栏 - 显示左侧标题
+            // 其他页面使用默认顶部栏 - 仅显示标题
             val title = when (currentRoute) {
                 NavigationItem.Settings.route -> stringResource(id = R.string.settings)
                 else -> stringResource(id = R.string.app_name)
@@ -124,9 +130,7 @@ fun WooAppBar(
                 isRefreshing = false,
                 onRefresh = { },
                 showRefreshButton = false,
-                locale = locale,
-                showTitle = true, // 启用标题显示
-                titleAlignment = Alignment.Start // 左对齐标题
+                locale = locale
             )
         }
     }

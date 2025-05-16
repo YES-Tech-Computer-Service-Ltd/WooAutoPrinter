@@ -13,9 +13,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -72,23 +69,17 @@ fun WooTopBar(
     // 定义纯色背景，不使用透明度
     val primaryColor = MaterialTheme.colorScheme.primary
     
-    // 获取系统状态栏高度
-    val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    
     // 使用Column而不是Box，这样可以添加底部分隔线
     Column(
         modifier = modifier
             .fillMaxWidth()
             .background(color = primaryColor)
     ) {
-        // 添加顶部安全区域，避免与系统状态栏重叠
-        Spacer(modifier = Modifier.height(statusBarHeight))
-        
         // 主要内容行
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 56.dp, max = 56.dp)
+                .height(56.dp)
                 .padding(horizontal = 12.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {

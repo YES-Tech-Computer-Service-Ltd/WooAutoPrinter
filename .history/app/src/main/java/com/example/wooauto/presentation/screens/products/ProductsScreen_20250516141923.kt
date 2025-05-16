@@ -275,13 +275,7 @@ private fun ProductsScreenContent(
         }
     }
     
-    // 其他UI状态变量
-    var showProductDetail by remember { mutableStateOf(false) }
-    
-    // 添加切换分类时的加载状态跟踪
-    var isSwitchingCategory by remember { mutableStateOf(false) }
-    
-    // 记录上一次显示的产品列表，用于平滑过渡
+    // 其他UI状态变量    var showProductDetail by remember { mutableStateOf(false) }        // 添加切换分类时的加载状态跟踪    var isSwitchingCategory by remember { mutableStateOf(false) }        // 记录上一次显示的产品列表，用于平滑过渡
     var previousProducts by remember { mutableStateOf<List<Product>>(emptyList()) }
     
     // 分类加载时的过渡动画控制

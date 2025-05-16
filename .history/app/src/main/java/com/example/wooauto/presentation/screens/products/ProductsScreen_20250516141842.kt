@@ -203,37 +203,7 @@ private fun ProductsScreenContent(
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
     
-    // 搜索和分类相关状态
-    var searchQuery by remember { mutableStateOf("") }
-    var selectedCategoryId by remember { mutableStateOf<Long?>(null) }
-    
-    // 接收搜索和刷新事件
-    LaunchedEffect(Unit) {
-        // 订阅搜索事件
-        launch {
-            EventBus.searchEvents.collect { event ->
-                if (event.screenRoute == NavigationItem.Products.route) {
-                    Log.d("ProductsScreen", "收到搜索事件：${event.query}")
-                    searchQuery = event.query
-                    if (event.query.isEmpty()) {
-                        viewModel.filterProductsByCategory(selectedCategoryId)
-                    } else {
-                        viewModel.searchProducts(event.query)
-                    }
-                }
-            }
-        }
-        
-        // 订阅刷新事件
-        launch {
-            EventBus.refreshEvents.collect { event ->
-                if (event.screenRoute == NavigationItem.Products.route) {
-                    Log.d("ProductsScreen", "收到刷新事件")
-                    viewModel.refreshData()
-                }
-            }
-        }
-    }
+        // 接收搜索和刷新事件    var searchQuery by remember { mutableStateOf("") }    val selectedCategoryId by viewModel.currentSelectedCategoryId.collectAsState()        LaunchedEffect(Unit) {        // 订阅搜索事件        launch {            EventBus.searchEvents.collect { event ->                if (event.screenRoute == NavigationItem.Products.route) {                    Log.d("ProductsScreen", "收到搜索事件：${event.query}")                    searchQuery = event.query                    if (event.query.isEmpty()) {                        viewModel.filterProductsByCategory(selectedCategoryId)                    } else {                        viewModel.searchProducts(event.query)                    }                }            }        }                // 订阅刷新事件        launch {            EventBus.refreshEvents.collect { event ->                if (event.screenRoute == NavigationItem.Products.route) {                    Log.d("ProductsScreen", "收到刷新事件")                    viewModel.refreshData()                }            }        }    }
     
     // 当进入此屏幕时执行刷新操作 - 仅当配置有效时触发一次
     LaunchedEffect(key1 = isConfigured) {
@@ -275,8 +245,9 @@ private fun ProductsScreenContent(
         }
     }
     
-    // 其他UI状态变量
+    var searchQuery by remember { mutableStateOf("") }
     var showProductDetail by remember { mutableStateOf(false) }
+    var selectedCategoryId by remember { mutableStateOf<Long?>(null) }
     
     // 添加切换分类时的加载状态跟踪
     var isSwitchingCategory by remember { mutableStateOf(false) }
