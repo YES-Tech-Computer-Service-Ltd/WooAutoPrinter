@@ -134,13 +134,6 @@ fun OrdersScreen(
     val locale = LocalAppLocale.current
     val context = LocalContext.current
     
-    // 提前获取需要使用的字符串资源
-    val apiNotConfiguredMessage = stringResource(R.string.api_notification_not_configured)
-    val ordersTitle = stringResource(id = R.string.orders)
-    val searchOrdersPlaceholder = if (locale.language == "zh") "搜索订单..." else "Search orders..."
-    val unreadOrdersText = if (locale.language == "zh") "未读订单" else "Unread Orders"
-    val errorApiNotConfigured = stringResource(R.string.error_api_not_configured)
-    
     val isConfigured by viewModel.isConfigured.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val orders by viewModel.orders.collectAsState()
@@ -180,7 +173,8 @@ fun OrdersScreen(
             
             // 添加黑色Toast提示
             coroutineScope.launch {
-                snackbarHostState.showSnackbar(apiNotConfiguredMessage)
+                val notConfiguredMessage = stringResource(R.string.api_notification_not_configured)
+                snackbarHostState.showSnackbar(notConfiguredMessage)
             }
         }
     }
@@ -325,11 +319,11 @@ fun OrdersScreen(
     Scaffold(
         topBar = {
             WooTopBar(
-                title = ordersTitle,
+                title = stringResource(id = R.string.orders),
                 showSearch = true, // 显示搜索框
                 searchQuery = searchQuery,
                 onSearchQueryChange = { searchQuery = it },
-                searchPlaceholder = searchOrdersPlaceholder,
+                searchPlaceholder = if (locale.language == "zh") "搜索订单..." else "Search orders...",
                 isRefreshing = isRefreshing,
                 onRefresh = { viewModel.refreshOrders() },
                 locale = locale,
@@ -343,7 +337,7 @@ fun OrdersScreen(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Email,
-                            contentDescription = unreadOrdersText,
+                            contentDescription = if (locale.language == "zh") "未读订单" else "Unread Orders",
                             tint = MaterialTheme.colorScheme.onPrimary,
                             modifier = Modifier.size(22.dp) // 调整图标大小
                         )
@@ -387,7 +381,7 @@ fun OrdersScreen(
             } else if (orders.isEmpty() && !isConfigured) {
                 // 没有订单且API未配置，使用UnconfiguredView
                 UnconfiguredView(
-                    errorMessage = errorMessage ?: errorApiNotConfigured,
+                    errorMessage = errorMessage ?: stringResource(R.string.error_api_not_configured),
                     onSettingsClick = { 
                         navController.navigate(NavigationItem.Settings.route) {
                             launchSingleTop = true
