@@ -25,13 +25,8 @@ val versionProps = Properties().apply {
     }
 }
 
-// 读取API密钥从local.properties
-val localProperties = Properties()
-val localPropertiesFile = rootProject.file("local.properties")
-if (localPropertiesFile.exists()) {
-    localProperties.load(localPropertiesFile.inputStream())
-}
-val licenseApiKey = localProperties.getProperty("LICENSE_API_KEY") ?: "missing-api-key"
+// API密钥（证书验证模块使用）
+val licenseApiKey = "0A9Q5OXT13in3LGjM9F3"
 
 // 提取版本信息
 val major = versionProps.getProperty("major").toInt()
