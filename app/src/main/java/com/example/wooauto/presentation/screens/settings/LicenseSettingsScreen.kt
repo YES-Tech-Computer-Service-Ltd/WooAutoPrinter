@@ -291,7 +291,7 @@ fun LicenseSettingsScreen(
     LaunchedEffect(trialDaysRemaining) {
         if (isLicensed && (trialDaysRemaining == null || trialDaysRemaining!! <= 0)) {
             coroutineScope.launch {
-                LicenseVerificationManager.forceServerValidation(
+                LicenseVerificationManager.staticForceServerValidation(
                     context = context,
                     coroutineScope = coroutineScope,
                     onInvalid = {

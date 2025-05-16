@@ -452,7 +452,7 @@ fun AppContent() {
         if (isTrialChecked.value && isStateLoaded.value && isNavHostInitialized.value && !isTrialValid.value && isLicensed.value) {
             Log.d("AppContent", "Licensed and not in trial, performing server validation")
             try {
-                LicenseVerificationManager.forceServerValidation(
+                LicenseVerificationManager.staticForceServerValidation(
                     context,
                     coroutineScope,
                     onInvalid = {
@@ -476,7 +476,7 @@ fun AppContent() {
                     }
                 )
 
-                LicenseVerificationManager.verifyLicenseOnStart(
+                LicenseVerificationManager.staticVerifyLicenseOnStart(
                     context,
                     coroutineScope,
                     onInvalid = {

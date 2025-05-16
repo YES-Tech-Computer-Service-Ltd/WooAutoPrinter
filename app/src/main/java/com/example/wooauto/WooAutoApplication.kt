@@ -11,8 +11,11 @@ import androidx.work.WorkManager
 import com.example.wooauto.data.local.WooCommerceConfig
 import com.example.wooauto.data.remote.metadata.MetadataProcessorFactory
 import com.example.wooauto.data.remote.metadata.MetadataProcessorRegistry
+import com.example.wooauto.licensing.LicenseManager
+import com.example.wooauto.licensing.LicenseStatus
 import com.example.wooauto.service.BackgroundPollingService
 import com.example.wooauto.utils.OrderNotificationManager
+import com.example.wooauto.licensing.LicenseVerificationManager
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -30,6 +33,12 @@ class WooAutoApplication : MultiDexApplication(), Configuration.Provider {
     
     @Inject
     lateinit var orderNotificationManager: OrderNotificationManager
+    
+    @Inject
+    lateinit var licenseManager: LicenseManager
+    
+    @Inject
+    lateinit var licenseVerificationManager: LicenseVerificationManager
 
     // 使用IO调度器而非Main调度器，减少主线程负担
     private val applicationScope = CoroutineScope(Dispatchers.IO)
@@ -57,9 +66,13 @@ class WooAutoApplication : MultiDexApplication(), Configuration.Provider {
                     // 初始化订单通知管理器（异步）
                     val notificationJob = async { initializeOrderNotificationManager() }
                     
+                    // 初始化证书管理器（异步）
+                    val licenseJob = async { initializeLicenseManager() }
+                    
                     // 等待所有初始化完成
                     metadataJob.await()
                     notificationJob.await()
+                    licenseJob.await()
                     
                     Log.d("WooAutoApplication", "所有并行初始化任务完成")
                 }
@@ -118,6 +131,35 @@ class WooAutoApplication : MultiDexApplication(), Configuration.Provider {
         }
     }
     
+    /**
+     * 初始化证书管理器并执行首次验证
+     */
+    private fun initializeLicenseManager() {
+        try {
+            Log.d("WooAutoApplication", "初始化证书管理器")
+            
+            // 初始化旧版本的LicenseVerificationManager的静态实例访问点
+            if (::licenseVerificationManager.isInitialized) {
+                LicenseVerificationManager.initialize(licenseVerificationManager)
+                Log.d("WooAutoApplication", "已初始化LicenseVerificationManager单例访问点")
+            }
+            
+            // 执行首次证书验证
+            licenseManager.verifyLicense(this, applicationScope) { isValid ->
+                Log.d("WooAutoApplication", "证书验证结果: $isValid")
+                
+                // 证书无效时的处理可以放在这里
+                if (!isValid) {
+                    Log.w("WooAutoApplication", "证书无效，部分功能可能受限")
+                }
+            }
+            
+            Log.d("WooAutoApplication", "证书管理器初始化完成")
+        } catch (e: Exception) {
+            Log.e("WooAutoApplication", "初始化证书管理器时出错: ${e.message}", e)
+        }
+    }
+    
     private fun checkConfigAndStartService() {
         // 检查配置是否完成，如果完成则启动轮询服务
         applicationScope.launch {
@@ -128,8 +170,15 @@ class WooAutoApplication : MultiDexApplication(), Configuration.Provider {
                     // 检查配置是否有效
                     val isConfigValid = checkConfigurationValid()
                     if (isConfigValid) {
-                        // 立即启动服务，不再延迟
-                        startBackgroundPollingService()
+                        // 检查证书是否有效
+                        if (licenseManager.isLicenseValid) {
+                            // 立即启动服务，不再延迟
+                            startBackgroundPollingService()
+                        } else {
+                            Log.w("WooAutoApplication", "证书无效，不启动服务")
+                            // 如果需要定期检查证书状态，可以在这里启动
+                            startLicenseMonitoring()
+                        }
                     } else {
                         Log.d("WooAutoApplication", "配置未完成，不启动服务")
                     }
@@ -140,6 +189,35 @@ class WooAutoApplication : MultiDexApplication(), Configuration.Provider {
                 Log.e("WooAutoApplication", "检查配置时出错: ${e.message}", e)
             }
         }
+    }
+    
+    /**
+     * 开始证书状态监控
+     */
+    private fun startLicenseMonitoring() {
+        // 每小时检查一次证书状态
+        mainHandler.postDelayed(object : Runnable {
+            override fun run() {
+                if (licenseManager.shouldRevalidate(60)) { // 每60分钟重新验证一次
+                    applicationScope.launch {
+                        licenseManager.verifyLicense(this@WooAutoApplication, applicationScope) { isValid ->
+                            if (isValid) {
+                                // 在协程中检查配置有效性
+                                applicationScope.launch {
+                                    val configValid = checkConfigurationValid()
+                                    if (configValid) {
+                                        // 证书变为有效时，启动服务
+                                        startBackgroundPollingService()
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                // 继续定时检查
+                mainHandler.postDelayed(this, 60 * 60 * 1000) // 每小时检查一次
+            }
+        }, 60 * 60 * 1000) // 首次延迟1小时
     }
     
     /**
