@@ -126,7 +126,6 @@ import com.example.wooauto.presentation.screens.products.UnconfiguredView
 import com.example.wooauto.presentation.EventBus
 import com.example.wooauto.presentation.SearchEvent
 import com.example.wooauto.presentation.RefreshEvent
-import androidx.compose.ui.unit.Dp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -336,8 +335,8 @@ fun OrdersScreen(
         listOf(
             "" to "全部状态",
             "processing" to "处理中",
-            "pending" to "待付款",
-            "on-hold" to "暂挂",
+            "pending" to "待处理",
+            "on-hold" to "保留",
             "completed" to "已完成",
             "cancelled" to "已取消",
             "refunded" to "已退款",
@@ -357,33 +356,27 @@ fun OrdersScreen(
     }
     
     Scaffold(
-        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
-        topBar = {
-            WooTopBar(
-                title = ordersTitle,
-                showSearch = true,
-                searchQuery = searchQuery,
-                onSearchQueryChange = { newQuery -> 
-                    searchQuery = newQuery
-                },
-                searchPlaceholder = searchOrdersPlaceholder,
-                isRefreshing = isRefreshing,
-                onRefresh = { viewModel.refreshOrders() },
-                showRefreshButton = true,
-                locale = locale
-            )
-        }
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
     ) { paddingValues ->
         // 获取系统状态栏和TopBar的组合高度
         val topPadding = paddingValues.calculateTopPadding()
         Log.d("OrdersScreen", "TopBar和状态栏总高度：$topPadding")
         
+        // 计算额外间距，确保不会被遮挡 (仅添加少量额外空间)
+        val safetyMargin = 8.dp
+        
         // 打印完整的内边距信息用于调试
-        Log.d("OrdersScreen", "使用Scaffold提供的内边距")
+        Log.d("OrdersScreen", "最终顶部内边距：$topPadding + $safetyMargin")
         
         // 使用动态调整后的内边距
         Box(
-            modifier = Modifier.padding(paddingValues)
+            modifier = Modifier.padding(
+                // 使用系统提供的topPadding，仅添加安全边距
+                top = topPadding + safetyMargin,
+                bottom = 0.dp,
+                start = 0.dp,
+                end = 0.dp
+            )
         ) {
             // 先检查是否初始化完成
             if (!isInitialized.value) {
@@ -477,6 +470,7 @@ fun OrdersScreen(
                     showUnreadOnly = showUnreadOrders,
                     selectedStatus = statusFilter,
                     searchQuery = searchQuery,
+                    topPadding = topPadding, // 传递顶部padding
                     onSelectOrder = { order ->
                         viewModel.getOrderDetails(order.id)
                         showOrderDetail = true
@@ -518,21 +512,20 @@ private fun OrdersList(
     showUnreadOnly: Boolean,
     selectedStatus: String,
     searchQuery: String,
+    topPadding: Float, // 传递顶部padding
     onSelectOrder: (Order) -> Unit,
     onStatusSelected: (String) -> Unit
 ) {
     val locale = LocalAppLocale.current
     
-    // 定义状态选项列表 - 确保与API支持的值一致
+    // 定义状态选项列表
     val statusOptions = listOf(
         "" to (if (locale.language == "zh") "全部" else "All"),
         "processing" to (if (locale.language == "zh") "处理中" else "Processing"),
         "completed" to (if (locale.language == "zh") "已完成" else "Completed"),
         "pending" to (if (locale.language == "zh") "待付款" else "Pending"),
         "cancelled" to (if (locale.language == "zh") "已取消" else "Cancelled"),
-        "on-hold" to (if (locale.language == "zh") "暂挂" else "On Hold"),
-        "refunded" to (if (locale.language == "zh") "已退款" else "Refunded"),
-        "failed" to (if (locale.language == "zh") "失败" else "Failed")
+        "on-hold" to (if (locale.language == "zh") "暂挂" else "On Hold")
     )
     
     Column(
@@ -540,14 +533,12 @@ private fun OrdersList(
             .fillMaxSize()
             .padding(horizontal = 8.dp, vertical = 0.dp) // 移除底部padding
     ) {
-        // 移除手动添加的顶部Spacer
-        
         // 移除Card，直接使用Row作为状态过滤栏
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 12.dp)
-                .padding(top = 8.dp, bottom = 8.dp),
+                .padding(top = 16.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // 标题区域
@@ -958,10 +949,7 @@ fun OrderCard(
                     "processing" -> stringResource(R.string.order_status_processing)
                     "pending" -> stringResource(R.string.order_status_pending)
                     "cancelled" -> stringResource(R.string.order_status_cancelled)
-                    "refunded" -> stringResource(R.string.order_status_refunded)
-                    "failed" -> stringResource(R.string.order_status_failed)
-                    "on-hold" -> stringResource(R.string.order_status_on_hold)
-                    else -> order.status // 使用实际状态而不是默认为pending
+                    else -> stringResource(R.string.order_status_pending)
                 }
                 
                 val statusColor = getStatusColor(order.status)
@@ -1726,9 +1714,7 @@ fun OrderDetailDialog(
                             "completed" -> MaterialTheme.colorScheme.primary
                             "processing" -> Color(0xFF2196F3) // 蓝色
                             "pending" -> Color(0xFFFFA000) // 橙色
-                            "on-hold" -> Color(0xFF9C27B0) // 紫色
                             "cancelled", "failed" -> MaterialTheme.colorScheme.error
-                            "refunded" -> Color(0xFF4CAF50) // 绿色
                             else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                         }
                         

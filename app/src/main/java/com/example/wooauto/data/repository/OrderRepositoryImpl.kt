@@ -161,15 +161,13 @@ class OrderRepositoryImpl @Inject constructor(
 
     override suspend fun refreshOrders(status: String?, afterDate: Date?): Result<List<Order>> = withContext(Dispatchers.IO) {
         try {
-//            Log.d("OrderRepositoryImpl", "开始刷新订单, 状态: ${status ?: "所有"}, 日期筛选: ${afterDate?.toString() ?: "无"}")
+            Log.d("OrderRepositoryImpl", "开始刷新订单, 状态: ${status ?: "所有"}, 日期筛选: ${afterDate?.toString() ?: "无"}")
             
             // 从orderDao直接获取已读订单ID，更可靠
             val readOrderIds = orderDao.getReadOrderIds()
-//            Log.d("OrderRepositoryImpl", "找到${readOrderIds.size}个已读订单ID")
             
             // 获取所有订单ID
             val allOrderIds = orderDao.getAllOrderIds()
-//            Log.d("OrderRepositoryImpl", "数据库中共有${allOrderIds.size}个订单")
             
             val config = settingsRepository.getWooCommerceConfig()
             if (!config.isValid()) {
@@ -180,8 +178,36 @@ class OrderRepositoryImpl @Inject constructor(
             val api = getApi(config)
             val params = mutableMapOf<String, String>()
             
-            if (status != null) {
-                params["status"] = status
+            // 特殊处理status参数，避免可能的格式问题
+            if (!status.isNullOrEmpty()) {
+                // 检查是否是有效的WooCommerce状态
+                val validStatuses = listOf("pending", "processing", "on-hold", "completed", "cancelled", "refunded", "failed", "trash", "any")
+                
+                if (validStatuses.contains(status.lowercase())) {
+                    // 是有效状态，直接添加
+                    params["status"] = status.lowercase()
+                    Log.d("OrderRepositoryImpl", "【参数修复】添加有效状态: ${status.lowercase()}")
+                } else {
+                    // 尝试映射可能的中文状态
+                    val statusMap = mapOf(
+                        "处理中" to "processing",
+                        "待付款" to "pending",
+                        "已完成" to "completed",
+                        "已取消" to "cancelled",
+                        "已退款" to "refunded",
+                        "失败" to "failed",
+                        "暂挂" to "on-hold"
+                    )
+                    
+                    val mappedStatus = statusMap[status]
+                    if (mappedStatus != null) {
+                        params["status"] = mappedStatus
+                        Log.d("OrderRepositoryImpl", "【参数修复】将中文状态 '$status' 映射为 '$mappedStatus'")
+                    } else {
+                        // 如果无法识别，则不添加此参数
+                        Log.w("OrderRepositoryImpl", "【参数修复】忽略无效状态: '$status'")
+                    }
+                }
             }
             
             if (afterDate != null) {
@@ -194,6 +220,7 @@ class OrderRepositoryImpl @Inject constructor(
             calendar.add(Calendar.DAY_OF_YEAR, -30)  // 30天前
             val thirtyDaysAgo = calendar.timeInMillis
 
+            Log.d("OrderRepositoryImpl", "【API请求】最终请求参数: $params")
             val response = if (params.isEmpty()) {
                 api.getOrders(1, 100)
             } else {

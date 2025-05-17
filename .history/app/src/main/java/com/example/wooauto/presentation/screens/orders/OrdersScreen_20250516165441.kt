@@ -126,7 +126,6 @@ import com.example.wooauto.presentation.screens.products.UnconfiguredView
 import com.example.wooauto.presentation.EventBus
 import com.example.wooauto.presentation.SearchEvent
 import com.example.wooauto.presentation.RefreshEvent
-import androidx.compose.ui.unit.Dp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -336,8 +335,8 @@ fun OrdersScreen(
         listOf(
             "" to "全部状态",
             "processing" to "处理中",
-            "pending" to "待付款",
-            "on-hold" to "暂挂",
+            "pending" to "待处理",
+            "on-hold" to "保留",
             "completed" to "已完成",
             "cancelled" to "已取消",
             "refunded" to "已退款",
@@ -357,33 +356,28 @@ fun OrdersScreen(
     }
     
     Scaffold(
-        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
-        topBar = {
-            WooTopBar(
-                title = ordersTitle,
-                showSearch = true,
-                searchQuery = searchQuery,
-                onSearchQueryChange = { newQuery -> 
-                    searchQuery = newQuery
-                },
-                searchPlaceholder = searchOrdersPlaceholder,
-                isRefreshing = isRefreshing,
-                onRefresh = { viewModel.refreshOrders() },
-                showRefreshButton = true,
-                locale = locale
-            )
-        }
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
     ) { paddingValues ->
-        // 获取系统状态栏和TopBar的组合高度
+        // 获取系统状态栏和TopBar的组合高度 (56.dp顶部栏 + 系统状态栏)
         val topPadding = paddingValues.calculateTopPadding()
         Log.d("OrdersScreen", "TopBar和状态栏总高度：$topPadding")
         
+        // 动态调整的额外间距 (为了确保过滤状态栏完全可见)
+        val extraTopPadding = 4.dp
+        
         // 打印完整的内边距信息用于调试
-        Log.d("OrdersScreen", "使用Scaffold提供的内边距")
+        val totalTopPadding = topPadding + extraTopPadding
+        Log.d("OrdersScreen", "最终顶部内边距：$totalTopPadding")
         
         // 使用动态调整后的内边距
         Box(
-            modifier = Modifier.padding(paddingValues)
+            modifier = Modifier.padding(
+                // 增加额外的顶部间距以确保过滤状态栏完全显示
+                top = topPadding + extraTopPadding,
+                bottom = 0.dp,
+                start = 0.dp,
+                end = 0.dp
+            )
         ) {
             // 先检查是否初始化完成
             if (!isInitialized.value) {
@@ -523,16 +517,14 @@ private fun OrdersList(
 ) {
     val locale = LocalAppLocale.current
     
-    // 定义状态选项列表 - 确保与API支持的值一致
+    // 定义状态选项列表
     val statusOptions = listOf(
         "" to (if (locale.language == "zh") "全部" else "All"),
         "processing" to (if (locale.language == "zh") "处理中" else "Processing"),
         "completed" to (if (locale.language == "zh") "已完成" else "Completed"),
         "pending" to (if (locale.language == "zh") "待付款" else "Pending"),
         "cancelled" to (if (locale.language == "zh") "已取消" else "Cancelled"),
-        "on-hold" to (if (locale.language == "zh") "暂挂" else "On Hold"),
-        "refunded" to (if (locale.language == "zh") "已退款" else "Refunded"),
-        "failed" to (if (locale.language == "zh") "失败" else "Failed")
+        "on-hold" to (if (locale.language == "zh") "暂挂" else "On Hold")
     )
     
     Column(
@@ -540,157 +532,156 @@ private fun OrdersList(
             .fillMaxSize()
             .padding(horizontal = 8.dp, vertical = 0.dp) // 移除底部padding
     ) {
-        // 移除手动添加的顶部Spacer
-        
-        // 移除Card，直接使用Row作为状态过滤栏
-        Row(
+        // 状态过滤器 - 添加足够的顶部间距确保完全显示
+        Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp)
-                .padding(top = 8.dp, bottom = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(horizontal = 4.dp)
+                .padding(top = 12.dp, bottom = 8.dp),
+            shape = RoundedCornerShape(12.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface
+            ),
+            border = BorderStroke(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+            )
         ) {
-            // 标题区域
+            // 使用Row替代Column使标题和筛选项在同一行，实现垂直居中
             Row(
-                modifier = Modifier,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 12.dp, horizontal = 14.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // 筛选图标
-                Icon(
-                    imageVector = Icons.Default.Search,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(18.dp)
-                )
-                
-                Spacer(modifier = Modifier.width(8.dp))
-                
-                // 标题文本
-                Text(
-                    text = if (locale.language == "zh") "订单状态:" else "Status:",
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontWeight = FontWeight.Bold
-                    ),
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
-            
-            Spacer(modifier = Modifier.width(16.dp))
-            
-            // 筛选选项区域
-            LazyRow(
-                modifier = Modifier.weight(1f),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(horizontal = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                items(statusOptions) { statusOption ->
-                    val (status, label) = statusOption
-                    val isSelected = selectedStatus == status
-                    
-                    // 为状态选项添加图标和颜色
-                    val statusIcon = when(status) {
-                        "processing" -> Icons.Default.Schedule
-                        "completed" -> Icons.Default.CheckCircle
-                        "pending" -> Icons.Default.Schedule
-                        "cancelled" -> Icons.Default.Close
-                        "on-hold" -> Icons.Default.Schedule
-                        else -> Icons.Default.List
-                    }
-                    
-                    val statusColor = when(status) {
-                        "processing" -> Color(0xFF2196F3) // 蓝色
-                        "completed" -> Color(0xFF4CAF50) // 绿色
-                        "pending" -> Color(0xFFFFA000) // 橙色
-                        "cancelled" -> Color(0xFFE53935) // 红色 
-                        "on-hold" -> Color(0xFF9C27B0) // 紫色
-                        else -> MaterialTheme.colorScheme.primary
-                    }
-                    
-                    // 使用Box替代FilterChip
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(
-                                color = if (isSelected) 
-                                    if (status.isEmpty()) 
-                                        MaterialTheme.colorScheme.primaryContainer
-                                    else 
-                                        statusColor.copy(alpha = 0.15f)
-                                else
-                                    MaterialTheme.colorScheme.surface
-                            )
-                            .border(
-                                width = 1.dp,
-                                color = if (isSelected)
-                                    if (status.isEmpty())
-                                        MaterialTheme.colorScheme.primary
-                                    else
-                                        statusColor
-                                else
-                                    if (status.isEmpty())
-                                        MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
-                                    else
-                                        statusColor.copy(alpha = 0.3f),
-                                shape = RoundedCornerShape(16.dp)
-                            )
-                            .clickable { onStatusSelected(status) }
-                            .padding(horizontal = 12.dp, vertical = 8.dp)
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center
-                        ) {
-                            // 只有非空状态才显示图标
-                            if (status.isNotEmpty()) {
-                                Icon(
-                                    imageVector = statusIcon,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp),
-                                    tint = if (isSelected) 
-                                        MaterialTheme.colorScheme.onPrimaryContainer
-                                    else 
-                                        statusColor.copy(alpha = 0.7f)
-                                )
-                                
-                                Spacer(modifier = Modifier.width(4.dp))
-                            }
-                            
-                            Text(
-                                text = label,
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                    fontSize = 13.sp
-                                ),
-                                maxLines = 1,
-                                color = if (isSelected)
-                                    if (status.isEmpty())
-                                        MaterialTheme.colorScheme.onPrimaryContainer
-                                    else
-                                        statusColor
-                                else
-                                    if (status.isEmpty())
-                                        MaterialTheme.colorScheme.onSurface
-                                    else
-                                        statusColor.copy(alpha = 0.8f)
-                            )
-                        }
-                    }
-                }
-            }
-            
-            // 添加清除筛选按钮
-            if (selectedStatus.isNotEmpty()) {
-                IconButton(
-                    onClick = { onStatusSelected("") },
-                    modifier = Modifier.size(32.dp)
+                // 标题区域
+                Row(
+                    modifier = Modifier,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
+                    // 筛选图标
                     Icon(
-                        imageVector = Icons.Default.Clear,
-                        contentDescription = if (locale.language == "zh") "清除筛选" else "Clear filter",
+                        imageVector = Icons.Default.Search,
+                        contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(18.dp)
                     )
+                    
+                    Spacer(modifier = Modifier.width(8.dp))
+                    
+                    // 标题文本
+                    Text(
+                        text = if (locale.language == "zh") "订单状态:" else "Status:",
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontWeight = FontWeight.Bold
+                        ),
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                
+                Spacer(modifier = Modifier.width(16.dp))
+                
+                // 筛选选项区域
+                LazyRow(
+                    modifier = Modifier.weight(1f),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = PaddingValues(horizontal = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    items(statusOptions) { statusOption ->
+                        val (status, label) = statusOption
+                        val isSelected = selectedStatus == status
+                        
+                        // 为状态选项添加图标和颜色
+                        val statusIcon = when(status) {
+                            "processing" -> Icons.Default.Schedule
+                            "completed" -> Icons.Default.CheckCircle
+                            "pending" -> Icons.Default.Schedule
+                            "cancelled" -> Icons.Default.Close
+                            "on-hold" -> Icons.Default.Schedule
+                            else -> Icons.Default.List
+                        }
+                        
+                        val statusColor = when(status) {
+                            "processing" -> Color(0xFF2196F3) // 蓝色
+                            "completed" -> Color(0xFF4CAF50) // 绿色
+                            "pending" -> Color(0xFFFFA000) // 橙色
+                            "cancelled" -> Color(0xFFE53935) // 红色 
+                            "on-hold" -> Color(0xFF9C27B0) // 紫色
+                            else -> MaterialTheme.colorScheme.primary
+                        }
+                        
+                        FilterChip(
+                            selected = isSelected,
+                            enabled = true,
+                            onClick = { onStatusSelected(status) },
+                            label = { 
+                                Text(
+                                    text = label,
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        fontSize = 13.sp
+                                    ),
+                                    maxLines = 1
+                                )
+                            },
+                            leadingIcon = if (status.isNotEmpty()) {
+                                {
+                                    Icon(
+                                        imageVector = statusIcon,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp),
+                                        tint = if (isSelected) 
+                                            MaterialTheme.colorScheme.onPrimaryContainer
+                                        else 
+                                            statusColor.copy(alpha = 0.7f)
+                                    )
+                                }
+                            } else null,
+                            colors = FilterChipDefaults.filterChipColors(
+                                containerColor = MaterialTheme.colorScheme.surface,
+                                selectedContainerColor = if (status.isEmpty()) 
+                                    MaterialTheme.colorScheme.primaryContainer
+                                else 
+                                    statusColor.copy(alpha = 0.15f),
+                                selectedLabelColor = if (status.isEmpty())
+                                    MaterialTheme.colorScheme.onPrimaryContainer
+                                else
+                                    statusColor,
+                                labelColor = if (status.isEmpty())
+                                    MaterialTheme.colorScheme.onSurface
+                                else
+                                    statusColor.copy(alpha = 0.8f)
+                            ),
+                            border = FilterChipDefaults.filterChipBorder(
+                                borderColor = if (status.isEmpty())
+                                    MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                                else
+                                    statusColor.copy(alpha = 0.3f),
+                                selectedBorderColor = if (status.isEmpty())
+                                    MaterialTheme.colorScheme.primary
+                                else
+                                    statusColor,
+                                selectedBorderWidth = 1.dp
+                            )
+                        )
+                    }
+                }
+                
+                // 添加清除筛选按钮
+                if (selectedStatus.isNotEmpty()) {
+                    IconButton(
+                        onClick = { onStatusSelected("") },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Clear,
+                            contentDescription = if (locale.language == "zh") "清除筛选" else "Clear filter",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
                 }
             }
         }
@@ -958,10 +949,7 @@ fun OrderCard(
                     "processing" -> stringResource(R.string.order_status_processing)
                     "pending" -> stringResource(R.string.order_status_pending)
                     "cancelled" -> stringResource(R.string.order_status_cancelled)
-                    "refunded" -> stringResource(R.string.order_status_refunded)
-                    "failed" -> stringResource(R.string.order_status_failed)
-                    "on-hold" -> stringResource(R.string.order_status_on_hold)
-                    else -> order.status // 使用实际状态而不是默认为pending
+                    else -> stringResource(R.string.order_status_pending)
                 }
                 
                 val statusColor = getStatusColor(order.status)
@@ -1726,9 +1714,7 @@ fun OrderDetailDialog(
                             "completed" -> MaterialTheme.colorScheme.primary
                             "processing" -> Color(0xFF2196F3) // 蓝色
                             "pending" -> Color(0xFFFFA000) // 橙色
-                            "on-hold" -> Color(0xFF9C27B0) // 紫色
                             "cancelled", "failed" -> MaterialTheme.colorScheme.error
-                            "refunded" -> Color(0xFF4CAF50) // 绿色
                             else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                         }
                         

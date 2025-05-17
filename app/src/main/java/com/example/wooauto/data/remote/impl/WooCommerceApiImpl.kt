@@ -213,9 +213,16 @@ class WooCommerceApiImpl(
                         
                         // 添加其他查询参数
                         queryParams.forEach { (key, value) ->
-                            // 注释掉详细参数日志
-                            // Log.d("WooCommerceApiImpl", "【URL构建】添加参数: $key=$value")
-                            urlBuilder.addQueryParameter(key, value)
+                            // 特殊处理状态参数，确保以正确格式添加
+                            if (key == "status") {
+                                Log.d("WooCommerceApiImpl", "【URL构建】添加状态参数值: '$value'")
+                                // 直接使用addQueryParameter而不是addEncodedQueryParameter避免可能的编码问题
+                                urlBuilder.addQueryParameter(key, value)
+                            } else {
+                                // 注释掉详细参数日志
+                                // Log.d("WooCommerceApiImpl", "【URL构建】添加参数: $key=$value")
+                                urlBuilder.addQueryParameter(key, value)
+                            }
                         }
                         
                         val fullUrl = urlBuilder.build().toString()
@@ -454,7 +461,7 @@ class WooCommerceApiImpl(
                     "已取消" to "cancelled",
                     "已退款" to "refunded",
                     "失败" to "failed",
-                    "延期" to "on-hold"
+                    "暂挂" to "on-hold"
                 )
                 
                 // 尝试映射中文状态
@@ -643,10 +650,47 @@ class WooCommerceApiImpl(
             "per_page" to perPage.toString()
         )
         
-        // 添加自定义参数
-        queryParams.putAll(params)
+        // 添加自定义参数，特殊处理status参数
+        params.forEach { (key, value) ->
+            // 检查是否是状态参数且不为空
+            if (key == "status" && value.isNotEmpty()) {
+                Log.d("WooCommerceApiImpl", "【参数修复】处理状态参数: $value")
+                
+                // 检查状态是否是有效的WooCommerce状态
+                val validStatuses = listOf("pending", "processing", "on-hold", "completed", "cancelled", "refunded", "failed", "trash", "any")
+                
+                if (validStatuses.contains(value.lowercase())) {
+                    // 是有效状态，正常添加
+                    queryParams[key] = value.lowercase()
+                    Log.d("WooCommerceApiImpl", "【参数修复】添加有效状态: ${value.lowercase()}")
+                } else {
+                    // 尝试映射中文状态
+                    val statusMap = mapOf(
+                        "处理中" to "processing",
+                        "待付款" to "pending",
+                        "已完成" to "completed",
+                        "已取消" to "cancelled",
+                        "已退款" to "refunded",
+                        "失败" to "failed",
+                        "暂挂" to "on-hold"
+                    )
+                    
+                    val mappedStatus = statusMap[value]
+                    if (mappedStatus != null) {
+                        queryParams[key] = mappedStatus
+                        Log.d("WooCommerceApiImpl", "【参数修复】将中文状态 '$value' 映射为 '$mappedStatus'")
+                    } else {
+                        // 如果无法识别，不添加此参数
+                        Log.w("WooCommerceApiImpl", "【参数修复】忽略无效的状态值: '$value'")
+                    }
+                }
+            } else {
+                // 其他参数正常添加
+                queryParams[key] = value
+            }
+        }
         
-        Log.d("WooCommerceApiImpl", "【API请求】带自定义参数查询订单: $queryParams")
+        Log.d("WooCommerceApiImpl", "【API请求】带自定义参数查询订单，最终参数: $queryParams")
         return executeGetRequest("orders", queryParams)
     }
 } 
