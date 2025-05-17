@@ -467,19 +467,21 @@ class OrdersViewModel @Inject constructor(
      * @param toEnglish 是否从中文转换到英文
      * @return 映射后的状态字符串
      */
-    private fun mapStatusToChinese(status: String?, toEnglish: Boolean = false): String {
-        if (status == null) return "any" // 空值时返回默认值
+    private fun mapStatusToChinese(status: String?, toEnglish: Boolean = false): String? {
+        if (status == null || status.isEmpty()) return null // 空值时返回null，不发送status参数
         
         // 状态映射表
         val statusMap = mapOf(
             // 中文 to 英文
             "处理中" to "processing",
             "待付款" to "pending",
+            "待处理" to "pending", // 添加别名
             "已完成" to "completed",
             "已取消" to "cancelled",
             "已退款" to "refunded",
             "失败" to "failed",
             "暂挂" to "on-hold",
+            "保留" to "on-hold", // 添加别名
             // 英文 to 中文
             "processing" to "处理中",
             "pending" to "待付款",
@@ -491,10 +493,10 @@ class OrdersViewModel @Inject constructor(
         )
         
         return if (toEnglish) {
-            // 从中文转到英文
-            statusMap[status] ?: "any"
+            // 从中文转到英文，如果没有匹配则返回原值（可能是英文）
+            statusMap[status] ?: status
         } else {
-            // 从英文转到中文
+            // 从英文转到中文，如果没有匹配则返回原值
             statusMap[status] ?: status
         }
     }
@@ -528,47 +530,22 @@ class OrdersViewModel @Inject constructor(
                         val allRefreshedOrders = refreshResult.getOrDefault(emptyList())
                         Log.d("OrdersViewModel", "【状态筛选】刷新获取到 ${allRefreshedOrders.size} 个订单")
                         
-                        // 检查是否有匹配当前状态的订单
-                        val statusMatchedOrders = allRefreshedOrders.filter { order ->
-                            // 检查状态是否匹配，考虑中英文转换
-                            val orderStatus = order.status
-                            val requestedStatus = status
-                            
-                            // 直接匹配
-                            if (orderStatus == requestedStatus) return@filter true
-                            
-                            // 通过映射匹配
-                            val mappedOrderStatus = mapStatusToChinese(orderStatus, false)
-                            if (mappedOrderStatus == requestedStatus) return@filter true
-                            
-                            // 反向映射匹配
-                            val mappedRequestedStatus = mapStatusToChinese(requestedStatus, true)
-                            if (orderStatus == mappedRequestedStatus) return@filter true
-                            
-                            false
-                        }
-                        
-                        Log.d("OrdersViewModel", "【状态筛选】筛选后得到 ${statusMatchedOrders.size} 个状态为 '$status' 的订单")
-                        
-                        // 如果没有找到匹配状态的订单，显示错误消息
-                        if (statusMatchedOrders.isEmpty()) {
-                            _errorMessage.value = "没有找到状态为 '$status' 的订单"
-                            Log.w("OrdersViewModel", "【状态筛选】警告：未找到状态为 '$status' 的订单")
-                        }
-                        
-                        // 应用过滤后的结果到UI
-                        _orders.value = statusMatchedOrders
+                        // 本地进行状态过滤，处理可能的中英文映射
+                        observeFilteredOrders(status)
                     } else {
-                        val exception = refreshResult.exceptionOrNull()
-                        Log.e("OrdersViewModel", "刷新状态 '$status' 的订单失败: ${exception?.message}")
-                        _errorMessage.value = "无法加载 '$status' 状态的订单: ${exception?.message}"
+                        // 处理错误情况
+                        val error = refreshResult.exceptionOrNull()
+                        Log.e("OrdersViewModel", "【状态筛选】刷新订单失败", error)
+                        _errorMessage.value = error?.message ?: "未知错误"
+                        // 出错时也要更新UI状态
+                        _isLoading.value = false
                     }
-                    
-                    _isLoading.value = false
                 }
             } catch (e: Exception) {
-                Log.e("OrdersViewModel", "过滤订单时出错: ${e.message}")
-                _errorMessage.value = "无法过滤订单: ${e.message}"
+                Log.e("OrdersViewModel", "【状态筛选】过滤订单出错", e)
+                _errorMessage.value = e.message
+                _isLoading.value = false
+            } finally {
                 _isLoading.value = false
             }
         }
@@ -1130,5 +1107,35 @@ class OrdersViewModel @Inject constructor(
         val validOrderStatus = isValidOrderStatus(order.status)
         
         return validId && validStatus && validName && validOrderStatus
+    }
+
+    /**
+     * 观察指定状态的订单
+     * @param status 订单状态，可以是中文或英文
+     */
+    private fun observeFilteredOrders(status: String) {
+        viewModelScope.launch {
+            try {
+                Log.d("OrdersViewModel", "【本地过滤】开始观察状态为 '$status' 的订单")
+                
+                orderRepository.getOrdersByStatusFlow(status)
+                    .collect { filteredOrders ->
+                        Log.d("OrdersViewModel", "【本地过滤】获取到 ${filteredOrders.size} 个状态为 '$status' 的订单")
+                        
+                        if (filteredOrders.isEmpty()) {
+                            Log.w("OrdersViewModel", "【本地过滤】未找到状态为 '$status' 的订单")
+                            // 但不显示错误，避免用户体验不佳
+                        }
+                        
+                        // 更新UI
+                        _orders.value = filteredOrders
+                        _isLoading.value = false
+                    }
+            } catch (e: Exception) {
+                Log.e("OrdersViewModel", "【本地过滤】过滤订单出错", e)
+                _errorMessage.value = e.message
+                _isLoading.value = false
+            }
+        }
     }
 } 

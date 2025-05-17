@@ -1,0 +1,67 @@
+{
+  "projectName": "WooAutoPrinter",
+  "indexing": {
+    "exclude": [
+      ".git",
+      ".gradle",
+      "build",
+      ".idea",
+      "app/build",
+      ".history",
+      "gradle"
+    ],
+    "include": [
+      "app/src",
+      "build.gradle.kts",
+      "app/build.gradle.kts",
+      "settings.gradle.kts",
+      "gradle.properties"
+    ]
+  },
+  "language": {
+    "kotlin": {
+      "formatter": {
+        "style": "default"
+      }
+    }
+  },
+  "completion": {
+    "enable": true,
+    "generateDocstring": true,
+    "autoTrigger": true
+  },
+  "telemetry": {
+    "enable": false
+  },
+  "projectStructureFile": "PROJECT_STRUCTURE.md",
+  "activeFileExtensions": [
+    ".kt",
+    ".java",
+    ".xml",
+    ".gradle",
+    ".kts",
+    ".properties"
+  ],
+  "maxCompletionItems": 10,
+  "formatOnSave": true,
+  "intellisense": {
+    "enableInlineCompletions": true,
+    "enableSignatureHelp": true
+  },
+  "searchPaths": [
+    "app/src/main/java/com/example/wooauto/",
+    "app/src/main/res/"
+  ],
+  "documentationPaths": [
+    "PROJECT_STRUCTURE.md"
+  ],
+  "preferNativeLanguageModel": true,
+  "editor": {
+    "wordWrap": false,
+    "fontFamily": "JetBrains Mono",
+    "fontSize": 14,
+    "theme": "dark"
+  },
+  "contextStrategy": "balanced",
+  "accessLevel": "restricted"
+} 
