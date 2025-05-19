@@ -123,55 +123,35 @@ fun OrderDetailDialog(
                 .padding(16.dp),
             shape = RoundedCornerShape(16.dp)
         ) {
-            Scaffold(
-                topBar = {
-                    TopAppBar(
-                        title = { 
-                            Text(
-                                text = stringResource(R.string.order_details) + " #${displayOrder.number}",
-                                style = MaterialTheme.typography.titleMedium
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+            ) {
+                // 顶部栏
+                TopAppBar(
+                    title = {
+                        Text(
+                            text = stringResource(R.string.order_details) + " #${displayOrder.number}",
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = onDismiss) {
+                            Icon(
+                                imageVector = Icons.Default.Clear,
+                                contentDescription = stringResource(R.string.close)
                             )
-                        },
-                        navigationIcon = {
-                            IconButton(onClick = onDismiss) {
-                                Icon(
-                                    imageVector = Icons.Default.Clear,
-                                    contentDescription = stringResource(R.string.close)
-                                )
-                            }
-                        },
-                        actions = {
-                            // 添加打印按钮
-                            IconButton(
-                                onClick = {
-                                    // 显示模板选择对话框
-                                    showTemplateOptions = true
-                                }
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Print,
-                                    contentDescription = "打印订单"
-                                )
-                            }
-                            
-                            // 改变订单状态按钮
-                            IconButton(
-                                onClick = { showStatusOptions = true }
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.AttachMoney,
-                                    contentDescription = "更改状态"
-                                )
-                            }
                         }
-                    )
-                }
-            ) { paddingValues ->
+                    },
+                    actions = {
+                        // 移除右上角按钮，不再显示任何内容
+                    }
+                )
+                // 内容区（可滚动）
                 Column(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f)  // 让内容区域填满剩余空间
-                        .verticalScroll(scrollState)  // 添加垂直滚动
+                        .weight(1f)
+                        .verticalScroll(scrollState)
                         .padding(16.dp)
                 ) {
                     // 使用 order_number 字符串资源
@@ -761,26 +741,54 @@ fun OrderDetailDialog(
                     // 额外添加一些底部空间，确保内容不被按钮遮挡
                     Spacer(modifier = Modifier.height(16.dp))
                 }
-                
                 // 按钮操作区（固定在底部不滚动）
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(MaterialTheme.colorScheme.surface)
                         .padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly
+                    horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)
                 ) {
-                    // 打印按钮
+                    // 主操作：打印
                     Button(
-                        onClick = { showTemplateOptions = true }
+                        onClick = { showTemplateOptions = true },
+                        modifier = Modifier.weight(1f)
                     ) {
+                        Icon(
+                            imageVector = Icons.Default.Print,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.width(6.dp))
                         Text(if (displayOrder.isPrinted) stringResource(R.string.reprint) else stringResource(R.string.print_order))
                     }
-                    
-                    // 关闭按钮
-                    Button(
-                        onClick = onDismiss
+                    // 次操作：更改订单状态
+                    OutlinedButton(
+                        onClick = { showStatusOptions = true },
+                        modifier = Modifier.weight(1f)
                     ) {
+                        Icon(
+                            imageVector = Icons.Default.AttachMoney,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(stringResource(R.string.change_order_status))
+                    }
+                    // 关闭按钮
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f),
+                        colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Clear,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.width(6.dp))
                         Text(stringResource(R.string.close))
                     }
                 }

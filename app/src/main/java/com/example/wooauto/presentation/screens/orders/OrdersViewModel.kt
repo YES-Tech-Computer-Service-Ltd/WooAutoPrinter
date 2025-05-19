@@ -565,25 +565,37 @@ class OrdersViewModel @Inject constructor(
     }
     
     fun updateOrderStatus(orderId: Long, newStatus: String) {
+        // 记录旧状态
+        val oldOrder = _orders.value.find { it.id == orderId }
+        val oldStatus = oldOrder?.status
+
+        // 1. 乐观更新本地状态
+        _selectedOrder.value = _selectedOrder.value?.takeIf { it.id == orderId }?.copy(status = newStatus)
+        _orders.value = _orders.value.map { if (it.id == orderId) it.copy(status = newStatus) else it }
+
+        // 2. 异步请求后端
         viewModelScope.launch {
             try {
-                Log.d("OrdersViewModel", "正在更新订单状态: $orderId -> $newStatus")
-                _isLoading.value = true
+                Log.d(TAG, "乐观更新-正在更新订单状态: $orderId -> $newStatus")
                 val result = orderRepository.updateOrderStatus(orderId, newStatus)
                 if (result.isSuccess) {
-                    Log.d("OrdersViewModel", "成功更新订单状态")
+                    Log.d(TAG, "乐观更新-成功更新订单状态")
                     _selectedOrder.value = result.getOrNull()
                     // 刷新订单，确保使用现有的状态过滤
                     refreshOrders()
                 } else {
-                    Log.e("OrdersViewModel", "更新订单状态失败: ${result.exceptionOrNull()?.message}")
-                    _errorMessage.value = "无法更新订单状态: ${result.exceptionOrNull()?.message}"
+                    Log.e(TAG, "乐观更新-更新订单状态失败: ${result.exceptionOrNull()?.message}")
+                    // 失败回滚
+                    _selectedOrder.value = _selectedOrder.value?.takeIf { it.id == orderId }?.copy(status = oldStatus ?: newStatus)
+                    _orders.value = _orders.value.map { if (it.id == orderId) it.copy(status = oldStatus ?: newStatus) else it }
+                    _errorMessage.value = "订单状态更新失败: ${result.exceptionOrNull()?.message ?: ""}"
                 }
             } catch (e: Exception) {
-                Log.e("OrdersViewModel", "更新订单状态时出错: ${e.message}")
-                _errorMessage.value = "更新订单状态出错: ${e.message}"
-            } finally {
-                _isLoading.value = false
+                Log.e(TAG, "乐观更新-更新订单状态时出错: ${e.message}")
+                // 失败回滚
+                _selectedOrder.value = _selectedOrder.value?.takeIf { it.id == orderId }?.copy(status = oldStatus ?: newStatus)
+                _orders.value = _orders.value.map { if (it.id == orderId) it.copy(status = oldStatus ?: newStatus) else it }
+                _errorMessage.value = "订单状态更新失败: ${e.message ?: "未知错误"}"
             }
         }
     }
