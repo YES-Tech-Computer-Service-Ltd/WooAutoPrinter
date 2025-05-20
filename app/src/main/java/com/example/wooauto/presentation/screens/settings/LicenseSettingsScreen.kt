@@ -468,7 +468,10 @@ fun LicenseSettingsScreen(
                                                     details.licensedTo
                                                 )
                                                 LicenseDataStore.setLicensed(context, true)
-                                                TrialTokenManager.simulateTrialExpired(context)
+                                                coroutineScope.launch {
+                                                    TrialTokenManager.forceExpireTrial(context)
+                                                    Log.d("LicenseSettingsScreen", "试用期已结束")
+                                                }
                                                 Log.d("LicenseSettingsScreen", "License activated, isLicensed set to true")
                                                 isLicenseActivated = true
                                                 trialDaysRemaining = TrialTokenManager.getRemainingDays(context, deviceId, appId)
@@ -557,7 +560,10 @@ fun LicenseSettingsScreen(
                                                     details.licensedTo
                                                 )
                                                 LicenseDataStore.setLicensed(context, true)
-                                                TrialTokenManager.simulateTrialExpired(context)
+                                                coroutineScope.launch {
+                                                    TrialTokenManager.forceExpireTrial(context)
+                                                    Log.d("LicenseSettingsScreen", "试用期已彻底结束")
+                                                }
                                                 Log.d("LicenseSettingsScreen", "License activated, isLicensed set to true")
                                                 isLicenseActivated = true
                                                 trialDaysRemaining = TrialTokenManager.getRemainingDays(context, deviceId, appId)

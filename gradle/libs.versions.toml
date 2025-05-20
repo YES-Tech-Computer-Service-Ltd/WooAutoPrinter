@@ -66,6 +66,7 @@ annotations = "15.0"
 roomRuntimeAndroid = "2.5.2"
 roomCompiler = "2.5.2"
 securityCrypto = "1.0.0"
+runtimeLivedata = "1.8.1"
 
 [libraries]
 # Android core
@@ -163,6 +164,7 @@ annotations = { group = "org.jetbrains", name = "annotations", version.ref = "an
 androidx-room-runtime-android = { group = "androidx.room", name = "room-runtime-android", version.ref = "roomRuntimeAndroid" }
 room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "roomCompiler" }
 androidx-security-crypto = { group = "androidx.security", name = "security-crypto", version.ref = "securityCrypto" }
+androidx-runtime-livedata = { group = "androidx.compose.runtime", name = "runtime-livedata", version.ref = "runtimeLivedata" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "androidGradlePlugin" }

@@ -438,4 +438,87 @@ object TrialTokenManager {
             return 0
         }
     }
+    
+    /**
+     * 强制结束试用期
+     * 同时清理所有试用期数据存储位置，确保试用期彻底结束
+     */
+    suspend fun forceExpireTrial(context: Context) {
+        try {
+            // 1. 标记DataStore中的试用期已过期
+            context.trialDataStore.edit { preferences ->
+                preferences[TRIAL_EXPIRED_KEY] = true
+            }
+            
+            // 2. 同时设置SharedPreferences中的过期标记
+            val prefs = getPrefs(context)
+            prefs.edit()
+                .putInt(KEY_EXPIRES, 0)
+                .putLong(KEY_FIRST_LAUNCH, 0L)
+                .apply()
+                
+            // 3. 重置缓存状态
+            cachedTrialValid = false
+            isTrialInitialized = false
+            
+            Log.d(TAG, "试用期已强制结束")
+        } catch (e: Exception) {
+            Log.e(TAG, "强制结束试用期出错", e)
+        }
+    }
+    
+    /**
+     * 检查本地和服务器端的试用期状态
+     * 如果服务器返回试用期已过期，则强制过期本地试用期
+     */
+    suspend fun verifyTrialWithServer(context: Context, deviceId: String, appId: String): Boolean {
+        try {
+            // 1. 获取本地存储的令牌
+            val prefs = getPrefs(context)
+            val cachedToken = prefs.getString(KEY_TOKEN, null) 
+            val cachedSig = prefs.getString(KEY_SIGNATURE, null)
+            
+            if (cachedToken == null || cachedSig == null) {
+                Log.d(TAG, "本地没有有效的试用期令牌")
+                return false
+            }
+            
+            // 2. 向服务器验证
+            val json = JSONObject()
+            json.put("device_id", deviceId)
+            json.put("app_id", appId)
+            json.put("trial_token", cachedToken)
+            json.put("signature", cachedSig)
+            json.put("verify_type", "full_check") // 告诉服务器执行完整检查
+            
+            val body = json.toString().toRequestBody("application/json".toMediaType())
+            val req = Request.Builder().url(VERIFY_API).post(body).build()
+            
+            val res = withTimeoutOrNull(5000) { client.newCall(req).execute() }
+                ?: throw Exception("服务器验证超时")
+                
+            if (!res.isSuccessful) {
+                Log.w(TAG, "服务器验证失败: ${res.code}")
+                return false
+            }
+            
+            val result = JSONObject(res.body?.string() ?: return false)
+            val isValid = result.optBoolean("valid", false)
+            val serverMessage = result.optString("message", "")
+            
+            Log.d(TAG, "服务器验证结果: $isValid, 消息: $serverMessage")
+            
+            // 3. 如果服务器明确返回试用期无效，则强制过期本地试用期
+            if (!isValid) {
+                Log.d(TAG, "服务器指示试用期已过期，强制结束本地试用期")
+                forceExpireTrial(context)
+                return false
+            }
+            
+            return isValid
+        } catch (e: Exception) {
+            Log.e(TAG, "服务器验证出错", e)
+            return false
+        }
+    }
 }

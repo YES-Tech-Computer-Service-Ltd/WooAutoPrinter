@@ -360,4 +360,7 @@
     <string name="license_settings">License Settings</string>
     <string name="license_success">License activated successfully! Valid until: %1$s</string>
     <string name="activate">Activate</string>
+    <string name="license_required">License Required</string>
+    <string name="license_required_message">Please activate your license to view order details</string>
+    <string name="activate_license">Activate License</string>
 </resources>

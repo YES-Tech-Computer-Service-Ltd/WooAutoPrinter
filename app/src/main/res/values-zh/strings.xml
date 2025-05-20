@@ -355,6 +355,14 @@
     <!-- API Status Notifications -->
     <string name="api_notification_not_configured">WooCommerce API未配置，请先配置API</string>
 
+    <!-- License Settings -->
+    <string name="license_settings">证书设置</string>
+    <string name="license_success">证书激活成功！有效期至: %1$s</string>
+    <string name="activate">激活</string>
+    <string name="license_required">需要证书</string>
+    <string name="license_required_message">请先完成证书认证以查看订单详情</string>
+    <string name="activate_license">激活证书</string>
+
 <!--    对齐翻译内容-->
     <string name="search_products_hint">搜索产品…</string>
 </resources>

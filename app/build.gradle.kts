@@ -233,6 +233,7 @@ dependencies {
     // 添加ZXing二维码扫描库
     implementation("com.journeyapps:zxing-android-embedded:4.3.0")
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
+    implementation(libs.androidx.runtime.livedata)
 
     // JUnit 5
     testImplementation(libs.junit.jupiter)
@@ -341,4 +342,7 @@ dependencies {
     }
     implementation("org.jsoup:jsoup:1.16.2") // 用于解析HTML
     implementation("com.squareup.okhttp3:okhttp:4.12.0") // 网络请求
+
+    // Compose LiveData
+    implementation("androidx.compose.runtime:runtime-livedata:1.6.3")
 }

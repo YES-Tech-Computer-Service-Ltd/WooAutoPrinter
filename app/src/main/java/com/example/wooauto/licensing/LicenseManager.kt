@@ -190,7 +190,21 @@ class LicenseManager @Inject constructor() {
     private suspend fun checkTrialStatus(context: Context, deviceId: String, appId: String): Boolean {
         return try {
             withTimeoutOrNull(5000) {
-                TrialTokenManager.isTrialValid(context, deviceId, appId)
+                // 首先检查本地试用期状态
+                val localTrialValid = TrialTokenManager.isTrialValid(context, deviceId, appId)
+                
+                // 如果本地显示试用期有效，进一步验证服务器状态
+                if (localTrialValid) {
+                    // 服务器验证，如果服务器认为试用期已过期，将强制结束本地试用期
+                    val serverVerified = TrialTokenManager.verifyTrialWithServer(context, deviceId, appId)
+                    if (!serverVerified) {
+                        Log.d("LicenseManager", "服务器指示试用期已过期，强制结束本地试用期")
+                        TrialTokenManager.forceExpireTrial(context)
+                        return@withTimeoutOrNull false
+                    }
+                }
+                
+                localTrialValid
             } ?: false
         } catch (e: Exception) {
             Log.e("LicenseManager", "检查试用有效性失败: ${e.message}")
