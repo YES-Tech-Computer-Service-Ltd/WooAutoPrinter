@@ -1,4 +1,4 @@
-package com.example.wooauto.presentation.screens.printTemplates
+package com.example.wooauto.presentation.screens.settings
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -19,6 +19,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Restaurant
@@ -35,15 +36,22 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.navigation.NavController
 import com.example.wooauto.presentation.navigation.Screen
+import com.example.wooauto.R
+import com.example.wooauto.presentation.screens.templatePreview.TemplatePreviewDialogContent
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -82,12 +90,12 @@ fun PrintTemplatesScreen(navController: NavController) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Print Templates") },
+                title = { Text(stringResource(R.string.printer_templates)) },
                 navigationIcon = {
                     IconButton(onClick = { navController.navigateUp() }) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back"
+                            contentDescription = stringResource(R.string.back)
                         )
                     }
                 },
@@ -128,6 +136,126 @@ fun PrintTemplatesScreen(navController: NavController) {
                         navController.navigate(Screen.TemplatePreview.templatePreviewRoute(template.id))
                     }
                 )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun PrintTemplatesDialogContent(
+    onClose: () -> Unit
+) {
+    // 模拟的模板数据
+    val templates = listOf(
+        PrintTemplate(
+            id = "full_details", 
+            name = "Full Order Details", 
+            description = "Complete order information including all customer and item details", 
+            icon = Icons.AutoMirrored.Filled.ReceiptLong,
+            isDefault = true,
+            templateType = TemplateType.FULL_DETAILS
+        ),
+        PrintTemplate(
+            id = "delivery", 
+            name = "Delivery Receipt", 
+            description = "Delivery information with customer address and order items", 
+            icon = Icons.Default.Fastfood,
+            isDefault = false,
+            templateType = TemplateType.DELIVERY
+        ),
+        PrintTemplate(
+            id = "kitchen", 
+            name = "Kitchen Order", 
+            description = "Simplified receipt for kitchen staff showing only items and time", 
+            icon = Icons.Default.Restaurant,
+            isDefault = false,
+            templateType = TemplateType.KITCHEN
+        )
+    )
+    
+    // 记录选中的模板
+    val selectedTemplate = remember { mutableStateOf(templates.first()) }
+    
+    // 是否显示模板预览对话框
+    var showTemplatePreviewDialog by remember { mutableStateOf(false) }
+    // 当前预览的模板ID
+    var previewTemplateId by remember { mutableStateOf("") }
+    
+    if (showTemplatePreviewDialog) {
+        Dialog(
+            onDismissRequest = { showTemplatePreviewDialog = false },
+            properties = DialogProperties(
+                usePlatformDefaultWidth = false,
+                dismissOnBackPress = true,
+                dismissOnClickOutside = true
+            )
+        ) {
+            TemplatePreviewDialogContent(
+                templateId = previewTemplateId,
+                onClose = { showTemplatePreviewDialog = false }
+            )
+        }
+    }
+    
+    Card(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(vertical = 32.dp, horizontal = 16.dp),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+    ) {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text(stringResource(R.string.printer_templates)) },
+                    navigationIcon = {
+                        IconButton(onClick = { onClose() }) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = stringResource(R.string.close)
+                            )
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surface
+                    )
+                )
+            },
+            floatingActionButton = {
+                FloatingActionButton(
+                    onClick = {
+                        // 显示创建新模板的对话框
+                        previewTemplateId = "new"
+                        showTemplatePreviewDialog = true
+                    }
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "Add Template"
+                    )
+                }
+            }
+        ) { paddingValues ->
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(templates) { template ->
+                    TemplateItem(
+                        template = template, 
+                        isSelected = template.id == selectedTemplate.value.id,
+                        onClick = {
+                            selectedTemplate.value = template
+                            // 显示模板预览对话框
+                            previewTemplateId = template.id
+                            showTemplatePreviewDialog = true
+                        }
+                    )
+                }
             }
         }
     }

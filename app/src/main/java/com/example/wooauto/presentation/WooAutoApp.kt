@@ -41,7 +41,7 @@ import com.example.wooauto.presentation.navigation.Screen
 import com.example.wooauto.presentation.screens.orders.OrdersScreen
 import com.example.wooauto.presentation.screens.products.ProductsScreen
 import com.example.wooauto.presentation.screens.settings.*
-import com.example.wooauto.presentation.screens.printTemplates.PrintTemplatesScreen
+import com.example.wooauto.presentation.screens.settings.PrintTemplatesScreen
 import com.example.wooauto.presentation.screens.templatePreview.TemplatePreviewScreen
 import com.example.wooauto.presentation.screens.settings.LicenseSettingsScreen
 import com.example.wooauto.presentation.theme.WooAutoTheme

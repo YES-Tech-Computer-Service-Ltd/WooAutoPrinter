@@ -407,4 +407,8 @@
     <string name="sound_type_format">提示音: %1$s</string>
     <string name="sound_status_format">%1$s - %2$s</string>
     <string name="sound_disabled">已禁用</string>
+
+    <!-- New template settings -->
+    <string name="template_settings">模板设置</string>
+    <string name="template_settings_desc">自定义收据打印模板</string>
 </resources>

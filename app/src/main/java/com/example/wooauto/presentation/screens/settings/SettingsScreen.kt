@@ -13,12 +13,12 @@ import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Language
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Store
 import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.GetApp
 import androidx.compose.material.icons.filled.VpnKey
 import androidx.compose.material.icons.filled.SettingsApplications
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -43,7 +43,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -57,8 +56,6 @@ import com.example.wooauto.presentation.components.WooTopBar
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import com.example.wooauto.presentation.screens.settings.SoundSettingsDialogContent
-import com.example.wooauto.presentation.screens.settings.SoundSettingsViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -90,6 +87,7 @@ fun SettingsScreen(
     var showWebsiteSettingsDialog by remember { mutableStateOf(false) }
     var showAutomationSettingsDialog by remember { mutableStateOf(false) }
     var showSoundSettingsDialog by remember { mutableStateOf(false) }
+    var showPrintTemplatesDialog by remember { mutableStateOf(false) }
     
     Scaffold(
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
@@ -158,6 +156,21 @@ fun SettingsScreen(
                             onClick = {
                                 Log.d("设置导航", "点击了打印设置项")
                                 navController.navigate(Screen.PrinterSettings.route)
+                            }
+                        )
+                        
+                        Spacer(modifier = Modifier.height(8.dp))
+                        HorizontalDivider()
+                        Spacer(modifier = Modifier.height(8.dp))
+                        
+                        // 新增：模板设置
+                        SettingsNavigationItem(
+                            title = stringResource(R.string.printer_templates),
+                            icon = Icons.Filled.Edit,
+                            subTitle = stringResource(R.string.printer_templates_desc),
+                            onClick = {
+                                Log.d("设置导航", "点击了模板设置项")
+                                showPrintTemplatesDialog = true
                             }
                         )
                         
@@ -499,6 +512,22 @@ fun SettingsScreen(
                         showSoundSettingsDialog = false
                         viewModel.refreshSoundSettings() // 关闭对话框时刷新声音设置
                     }
+                )
+            }
+        }
+
+        // Print Templates Dialog
+        if (showPrintTemplatesDialog) {
+            Dialog(
+                onDismissRequest = { showPrintTemplatesDialog = false },
+                properties = DialogProperties(
+                    usePlatformDefaultWidth = false,
+                    dismissOnBackPress = true,
+                    dismissOnClickOutside = true
+                )
+            ) {
+                PrintTemplatesDialogContent(
+                    onClose = { showPrintTemplatesDialog = false }
                 )
             }
         }
