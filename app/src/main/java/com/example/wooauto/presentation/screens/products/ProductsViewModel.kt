@@ -22,13 +22,16 @@ import com.google.gson.JsonParseException
 import java.util.concurrent.ConcurrentHashMap
 import android.content.Context
 import com.example.wooauto.R
+import com.example.wooauto.presentation.navigation.Screen
+import com.example.wooauto.licensing.LicenseManager
 
 @HiltViewModel
 class ProductsViewModel @Inject constructor(
     private val wooCommerceConfig: WooCommerceConfig,
     private val productRepository: DomainProductRepository,
     private val settingsRepository: DomainSettingRepository,
-    private val context: Context
+    private val context: Context,
+    internal val licenseManager: LicenseManager
 ) : ViewModel() {
     
     private val _isConfigured = MutableStateFlow(false)
@@ -83,6 +86,9 @@ class ProductsViewModel @Inject constructor(
     private val apiNotConfiguredMessage: String by lazy {
         context.getString(R.string.api_notification_not_configured)
     }
+    
+    private val _navigateToLicenseSettings = MutableStateFlow(false)
+    val navigateToLicenseSettings: StateFlow<Boolean> = _navigateToLicenseSettings.asStateFlow()
     
     init {
         Log.d("ProductsViewModel", "初始化ProductsViewModel")
@@ -700,5 +706,13 @@ class ProductsViewModel @Inject constructor(
                 Log.e("ProductsViewModel", "重置状态时出错: ${e.message}")
             }
         }
+    }
+    
+    fun navigateToLicenseSettings() {
+        _navigateToLicenseSettings.value = true
+    }
+    
+    fun clearLicenseSettingsNavigation() {
+        _navigateToLicenseSettings.value = false
     }
 } 

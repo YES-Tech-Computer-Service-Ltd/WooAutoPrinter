@@ -417,7 +417,8 @@ class WooCommerceApiImpl(
     }
     
     override suspend fun updateProduct(id: Long, data: Map<String, Any>): ProductDto {
-        return executePostRequest("products/$id", data)
+        Log.d("WooCommerceApiImpl", "更新产品 ID:$id 使用PATCH请求，数据: $data")
+        return executePatchRequest("products/$id", data)
     }
     
     override suspend fun getCategories(page: Int, perPage: Int): List<CategoryDto> {
@@ -692,5 +693,55 @@ class WooCommerceApiImpl(
         
         Log.d("WooCommerceApiImpl", "【API请求】带自定义参数查询订单，最终参数: $queryParams")
         return executeGetRequest("orders", queryParams)
+    }
+
+    private suspend inline fun <reified T> executePatchRequest(endpoint: String, body: Map<String, Any>): T {
+        return withContext(Dispatchers.IO) {
+            try {
+                val baseUrl = buildBaseUrl()
+                val urlBuilder = ("$baseUrl$endpoint").toHttpUrl().newBuilder()
+                
+                // 添加认证参数
+                addAuthParams(urlBuilder)
+                
+                val jsonBody = gson.toJson(body)
+                val requestBody = jsonBody.toRequestBody("application/json".toMediaType())
+                
+                val request = Request.Builder()
+                    .url(urlBuilder.build())
+                    .patch(requestBody)
+                    .build()
+                
+                Log.d("API请求", "PATCH ${urlBuilder.build()} - 请求体: $jsonBody")
+                
+                val response = client.newCall(request).execute()
+                val responseBody = response.body?.string() ?: throw Exception("响应体为空")
+                
+                Log.d("API响应", "PATCH ${urlBuilder.build()} - 状态码: ${response.code} - 响应体: $responseBody")
+                
+                if (!response.isSuccessful) {
+                    Log.e("API错误", "HTTP错误: ${response.code} - 响应体: $responseBody")
+                    throw ApiError.fromHttpCode(response.code, "API错误: ${response.code}")
+                }
+                
+                // 使用精确的类型解析方式
+                val result = when {
+                    T::class == OrderDto::class -> gson.fromJson(responseBody, OrderDto::class.java) as T
+                    T::class == ProductDto::class -> gson.fromJson(responseBody, ProductDto::class.java) as T
+                    T::class == CategoryDto::class -> gson.fromJson(responseBody, CategoryDto::class.java) as T
+                    else -> gson.fromJson(responseBody, object : TypeToken<T>() {}.type)
+                }
+                
+                result
+            } catch (e: Exception) {
+                Log.e("API错误", "PATCH请求失败: ${e.message}", e)
+                
+                if (e is ApiError) {
+                    throw e
+                } else {
+                    throw ApiError.fromException(e)
+                }
+            }
+        }
     }
 } 
