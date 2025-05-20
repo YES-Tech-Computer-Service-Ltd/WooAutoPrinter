@@ -1,9 +1,6 @@
 package com.example.wooauto.presentation.navigation
 
 sealed class Screen(val route: String) {
-    object Home : Screen("home")
-    object Orders : Screen("orders")
-    object Products : Screen("products")
     object Settings : Screen("settings")
     object WebsiteSettings : Screen("website_settings")
     object PrinterSettings : Screen("printer_settings")
@@ -17,21 +14,7 @@ sealed class Screen(val route: String) {
     object SoundSettings : Screen("sound_settings")
     object AutomationSettings : Screen("automation_settings")
     object LicenseSettings : Screen("license_settings")
-    
-    fun createRoute(vararg args: String): String {
-        return buildString {
-            append(route)
-            args.forEach { arg ->
-                route.indexOf("{").takeIf { it > 0 }?.let {
-                    val endIndex = route.indexOf("}")
-                    if (endIndex > it) {
-                        val oldArg = route.substring(it, endIndex + 1)
-                        append(route.replace(oldArg, arg))
-                    }
-                }
-            }
-        }
-    }
+
     
     companion object {
     }

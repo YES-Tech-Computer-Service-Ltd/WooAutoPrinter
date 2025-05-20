@@ -1,14 +1,6 @@
 package com.example.wooauto.presentation.screens.settings
 
-import android.app.Activity
-import android.content.Context
-import android.content.Intent
-import android.content.BroadcastReceiver
-import android.content.IntentFilter
 import android.util.Log
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -21,23 +13,18 @@ import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Language
-import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Store
 import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.GetApp
 import androidx.compose.material.icons.filled.VpnKey
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -45,10 +32,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -57,37 +41,21 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import androidx.navigation.compose.rememberNavController
 import com.example.wooauto.R
-import com.example.wooauto.utils.LocaleHelper
 import com.example.wooauto.presentation.navigation.Screen
 import kotlinx.coroutines.launch
 import java.util.Locale
 import androidx.compose.material3.HorizontalDivider
-import kotlinx.coroutines.delay
-import com.example.wooauto.presentation.theme.WooAutoTheme
-import com.example.wooauto.utils.LocaleManager
-import com.example.wooauto.domain.templates.TemplateType
-import androidx.compose.material3.TextField
-import androidx.compose.material3.RadioButton
-import kotlinx.coroutines.runBlocking
-import androidx.compose.material3.IconButton
-import com.journeyapps.barcodescanner.ScanContract
-import com.journeyapps.barcodescanner.ScanOptions
 import com.example.wooauto.presentation.components.WooTopBar
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -109,128 +77,12 @@ fun SettingsScreen(
     
     // 预先获取需要用到的字符串资源
     val featureComingSoonText = stringResource(R.string.feature_coming_soon)
-    val appVersionText = stringResource(R.string.app_version)
-    val fillAllFieldsText = stringResource(R.string.fill_all_fields)
     
     val currentLocale by viewModel.currentLocale.collectAsState(initial = Locale.getDefault())
 
     // 各种对话框状态
-    var showApiDialog by remember { mutableStateOf(false) }
     var showLanguageDialog by remember { mutableStateOf(false) }
-    var showTestResultDialog by remember { mutableStateOf(false) }
-    
-    // 注册广播接收器来监听API设置打开请求
-    DisposableEffect(context) {
-        val intentFilter = IntentFilter("com.example.wooauto.ACTION_OPEN_API_SETTINGS")
-        val receiver = object : BroadcastReceiver() {
-            override fun onReceive(context: Context?, intent: Intent?) {
-                if (intent?.action == "com.example.wooauto.ACTION_OPEN_API_SETTINGS") {
-                    Log.d("SettingsScreen", "收到打开API设置对话框的广播")
-                    showApiDialog = true
-                }
-            }
-        }
-        
-        // 根据API级别使用相应的注册方法
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-            context.registerReceiver(receiver, intentFilter, Context.RECEIVER_NOT_EXPORTED)
-        } else {
-            androidx.core.content.ContextCompat.registerReceiver(
-                context,
-                receiver,
-                intentFilter,
-                androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED
-            )
-        }
-        
-        // 当组件被销毁时注销广播接收器
-        onDispose {
-            try {
-                context.unregisterReceiver(receiver)
-            } catch (e: Exception) {
-                Log.e("SettingsScreen", "注销广播接收器失败: ${e.message}")
-            }
-        }
-    }
-    
-    // 测试订单的结果
-    val testOrderResult by remember { mutableStateOf<String?>(null) }
-    val isTestingApi by remember { mutableStateOf(false) }
-    
-    // 编辑用的临时字段
-    var tempSiteUrl by remember { mutableStateOf(siteUrl) }
-    var tempConsumerKey by remember { mutableStateOf(consumerKey) }
-    var tempConsumerSecret by remember { mutableStateOf(consumerSecret) }
-    var pollingIntervalInput by remember { mutableStateOf("30") }
-    var useWooCommerceFoodInput by remember { mutableStateOf(false) }
-    
-    // 添加二维码扫描器
-    val barcodeLauncher = rememberLauncherForActivityResult(
-        contract = ScanContract(),
-        onResult = { result ->
-            Log.d("QRScan", "扫描返回结果: ${result.contents ?: "没有内容"}")
-            if (result.contents != null) {
-                // 处理扫描结果
-                viewModel.handleQrCodeResult(result.contents)
-                
-                // 如果API对话框处于打开状态，更新临时字段值
-                if (showApiDialog) {
-                    // 延迟一下等待viewModel处理完成
-                    coroutineScope.launch {
-                        delay(100) // 短暂延迟确保viewModel已处理数据
-                        tempSiteUrl = viewModel.siteUrl.value
-                        tempConsumerKey = viewModel.consumerKey.value
-                        tempConsumerSecret = viewModel.consumerSecret.value
-                        
-                        // 显示提示
-                        snackbarHostState.showSnackbar("API信息已从二维码更新")
-                    }
-                }
-            } else {
-                // 用户取消了扫描
-                coroutineScope.launch {
-                    snackbarHostState.showSnackbar("扫描已取消")
-                }
-            }
-        }
-    )
-    
-    // 监听二维码扫描事件
-    LaunchedEffect(viewModel) {
-        Log.d("QRScan", "开始监听扫描事件")
-        viewModel.scanQrCodeEvent.collect {
-            Log.d("QRScan", "收到扫描事件，准备启动扫描器")
-            // 配置扫描选项
-            val options = ScanOptions()
-                .setDesiredBarcodeFormats(ScanOptions.QR_CODE)
-                .setPrompt(context.getString(R.string.scan_woocommerce_site_url_qr))
-                .setCameraId(0) // 后置摄像头
-                .setBeepEnabled(true)
-                .setBarcodeImageEnabled(true)
-                .setOrientationLocked(false)
-            
-            // 启动扫描器
-            barcodeLauncher.launch(options)
-        }
-    }
-    
-    // 显示测试结果对话框
-    if (showTestResultDialog && testOrderResult != null) {
-        AlertDialog(
-            onDismissRequest = { showTestResultDialog = false },
-            title = { Text("API测试结果") },
-            text = {
-                Column {
-                    Text(testOrderResult!!)
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showTestResultDialog = false }) {
-                    Text("确定")
-                }
-            }
-        )
-    }
+    var showWebsiteSettingsDialog by remember { mutableStateOf(false) }
     
     Scaffold(
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
@@ -284,7 +136,7 @@ fun SettingsScreen(
                             icon = Icons.Filled.Cloud,
                             onClick = {
                                 Log.d("设置导航", "点击了API配置项")
-                                showApiDialog = true
+                                showWebsiteSettingsDialog = true
                             }
                         )
                     }
@@ -559,155 +411,22 @@ fun SettingsScreen(
                 }
             )
         }
-        
-        // API配置对话框  
-        if (showApiDialog) {
-            AlertDialog(
-                onDismissRequest = { showApiDialog = false },
-                title = { Text(stringResource(R.string.api_configuration)) },
-                text = {
-                    Column {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            OutlinedTextField(
-                                value = tempSiteUrl,
-                                onValueChange = { tempSiteUrl = it },
-                                label = { Text(stringResource(R.string.website_url)) },
-                                placeholder = { Text(stringResource(R.string.website_url_placeholder)) },
-                                singleLine = true,
-                                modifier = Modifier.weight(1f),
-                                isError = !tempSiteUrl.contains("http")
-                            )
-                            
-                            IconButton(
-                                onClick = { viewModel.handleQrCodeScan() }
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.QrCodeScanner,
-                                    contentDescription = stringResource(R.string.scan_qr_code)
-                                )
-                            }
-                        }
-                        
-                        Spacer(modifier = Modifier.height(16.dp))
-                        
-                        OutlinedTextField(
-                            value = tempConsumerKey,
-                            onValueChange = { tempConsumerKey = it },
-                            label = { Text(stringResource(R.string.api_key)) },
-                            placeholder = { Text(stringResource(R.string.api_key_placeholder)) },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth(),
-                            isError = tempConsumerKey.contains("http"),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                errorBorderColor = MaterialTheme.colorScheme.error,
-                                errorLabelColor = MaterialTheme.colorScheme.error
-                            )
-                        )
-                        
-                        Spacer(modifier = Modifier.height(16.dp))
-                        
-                        OutlinedTextField(
-                            value = tempConsumerSecret,
-                            onValueChange = { tempConsumerSecret = it },
-                            label = { Text(stringResource(R.string.api_secret)) },
-                            placeholder = { Text(stringResource(R.string.api_secret_placeholder)) },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth(),
-                            isError = tempConsumerSecret.contains("http"),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                errorBorderColor = MaterialTheme.colorScheme.error,
-                                errorLabelColor = MaterialTheme.colorScheme.error
-                            )
-                        )
-                        
-                        OutlinedTextField(
-                            value = pollingIntervalInput,
-                            onValueChange = { newValue -> 
-                                // 确保只输入数字
-                                if (newValue.isEmpty() || newValue.all { char -> char.isDigit() }) {
-                                    pollingIntervalInput = newValue
-                                }
-                            },
-                            label = { Text(stringResource(R.string.polling_interval)) },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 8.dp)
-                        )
-                        
-                        // WooCommerce Food设置
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                text = stringResource(R.string.use_woocommerce_food)
-                            )
-                            
-                            Switch(
-                                checked = useWooCommerceFoodInput,
-                                onCheckedChange = { useWooCommerceFoodInput = it }
-                            )
-                        }
-                        
-                        if (isTestingApi) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 8.dp),
-                                horizontalArrangement = Arrangement.Center,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(24.dp),
-                                    strokeWidth = 2.dp
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(stringResource(R.string.testing_connection))
-                            }
-                        }
-                    }
-                },
-                confirmButton = {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        TextButton(
-                            onClick = {
-                                if (tempSiteUrl.isNotEmpty() && tempConsumerKey.isNotEmpty() && tempConsumerSecret.isNotEmpty()) {
-                                    // 保存配置
-                                    viewModel.updateSiteUrl(tempSiteUrl)
-                                    viewModel.updateConsumerKey(tempConsumerKey)
-                                    viewModel.updateConsumerSecret(tempConsumerSecret)
-                                    viewModel.updatePollingInterval(pollingIntervalInput.toIntOrNull() ?: 30)
-                                    viewModel.updateUseWooCommerceFood(useWooCommerceFoodInput)
-                                    
-                                    // 测试连接
-                                    viewModel.testConnection()
-                                    showApiDialog = false
-                                } else {
-                                    coroutineScope.launch {
-                                        snackbarHostState.showSnackbar(fillAllFieldsText)
-                                    }
-                                }
-                            },
-                            enabled = !isTestingApi
-                        ) {
-                            Text(stringResource(R.string.save_and_test))
-                        }
-                        
-                        TextButton(onClick = { showApiDialog = false }) {
-                            Text(stringResource(R.string.cancel))
-                        }
-                    }
-                }
-            )
+
+        // Website Settings Dialog
+        if (showWebsiteSettingsDialog) {
+            Dialog(
+                onDismissRequest = { showWebsiteSettingsDialog = false },
+                properties = DialogProperties(
+                    usePlatformDefaultWidth = false,
+                    dismissOnBackPress = true,
+                    dismissOnClickOutside = true
+                )
+            ) {
+                WebsiteSettingsDialogContent(
+                    viewModel = viewModel,
+                    onClose = { showWebsiteSettingsDialog = false }
+                )
+            }
         }
     }
 }

@@ -365,12 +365,6 @@ fun AppContent() {
                 SettingsScreen(navController = navController)
             }
 
-            // 网站设置页面
-            composable(Screen.WebsiteSettings.route) {
-                Log.d(TAG, "导航到网站设置页面")
-                WebsiteSettingsScreen(navController = navController)
-            }
-
             // 打印机设置页面
             composable(Screen.PrinterSettings.route) {
                 Log.d(TAG, "导航到打印机设置页面")
