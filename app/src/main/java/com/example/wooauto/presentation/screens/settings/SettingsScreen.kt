@@ -63,7 +63,6 @@ fun SettingsScreen(
     navController: NavController,
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
-    val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
     
@@ -83,6 +82,7 @@ fun SettingsScreen(
     // 各种对话框状态
     var showLanguageDialog by remember { mutableStateOf(false) }
     var showWebsiteSettingsDialog by remember { mutableStateOf(false) }
+    var showAutomationSettingsDialog by remember { mutableStateOf(false) }
     
     Scaffold(
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
@@ -146,12 +146,12 @@ fun SettingsScreen(
                     // 自动化任务卡片
                     SettingsCategoryCard {
                         SettingsNavigationItem(
-                            title = stringResource(R.string.automation_tasks),
-                            subTitle = stringResource(R.string.automatic_order_processing_desc),
+                            title = stringResource(R.string.auto_print_settings),
+                            subTitle = stringResource(R.string.automatic_printing_desc),
                             icon = Icons.Filled.AutoAwesome,
                             onClick = {
-                                Log.d("设置导航", "点击了自动化任务项")
-                                navController.navigate(Screen.AutomationSettings.route)
+                                Log.d("设置导航", "点击了自动打印设置项")
+                                showAutomationSettingsDialog = true
                             }
                         )
                     }
@@ -425,6 +425,23 @@ fun SettingsScreen(
                 WebsiteSettingsDialogContent(
                     viewModel = viewModel,
                     onClose = { showWebsiteSettingsDialog = false }
+                )
+            }
+        }
+
+        // Automation Settings Dialog
+        if (showAutomationSettingsDialog) {
+            Dialog(
+                onDismissRequest = { showAutomationSettingsDialog = false },
+                properties = DialogProperties(
+                    usePlatformDefaultWidth = false,
+                    dismissOnBackPress = true,
+                    dismissOnClickOutside = true
+                )
+            ) {
+                AutomationSettingsDialogContent(
+                    viewModel = viewModel,
+                    onClose = { showAutomationSettingsDialog = false }
                 )
             }
         }
