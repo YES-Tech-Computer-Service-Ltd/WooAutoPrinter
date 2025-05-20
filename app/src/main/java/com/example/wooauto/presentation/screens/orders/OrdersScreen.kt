@@ -169,6 +169,21 @@ fun OrdersScreen(
     // 记录TopBar的实际高度
     var topBarHeight by remember { mutableStateOf(0.dp) }
     
+    // 观察导航事件
+    val navigationEvent by viewModel.navigationEvent.collectAsState()
+    
+    // 处理导航事件
+    LaunchedEffect(navigationEvent) {
+        navigationEvent?.let { event ->
+            when (event) {
+                "license_settings" -> {
+                    navController.navigate(com.example.wooauto.presentation.navigation.Screen.LicenseSettings.route)
+                    viewModel.clearNavigationEvent()
+                }
+            }
+        }
+    }
+    
     // 接收搜索和刷新事件
     LaunchedEffect(Unit) {
         // 订阅搜索事件

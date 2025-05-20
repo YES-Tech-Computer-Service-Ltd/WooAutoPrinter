@@ -40,7 +40,8 @@ class OrdersViewModel @Inject constructor(
     private val settingRepository: DomainSettingRepository,
     private val printerManager: PrinterManager,
     private val wooCommerceConfig: com.example.wooauto.data.local.WooCommerceConfig,
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    val licenseManager: com.example.wooauto.licensing.LicenseManager
 ) : ViewModel() {
 
     companion object {
@@ -69,6 +70,10 @@ class OrdersViewModel @Inject constructor(
     private val _currentStatusFilter = MutableStateFlow<String?>(null)
     private val currentStatusFilter: StateFlow<String?> = _currentStatusFilter.asStateFlow()
 
+    // 导航事件
+    private val _navigationEvent = MutableStateFlow<String?>(null)
+    val navigationEvent: StateFlow<String?> = _navigationEvent.asStateFlow()
+    
     // 添加未读订单相关状态
     private val _unreadOrders = MutableStateFlow<List<Order>>(emptyList())
     val unreadOrders: StateFlow<List<Order>> = _unreadOrders
@@ -1149,5 +1154,15 @@ class OrdersViewModel @Inject constructor(
                 _isLoading.value = false
             }
         }
+    }
+
+    // 导航到许可证设置页面
+    fun navigateToLicenseSettings() {
+        _navigationEvent.value = "license_settings"
+    }
+    
+    // 清除导航事件
+    fun clearNavigationEvent() {
+        _navigationEvent.value = null
     }
 } 

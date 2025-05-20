@@ -433,70 +433,38 @@ fun AppContent() {
     LaunchedEffect(isTrialChecked.value, isStateLoaded.value, isNavHostInitialized.value) {
         if (isTrialChecked.value && isStateLoaded.value && isNavHostInitialized.value && !isInitialNavigationHandled.value) {
             delay(1000)
-            Log.d("AppContent", "Performing initial navigation check: hasAccess = ${hasAccess.value}, isTrialValid = ${isTrialValid.value}, isLicensed = ${isLicensed.value}")
-            if (!hasAccess.value) {
-                Log.d("AppContent", "Trial expired or no license, navigating to LicenseSettingsScreen")
-                navController.navigate(Screen.LicenseSettings.route) {
-                    popUpTo(0) { inclusive = true }
-                    launchSingleTop = true
-                }
-            } else {
-                Log.d("AppContent", "Trial or license valid, staying on OrdersScreen")
-            }
+            Log.d("AppContent", "试用期和许可状态已加载")
             isInitialNavigationHandled.value = true
         }
     }
 
-    // 仅在非试用模式且许可有效时执行服务器验证
+    // 移除许可验证失败强制跳转的逻辑
     LaunchedEffect(isTrialChecked.value, isStateLoaded.value, isTrialValid.value, isLicensed.value, isNavHostInitialized.value) {
         if (isTrialChecked.value && isStateLoaded.value && isNavHostInitialized.value && !isTrialValid.value && isLicensed.value) {
-            Log.d("AppContent", "Licensed and not in trial, performing server validation")
+            Log.d("AppContent", "已持有许可证且非试用期，执行服务器验证")
             try {
                 LicenseVerificationManager.staticForceServerValidation(
                     context,
                     coroutineScope,
                     onInvalid = {
-                        Log.d("AppContent", "forceServerValidation failed, marking as unlicensed")
+                        Log.d("AppContent", "服务器验证失败，但不再强制跳转")
+                        // 仅更新状态，不导航
                         coroutineScope.launch {
                             try {
                                 LicenseDataStore.setLicensed(context, false)
                                 isLicensed.value = false
-                                Log.d("AppContent", "License validation failed - navigating to LicenseSettingsScreen")
-                                navController.navigate(Screen.LicenseSettings.route) {
-                                    popUpTo(0) { inclusive = true }
-                                    launchSingleTop = true
-                                }
+                                Log.d("AppContent", "许可状态已更新为无效，但允许继续使用所有功能")
                             } catch (e: Exception) {
-                                Log.e("AppContent", "Failed to update state after forceServerValidation: ${e.message}", e)
+                                Log.e("AppContent", "更新许可状态失败: ${e.message}", e)
                             }
                         }
                     },
                     onSuccess = {
-                        Log.d("AppContent", "forceServerValidation succeeded")
-                    }
-                )
-
-                LicenseVerificationManager.staticVerifyLicenseOnStart(
-                    context,
-                    coroutineScope,
-                    onInvalid = {
-                        Log.d("MainActivity", "许可验证失败，导航到 LicenseSettingsScreen")
-                        try {
-                            Log.d("AppContent", "License verification failed - navigating to LicenseSettingsScreen")
-                            navController.navigate(Screen.LicenseSettings.route) {
-                                popUpTo(0) { inclusive = true }
-                                launchSingleTop = true
-                            }
-                        } catch (e: Exception) {
-                            Log.e("AppContent", "导航失败: ${e.message}", e)
-                        }
-                    },
-                    onSuccess = {
-                        Log.d("AppContent", "verifyLicenseOnStart succeeded")
+                        Log.d("AppContent", "服务器验证成功")
                     }
                 )
             } catch (e: Exception) {
-                Log.e("AppContent", "Error during license verification: ${e.message}", e)
+                Log.e("AppContent", "验证过程发生异常: ${e.message}", e)
             }
         }
     }
