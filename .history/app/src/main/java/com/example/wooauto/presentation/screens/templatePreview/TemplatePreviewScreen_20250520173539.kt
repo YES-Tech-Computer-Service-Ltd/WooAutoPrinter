@@ -788,10 +788,10 @@ fun TemplateSettings(
         
         Button(
             onClick = { 
-                // 保存模板设置并立即关闭对话框
-                onClose() // 先关闭对话框
+                // 保存模板设置
                 coroutineScope.launch {
                     snackbarHostState.showSnackbar(settingsSavedMessage)
+                    onClose()
                 }
             },
             modifier = Modifier.fillMaxWidth()
@@ -916,10 +916,10 @@ fun TemplatePreviewDialogContent(
                             // 提前获取字符串资源
                             val successMessage = stringResource(R.string.settings_saved)
                             IconButton(onClick = {
-                                // 保存新模板并立即关闭对话框
-                                onClose() // 先关闭对话框
+                                // 保存新模板
                                 coroutineScope.launch {
                                     snackbarHostState.showSnackbar(successMessage)
+                                    onClose()
                                 }
                             }) {
                                 Icon(

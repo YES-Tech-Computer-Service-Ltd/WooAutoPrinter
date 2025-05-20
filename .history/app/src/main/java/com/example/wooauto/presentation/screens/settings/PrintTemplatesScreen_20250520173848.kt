@@ -133,10 +133,7 @@ fun PrintTemplatesDialogContent(
         ) {
             TemplatePreviewDialogContent(
                 templateId = previewTemplateId,
-                onClose = { 
-                    // 只关闭模板预览对话框，不关闭模板列表对话框
-                    showTemplatePreviewDialog = false 
-                }
+                onClose = { showTemplatePreviewDialog = false }
             )
         }
     }

@@ -185,10 +185,9 @@ fun OrdersScreen(
     }
     
     // 接收搜索和刷新事件
-    val eventScope = rememberCoroutineScope()
-    DisposableEffect(Unit) {
-        // 启动搜索事件收集器
-        val searchJob = eventScope.launch {
+    LaunchedEffect(Unit) {
+        // 订阅搜索事件
+        launch {
             EventBus.searchEvents.collect { event ->
                 if (event.screenRoute == NavigationItem.Orders.route) {
                     Log.d("OrdersScreen", "收到搜索事件：${event.query}")
@@ -199,21 +198,14 @@ fun OrdersScreen(
             }
         }
         
-        // 启动刷新事件收集器
-        val refreshJob = eventScope.launch {
+        // 订阅刷新事件
+        launch {
             EventBus.refreshEvents.collect { event ->
                 if (event.screenRoute == NavigationItem.Orders.route) {
                     Log.d("OrdersScreen", "收到刷新事件")
                     viewModel.refreshOrders()
                 }
             }
-        }
-        
-        // 清理协程
-        onDispose {
-            searchJob.cancel()
-            refreshJob.cancel()
-            Log.d("OrdersScreen", "清理事件订阅协程")
         }
     }
     

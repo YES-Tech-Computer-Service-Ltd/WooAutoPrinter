@@ -788,10 +788,10 @@ fun TemplateSettings(
         
         Button(
             onClick = { 
-                // 保存模板设置并立即关闭对话框
-                onClose() // 先关闭对话框
+                // 保存模板设置
                 coroutineScope.launch {
                     snackbarHostState.showSnackbar(settingsSavedMessage)
+                    onClose()
                 }
             },
             modifier = Modifier.fillMaxWidth()

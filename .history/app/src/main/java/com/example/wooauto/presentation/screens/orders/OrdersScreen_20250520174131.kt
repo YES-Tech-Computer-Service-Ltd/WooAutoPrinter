@@ -185,10 +185,9 @@ fun OrdersScreen(
     }
     
     // 接收搜索和刷新事件
-    val eventScope = rememberCoroutineScope()
-    DisposableEffect(Unit) {
-        // 启动搜索事件收集器
-        val searchJob = eventScope.launch {
+    LaunchedEffect(Unit) {
+        // 订阅搜索事件
+        launch {
             EventBus.searchEvents.collect { event ->
                 if (event.screenRoute == NavigationItem.Orders.route) {
                     Log.d("OrdersScreen", "收到搜索事件：${event.query}")
@@ -199,21 +198,14 @@ fun OrdersScreen(
             }
         }
         
-        // 启动刷新事件收集器
-        val refreshJob = eventScope.launch {
+        // 订阅刷新事件
+        launch {
             EventBus.refreshEvents.collect { event ->
                 if (event.screenRoute == NavigationItem.Orders.route) {
                     Log.d("OrdersScreen", "收到刷新事件")
                     viewModel.refreshOrders()
                 }
             }
-        }
-        
-        // 清理协程
-        onDispose {
-            searchJob.cancel()
-            refreshJob.cancel()
-            Log.d("OrdersScreen", "清理事件订阅协程")
         }
     }
     
@@ -319,8 +311,9 @@ fun OrdersScreen(
     }
     
     // 订单页面每次成为活动页面时刷新API配置状态
-    DisposableEffect(navController) {
-        val listener = NavController.OnDestinationChangedListener { _, destination, _ ->
+    LaunchedEffect(navController) {
+        // 使用navController的addOnDestinationChangedListener代替currentBackStackEntryAsState
+        navController.addOnDestinationChangedListener { _, destination, _ ->
             val currentRoute = destination.route
             Log.d("OrdersScreen", "当前导航到页面: $currentRoute")
             if (currentRoute == NavigationItem.Orders.route) {
@@ -328,13 +321,34 @@ fun OrdersScreen(
                 viewModel.refreshOrders()
             }
         }
+    }
+    
+    // 添加对导航变化的监听，确保对话框状态正确
+    val navScope = rememberCoroutineScope()
+    DisposableEffect(Unit) {
+        val job = navScope.launch {
+            try {
+                navController.currentBackStackEntryFlow.collect { entry ->
+                    val route = entry.destination.route
+                    // 当导航回到这个页面时，检查API是否已配置，并相应更新对话框状态
+                    Log.d("OrdersScreen", "导航状态变化: $route")
+                    if (route == NavigationItem.Orders.route) {
+                        if (isConfigured) {
+                            Log.d("OrdersScreen", "导航返回订单页面，API已配置，隐藏对话框")
+                        } else {
+                            Log.d("OrdersScreen", "导航返回订单页面，API未配置，检查是否需要显示对话框")
+                            // 这里不再调用私有方法checkApiConfiguration，而是刷新订单
+                            viewModel.refreshOrders()
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("OrdersScreen", "监听导航变化出错", e)
+            }
+        }
         
-        // 添加监听器
-        navController.addOnDestinationChangedListener(listener)
-        
-        // 清理
         onDispose {
-            navController.removeOnDestinationChangedListener(listener)
+            job.cancel() // 取消协程
         }
     }
     

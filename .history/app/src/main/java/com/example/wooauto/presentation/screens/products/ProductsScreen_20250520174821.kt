@@ -43,7 +43,6 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -74,7 +73,7 @@ import com.example.wooauto.utils.LocalAppLocale
 import kotlinx.coroutines.launch
 import com.example.wooauto.presentation.EventBus
 import com.example.wooauto.presentation.navigation.Screen
-
+import kotlinx.coroutines.DisposableEffect
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -180,10 +179,14 @@ private fun ProductsScreenContent(
     val errorMessage by viewModel.errorMessage.collectAsState()
     val selectedProduct by viewModel.selectedProduct.collectAsState()
     val isRefreshing by viewModel.refreshing.collectAsState()
-
+    
+//    // 添加日志跟踪产品数量变化，但避免过多日志
+//    LaunchedEffect(products.size) {
+//        Log.d("ProductsScreen", "产品列表更新，当前数量: ${products.size}")
+//    }
     
     val snackbarHostState = remember { SnackbarHostState() }
-    rememberCoroutineScope()
+    val coroutineScope = rememberCoroutineScope()
     
     // 搜索和分类相关状态
     var searchQuery by remember { mutableStateOf("") }
@@ -314,34 +317,6 @@ private fun ProductsScreenContent(
         }
     }
     
-    // 添加安全超时，防止切换状态卡住
-    val timeoutScope = rememberCoroutineScope()
-    DisposableEffect(isSwitchingCategory) {
-        var timeoutJob: kotlinx.coroutines.Job? = null
-        
-        if (isSwitchingCategory) {
-            // 如果切换状态持续超过3秒，自动重置
-            timeoutJob = timeoutScope.launch {
-                kotlinx.coroutines.delay(3000)  // 减少超时时间
-                if (isSwitchingCategory) {
-                    Log.d("ProductsScreen", "切换分类超时，自动重置状态")
-                    isSwitchingCategory = false
-                    fadeTransition = 1f
-                    // 如果加载状态也卡住了，也重置它
-                    if (isLoading) {
-                        viewModel.resetLoadingState()
-                    }
-                }
-            }
-        }
-        
-        onDispose {
-            // 取消超时作业
-            timeoutJob?.cancel()
-            Log.d("ProductsScreen", "取消分类切换超时")
-        }
-    }
-    
     // 同步ViewModel中的分类ID状态
     val currentSelectedCategoryId by viewModel.currentSelectedCategoryId.collectAsState()
     
@@ -429,8 +404,19 @@ private fun ProductsScreenContent(
                                 isLoading = isLoading,
                                 isSwitchingCategory = isSwitchingCategory,
                                 fadeTransition = fadeTransition,
+                                searchQuery = searchQuery,
                                 selectedCategoryId = selectedCategoryId,
                                 categoryOptions = categoryOptions,
+                                onSearchChange = { query ->
+                                    searchQuery = query
+                                    if (query.isEmpty()) {
+                                        Log.d("ProductsScreen", "清空搜索，恢复分类过滤: 分类ID=${selectedCategoryId}")
+                                        viewModel.filterProductsByCategory(selectedCategoryId)
+                                    } else {
+                                        Log.d("ProductsScreen", "执行产品搜索: 关键词='$query'")
+                                        viewModel.searchProducts(query)
+                                    }
+                                },
                                 onCategorySelect = { id, name ->
                                     // 如果选择了不同的分类，设置切换状态标志
                                     if (selectedCategoryId != id) {
@@ -448,7 +434,8 @@ private fun ProductsScreenContent(
                                 onProductClick = { productId ->
                                     viewModel.getProductDetails(productId)
                                     showProductDetail = true
-                                }
+                                },
+                                onRefreshClick = { viewModel.refreshData() }
                             )
                         }
                     }
@@ -642,10 +629,13 @@ fun ProductsContent(
     isLoading: Boolean,
     isSwitchingCategory: Boolean,
     fadeTransition: Float,
+    searchQuery: String,
     selectedCategoryId: Long?,
     categoryOptions: List<Pair<Long?, String>>,
+    onSearchChange: (String) -> Unit,
     onCategorySelect: (Long?, String) -> Unit,
-    onProductClick: (Long) -> Unit
+    onProductClick: (Long) -> Unit,
+    onRefreshClick: () -> Unit
 ) {
     // 使用列表状态，支持滚动到指定位置
     val lazyListState = rememberLazyListState()

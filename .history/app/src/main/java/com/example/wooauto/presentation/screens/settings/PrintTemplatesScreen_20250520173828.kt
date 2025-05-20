@@ -56,27 +56,87 @@ import com.example.wooauto.presentation.screens.templatePreview.TemplatePreviewD
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PrintTemplatesScreen(navController: NavController) {
-    // 直接使用对话框模式显示模板列表
-    var showTemplatesDialog by remember { mutableStateOf(true) }
+    // 模拟的模板数据
+    val templates = listOf(
+        PrintTemplate(
+            id = "full_details", 
+            name = "Full Order Details", 
+            description = "Complete order information including all customer and item details", 
+            icon = Icons.AutoMirrored.Filled.ReceiptLong,
+            isDefault = true,
+            templateType = TemplateType.FULL_DETAILS
+        ),
+        PrintTemplate(
+            id = "delivery", 
+            name = "Delivery Receipt", 
+            description = "Delivery information with customer address and order items", 
+            icon = Icons.Default.Fastfood,
+            isDefault = false,
+            templateType = TemplateType.DELIVERY
+        ),
+        PrintTemplate(
+            id = "kitchen", 
+            name = "Kitchen Order", 
+            description = "Simplified receipt for kitchen staff showing only items and time", 
+            icon = Icons.Default.Restaurant,
+            isDefault = false,
+            templateType = TemplateType.KITCHEN
+        )
+    )
     
-    if (showTemplatesDialog) {
-        Dialog(
-            onDismissRequest = { 
-                showTemplatesDialog = false
-                navController.navigateUp() 
-            },
-            properties = DialogProperties(
-                usePlatformDefaultWidth = false,
-                dismissOnBackPress = true,
-                dismissOnClickOutside = false
+    // 记录选中的模板
+    val selectedTemplate = remember { mutableStateOf(templates.first()) }
+    
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.printer_templates)) },
+                navigationIcon = {
+                    IconButton(onClick = { navController.navigateUp() }) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.back)
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                )
             )
-        ) {
-            PrintTemplatesDialogContent(
-                onClose = { 
-                    showTemplatesDialog = false
-                    navController.navigateUp()
+        },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = {
+                    // 导航到自定义模板创建页面
+                    navController.navigate(Screen.TemplatePreview.templatePreviewRoute("new"))
                 }
-            )
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "Add Template"
+                )
+            }
+        }
+    ) { paddingValues ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            items(templates) { template ->
+                TemplateItem(
+                    template = template, 
+                    isSelected = template.id == selectedTemplate.value.id,
+                    onClick = {
+                        selectedTemplate.value = template
+                        // 跳转到模板预览页面
+                        navController.navigate(Screen.TemplatePreview.templatePreviewRoute(template.id))
+                    }
+                )
+            }
         }
     }
 }
@@ -133,10 +193,7 @@ fun PrintTemplatesDialogContent(
         ) {
             TemplatePreviewDialogContent(
                 templateId = previewTemplateId,
-                onClose = { 
-                    // 只关闭模板预览对话框，不关闭模板列表对话框
-                    showTemplatePreviewDialog = false 
-                }
+                onClose = { showTemplatePreviewDialog = false }
             )
         }
     }

@@ -24,6 +24,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -788,10 +789,10 @@ fun TemplateSettings(
         
         Button(
             onClick = { 
-                // 保存模板设置并立即关闭对话框
-                onClose() // 先关闭对话框
+                // 保存模板设置
                 coroutineScope.launch {
                     snackbarHostState.showSnackbar(settingsSavedMessage)
+                    onClose()
                 }
             },
             modifier = Modifier.fillMaxWidth()
@@ -916,10 +917,10 @@ fun TemplatePreviewDialogContent(
                             // 提前获取字符串资源
                             val successMessage = stringResource(R.string.settings_saved)
                             IconButton(onClick = {
-                                // 保存新模板并立即关闭对话框
-                                onClose() // 先关闭对话框
+                                // 保存新模板
                                 coroutineScope.launch {
                                     snackbarHostState.showSnackbar(successMessage)
+                                    onClose()
                                 }
                             }) {
                                 Icon(
