@@ -858,8 +858,8 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 // _automaticOrderProcessing.value = settingsRepository.getAutomaticOrderProcessing()
-                _automaticPrinting.value = settingsRepository.getAutomaticPrintingEnabled() ?: false
-                _defaultTemplateType.value = settingsRepository.getDefaultTemplateType() ?: TemplateType.FULL_DETAILS
+                _automaticPrinting.value = settingsRepository.getAutomaticPrinting()
+                _defaultTemplateType.value = settingsRepository.getDefaultPrintTemplate()
                 // _inventoryAlerts.value = settingsRepository.getInventoryAlerts()
                 // _dailyBackup.value = settingsRepository.getDailyBackup()
                 Log.d(TAG, "成功加载自动化设置: autoPrint=${_automaticPrinting.value}, defaultTemplate=${_defaultTemplateType.value}")
@@ -875,8 +875,8 @@ class SettingsViewModel @Inject constructor(
     fun saveAutomationSettings() {
         viewModelScope.launch {
             try {
-                settingsRepository.setAutomaticPrintingEnabled(_automaticPrinting.value)
-                settingsRepository.saveDefaultTemplateType(_defaultTemplateType.value)
+                settingsRepository.saveAutomaticPrinting(_automaticPrinting.value)
+                settingsRepository.saveDefaultPrintTemplate(_defaultTemplateType.value)
                 // settingsRepository.saveAutomaticOrderProcessing(_automaticOrderProcessing.value)
                 // settingsRepository.saveInventoryAlerts(_inventoryAlerts.value)
                 // settingsRepository.saveDailyBackup(_dailyBackup.value)

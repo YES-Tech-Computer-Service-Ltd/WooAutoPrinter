@@ -1,6 +1,5 @@
 package com.example.wooauto.presentation
 
-import android.content.Context
 import android.os.Build
 import android.provider.Settings
 import androidx.compose.foundation.layout.Box
@@ -10,7 +9,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.DisposableEffect
@@ -99,7 +97,7 @@ class WooAutoApp {
 
         @RequiresApi(Build.VERSION_CODES.S)
         @Composable
-        fun getContent() {
+        fun GetContent() {
             // 获取当前语言状态并提供给整个应用
             LocalContext.current
 
@@ -409,11 +407,6 @@ fun AppContent() {
                 SoundSettingsScreen(navController = navController)
             }
 
-            // 自动化设置页面
-            composable(Screen.AutomationSettings.route) {
-                Log.d(TAG, "导航到自动化设置页面")
-                AutomationSettingsScreen(navController = navController)
-            }
         }
 
         // 标记 NavHost 已初始化
@@ -463,6 +456,7 @@ fun AppContent() {
         }
     }
 }
+
 
 @RequiresApi(Build.VERSION_CODES.S)
 @Preview(showBackground = true)
