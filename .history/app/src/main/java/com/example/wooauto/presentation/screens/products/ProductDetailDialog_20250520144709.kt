@@ -1,6 +1,5 @@
 package com.example.wooauto.presentation.screens.products
 
-import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -327,8 +326,6 @@ fun ProductDetailDialog(
                     
                     Button(
                         onClick = {
-                            // 添加日志记录更新的产品信息
-                            Log.d("ProductDetailDialog", "更新产品：ID=${product.id}, 原价=${regularPrice}, 库存状态=${stockStatus}")
                             onUpdate(
                                 product.copy(
                                     regularPrice = regularPrice,
