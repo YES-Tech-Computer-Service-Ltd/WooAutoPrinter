@@ -1,9 +1,11 @@
 package com.example.wooauto.presentation.screens.settings
 
+import android.content.Context
 import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.wooauto.R
 import com.example.wooauto.domain.models.SoundSettings
 import com.example.wooauto.domain.repositories.DomainSettingRepository
 import com.example.wooauto.utils.SoundManager
@@ -21,7 +23,8 @@ import javax.inject.Inject
 @HiltViewModel
 class SoundSettingsViewModel @Inject constructor(
     private val settingsRepository: DomainSettingRepository,
-    private val soundManager: SoundManager
+    private val soundManager: SoundManager,
+    @dagger.hilt.android.qualifiers.ApplicationContext private val context: Context
 ) : ViewModel() {
 
     companion object {
@@ -146,6 +149,31 @@ class SoundSettingsViewModel @Inject constructor(
     fun playTestSound() {
         if (_soundEnabled.value) {
             soundManager.playSound(_soundType.value)
+        }
+    }
+    
+    /**
+     * 停止所有正在播放的声音
+     * 在关闭对话框时调用
+     */
+    fun stopSound() {
+        soundManager.stopAllSounds()
+    }
+    
+    /**
+     * A  获取声音类型的显示名称
+     * @param soundType 声音类型
+     * @return 对应的显示名称
+     */
+    fun getSoundTypeDisplayName(soundType: String): String {
+        return when (soundType) {
+            SoundSettings.SOUND_TYPE_DEFAULT -> context.getString(R.string.sound_type_default)
+            SoundSettings.SOUND_TYPE_ALARM -> context.getString(R.string.sound_type_alarm)
+            SoundSettings.SOUND_TYPE_RINGTONE -> context.getString(R.string.sound_type_ringtone)
+            SoundSettings.SOUND_TYPE_EVENT -> context.getString(R.string.sound_type_event)
+            SoundSettings.SOUND_TYPE_EMAIL -> context.getString(R.string.sound_type_email)
+            SoundSettings.SOUND_TYPE_CUSTOM -> context.getString(R.string.sound_type_custom)
+            else -> context.getString(R.string.sound_type_default)
         }
     }
 } 

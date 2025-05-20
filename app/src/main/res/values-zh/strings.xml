@@ -64,6 +64,9 @@
     <string name="full_details_template">完整订单详情 - 包含所有订单信息</string>
     <string name="delivery_template">配送信息 - 突出显示配送信息和菜品</string>
     <string name="kitchen_template">厨房订单 - 仅包含菜品和下单时间</string>
+    <string name="template_full_details">完整订单</string>
+    <string name="template_delivery">配送单</string>
+    <string name="template_kitchen">厨房单</string>
 
     <!-- Products -->
     <string name="product_details">产品详情</string>
@@ -92,6 +95,10 @@
     <string name="app_settings">应用设置</string>
     <string name="api_configuration">API配置</string>
     <string name="automation_tasks">自动化任务</string>
+    <string name="auto_print_settings_title">自动打印设置</string>
+    <string name="status_enabled">已启用</string>
+    <string name="status_disabled">已禁用</string>
+    <string name="no_template_selected">未选择模板</string>
 
     <!-- Website Setup -->
     <string name="website_url">网站 URL</string>
@@ -264,14 +271,6 @@
     <string name="error_network">网络错误</string>
     <string name="error_server">服务器错误</string>
 
-    <!-- Settings -->
-    <string name="api_configured">已配置</string>
-    <string name="api_not_configured">未配置</string>
-    <string name="printer_settings">打印设置</string>
-    <string name="store_settings">店铺信息设置</string>
-    <string name="auto_update">自动更新</string>
-    <string name="feature_coming_soon">此功能即将推出</string>
-    <string name="app_version">WooAuto - 版本 %1$s</string>
 
     <!-- API Settings -->
     <string name="website_url_placeholder">https://your-site.com</string>
@@ -287,7 +286,6 @@
     <string name="automatic_order_processing">自动接单</string>
     <string name="automatic_order_processing_desc">新订单自动接收处理</string>
     <string name="automatic_printing">订单打印</string>
-    <string name="automatic_printing_desc">新订单自动打印小票</string>
     <string name="select_default_template">选择默认打印模板</string>
     <string name="inventory_alerts">库存提醒</string>
     <string name="inventory_alerts_desc">库存低时获得通知</string>
@@ -346,17 +344,13 @@
     <string name="auto_cut_paper">自动切纸</string>
 
     <!-- 更新版本相关字符串资源 -->
-    <string name="checking_for_updates">检查更新中…</string>
-    <string name="update_available">发现新版本</string>
     <string name="latest_version">最新版本: %1$s</string>
     <string name="current_version">当前版本: %1$s</string>
-    <string name="no_update_available">您的应用已是最新版本</string>
 
     <!-- API Status Notifications -->
     <string name="api_notification_not_configured">WooCommerce API未配置，请先配置API</string>
 
     <!-- License Settings -->
-    <string name="license_settings">证书设置</string>
     <string name="license_success">证书激活成功！有效期至: %1$s</string>
     <string name="activate">激活</string>
     <string name="license_required">需要证书</string>
@@ -367,4 +361,50 @@
     <string name="search_products_hint">搜索产品…</string>
 
     <string name="sku">库存编号</string>
+
+    <string name="api_info_updated_from_qr">已通过二维码更新API信息</string>
+    <string name="scan_cancelled">扫描已取消</string>
+    <string name="qr_code_scanner_permission_denied">二维码扫描权限被拒绝。</string>
+    <string name="feature_coming_soon">此功能即将推出！</string>
+    <string name="api_configured">已配置</string>
+    <string name="api_not_configured">未配置</string>
+    <string name="printer_settings">打印机设置</string>
+    <string name="store_settings">店铺设置</string>
+    <string name="license_settings">许可设置</string>
+    <string name="auto_update">自动更新</string>
+    <string name="unknown_error">未知错误</string>
+    <string name="api_config_saved">API 配置已保存。</string>
+    <string name="save_failed">保存失败。</string>
+    <string name="invalid_url_format">无效的URL格式。</string>
+    <string name="required_field">此字段为必填项。</string>
+    <string name="test_connection_message">正在测试连接，请稍候…</string>
+    <string name="cancel_scan">取消扫描</string>
+    <string name="open_camera_failed">打开相机进行QR扫描失败。</string>
+    <string name="error_parsing_qr_code">解析二维码数据时出错。</string>
+    <string name="auto_print_settings">自动打印设置</string>
+    <string name="automatic_printing_desc">启用或禁用新订单的自动打印功能</string>
+    <string name="enable_auto_print">启用自动打印</string>
+    <string name="default_print_template">默认打印模板</string>
+    <string name="no_templates_available">暂无可用模板</string>
+    <string name="app_version">应用版本: %1$s</string>
+    <string name="version_info_error">获取版本信息失败</string>
+    <string name="checking_for_updates">正在检查更新…</string>
+    <string name="update_available">发现新版本: %1$s</string>
+    <string name="no_update_available">您使用的是最新版本。</string>
+    <string name="update_check_failed">检查更新失败。</string>
+    <string name="download_update">下载更新</string>
+    <string name="downloading_update">正在下载更新…</string>
+    <string name="download_complete">下载完成。重启应用以安装。</string>
+    <string name="download_failed">下载失败。</string>
+    <string name="install_update">安装更新</string>
+    <string name="update_notification_channel_name">应用更新</string>
+    <string name="update_notification_channel_desc">应用更新和下载进度通知。</string>
+    <string name="download_pending">等待下载...</string>
+    <string name="download_running">正在下载: %1$d%%</string>
+    <string name="update_ready_to_install">更新已准备好安装</string>
+    <string name="tap_to_install">点击以安装已下载的更新。</string>
+    <string name="sound_volume_format">音量: %1$d%%</string>
+    <string name="sound_type_format">提示音: %1$s</string>
+    <string name="sound_status_format">%1$s - %2$s</string>
+    <string name="sound_disabled">已禁用</string>
 </resources>

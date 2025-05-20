@@ -243,14 +243,38 @@ interface DomainSettingRepository {
      * 获取默认模板类型
      * @return 默认模板类型
      */
-    suspend fun getDefaultTemplateType(): TemplateType?
+    suspend fun getDefaultPrintTemplate(): TemplateType
     
     /**
      * 保存默认模板类型
      * @param templateType 模板类型
      */
-    suspend fun saveDefaultTemplateType(templateType: TemplateType)
+    suspend fun setDefaultPrintTemplate(templateType: TemplateType)
     
+    /**
+     * 获取默认模板类型 (用于兼容旧代码)
+     * @return 默认模板类型
+     */
+    suspend fun getDefaultTemplateType(): TemplateType
+    
+    /**
+     * 保存默认模板类型 (用于兼容旧代码)
+     * @param templateType 模板类型
+     */
+    suspend fun saveDefaultTemplateType(templateType: TemplateType)
+
+    /**
+     * 获取自动打印启用状态
+     * @return 是否启用自动打印
+     */
+    suspend fun getAutoPrintEnabled(): Boolean
+
+    /**
+     * 设置自动打印启用状态
+     * @param enabled 是否启用
+     */
+    suspend fun setAutoPrintEnabled(enabled: Boolean)
+
     /**
      * 获取自动打印开关状态
      * @return 自动打印是否开启，如果未设置默认返回false

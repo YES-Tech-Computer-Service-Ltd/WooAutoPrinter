@@ -63,6 +63,9 @@
     <string name="full_details_template">Full Order Details - All order information</string>
     <string name="delivery_template">Delivery Information - Highlights delivery info and items</string>
     <string name="kitchen_template">Kitchen Order - Only includes items and order time</string>
+    <string name="template_full_details">Full Details order</string>
+    <string name="template_delivery">Delivery Slip order</string>
+    <string name="template_kitchen">Kitchen Order</string>
 
     <!-- Products -->
     <string name="product_details">Product Details</string>
@@ -93,6 +96,10 @@
     <string name="app_settings">App Settings</string>
     <string name="api_configuration">API Configuration</string>
     <string name="automation_tasks">Automation Tasks</string>
+    <string name="auto_print_settings_title">Auto Print Settings</string>
+    <string name="status_enabled">Enabled</string>
+    <string name="status_disabled">Disabled</string>
+    <string name="no_template_selected">No template selected</string>
 
     <!-- Website Setup -->
     <string name="website_url">Website URL</string>
@@ -135,7 +142,7 @@
     <string name="no_printers">No Printers</string>
     <string name="add_printer_hint">Click the button below to add a printer</string>
     <string name="delete_printer">Delete Printer</string>
-    <string name="delete_printer_confirm">Are you sure you want to delete printer \'%1$s\'? This action cannot be undone.</string>
+    <string name="delete_printer_confirm">Are you sure you want to delete printer \u0027%1$s\u0027? This action cannot be undone.</string>
     <string name="delete">Delete</string>
     <string name="bluetooth_devices">Bluetooth Devices</string>
     <string name="scanning_bluetooth">Scanning for Bluetooth devices…</string>
@@ -210,7 +217,7 @@
     <!-- Setup Wizard -->
     <string name="setup_wizard">Setup Wizard</string>
     <string name="welcome">Welcome to WooAuto</string>
-    <string name="setup_intro">Let\'s set up your application</string>
+    <string name="setup_intro">Let\u0027s set up your application</string>
     <string name="next">Next</string>
     <string name="finish">Finish</string>
     <string name="skip">Skip</string>
@@ -269,8 +276,6 @@
     <string name="printer_settings">Printer Settings</string>
     <string name="store_settings">Store Settings</string>
     <string name="auto_update">Auto Update</string>
-    <string name="feature_coming_soon">This feature is coming soon</string>
-    <string name="app_version">WooAuto - Version %1$s</string>
 
     <!-- API Configuration Messages -->
     <string name="website_url_placeholder">For example：https://yourstore.com</string>
@@ -289,7 +294,6 @@
     <string name="automatic_order_processing">Automatic Order Processing</string>
     <string name="automatic_order_processing_desc">Automatically accept and process new orders</string>
     <string name="automatic_printing">Automatic Printing</string>
-    <string name="automatic_printing_desc">Automatically print new orders</string>
     <string name="select_default_template">Select Default Print Template</string>
     <string name="inventory_alerts">Inventory Alerts</string>
     <string name="inventory_alerts_desc">Get notified when inventory is low</string>
@@ -364,5 +368,43 @@
     <string name="license_required">License Required</string>
     <string name="license_required_message">Please activate your license to view order details</string>
     <string name="activate_license">Activate License</string>
-    <string name="auto_print_settings">automatic printing settings</string>
+
+    <string name="api_info_updated_from_qr">API info updated from QR code</string>
+    <string name="scan_cancelled">Scan cancelled</string>
+    <string name="qr_code_scanner_permission_denied">QR code scanner permission denied.</string>
+    <string name="feature_coming_soon">This feature is coming soon!</string>
+    <string name="unknown_error">Unknown error</string>
+    <string name="api_config_saved">API configuration saved.</string>
+    <string name="save_failed">Save failed.</string>
+    <string name="invalid_url_format">Invalid URL format.</string>
+    <string name="required_field">This field is required.</string>
+    <string name="test_connection_message">Testing connection, please wait…</string>
+    <string name="cancel_scan">Cancel Scan</string>
+    <string name="open_camera_failed">Failed to open camera for QR scanning.</string>
+    <string name="error_parsing_qr_code">Error parsing QR code data.</string>
+    <string name="auto_print_settings">Auto Print Settings</string>
+    <string name="automatic_printing_desc">Enable or disable automatic printing of new orders</string>
+    <string name="enable_auto_print">Enable Automatic Printing</string>
+    <string name="default_print_template">Default Print Template</string>
+    <string name="no_templates_available">No templates available</string>
+    <string name="app_version">App Version: %1$s</string>
+    <string name="version_info_error">Failed to get version information</string>
+    <string name="update_check_failed">Failed to check for updates.</string>
+    <string name="download_update">Download Update</string>
+    <string name="downloading_update">Downloading update…</string>
+    <string name="download_complete">Download complete. Restart app to install.</string>
+    <string name="download_failed">Download failed.</string>
+    <string name="install_update">Install Update</string>
+    <string name="update_notification_channel_name">App Updates</string>
+    <string name="update_notification_channel_desc">Notifications for app updates and download progress.</string>
+    <string name="download_pending">Download pending…</string>
+    <string name="download_running">Downloading: %1$d%%</string>
+    <string name="update_ready_to_install">Update ready to install</string>
+    <string name="tap_to_install">Tap to install the downloaded update.</string>
+
+    <string name="sound_volume_format">Volume: %1$d%%</string>
+    <string name="sound_type_format">Sound: %1$s</string>
+    <string name="sound_status_format">%1$s - %2$s</string>
+    <string name="sound_disabled">Disabled</string>
+
 </resources>

@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.Store
 import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.GetApp
 import androidx.compose.material.icons.filled.VpnKey
+import androidx.compose.material.icons.filled.SettingsApplications
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -56,6 +57,8 @@ import com.example.wooauto.presentation.components.WooTopBar
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.example.wooauto.presentation.screens.settings.SoundSettingsDialogContent
+import com.example.wooauto.presentation.screens.settings.SoundSettingsViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -70,6 +73,9 @@ fun SettingsScreen(
     val siteUrl by viewModel.siteUrl.collectAsState()
     val consumerKey by viewModel.consumerKey.collectAsState()
     val consumerSecret by viewModel.consumerSecret.collectAsState()
+    val isAutoPrintEnabled by viewModel.automaticPrinting.collectAsState()
+    val templates by viewModel.templates.collectAsState()
+    val defaultTemplateType by viewModel.defaultTemplateType.collectAsState()
     
     // 添加更多初始状态
     var autoUpdate by remember { mutableStateOf(false) }
@@ -83,6 +89,7 @@ fun SettingsScreen(
     var showLanguageDialog by remember { mutableStateOf(false) }
     var showWebsiteSettingsDialog by remember { mutableStateOf(false) }
     var showAutomationSettingsDialog by remember { mutableStateOf(false) }
+    var showSoundSettingsDialog by remember { mutableStateOf(false) }
     
     Scaffold(
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
@@ -143,21 +150,6 @@ fun SettingsScreen(
                     
                     Spacer(modifier = Modifier.height(16.dp))
                     
-                    // 自动化任务卡片
-                    SettingsCategoryCard {
-                        SettingsNavigationItem(
-                            title = stringResource(R.string.auto_print_settings),
-                            subTitle = stringResource(R.string.automatic_printing_desc),
-                            icon = Icons.Filled.AutoAwesome,
-                            onClick = {
-                                Log.d("设置导航", "点击了自动打印设置项")
-                                showAutomationSettingsDialog = true
-                            }
-                        )
-                    }
-                    
-                    Spacer(modifier = Modifier.height(16.dp))
-                    
                     // 其他设置卡片
                     SettingsCategoryCard {
                         SettingsNavigationItem(
@@ -176,9 +168,23 @@ fun SettingsScreen(
                         SettingsNavigationItem(
                             title = stringResource(R.string.sound_settings),
                             icon = Icons.AutoMirrored.Filled.VolumeUp,
+                            subTitle = run {
+                                val volume = viewModel.soundVolume.collectAsState().value
+                                val soundType = viewModel.soundType.collectAsState().value
+                                val enabled = viewModel.soundEnabled.collectAsState().value
+                                val soundTypeDisplayName = viewModel.getSoundTypeDisplayName(soundType)
+                                
+                                if (enabled) {
+                                    val volumeFormatted = stringResource(R.string.sound_volume_format, volume)
+                                    val soundTypeFormatted = stringResource(R.string.sound_type_format, soundTypeDisplayName)
+                                    stringResource(R.string.sound_status_format, volumeFormatted, soundTypeFormatted)
+                                } else {
+                                    stringResource(R.string.sound_disabled)
+                                }
+                            },
                             onClick = {
                                 Log.d("设置导航", "点击了声音设置项")
-                                navController.navigate(Screen.SoundSettings.route)
+                                showSoundSettingsDialog = true
                             }
                         )
                         
@@ -195,6 +201,32 @@ fun SettingsScreen(
                                 coroutineScope.launch {
                                     snackbarHostState.showSnackbar(featureComingSoonText)
                                 }
+                            }
+                        )
+
+                        // Add Auto Print Settings here
+                        Spacer(modifier = Modifier.height(8.dp))
+                        HorizontalDivider()
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        SettingsNavigationItem(
+                            title = stringResource(R.string.auto_print_settings_title),
+                            subTitle = run {
+                                val statusEnabledText = stringResource(R.string.status_enabled)
+                                val statusDisabledText = stringResource(R.string.status_disabled)
+                                val noTemplateSelectedText = stringResource(R.string.no_template_selected)
+                                if (isAutoPrintEnabled) {
+                                    val currentSelectedTemplateTypeName = defaultTemplateType.name
+                                    val templateName = templates.find { it.id == currentSelectedTemplateTypeName }?.name ?: noTemplateSelectedText
+                                    "$statusEnabledText - $templateName"
+                                } else {
+                                    statusDisabledText
+                                }
+                            },
+                            icon = Icons.Filled.SettingsApplications,
+                            onClick = {
+                                Log.d("设置导航", "点击了自动打印设置项")
+                                showAutomationSettingsDialog = true 
                             }
                         )
                     }
@@ -442,6 +474,31 @@ fun SettingsScreen(
                 AutomationSettingsDialogContent(
                     viewModel = viewModel,
                     onClose = { showAutomationSettingsDialog = false }
+                )
+            }
+        }
+
+        // Sound Settings Dialog
+        if (showSoundSettingsDialog) {
+            val soundSettingsViewModel = hiltViewModel<SoundSettingsViewModel>()
+            Dialog(
+                onDismissRequest = { 
+                    soundSettingsViewModel.stopSound() // 停止任何正在播放的声音
+                    showSoundSettingsDialog = false
+                    viewModel.refreshSoundSettings() // 关闭对话框时刷新声音设置
+                },
+                properties = DialogProperties(
+                    usePlatformDefaultWidth = false,
+                    dismissOnBackPress = true,
+                    dismissOnClickOutside = true
+                )
+            ) {
+                SoundSettingsDialogContent(
+                    onClose = { 
+                        soundSettingsViewModel.stopSound() // 停止任何正在播放的声音
+                        showSoundSettingsDialog = false
+                        viewModel.refreshSoundSettings() // 关闭对话框时刷新声音设置
+                    }
                 )
             }
         }

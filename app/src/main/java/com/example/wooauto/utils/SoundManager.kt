@@ -572,4 +572,13 @@ class SoundManager @Inject constructor(
             Log.e(TAG, "释放声音资源失败", e)
         }
     }
+    
+    /**
+     * 停止所有正在播放的声音
+     * 对外公开的方法，用于UI层调用
+     */
+    fun stopAllSounds() {
+        stopCurrentSound()
+        Log.d(TAG, "已停止所有正在播放的声音")
+    }
 } 

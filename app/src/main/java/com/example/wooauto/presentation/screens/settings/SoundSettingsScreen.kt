@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -65,6 +66,8 @@ fun SoundSettingsScreen(
     
     // 在Composable函数中提前获取字符串资源
     val savedMessage = stringResource(id = R.string.sound_settings_saved)
+    val audioFileSelectedMessage = stringResource(id = R.string.audio_file_selected)
+    val audioFileSelectErrorMessage = stringResource(id = R.string.audio_file_select_error)
     
     // 文件选择器
     val audioFilePicker = rememberLauncherForActivityResult(
@@ -106,13 +109,13 @@ fun SoundSettingsScreen(
                         }
                         
                         // 提示用户
-                        snackbarHostState.showSnackbar("音频文件设置成功")
+                        snackbarHostState.showSnackbar(audioFileSelectedMessage)
                     }
                 } catch (e: Exception) {
                     // 提示用户
                     Toast.makeText(
                         context,
-                        "设置音频文件失败: ${e.message}",
+                        "$audioFileSelectErrorMessage: ${e.message}",
                         Toast.LENGTH_SHORT
                     ).show()
                 }
@@ -145,6 +148,7 @@ fun SoundSettingsScreen(
                     onClick = {
                         coroutineScope.launch {
                             viewModel.saveSettings()
+                            viewModel.stopSound()
                             snackbarHostState.showSnackbar(savedMessage)
                         }
                         navController.navigateUp()
@@ -209,6 +213,34 @@ fun SoundSettingsScreen(
                         style = MaterialTheme.typography.titleLarge,
                         color = MaterialTheme.colorScheme.primary
                     )
+                }
+                
+                
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val soundTypeDisplayName = viewModel.getSoundTypeDisplayName(soundType)
+                    val volumeFormatted = stringResource(R.string.sound_volume_format, volume)
+                    val soundTypeFormatted = stringResource(R.string.sound_type_format, soundTypeDisplayName)
+                    val statusText = stringResource(R.string.sound_status_format, volumeFormatted, soundTypeFormatted)
+                    
+                    Text(
+                        text = statusText,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    
+                    if (!soundEnabled) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "(已禁用)",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
                 }
                 
                 // 内容区域
@@ -508,6 +540,288 @@ fun SoundTypeSelector(
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary
                     )
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SoundSettingsDialogContent(
+    viewModel: SoundSettingsViewModel = hiltViewModel(),
+    onClose: () -> Unit
+) {
+    val coroutineScope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
+    
+    // 获取当前音量和声音类型
+    val volume by viewModel.notificationVolume.collectAsState()
+    val soundType by viewModel.soundType.collectAsState()
+    val soundEnabled by viewModel.soundEnabled.collectAsState()
+    val customSoundUri by viewModel.customSoundUri.collectAsState()
+    
+    val scrollState = rememberScrollState()
+    
+    // 在Composable函数中提前获取字符串资源
+    val savedMessage = stringResource(id = R.string.sound_settings_saved)
+    val audioFileSelectedMessage = stringResource(id = R.string.audio_file_selected)
+    val audioFileSelectErrorMessage = stringResource(id = R.string.audio_file_select_error)
+    val closeText = stringResource(R.string.close)
+    val soundSettingsText = stringResource(R.string.sound_settings)
+    val soundDisabledText = stringResource(R.string.sound_disabled)
+    val notificationVolumeText = stringResource(R.string.notification_volume)
+    val notificationVolumeDescText = stringResource(R.string.notification_volume_desc)
+    val soundTypeTitleText = stringResource(R.string.sound_type_title)
+    val soundTypeDescText = stringResource(R.string.sound_type_desc)
+    val saveSettingsText = stringResource(R.string.save_settings)
+    val soundTestText = stringResource(R.string.sound_test)
+    
+    // 文件选择器
+    val audioFilePicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            result.data?.data?.let { uri ->
+                // 复制文件到应用内部存储
+                try {
+                    // 获取文件名
+                    val fileName = getFileNameFromUri(context, uri) ?: "custom_sound.mp3"
+                    
+                    // 在应用内部存储创建目录
+                    val soundDir = File(context.filesDir, "sounds")
+                    if (!soundDir.exists()) {
+                        soundDir.mkdirs()
+                    }
+                    
+                    // 目标文件
+                    val destinationFile = File(soundDir, fileName)
+                    
+                    // 复制文件
+                    context.contentResolver.openInputStream(uri)?.use { input ->
+                        FileOutputStream(destinationFile).use { output ->
+                            input.copyTo(output)
+                        }
+                    }
+                    
+                    // 保存文件路径而不是URI形式
+                    val internalPath = destinationFile.absolutePath
+                    
+                    // 保存路径
+                    coroutineScope.launch {
+                        viewModel.setCustomSoundUri(internalPath)
+                        
+                        // 如果当前选中的不是自定义声音类型，自动切换
+                        if (soundType != SoundSettings.SOUND_TYPE_CUSTOM) {
+                            viewModel.setSoundType(SoundSettings.SOUND_TYPE_CUSTOM)
+                        }
+                        
+                        // 提示用户
+                        snackbarHostState.showSnackbar(audioFileSelectedMessage)
+                    }
+                } catch (e: Exception) {
+                    // 提示用户
+                    Toast.makeText(
+                        context,
+                        "$audioFileSelectErrorMessage: ${e.message}",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
+        }
+    }
+    
+    // 打开音频文件选择器
+    @RequiresApi(Build.VERSION_CODES.O)
+    fun openAudioFilePicker() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "audio/*"
+            
+            // 对于API 19及以上，可以指定MIME类型
+            putExtra(DocumentsContract.EXTRA_INITIAL_URI, android.provider.MediaStore.Audio.Media.EXTERNAL_CONTENT_URI)
+        }
+        
+        audioFilePicker.launch(intent)
+    }
+    
+    Card(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(vertical = 32.dp, horizontal = 16.dp),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+    ) {
+        Scaffold(
+            snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
+            topBar = {
+                TopAppBar(
+                    title = { Text(soundSettingsText) },
+                    navigationIcon = {
+                        IconButton(onClick = { 
+                            viewModel.stopSound() // 关闭对话框前停止声音
+                            onClose() 
+                        }) {
+                            Icon(Icons.Default.Close, contentDescription = closeText)
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                    )
+                )
+            }
+        ) { paddingValuesInternal ->
+            Column(
+                modifier = Modifier
+                    .padding(paddingValuesInternal)
+                    .padding(16.dp)
+                    .fillMaxSize()
+            ) {
+                // 显示副标题，包含音量和提示音类型信息
+                val soundTypeDisplayName = viewModel.getSoundTypeDisplayName(soundType)
+                val volumeFormatted = stringResource(R.string.sound_volume_format, volume)
+                val soundTypeFormatted = stringResource(R.string.sound_type_format, soundTypeDisplayName)
+                val statusText = stringResource(R.string.sound_status_format, volumeFormatted, soundTypeFormatted)
+                
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = statusText,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    
+                    if (!soundEnabled) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = soundDisabledText,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+                
+                // 内容区域
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .verticalScroll(scrollState)
+                ) {
+                    // 声音开关
+                    SoundEnabledSwitch(
+                        enabled = soundEnabled,
+                        onEnabledChange = { 
+                            coroutineScope.launch {
+                                viewModel.setSoundEnabled(it)
+                            }
+                        }
+                    )
+                    
+                    Spacer(modifier = Modifier.height(24.dp))
+                    
+                    // 音量调节部分
+                    Text(
+                        text = notificationVolumeText,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    Text(
+                        text = notificationVolumeDescText,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    VolumeSlider(
+                        value = volume,
+                        onValueChange = { 
+                            coroutineScope.launch {
+                                viewModel.setVolume(it)
+                            }
+                        },
+                        enabled = soundEnabled
+                    )
+                    
+                    Spacer(modifier = Modifier.height(32.dp))
+                    
+                    // 声音类型选择部分
+                    Text(
+                        text = soundTypeTitleText,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    Text(
+                        text = soundTypeDescText,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    SoundTypeSelector(
+                        selectedType = soundType,
+                        customSoundUri = customSoundUri,
+                        onTypeSelected = { 
+                            coroutineScope.launch {
+                                viewModel.setSoundType(it)
+                            }
+                        },
+                        onSelectCustomSound = {
+                            openAudioFilePicker()
+                        },
+                        enabled = soundEnabled
+                    )
+                }
+                
+                // 底部操作区域
+                Button(
+                    onClick = {
+                        coroutineScope.launch {
+                            viewModel.saveSettings()
+                            viewModel.stopSound()
+                            snackbarHostState.showSnackbar(savedMessage)
+                        }
+                        onClose()
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 16.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Save,
+                        contentDescription = null,
+                        modifier = Modifier.padding(end = 8.dp)
+                    )
+                    Text(saveSettingsText)
+                }
+
+                // 测试声音按钮
+                OutlinedButton(
+                    onClick = { viewModel.playTestSound() },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                    enabled = soundEnabled
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.VolumeUp,
+                        contentDescription = null,
+                        modifier = Modifier.padding(end = 8.dp)
+                    )
+                    Text(soundTestText)
                 }
             }
         }

@@ -6,6 +6,7 @@ import android.util.Log
 import android.util.Patterns
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.wooauto.R // Import R for string resources
 import com.example.wooauto.data.printer.BluetoothPrinterManager
 import com.example.wooauto.data.remote.WooCommerceConfig
 import com.example.wooauto.domain.models.PrinterConfig
@@ -39,6 +40,11 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import com.example.wooauto.updater.UpdaterInterface
 import com.example.wooauto.updater.model.UpdateInfo
+
+/**
+ * 定义模板条目的数据类
+ */
+data class TemplateItem(val id: String, val name: String)
 
 /**
  * 系统设置ViewModel
@@ -139,6 +145,10 @@ class SettingsViewModel @Inject constructor(
     private val _defaultTemplateType = MutableStateFlow(TemplateType.FULL_DETAILS)
     val defaultTemplateType: StateFlow<TemplateType> = _defaultTemplateType.asStateFlow()
 
+    // 新增：模板列表状态
+    private val _templates = MutableStateFlow<List<TemplateItem>>(emptyList())
+    val templates: StateFlow<List<TemplateItem>> = _templates.asStateFlow()
+
     // 添加状态消息流
     private val _statusMessage = MutableStateFlow<String?>(null)
     val statusMessage: StateFlow<String?> = _statusMessage.asStateFlow()
@@ -163,12 +173,24 @@ class SettingsViewModel @Inject constructor(
     private val _downloadProgress = MutableStateFlow(0)
     val downloadProgress: StateFlow<Int> = _downloadProgress.asStateFlow()
 
+    // 添加声音设置相关状态
+    private val _soundVolume = MutableStateFlow(70)
+    val soundVolume: StateFlow<Int> = _soundVolume.asStateFlow()
+    
+    private val _soundType = MutableStateFlow("")
+    val soundType: StateFlow<String> = _soundType.asStateFlow()
+    
+    private val _soundEnabled = MutableStateFlow(true)
+    val soundEnabled: StateFlow<Boolean> = _soundEnabled.asStateFlow()
+
     init {
         Log.d("SettingsViewModel", "初始化ViewModel")
         loadSettings()
         loadPrinterConfigs()
         loadStoreInfo()
         loadAutomationSettings()
+        loadTemplates() // 加载模板列表
+        loadSoundSettings() // 加载声音设置
         checkAppUpdate() // 初始化时检查更新
         
         // 监听打印机扫描结果
@@ -858,8 +880,8 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 // _automaticOrderProcessing.value = settingsRepository.getAutomaticOrderProcessing()
-                _automaticPrinting.value = settingsRepository.getAutomaticPrintingEnabled() ?: false
-                _defaultTemplateType.value = settingsRepository.getDefaultTemplateType() ?: TemplateType.FULL_DETAILS
+                _automaticPrinting.value = settingsRepository.getAutoPrintEnabled()
+                _defaultTemplateType.value = settingsRepository.getDefaultPrintTemplate()
                 // _inventoryAlerts.value = settingsRepository.getInventoryAlerts()
                 // _dailyBackup.value = settingsRepository.getDailyBackup()
                 Log.d(TAG, "成功加载自动化设置: autoPrint=${_automaticPrinting.value}, defaultTemplate=${_defaultTemplateType.value}")
@@ -875,8 +897,8 @@ class SettingsViewModel @Inject constructor(
     fun saveAutomationSettings() {
         viewModelScope.launch {
             try {
-                settingsRepository.setAutomaticPrintingEnabled(_automaticPrinting.value)
-                settingsRepository.saveDefaultTemplateType(_defaultTemplateType.value)
+                settingsRepository.setAutoPrintEnabled(_automaticPrinting.value)
+                settingsRepository.setDefaultPrintTemplate(_defaultTemplateType.value)
                 // settingsRepository.saveAutomaticOrderProcessing(_automaticOrderProcessing.value)
                 // settingsRepository.saveInventoryAlerts(_inventoryAlerts.value)
                 // settingsRepository.saveDailyBackup(_dailyBackup.value)
@@ -923,7 +945,7 @@ class SettingsViewModel @Inject constructor(
     fun saveDefaultTemplateType(templateType: TemplateType) {
         viewModelScope.launch {
             try {
-                settingsRepository.saveDefaultTemplateType(templateType)
+                settingsRepository.setDefaultPrintTemplate(templateType)
                 Log.d(TAG, "保存默认模板类型: $templateType")
             } catch (e: Exception) {
                 Log.e(TAG, "保存默认模板类型失败: ${e.message}")
@@ -953,7 +975,7 @@ class SettingsViewModel @Inject constructor(
     suspend fun getAutomationSettings(): AutomationSettings {
         return try {
             val automaticOrderProcessing = settingsRepository.getAutomaticOrderProcessingEnabled() ?: true
-            val automaticPrinting = settingsRepository.getAutomaticPrintingEnabled() ?: false
+            val automaticPrinting = settingsRepository.getAutoPrintEnabled()
             
             // 这里可以添加其他设置的加载
             AutomationSettings(
@@ -1199,6 +1221,90 @@ class SettingsViewModel @Inject constructor(
                 Log.e(TAG, "下载更新出错", e)
                 _statusMessage.value = "下载更新出错: ${e.message}"
                 _isDownloading.value = false
+            }
+        }
+    }
+
+    // 新增：加载模板列表的方法
+    private fun loadTemplates() {
+        // 目前模板是固定的，基于TemplateType枚举
+        // 将来可以从Repository或其他数据源加载
+        _templates.value = TemplateType.values().map {
+            TemplateItem(
+                id = it.name, // 使用枚举名称作为ID
+                name = getTemplateDisplayName(it) // 获取本地化的显示名称
+            )
+        }
+    }
+
+    // 新增：获取模板本地化显示名称的方法
+    private fun getTemplateDisplayName(templateType: TemplateType): String {
+        return when (templateType) {
+            TemplateType.FULL_DETAILS -> context.getString(R.string.template_full_details)
+            TemplateType.DELIVERY -> context.getString(R.string.template_delivery)
+            TemplateType.KITCHEN -> context.getString(R.string.template_kitchen)
+            // else -> templateType.name // 如果没有定义特定字符串，则返回枚举名作为备用
+        }
+    }
+
+    fun setAutomaticPrinting(enabled: Boolean) {
+        _automaticPrinting.value = enabled
+        viewModelScope.launch {
+            settingsRepository.setAutoPrintEnabled(enabled)
+        }
+    }
+    
+    fun setDefaultPrintTemplate(templateType: TemplateType) {
+        _defaultTemplateType.value = templateType
+        viewModelScope.launch {
+            settingsRepository.setDefaultPrintTemplate(templateType)
+        }
+    }
+
+    // 加载声音设置
+    private fun loadSoundSettings() {
+        viewModelScope.launch {
+            try {
+                val soundSettings = settingsRepository.getSoundSettings()
+                _soundVolume.value = soundSettings.notificationVolume
+                _soundType.value = soundSettings.soundType
+                _soundEnabled.value = soundSettings.soundEnabled
+                Log.d("SettingsViewModel", "加载声音设置成功: 音量=${soundSettings.notificationVolume}, 类型=${soundSettings.soundType}, 启用=${soundSettings.soundEnabled}")
+            } catch (e: Exception) {
+                Log.e("SettingsViewModel", "加载声音设置失败", e)
+            }
+        }
+    }
+    
+    // 获取声音类型的显示名称
+    fun getSoundTypeDisplayName(soundType: String): String {
+        return context.getString(
+            when (soundType) {
+                "default" -> R.string.sound_type_default
+                "system_alarm" -> R.string.sound_type_alarm
+                "system_ringtone" -> R.string.sound_type_ringtone
+                "system_event" -> R.string.sound_type_event
+                "system_email" -> R.string.sound_type_email
+                "custom" -> R.string.sound_type_custom
+                else -> R.string.sound_type_default
+            }
+        )
+    }
+    
+    /**
+     * 刷新声音设置
+     * 用于在声音设置对话框关闭后重新加载最新设置
+     */
+    fun refreshSoundSettings() {
+        viewModelScope.launch {
+            try {
+                val soundSettings = settingsRepository.getSoundSettings()
+                _soundVolume.value = soundSettings.notificationVolume
+                _soundType.value = soundSettings.soundType
+                _soundEnabled.value = soundSettings.soundEnabled
+                Log.d(TAG, "刷新声音设置成功: 音量=${soundSettings.notificationVolume}, 类型=${soundSettings.soundType}, 启用=${soundSettings.soundEnabled}")
+            } catch (e: Exception) {
+                Log.e(TAG, "刷新声音设置失败", e)
             }
         }
     }

@@ -29,12 +29,16 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.catch
+import java.io.IOException
 
 // 将扩展属性改为伴生对象中的工厂方法
 private val Context.dataStore by preferencesDataStore(name = "settings")
 
+@OptIn(DelicateCoroutinesApi::class)
 @Singleton
 class SettingsRepositoryImpl @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -52,6 +56,16 @@ class SettingsRepositoryImpl @Inject constructor(
         val CONSUMER_SECRET = stringPreferencesKey("consumer_secret")
         val POLLING_INTERVAL = intPreferencesKey("polling_interval")
         val USE_WOOCOMMERCE_FOOD = booleanPreferencesKey("use_woocommerce_food")
+        val AUTO_PRINT_ENABLED = booleanPreferencesKey(KEY_AUTO_PRINT_ENABLED)
+        val DEFAULT_TEMPLATE_TYPE = stringPreferencesKey(KEY_DEFAULT_TEMPLATE_TYPE)
+        val AUTO_UPDATE_ENABLED = booleanPreferencesKey("auto_update_enabled")
+        val LAST_UPDATE_CHECK_TIME = longPreferencesKey("last_update_check_time")
+        
+        // 声音设置相关键
+        val NOTIFICATION_VOLUME = intPreferencesKey(KEY_NOTIFICATION_VOLUME)
+        val SOUND_TYPE = stringPreferencesKey(KEY_SOUND_TYPE)
+        val SOUND_ENABLED = booleanPreferencesKey(KEY_SOUND_ENABLED)
+        val CUSTOM_SOUND_URI = stringPreferencesKey(KEY_CUSTOM_SOUND_URI)
     }
 
     // 设置键名常量
@@ -88,10 +102,10 @@ class SettingsRepositoryImpl @Inject constructor(
         const val DEFAULT_CURRENCY_SYMBOL = "C$"
         
         // 声音设置相关键名
-        private const val KEY_NOTIFICATION_VOLUME = "notification_volume"
-        private const val KEY_SOUND_TYPE = "sound_type"
-        private const val KEY_SOUND_ENABLED = "sound_enabled"
-        private const val KEY_CUSTOM_SOUND_URI = "custom_sound_uri"
+        const val KEY_NOTIFICATION_VOLUME = "notification_volume"
+        const val KEY_SOUND_TYPE = "sound_type"
+        const val KEY_SOUND_ENABLED = "sound_enabled"
+        const val KEY_CUSTOM_SOUND_URI = "custom_sound_uri"
     }
 
     private val autoUpdateKey = "auto_update"
@@ -437,167 +451,30 @@ class SettingsRepositoryImpl @Inject constructor(
     }
 
     /**
-     * 获取默认模板类型
-     * @return 默认模板类型，如果未设置返回null
-     */
-    override suspend fun getDefaultTemplateType(): TemplateType? {
-        val templateTypeName = settingDao.getSettingByKey(KEY_DEFAULT_TEMPLATE_TYPE)?.value
-            ?: return TemplateType.FULL_DETAILS
-        
-        return try {
-            TemplateType.valueOf(templateTypeName)
-        } catch (e: Exception) {
-            Log.e("SettingsRepository", "解析模板类型失败: ${e.message}")
-            TemplateType.FULL_DETAILS
-        }
-    }
-    
-    /**
-     * 保存默认模板类型
-     * @param templateType 模板类型
-     */
-    override suspend fun saveDefaultTemplateType(templateType: TemplateType) {
-        val entity = SettingMapper.createStringSettingEntity(
-            KEY_DEFAULT_TEMPLATE_TYPE,
-            templateType.name,
-            "默认打印模板类型"
-        )
-        settingDao.insertOrUpdateSetting(entity)
-    }
-    
-    /**
      * 获取自动打印开关状态
      */
-    override suspend fun getAutomaticPrintingEnabled(): Boolean? {
-        Log.d("SettingsRepository", "获取自动打印设置")
-        val setting = settingDao.getSettingByKey(KEY_AUTO_PRINT_ENABLED)
-        return setting?.value?.toBoolean()
+    override suspend fun getAutoPrintEnabled(): Boolean {
+        return dataStore.data
+            .catch { exception ->
+                if (exception is IOException) {
+                    Log.e("SettingsRepositoryImpl", "Error reading auto_print_enabled.", exception)
+                    emit(androidx.datastore.preferences.core.emptyPreferences())
+                } else {
+                    throw exception
+                }
+            }
+            .map { preferences ->
+                preferences[PreferencesKeys.AUTO_PRINT_ENABLED] ?: false
+            }.first()
     }
-    
+
     /**
      * 设置自动打印开关状态
      */
-    override suspend fun setAutomaticPrintingEnabled(enabled: Boolean) {
-        Log.d("SettingsRepository", "设置自动打印: $enabled")
-        val entity = SettingMapper.createBooleanSettingEntity(
-            KEY_AUTO_PRINT_ENABLED,
-            enabled,
-            "自动打印开关"
-        )
-        settingDao.insertOrUpdateSetting(entity)
-    }
-    
-    /**
-     * 获取自动接单开关状态
-     */
-    override suspend fun getAutomaticOrderProcessingEnabled(): Boolean? {
-        Log.d("SettingsRepository", "获取自动接单设置")
-        val setting = settingDao.getSettingByKey(KEY_AUTO_ORDER_PROCESSING_ENABLED)
-        return setting?.value?.toBoolean()
-    }
-    
-    /**
-     * 设置自动接单开关状态
-     */
-    override suspend fun setAutomaticOrderProcessingEnabled(enabled: Boolean) {
-        Log.d("SettingsRepository", "设置自动接单: $enabled")
-        val entity = SettingMapper.createBooleanSettingEntity(
-            KEY_AUTO_ORDER_PROCESSING_ENABLED,
-            enabled,
-            "自动接单开关"
-        )
-        settingDao.insertOrUpdateSetting(entity)
-    }
-    
-    override suspend fun getSoundSettings(): SoundSettings {
-        val volume = getNotificationVolume()
-        val type = getSoundType()
-        val enabled = getSoundEnabled()
-        val customUri = getCustomSoundUri()
-        
-        return SoundSettings(
-            notificationVolume = volume,
-            soundType = type,
-            soundEnabled = enabled,
-            customSoundUri = customUri
-        )
-    }
-    
-    override suspend fun saveSoundSettings(settings: SoundSettings) {
-        setNotificationVolume(settings.notificationVolume)
-        setSoundType(settings.soundType)
-        setSoundEnabled(settings.soundEnabled)
-        setCustomSoundUri(settings.customSoundUri)
-        
-        Log.d("SettingsRepository", "保存声音设置: 音量=${settings.notificationVolume}, 音效=${settings.soundType}, 启用=${settings.soundEnabled}, 自定义音效=${settings.customSoundUri}")
-    }
-    
-    override suspend fun getNotificationVolume(): Int {
-        val setting = settingDao.getSettingByKey(KEY_NOTIFICATION_VOLUME)
-        return setting?.value?.toIntOrNull() ?: 70 // 默认音量70%
-    }
-    
-    override suspend fun setNotificationVolume(volume: Int) {
-        val safeVolume = when {
-            volume < 0 -> 0
-            volume > 100 -> 100
-            else -> volume
+    override suspend fun setAutoPrintEnabled(enabled: Boolean) {
+        dataStore.edit { settings ->
+            settings[PreferencesKeys.AUTO_PRINT_ENABLED] = enabled
         }
-        
-        val entity = SettingMapper.createIntSettingEntity(
-            KEY_NOTIFICATION_VOLUME,
-            safeVolume,
-            "通知音量"
-        )
-        settingDao.insertOrUpdateSetting(entity)
-    }
-    
-    override suspend fun getSoundType(): String {
-        val setting = settingDao.getSettingByKey(KEY_SOUND_TYPE)
-        return setting?.value ?: SoundSettings.SOUND_TYPE_DEFAULT
-    }
-    
-    override suspend fun setSoundType(type: String) {
-        val validType = if (SoundSettings.getAllSoundTypes().contains(type)) {
-            type
-        } else {
-            SoundSettings.SOUND_TYPE_DEFAULT
-        }
-        
-        val entity = SettingMapper.createStringSettingEntity(
-            KEY_SOUND_TYPE,
-            validType,
-            "提示音类型"
-        )
-        settingDao.insertOrUpdateSetting(entity)
-    }
-    
-    override suspend fun getSoundEnabled(): Boolean {
-        val setting = settingDao.getSettingByKey(KEY_SOUND_ENABLED)
-        return setting?.value?.toBoolean() ?: true // 默认启用声音
-    }
-    
-    override suspend fun setSoundEnabled(enabled: Boolean) {
-        val entity = SettingMapper.createBooleanSettingEntity(
-            KEY_SOUND_ENABLED,
-            enabled,
-            "声音启用状态"
-        )
-        settingDao.insertOrUpdateSetting(entity)
-    }
-
-    override suspend fun getCustomSoundUri(): String {
-        val setting = settingDao.getSettingByKey(KEY_CUSTOM_SOUND_URI)
-        return setting?.value ?: ""
-    }
-
-    override suspend fun setCustomSoundUri(uri: String) {
-        val entity = SettingMapper.createStringSettingEntity(
-            KEY_CUSTOM_SOUND_URI,
-            uri,
-            "自定义提示音URI"
-        )
-        settingDao.insertOrUpdateSetting(entity)
     }
 
     /**
@@ -640,4 +517,176 @@ class SettingsRepositoryImpl @Inject constructor(
             preferences[longPreferencesKey(lastUpdateCheckTimeKey)] = timestamp
         }
     }
+
+    // 实现 DomainSettingRepository 中关于自动打印和模板的方法
+    override suspend fun getAutomaticPrintingEnabled(): Boolean? {
+        return getAutoPrintEnabled()
+    }
+
+    override suspend fun setAutomaticPrintingEnabled(enabled: Boolean) {
+        setAutoPrintEnabled(enabled)
+    }
+
+    override suspend fun getAutomaticOrderProcessingEnabled(): Boolean? {
+        val entity = settingDao.getSettingByKey(KEY_AUTO_ORDER_PROCESSING_ENABLED)
+        return entity?.value?.toBoolean()
+    }
+
+    override suspend fun setAutomaticOrderProcessingEnabled(enabled: Boolean) {
+        val entity = SettingMapper.createBooleanSettingEntity(
+            KEY_AUTO_ORDER_PROCESSING_ENABLED,
+            enabled,
+            "自动接单处理"
+        )
+        settingDao.insertOrUpdateSetting(entity)
+    }
+
+    override suspend fun getSoundSettings(): SoundSettings {
+        val volume = getNotificationVolume()
+        val type = getSoundType()
+        val enabled = getSoundEnabled()
+        val uri = getCustomSoundUri()
+        
+        return SoundSettings(
+            notificationVolume = volume,
+            soundType = type,
+            soundEnabled = enabled,
+            customSoundUri = uri
+        )
+    }
+
+    override suspend fun saveSoundSettings(settings: SoundSettings) {
+        setNotificationVolume(settings.notificationVolume)
+        setSoundType(settings.soundType)
+        setSoundEnabled(settings.soundEnabled)
+        setCustomSoundUri(settings.customSoundUri)
+    }
+
+    override suspend fun getNotificationVolume(): Int {
+        return dataStore.data
+            .catch { exception ->
+                if (exception is IOException) {
+                    Log.e("SettingsRepositoryImpl", "Error reading notification_volume.", exception)
+                    emit(androidx.datastore.preferences.core.emptyPreferences())
+                } else {
+                    throw exception
+                }
+            }
+            .map { preferences ->
+                preferences[PreferencesKeys.NOTIFICATION_VOLUME] ?: 70
+            }.first()
+    }
+
+    override suspend fun setNotificationVolume(volume: Int) {
+        dataStore.edit { settings ->
+            settings[PreferencesKeys.NOTIFICATION_VOLUME] = volume
+        }
+    }
+
+    override suspend fun getSoundType(): String {
+        return dataStore.data
+            .catch { exception ->
+                if (exception is IOException) {
+                    Log.e("SettingsRepositoryImpl", "Error reading sound_type.", exception)
+                    emit(androidx.datastore.preferences.core.emptyPreferences())
+                } else {
+                    throw exception
+                }
+            }
+            .map { preferences ->
+                preferences[PreferencesKeys.SOUND_TYPE] ?: SoundSettings.SOUND_TYPE_DEFAULT
+            }.first()
+    }
+
+    override suspend fun setSoundType(type: String) {
+        dataStore.edit { settings ->
+            settings[PreferencesKeys.SOUND_TYPE] = type
+        }
+    }
+
+    override suspend fun getSoundEnabled(): Boolean {
+        return dataStore.data
+            .catch { exception ->
+                if (exception is IOException) {
+                    Log.e("SettingsRepositoryImpl", "Error reading sound_enabled.", exception)
+                    emit(androidx.datastore.preferences.core.emptyPreferences())
+                } else {
+                    throw exception
+                }
+            }
+            .map { preferences ->
+                preferences[PreferencesKeys.SOUND_ENABLED] ?: true
+            }.first()
+    }
+
+    override suspend fun setSoundEnabled(enabled: Boolean) {
+        dataStore.edit { settings ->
+            settings[PreferencesKeys.SOUND_ENABLED] = enabled
+        }
+    }
+
+    override suspend fun getCustomSoundUri(): String {
+        return dataStore.data
+            .catch { exception ->
+                if (exception is IOException) {
+                    Log.e("SettingsRepositoryImpl", "Error reading custom_sound_uri.", exception)
+                    emit(androidx.datastore.preferences.core.emptyPreferences())
+                } else {
+                    throw exception
+                }
+            }
+            .map { preferences ->
+                preferences[PreferencesKeys.CUSTOM_SOUND_URI] ?: ""
+            }.first()
+    }
+
+    override suspend fun setCustomSoundUri(uri: String) {
+        dataStore.edit { settings ->
+            settings[PreferencesKeys.CUSTOM_SOUND_URI] = uri
+        }
+    }
+
+    override suspend fun getDefaultPrintTemplate(): TemplateType {
+        val templateName = dataStore.data
+            .catch { exception ->
+                if (exception is IOException) {
+                    Log.e("SettingsRepositoryImpl", "Error reading default_template_type.", exception)
+                    emit(androidx.datastore.preferences.core.emptyPreferences())
+                } else {
+                    throw exception
+                }
+            }
+            .map { preferences ->
+                preferences[PreferencesKeys.DEFAULT_TEMPLATE_TYPE] ?: TemplateType.FULL_DETAILS.name
+            }.first()
+        return try {
+            TemplateType.valueOf(templateName)
+        } catch (e: IllegalArgumentException) {
+            Log.w("SettingsRepositoryImpl", "Invalid template name found: $templateName, defaulting to FULL_DETAILS.")
+            TemplateType.FULL_DETAILS
+        }
+    }
+
+    override suspend fun setDefaultPrintTemplate(templateType: TemplateType) {
+        dataStore.edit { settings ->
+            settings[PreferencesKeys.DEFAULT_TEMPLATE_TYPE] = templateType.name
+        }
+    }
+    
+    /**
+     * 获取默认模板类型 (兼容旧代码)
+     */
+    override suspend fun getDefaultTemplateType(): TemplateType {
+        return getDefaultPrintTemplate()
+    }
+    
+    /**
+     * 保存默认模板类型 (兼容旧代码)
+     */
+    override suspend fun saveDefaultTemplateType(templateType: TemplateType) {
+        setDefaultPrintTemplate(templateType)
+    }
+    
+    // License Key
+    private val LICENSE_KEY = stringPreferencesKey("license_key")
 } 
