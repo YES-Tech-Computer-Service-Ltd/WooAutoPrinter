@@ -239,19 +239,28 @@ class ProductRepositoryImpl @Inject constructor(
             val updates = mutableMapOf<String, Any>()
 
             updates["name"] = product.name
-
-            // 为简单起见，这里 product.description 在领域模型中是非空的 并且总是被发送（即使是空字符串）
+            
+            // 假设 product.description 在你的领域模型中是非空的，
+            // 或者 WooCommerce API 接受空字符串 "" 作为描述。
+            // 如果 description 可能为 null 并且你不希望发送它，你需要条件添加：
+            // product.description?.let { updates["description"] = it }
+            // 为简单起见，这里假设它总是被发送（即使是空字符串）
             updates["description"] = product.description 
 
             updates["regular_price"] = product.regularPrice
 
-            if (product.salePrice.isNotEmpty()) {
+            // 只有当 salePrice 非 null 且非空时才添加。
+            // 如果你的 API 期望在 sale_price 为空时不传递该字段，就这样做。
+            // 如果 API 接受空字符串，你可以直接赋值： updates["sale_price"] = product.salePrice ?: ""
+            if (!product.salePrice.isNullOrEmpty()) { // 或者 product.salePrice?.let { updates["sale_price"] = it } 
                 updates["sale_price"] = product.salePrice
             }
             
             updates["stock_status"] = product.stockStatus
             updates["manage_stock"] = false // 固定为 false
+            // stock_quantity 不添加，因为对于 manage_stock = false，它应该是 null 或不适用
 
+            // 现在 updates 的类型是 Map<String, Any>，与 api.updateProduct 的期望一致
             val response = api.updateProduct(product.id, updates)
             val updatedProduct = response.toProduct()
             val entity = ProductMapper.mapDomainToEntity(updatedProduct)

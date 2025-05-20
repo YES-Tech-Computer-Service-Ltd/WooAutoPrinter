@@ -236,22 +236,16 @@ class ProductRepositoryImpl @Inject constructor(
             val api = getApi(config)
             
             // 然后更新远程
-            val updates = mutableMapOf<String, Any>()
-
-            updates["name"] = product.name
-
-            // 为简单起见，这里 product.description 在领域模型中是非空的 并且总是被发送（即使是空字符串）
-            updates["description"] = product.description 
-
-            updates["regular_price"] = product.regularPrice
-
-            if (product.salePrice.isNotEmpty()) {
-                updates["sale_price"] = product.salePrice
-            }
+            val updates = mapOf<String, Any>(
+                "name" to product.name,
+                "description" to product.description,
+                "regular_price" to product.regularPrice,
+                "sale_price" to product.salePrice,
+                "manage_stock" to (product.stockQuantity != null),
+                "stock_quantity" to (product.stockQuantity ?: 0),
+                "stock_status" to product.stockStatus
+            )
             
-            updates["stock_status"] = product.stockStatus
-            updates["manage_stock"] = false // 固定为 false
-
             val response = api.updateProduct(product.id, updates)
             val updatedProduct = response.toProduct()
             val entity = ProductMapper.mapDomainToEntity(updatedProduct)

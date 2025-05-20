@@ -236,22 +236,30 @@ class ProductRepositoryImpl @Inject constructor(
             val api = getApi(config)
             
             // 然后更新远程
-            val updates = mutableMapOf<String, Any>()
-
-            updates["name"] = product.name
-
-            // 为简单起见，这里 product.description 在领域模型中是非空的 并且总是被发送（即使是空字符串）
-            updates["description"] = product.description 
-
-            updates["regular_price"] = product.regularPrice
-
-            if (product.salePrice.isNotEmpty()) {
-                updates["sale_price"] = product.salePrice
+            val updates = mutableMapOf<String, Any>(
+                "name" to product.name,
+                "description" to product.description,
+                "regular_price" to product.regularPrice,
+                "sale_price" to product.salePrice,
+                "stock_status" to product.stockStatus
+            )
+            
+            // 新增逻辑：如果设置为 instock，确保 manage_stock 为 true 且 stock_quantity > 0
+            if (product.stockStatus == "instock") {
+                updates["manage_stock"] = true
+                // 如果产品之前没有库存数量 (null)，或者数量为0，当设置为 instock 时，给一个默认值如 1
+                // 你可以根据业务需求调整这里的默认值
+                updates["stock_quantity"] = product.stockQuantity?.takeIf { it > 0 } ?: 1
+            } else if (product.stockStatus == "outofstock") {
+                updates["manage_stock"] = true // 即使缺货，如果之前管理库存，也应保持
+                updates["stock_quantity"] = 0
+            } else {
+                // 对于其他可能的 stock_status (如 onbackorder)，你可能需要不同的逻辑
+                // 或者，如果你的应用只处理 instock/outofstock，可以简化
+                updates["manage_stock"] = product.stockQuantity != null // 回退到之前的逻辑
+                updates["stock_quantity"] = product.stockQuantity ?: 0
             }
             
-            updates["stock_status"] = product.stockStatus
-            updates["manage_stock"] = false // 固定为 false
-
             val response = api.updateProduct(product.id, updates)
             val updatedProduct = response.toProduct()
             val entity = ProductMapper.mapDomainToEntity(updatedProduct)

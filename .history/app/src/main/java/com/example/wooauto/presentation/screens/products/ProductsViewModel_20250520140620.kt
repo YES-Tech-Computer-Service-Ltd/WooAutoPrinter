@@ -23,7 +23,6 @@ import java.util.concurrent.ConcurrentHashMap
 import android.content.Context
 import com.example.wooauto.R
 import com.example.wooauto.presentation.navigation.Screen
-import com.example.wooauto.licensing.LicenseManager
 
 @HiltViewModel
 class ProductsViewModel @Inject constructor(
@@ -31,7 +30,7 @@ class ProductsViewModel @Inject constructor(
     private val productRepository: DomainProductRepository,
     private val settingsRepository: DomainSettingRepository,
     private val context: Context,
-    internal val licenseManager: LicenseManager
+    private val licenseManager: LicenseManager
 ) : ViewModel() {
     
     private val _isConfigured = MutableStateFlow(false)

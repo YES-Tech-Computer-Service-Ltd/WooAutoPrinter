@@ -2,6 +2,7 @@ package com.example.wooauto.presentation.screens.products
 
 import android.util.Log
 import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -21,23 +23,34 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Restaurant
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -54,25 +67,34 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.example.wooauto.R
 import com.example.wooauto.domain.models.Product
+import com.example.wooauto.domain.models.ProductCategory
 import com.example.wooauto.navigation.NavigationItem
 import com.example.wooauto.presentation.components.WooTopBar
 import com.example.wooauto.utils.LocalAppLocale
 import kotlinx.coroutines.launch
+import java.util.*
 import com.example.wooauto.presentation.EventBus
-import com.example.wooauto.presentation.navigation.Screen
+import com.example.wooauto.presentation.SearchEvent
+import com.example.wooauto.presentation.RefreshEvent
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -94,16 +116,6 @@ fun ProductsScreen(
             Log.e("ProductsScreen", "初始化产品页面时发生错误: ${e.message}", e)
             hasCompositionError = true
             compositionErrorMessage = e.message
-        }
-    }
-    
-    // 监听导航到许可证设置页面的状态
-    val navigateToLicenseSettings by viewModel.navigateToLicenseSettings.collectAsState()
-    
-    LaunchedEffect(navigateToLicenseSettings) {
-        if (navigateToLicenseSettings) {
-            navController.navigate(Screen.LicenseSettings.route)
-            viewModel.clearLicenseSettingsNavigation()
         }
     }
     
@@ -399,6 +411,7 @@ private fun ProductsScreenContent(
                                 products = products,
                                 previousProducts = previousProducts,
                                 isLoading = isLoading,
+                                isRefreshing = isRefreshing,
                                 isSwitchingCategory = isSwitchingCategory,
                                 fadeTransition = fadeTransition,
                                 searchQuery = searchQuery,
@@ -468,7 +481,7 @@ fun UnconfiguredView(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 12.dp, vertical = 0.dp),
+            .padding(horizontal = 12.dp, vertical = 0.dp), // 修改为只有水平padding
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
@@ -618,12 +631,64 @@ fun LoadingProductsView() {
     }
 }
 
+// 保留原来的EmptyProductsView作为备用，但不再直接使用
+@Composable
+private fun EmptyProductsView(onRefreshClick: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.List,
+            contentDescription = null,
+            modifier = Modifier.size(72.dp),
+            tint = MaterialTheme.colorScheme.secondary
+        )
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        Text(
+            text = "没有产品数据",
+            style = MaterialTheme.typography.headlineSmall,
+            textAlign = TextAlign.Center
+        )
+        
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        Text(
+            text = "您的WooCommerce商店中可能还没有产品，或API访问权限不足",
+            style = MaterialTheme.typography.bodyMedium,
+            textAlign = TextAlign.Center,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        
+        Spacer(modifier = Modifier.height(24.dp))
+        
+        Button(
+            onClick = onRefreshClick,
+            modifier = Modifier.padding(8.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Refresh,
+                contentDescription = null,
+                modifier = Modifier.size(ButtonDefaults.IconSize)
+            )
+            Spacer(modifier = Modifier.width(ButtonDefaults.IconSpacing))
+            Text(text = "刷新数据")
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProductsContent(
     products: List<Product>,
     previousProducts: List<Product>,
     isLoading: Boolean,
+    isRefreshing: Boolean,
     isSwitchingCategory: Boolean,
     fadeTransition: Float,
     searchQuery: String,
@@ -893,6 +958,184 @@ fun ProductGridItem(
                     else 
                         MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
                 )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ProductDetailDialog(
+    product: Product,
+    onDismiss: () -> Unit,
+    onUpdate: (Product) -> Unit
+) {
+    var regularPrice by remember { mutableStateOf(product.regularPrice) }
+    var stockStatus by remember { mutableStateOf(product.stockStatus) }
+    var stockStatusExpanded by remember { mutableStateOf(false) }
+    
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface
+            ),
+            shape = MaterialTheme.shapes.medium
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = stringResource(id = R.string.product_details),
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center
+                )
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // 产品图片
+                Box(
+                    modifier = Modifier
+                        .size(120.dp)
+                        .clip(RoundedCornerShape(4.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (product.images.isNotEmpty()) {
+                        AsyncImage(
+                            model = ImageRequest.Builder(LocalContext.current)
+                                .data(product.images.first().src)
+                                .crossfade(true)
+                                .build(),
+                            contentDescription = product.name,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop,
+                            error = painterResource(id = R.drawable.ic_launcher_foreground),
+                            placeholder = painterResource(id = R.drawable.ic_launcher_foreground)
+                        )
+                    } else {
+                        // 使用与列表项相同的占位符样式
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(color = MaterialTheme.colorScheme.secondaryContainer),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Restaurant,
+                                contentDescription = product.name,
+                                modifier = Modifier.size(48.dp),
+                                tint = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        }
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // 产品名称
+                Text(
+                    text = product.name,
+                    style = MaterialTheme.typography.titleMedium
+                )
+                
+                if (product.categories.isNotEmpty()) {
+                    Text(
+                        text = stringResource(id = R.string.product_category, product.categories.joinToString(", ") { it.name }),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // 可编辑字段
+                OutlinedTextField(
+                    value = regularPrice,
+                    onValueChange = { regularPrice = it },
+                    label = { Text("价格") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                // 库存状态下拉框
+                ExposedDropdownMenuBox(
+                    expanded = stockStatusExpanded,
+                    onExpandedChange = { stockStatusExpanded = it },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    OutlinedTextField(
+                        value = when(stockStatus) {
+                            "instock" -> stringResource(id = R.string.stock_status_in_stock)
+                            "outofstock" -> stringResource(id = R.string.stock_status_out_of_stock)
+                            else -> stockStatus
+                        },
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text(stringResource(id = R.string.status)) },
+                        modifier = Modifier
+                            .menuAnchor()
+                            .fillMaxWidth(),
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = stockStatusExpanded) }
+                    )
+                    
+                    ExposedDropdownMenu(
+                        expanded = stockStatusExpanded,
+                        onDismissRequest = { stockStatusExpanded = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(id = R.string.stock_status_in_stock)) },
+                            onClick = {
+                                stockStatus = "instock"
+                                stockStatusExpanded = false
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(id = R.string.stock_status_out_of_stock)) },
+                            onClick = {
+                                stockStatus = "outofstock"
+                                stockStatusExpanded = false
+                            }
+                        )
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // 按钮区域
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    Button(
+                        onClick = {
+                            // 创建更新后的产品对象
+                            val updatedProduct = product.copy(
+                                regularPrice = regularPrice,
+                                salePrice = "", // 移除折扣价
+                                stockStatus = stockStatus,
+                                stockQuantity = null, // 不再管理具体库存数量
+                                status = "publish" // 始终使用发布状态
+                            )
+                            Log.d("ProductsScreen", "更新产品: ID=${product.id}, 名称='${product.name}', 价格=${regularPrice}, 库存状态=${stockStatus}")
+                            onUpdate(updatedProduct)
+                        }
+                    ) {
+                        Text(stringResource(id = R.string.save))
+                    }
+                    
+                    Button(
+                        onClick = onDismiss
+                    ) {
+                        Text(stringResource(id = R.string.cancel))
+                    }
+                }
             }
         }
     }

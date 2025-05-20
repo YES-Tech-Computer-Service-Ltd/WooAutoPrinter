@@ -417,7 +417,6 @@ class WooCommerceApiImpl(
     }
     
     override suspend fun updateProduct(id: Long, data: Map<String, Any>): ProductDto {
-        Log.d("WooCommerceApiImpl", "更新产品 ID:$id 使用PATCH请求，数据: $data")
         return executePatchRequest("products/$id", data)
     }
     
@@ -712,15 +711,13 @@ class WooCommerceApiImpl(
                     .patch(requestBody)
                     .build()
                 
-                Log.d("API请求", "PATCH ${urlBuilder.build()} - 请求体: $jsonBody")
+                Log.d("API请求", "PATCH ${urlBuilder.build()} - $jsonBody")
                 
                 val response = client.newCall(request).execute()
                 val responseBody = response.body?.string() ?: throw Exception("响应体为空")
                 
-                Log.d("API响应", "PATCH ${urlBuilder.build()} - 状态码: ${response.code} - 响应体: $responseBody")
-                
                 if (!response.isSuccessful) {
-                    Log.e("API错误", "HTTP错误: ${response.code} - 响应体: $responseBody")
+                    Log.e("API错误", "HTTP错误: ${response.code}")
                     throw ApiError.fromHttpCode(response.code, "API错误: ${response.code}")
                 }
                 

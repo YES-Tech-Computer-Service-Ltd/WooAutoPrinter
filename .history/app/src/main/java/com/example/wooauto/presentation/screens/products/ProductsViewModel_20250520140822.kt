@@ -31,7 +31,7 @@ class ProductsViewModel @Inject constructor(
     private val productRepository: DomainProductRepository,
     private val settingsRepository: DomainSettingRepository,
     private val context: Context,
-    internal val licenseManager: LicenseManager
+    private val licenseManager: LicenseManager
 ) : ViewModel() {
     
     private val _isConfigured = MutableStateFlow(false)
