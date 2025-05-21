@@ -420,25 +420,25 @@ private fun NoPrintersInfoCard(onAddPrinter: () -> Unit) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 32.dp, horizontal = 16.dp),
+                .padding(vertical = 32.dp, horizontal = 16.dp), // 卡片内部内容边距
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
             Icon(
-                imageVector = Icons.Filled.AddCircleOutline,
-                contentDescription = stringResource(R.string.add_printer_icon_desc),
+                imageVector = Icons.Filled.AddCircleOutline, // 使用更明确的图标
+                contentDescription = stringResource(R.string.add_printer_icon_desc), // 请添加此字符串资源
                 modifier = Modifier.size(64.dp),
                 tint = MaterialTheme.colorScheme.primary
             )
             Spacer(modifier = Modifier.height(24.dp))
             Text(
-                text = stringResource(R.string.no_printers_configured_prompt),
+                text = stringResource(R.string.no_printers_configured_prompt), // 请添加此字符串资源
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurface
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = stringResource(R.string.tap_here_to_add_new_printer),
+                text = stringResource(R.string.tap_here_to_add_new_printer), // 请添加此字符串资源
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

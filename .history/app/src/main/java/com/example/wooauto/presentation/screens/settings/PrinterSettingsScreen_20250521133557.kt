@@ -27,7 +27,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.AddCircleOutline
 import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.BluetoothSearching
 import androidx.compose.material.icons.filled.Check
@@ -165,8 +164,7 @@ private fun PrinterSettingsContent(
         }
         
         if (printerConfigs.isEmpty()) {
-            // 当没有打印机时，显示新的提示卡片
-            NoPrintersInfoCard(onAddPrinter = onAddPrinter)
+            EmptyPrinterState(modifier = Modifier.weight(1f))
         } else {
             // 显示打印机列表
             PrinterList(
@@ -181,7 +179,7 @@ private fun PrinterSettingsContent(
                 onSetDefault = onSetDefault
             )
             
-            // 添加打印机卡片 (即使有打印机也显示，以便添加更多)
+            // 添加打印机卡片
             AddPrinterCard(onClick = onAddPrinter)
         }
         
@@ -407,40 +405,36 @@ private fun ErrorMessageCard(
 }
 
 @Composable
-private fun NoPrintersInfoCard(onAddPrinter: () -> Unit) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 16.dp, horizontal = 8.dp) // 给卡片一些水平边距
-            .clickable { onAddPrinter() },
-        shape = RoundedCornerShape(12.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+private fun EmptyPrinterState(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier.fillMaxWidth(),
+        contentAlignment = Alignment.Center
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 32.dp, horizontal = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
             Icon(
-                imageVector = Icons.Filled.AddCircleOutline,
-                contentDescription = stringResource(R.string.add_printer_icon_desc),
+                imageVector = Icons.Filled.Print,
+                contentDescription = null,
                 modifier = Modifier.size(64.dp),
-                tint = MaterialTheme.colorScheme.primary
+                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
             )
-            Spacer(modifier = Modifier.height(24.dp))
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
             Text(
-                text = stringResource(R.string.no_printers_configured_prompt),
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface
+                text = stringResource(id = R.string.no_printers),
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
             )
+            
             Spacer(modifier = Modifier.height(8.dp))
+            
             Text(
-                text = stringResource(R.string.tap_here_to_add_new_printer),
+                text = stringResource(id = R.string.add_printer_hint),
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
             )
         }
     }

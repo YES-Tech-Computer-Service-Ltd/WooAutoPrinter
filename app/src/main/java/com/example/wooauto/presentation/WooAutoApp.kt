@@ -60,6 +60,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavHostController
 
 private const val TAG = "WooAutoApp"
 
@@ -461,6 +462,11 @@ fun AppContent() {
             }
         }
     }
+}
+
+@Composable
+fun PrinterSettingsScreen(navController: NavHostController) {
+    TODO("Not yet implemented")
 }
 
 
