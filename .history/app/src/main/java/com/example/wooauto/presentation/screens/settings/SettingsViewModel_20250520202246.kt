@@ -44,7 +44,6 @@ import com.example.wooauto.licensing.LicenseManager
 import com.example.wooauto.licensing.LicenseInfo
 import com.example.wooauto.licensing.LicenseStatus
 import com.example.wooauto.licensing.TrialTokenManager
-import com.example.wooauto.licensing.LicenseDataStore
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.liveData
 
@@ -1182,20 +1181,10 @@ class SettingsViewModel @Inject constructor(
      * 获取关于信息文本，包括版本和更新状态
      */
     fun getAboutInfoText(): String {
-        // 如果正在检查更新，显示正在获取版本信息
-        if (_isCheckingUpdate.value) {
-            return context.getString(R.string.fetching_version_info)
-        }
-        
         val currentVersion = updater.getCurrentVersion().toVersionString()
         val updateInfo = _updateInfo.value
         
-        // 如果updateInfo为空，也显示正在获取版本信息
-        if (updateInfo == null) {
-            return context.getString(R.string.fetching_version_info)
-        }
-        
-        return if (updateInfo.needsUpdate()) {
+        return if (updateInfo != null && updateInfo.needsUpdate()) {
             val latestVersion = updateInfo.latestVersion.toVersionString()
             context.getString(R.string.about_version_info, currentVersion,
                 context.getString(R.string.version_needs_update, latestVersion))

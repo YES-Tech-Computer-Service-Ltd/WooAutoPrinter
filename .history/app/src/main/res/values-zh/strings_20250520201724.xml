@@ -412,15 +412,7 @@
     <string name="sound_status_format">%1$s - %2$s</string>
     <string name="sound_disabled">已禁用</string>
 
-    <!-- License Status -->
-    <string name="license_status_valid">证书已验证 - 有效期至 %1$s</string>
-    <string name="license_status_trial">试用期 - 剩余 %1$d 天</string>
-    <string name="license_status_expired">证书已过期</string>
-    <string name="license_status_unverified">证书未激活</string>
-
     <!-- New template settings -->
     <string name="template_settings">模板设置</string>
     <string name="template_settings_desc">自定义收据打印模板</string>
-    
-    <string name="fetching_version_info">正在获取版本信息...</string>
 </resources>

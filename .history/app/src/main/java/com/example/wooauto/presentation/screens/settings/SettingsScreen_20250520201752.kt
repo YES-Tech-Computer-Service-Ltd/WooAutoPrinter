@@ -264,7 +264,7 @@ fun SettingsScreen(
                         SettingItem(
                             icon = Icons.Default.VpnKey,
                             title = stringResource(id = R.string.license_settings),
-                            subtitle = viewModel.licenseStatusText.collectAsState().value,
+                            subtitle = "",
                             onClick = {
                                 Log.d("设置", "点击了许可设置")
                                 navController.navigate(Screen.LicenseSettings.route)
@@ -283,12 +283,8 @@ fun SettingsScreen(
                                 val currentVersion = viewModel.updateInfo.collectAsState().value?.currentVersion?.toVersionString() ?: ""
                                 val hasUpdate = viewModel.hasUpdate.collectAsState().value
                                 val latestVersion = viewModel.updateInfo.collectAsState().value?.latestVersion?.toVersionString() ?: ""
-                                val isCheckingUpdate = viewModel.isCheckingUpdate.collectAsState().value
                                 
-                                if (isCheckingUpdate) {
-                                    // 显示正在获取版本信息
-                                    stringResource(R.string.fetching_version_info)
-                                } else if (currentVersion.isNotEmpty()) {
+                                if (currentVersion.isNotEmpty()) {
                                     if (hasUpdate && latestVersion.isNotEmpty()) {
                                         stringResource(R.string.about_version_info, currentVersion, 
                                             stringResource(R.string.version_needs_update, latestVersion))
@@ -297,8 +293,7 @@ fun SettingsScreen(
                                             stringResource(R.string.version_is_latest))
                                     }
                                 } else {
-                                    // 如果版本信息为空，也显示正在获取中
-                                    stringResource(R.string.fetching_version_info)
+                                    ""
                                 }
                             },
                             onClick = {

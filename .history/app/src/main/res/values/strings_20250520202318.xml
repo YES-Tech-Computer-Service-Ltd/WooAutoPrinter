@@ -419,7 +419,5 @@
 
     <string name="template_settings">Template Settings</string>
     <string name="template_settings_desc">Customize receipt templates</string>
-    
-    <string name="fetching_version_info">Fetching version information...</string>
 
 </resources>

@@ -74,6 +74,9 @@ fun SettingsScreen(
     val templates by viewModel.templates.collectAsState()
     val defaultTemplateType by viewModel.defaultTemplateType.collectAsState()
     
+    // 添加更多初始状态
+    var autoUpdate by remember { mutableStateOf(false) }
+    
     // 预先获取需要用到的字符串资源
     val featureComingSoonText = stringResource(R.string.feature_coming_soon)
     
@@ -264,7 +267,7 @@ fun SettingsScreen(
                         SettingItem(
                             icon = Icons.Default.VpnKey,
                             title = stringResource(id = R.string.license_settings),
-                            subtitle = viewModel.licenseStatusText.collectAsState().value,
+                            subtitle = "",
                             onClick = {
                                 Log.d("设置", "点击了许可设置")
                                 navController.navigate(Screen.LicenseSettings.route)
@@ -283,12 +286,8 @@ fun SettingsScreen(
                                 val currentVersion = viewModel.updateInfo.collectAsState().value?.currentVersion?.toVersionString() ?: ""
                                 val hasUpdate = viewModel.hasUpdate.collectAsState().value
                                 val latestVersion = viewModel.updateInfo.collectAsState().value?.latestVersion?.toVersionString() ?: ""
-                                val isCheckingUpdate = viewModel.isCheckingUpdate.collectAsState().value
                                 
-                                if (isCheckingUpdate) {
-                                    // 显示正在获取版本信息
-                                    stringResource(R.string.fetching_version_info)
-                                } else if (currentVersion.isNotEmpty()) {
+                                if (currentVersion.isNotEmpty()) {
                                     if (hasUpdate && latestVersion.isNotEmpty()) {
                                         stringResource(R.string.about_version_info, currentVersion, 
                                             stringResource(R.string.version_needs_update, latestVersion))
@@ -297,8 +296,7 @@ fun SettingsScreen(
                                             stringResource(R.string.version_is_latest))
                                     }
                                 } else {
-                                    // 如果版本信息为空，也显示正在获取中
-                                    stringResource(R.string.fetching_version_info)
+                                    ""
                                 }
                             },
                             onClick = {
@@ -324,7 +322,7 @@ fun SettingsScreen(
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.GetApp,
-                                    contentDescription = stringResource(R.string.download_update),
+                                    contentDescription = "下载更新",
                                     tint = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier
                                         .padding(8.dp)
@@ -338,7 +336,7 @@ fun SettingsScreen(
                                     val downloadProgress = viewModel.downloadProgress.collectAsState().value
                                     
                                     Text(
-                                        text = if (isDownloading) stringResource(R.string.downloading_update) else stringResource(R.string.download_and_install_update),
+                                        text = if (isDownloading) "正在下载更新..." else "下载并安装更新",
                                         style = MaterialTheme.typography.titleMedium,
                                         color = MaterialTheme.colorScheme.primary
                                     )
@@ -350,7 +348,7 @@ fun SettingsScreen(
                                             modifier = Modifier.fillMaxWidth()
                                         )
                                         Text(
-                                            text = stringResource(R.string.download_running, downloadProgress),
+                                            text = "$downloadProgress%",
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                                         )
@@ -360,6 +358,54 @@ fun SettingsScreen(
                         }
                     }
                     
+                    // 自动更新
+                    Spacer(modifier = Modifier.height(24.dp))
+                    
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = stringResource(R.string.auto_update),
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                            if (viewModel.isCheckingUpdate.collectAsState().value) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        strokeWidth = 2.dp
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "检查更新中...",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.outline
+                                    )
+                                }
+                            } else if (viewModel.hasUpdate.collectAsState().value) {
+                                Text(
+                                    text = "发现新版本",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                        
+                        Switch(
+                            checked = autoUpdate,
+                            onCheckedChange = { 
+                                autoUpdate = it
+                                viewModel.setAutoUpdate(it)
+                            }
+                        )
+                    }
+
                     // 底部空间
                     Spacer(modifier = Modifier.height(24.dp))
                 }

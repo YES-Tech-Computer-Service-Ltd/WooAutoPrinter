@@ -421,6 +421,4 @@
     <!-- New template settings -->
     <string name="template_settings">模板设置</string>
     <string name="template_settings_desc">自定义收据打印模板</string>
-    
-    <string name="fetching_version_info">正在获取版本信息...</string>
 </resources>

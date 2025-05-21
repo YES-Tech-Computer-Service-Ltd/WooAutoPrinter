@@ -404,22 +404,13 @@
     <string name="download_running">Downloading: %1$d%%</string>
     <string name="update_ready_to_install">Update ready to install</string>
     <string name="tap_to_install">Tap to install the downloaded update.</string>
-    <string name="download_and_install_update">Download and Install Update</string>
 
     <string name="sound_volume_format">Volume: %1$d%%</string>
     <string name="sound_type_format">Sound: %1$s</string>
     <string name="sound_status_format">%1$s - %2$s</string>
     <string name="sound_disabled">Disabled</string>
 
-    <!-- License Status -->
-    <string name="license_status_valid">License Verified - Valid until %1$s</string>
-    <string name="license_status_trial">Trial Period - %1$d days remaining</string>
-    <string name="license_status_expired">License Expired</string>
-    <string name="license_status_unverified">License Not Activated</string>
-
     <string name="template_settings">Template Settings</string>
     <string name="template_settings_desc">Customize receipt templates</string>
-    
-    <string name="fetching_version_info">Fetching version information...</string>
 
 </resources>

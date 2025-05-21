@@ -44,7 +44,6 @@ import com.example.wooauto.licensing.LicenseManager
 import com.example.wooauto.licensing.LicenseInfo
 import com.example.wooauto.licensing.LicenseStatus
 import com.example.wooauto.licensing.TrialTokenManager
-import com.example.wooauto.licensing.LicenseDataStore
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.liveData
 
@@ -1182,20 +1181,10 @@ class SettingsViewModel @Inject constructor(
      * 获取关于信息文本，包括版本和更新状态
      */
     fun getAboutInfoText(): String {
-        // 如果正在检查更新，显示正在获取版本信息
-        if (_isCheckingUpdate.value) {
-            return context.getString(R.string.fetching_version_info)
-        }
-        
         val currentVersion = updater.getCurrentVersion().toVersionString()
         val updateInfo = _updateInfo.value
         
-        // 如果updateInfo为空，也显示正在获取版本信息
-        if (updateInfo == null) {
-            return context.getString(R.string.fetching_version_info)
-        }
-        
-        return if (updateInfo.needsUpdate()) {
+        return if (updateInfo != null && updateInfo.needsUpdate()) {
             val latestVersion = updateInfo.latestVersion.toVersionString()
             context.getString(R.string.about_version_info, currentVersion,
                 context.getString(R.string.version_needs_update, latestVersion))
@@ -1343,74 +1332,6 @@ class SettingsViewModel @Inject constructor(
     }
 
     private fun loadLicenseInfo() {
-        viewModelScope.launch {
-            try {
-                // 获取设备ID和应用ID
-                val deviceId = android.provider.Settings.Secure.getString(
-                    context.contentResolver,
-                    android.provider.Settings.Secure.ANDROID_ID
-                )
-                val appId = context.packageName
-                
-                // 获取试用期剩余天数
-                _trialDaysRemaining.value = TrialTokenManager.getRemainingDays(context, deviceId, appId)
-                
-                // 监听许可证信息变化
-                licenseManager.licenseInfo.observeForever { info ->
-                    updateLicenseStatusText(info)
-                }
-                
-                // 立即更新一次许可证状态文本
-                updateLicenseStatusText(licenseManager.licenseInfo.value)
-                
-                Log.d(TAG, "许可证信息加载完成: 状态=${licenseManager.licenseInfo.value?.status}, 试用期剩余=${_trialDaysRemaining.value}")
-            } catch (e: Exception) {
-                Log.e(TAG, "加载许可证信息失败", e)
-            }
-        }
-    }
-    
-    /**
-     * 根据许可证状态更新显示文本
-     */
-    private fun updateLicenseStatusText(info: LicenseInfo?) {
-        viewModelScope.launch {
-            try {
-                if (info == null) {
-                    _licenseStatusText.value = context.getString(R.string.license_status_unverified)
-                    return@launch
-                }
-                
-                _licenseStatusText.value = when (info.status) {
-                    LicenseStatus.VALID -> {
-                        // 格式化有效期信息
-                        val endDate = LicenseDataStore.calculateEndDate(info.activationDate, info.validity)
-                        context.getString(R.string.license_status_valid, endDate)
-                    }
-                    LicenseStatus.TRIAL -> {
-                        val days = _trialDaysRemaining.value ?: 0
-                        context.getString(R.string.license_status_trial, days)
-                    }
-                    LicenseStatus.INVALID, LicenseStatus.TIMEOUT -> {
-                        context.getString(R.string.license_status_expired)
-                    }
-                    else -> {
-                        context.getString(R.string.license_status_unverified)
-                    }
-                }
-                
-                Log.d(TAG, "许可证状态文本已更新: ${_licenseStatusText.value}")
-            } catch (e: Exception) {
-                Log.e(TAG, "更新许可证状态文本失败", e)
-                _licenseStatusText.value = context.getString(R.string.license_status_unverified)
-            }
-        }
-    }
-    
-    /**
-     * 获取许可证状态文本（供UI使用）
-     */
-    fun getLicenseStatusText(): String {
-        return _licenseStatusText.value
+        // Implementation of loadLicenseInfo method
     }
 } 
