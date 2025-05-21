@@ -366,66 +366,20 @@ fun SettingsScreen(
             }
         }
         
-        // 语言选择对话框
+        // 语言设置对话框
         if (showLanguageDialog) {
-            AlertDialog(
+            Dialog(
                 onDismissRequest = { showLanguageDialog = false },
-                title = { Text(stringResource(id = R.string.language)) },
-                text = {
-                    Column {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    // 不再在这里使用LocalContext.current
-                                    viewModel.setAppLanguage(Locale.ENGLISH)
-                                    showLanguageDialog = false
-                                }
-                                .padding(vertical = 12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(stringResource(id = R.string.english))
-                            if (currentLocale.language == "en") {
-                                Icon(
-                                    imageVector = Icons.Default.Check,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                        }
-                        
-                        HorizontalDivider()
-                        
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    // 不再在这里使用LocalContext.current
-                                    viewModel.setAppLanguage(Locale.SIMPLIFIED_CHINESE)
-                                    showLanguageDialog = false
-                                }
-                                .padding(vertical = 12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(stringResource(id = R.string.chinese))
-                            if (currentLocale.language == "zh") {
-                                Icon(
-                                    imageVector = Icons.Default.Check,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                        }
-                    }
-                },
-                confirmButton = {
-                    TextButton(onClick = { showLanguageDialog = false }) {
-                        Text(stringResource(id = R.string.cancel))
-                    }
-                }
-            )
+                properties = DialogProperties(
+                    usePlatformDefaultWidth = false,
+                    dismissOnBackPress = true,
+                    dismissOnClickOutside = true
+                )
+            ) {
+                LanguageSettingsDialogContent(
+                    onClose = { showLanguageDialog = false }
+                )
+            }
         }
 
         // Website Settings Dialog

@@ -407,6 +407,12 @@ fun AppContent() {
                 SoundSettingsScreen(navController = navController)
             }
 
+            // 语言设置页面
+            composable(Screen.LanguageSettings.route) {
+                Log.d(TAG, "导航到语言设置页面")
+                LanguageSettingsScreen()
+            }
+
         }
 
         // 标记 NavHost 已初始化

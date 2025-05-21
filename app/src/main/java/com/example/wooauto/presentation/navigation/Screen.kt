@@ -14,6 +14,7 @@ sealed class Screen(val route: String) {
     object SoundSettings : Screen("sound_settings")
     object AutomationSettings : Screen("automation_settings")
     object LicenseSettings : Screen("license_settings")
+    object LanguageSettings : Screen("language_settings")
 
     
     companion object {

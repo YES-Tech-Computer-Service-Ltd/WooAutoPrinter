@@ -212,6 +212,7 @@
     <string name="language">Language（语言）</string>
     <string name="english">English</string>
     <string name="chinese">中文</string>
+    <string name="language_changed">Language changed</string>
     <string name="auto_close_notification">Auto Close Notification (seconds)</string>
 
     <!-- Setup Wizard -->
