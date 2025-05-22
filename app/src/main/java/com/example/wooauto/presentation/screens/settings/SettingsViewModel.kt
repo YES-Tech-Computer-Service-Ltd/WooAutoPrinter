@@ -510,11 +510,7 @@ class SettingsViewModel @Inject constructor(
                     id = UUID.randomUUID().toString(),
                     name = device.name,
                     address = device.address,
-                    type = device.type,
-                    paperWidth = PrinterConfig.PAPER_WIDTH_57MM, // 默认57mm
-                    isDefault = _printerConfigs.value.isEmpty(), // 如果没有打印机，则设为默认
-                    isAutoPrint = false,
-                    printCopies = 1
+                    type = device.type
                 )
                 
                 // 更新状态

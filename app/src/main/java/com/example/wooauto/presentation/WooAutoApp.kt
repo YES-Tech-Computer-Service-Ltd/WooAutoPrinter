@@ -369,7 +369,10 @@ fun AppContent() {
             // 打印机设置页面
             composable(Screen.PrinterSettings.route) {
                 Log.d(TAG, "导航到打印机设置页面")
-                PrinterSettingsScreen(navController = navController)
+                PrinterSettingsScreen(
+                    navController = navController,
+                    onClose = { navController.popBackStack() }
+                )
             }
 
             // 打印机详情页面

@@ -196,9 +196,9 @@ object OrderMapper {
         val feeLines = parseFeeLines(entity)
         
         // 记录解析到的费用行
-        println("【数据流】订单#${entity.number} 解析到的费用行:")
+        // println("【数据流】订单#${entity.number} 解析到的费用行:")
         feeLines.forEach { feeLine ->
-            println("  - ${feeLine.name}: ${feeLine.total}")
+            // println("  - ${feeLine.name}: ${feeLine.total}")
         }
         
         // 从费用行中查找配送费和小费
@@ -216,13 +216,13 @@ object OrderMapper {
             it.name.contains("appreciation", ignoreCase = true)
         }?.total
         
-        println("【数据流】订单#${entity.number} 从费用行提取 - 配送费: $deliveryFeeFromFeeLine, 小费: $tipFromFeeLine")
+        // println("【数据流】订单#${entity.number} 从费用行提取 - 配送费: $deliveryFeeFromFeeLine, 小费: $tipFromFeeLine")
         
         // 解析WooFood信息，包括外卖费和小费
         val woofoodInfo = parseWooFoodInfo(entity)
         
         // 打印WooFoodInfo内容进行调试
-        println("【数据转换】订单#${entity.number} 从parseWooFoodInfo得到 WooFoodInfo: $woofoodInfo")
+        // println("【数据转换】订单#${entity.number} 从parseWooFoodInfo得到 WooFoodInfo: $woofoodInfo")
         
         // 创建一个更新的WooFoodInfo，确保使用费用行中找到的值(如果有)
         val finalWooFoodInfo = if (woofoodInfo != null) {
@@ -244,7 +244,7 @@ object OrderMapper {
             
             // 创建更新后的WooFoodInfo
             if (finalDeliveryFee != woofoodInfo.deliveryFee || finalTip != woofoodInfo.tip) {
-                println("【数据修正】订单#${entity.number} - 更新WooFoodInfo - 配送费: ${woofoodInfo.deliveryFee} -> $finalDeliveryFee, 小费: ${woofoodInfo.tip} -> $finalTip")
+                // println("【数据修正】订单#${entity.number} - 更新WooFoodInfo - 配送费: ${woofoodInfo.deliveryFee} -> $finalDeliveryFee, 小费: ${woofoodInfo.tip} -> $finalTip")
                 
                 com.example.wooauto.domain.models.WooFoodInfo(
                     orderMethod = woofoodInfo.orderMethod,
@@ -261,7 +261,7 @@ object OrderMapper {
         } else {
             // 如果没有WooFoodInfo但费用行中有配送费，则创建一个
             if (deliveryFeeFromFeeLine != null && deliveryFeeFromFeeLine != "0.00") {
-                println("【数据修正】订单#${entity.number} - 从费用行创建WooFoodInfo - 配送费: $deliveryFeeFromFeeLine")
+                // println("【数据修正】订单#${entity.number} - 从费用行创建WooFoodInfo - 配送费: $deliveryFeeFromFeeLine")
                 
                 com.example.wooauto.domain.models.WooFoodInfo(
                     orderMethod = "delivery",
@@ -277,7 +277,7 @@ object OrderMapper {
         }
         
         // 最终的WooFoodInfo日志
-        println("【数据流】订单#${entity.number} 最终的WooFoodInfo: $finalWooFoodInfo")
+        // println("【数据流】订单#${entity.number} 最终的WooFoodInfo: $finalWooFoodInfo")
         
         // 继续使用更新后的woofoodInfo创建Order对象
         return createOrderWithUpdatedWooFoodInfo(entity, orderItems, finalWooFoodInfo, feeLines)
@@ -383,7 +383,7 @@ object OrderMapper {
                         val extracted = deliveryApiMatch.groupValues[1].replace("[¥￥$\\s]".toRegex(), "")
                         if (extracted.isNotEmpty() && extracted != "0" && extracted != "0.00") {
                             deliveryFee = extracted
-                            println("【来源: API记录】配送费: $deliveryFee")
+                            // println("【来源: API记录】配送费: $deliveryFee")
                             break
                         }
                     }
@@ -395,7 +395,7 @@ object OrderMapper {
                     val feeLineMatch = feeLinePattern.find(entity.customerNote)
                     if (feeLineMatch != null && feeLineMatch.groupValues.size > 1) {
                         deliveryFee = feeLineMatch.groupValues[1]
-                        println("【来源: fee_lines】配送费: $deliveryFee")
+                        // println("【来源: fee_lines】配送费: $deliveryFee")
                     }
                 }
                 
@@ -407,7 +407,7 @@ object OrderMapper {
                     
                     if (deliveryFeeMatch != null && deliveryFeeMatch.groupValues.size > 1) {
                         deliveryFee = deliveryFeeMatch.groupValues[1].replace("[¥￥$\\s]".toRegex(), "")
-                        println("【来源: 常规备注】配送费: $deliveryFee")
+                        // println("【来源: 常规备注】配送费: $deliveryFee")
                     }
                     
                     // 如果没找到，查找Delivery Fee:格式
@@ -416,13 +416,13 @@ object OrderMapper {
                         val directMatch = directFeePattern.find(entity.customerNote)
                         if (directMatch != null && directMatch.groupValues.size > 2) {
                             deliveryFee = directMatch.groupValues[2]
-                            println("【来源: 直接格式】配送费: $deliveryFee")
+                            // println("【来源: 直接格式】配送费: $deliveryFee")
                         }
                     }
                 }
             } catch (e: Exception) {
                 // 忽略错误，不设置默认值
-                println("提取配送费出错: ${e.message}")
+                // println("提取配送费出错: ${e.message}")
             }
         }
         
@@ -432,11 +432,11 @@ object OrderMapper {
             val tipFeeLineMatch = tipFeeLinePattern.find(entity.customerNote)
             if (tipFeeLineMatch != null && tipFeeLineMatch.groupValues.size > 1) {
                 tipAmount = tipFeeLineMatch.groupValues[1]
-                println("【来源: fee_lines】小费: $tipAmount")
+                // println("【来源: fee_lines】小费: $tipAmount")
             } else {
                 tipAmount = extractTipAmount(entity.customerNote)
                 if (tipAmount != null) {
-                    println("【来源: 提取函数】小费: $tipAmount")
+                    // println("【来源: 提取函数】小费: $tipAmount")
                 }
             }
         }
@@ -445,10 +445,10 @@ object OrderMapper {
         if (!isDelivery) {
             deliveryFee = null
         } else if (deliveryFee == null || deliveryFee == "0.00") {
-            println("【调试】发现外卖订单但配送费为0: 订单号#${entity.number}")
+            // println("【调试】发现外卖订单但配送费为0: 订单号#${entity.number}")
         }
         
-        println("【WOOFOOD创建】订单#${entity.number} - 配送费: $deliveryFee, 小费: $tipAmount, 是否外卖: $isDelivery")
+        // println("【WOOFOOD创建】订单#${entity.number} - 配送费: $deliveryFee, 小费: $tipAmount, 是否外卖: $isDelivery")
         
         return com.example.wooauto.domain.models.WooFoodInfo(
             orderMethod = orderMethod,
@@ -567,7 +567,7 @@ object OrderMapper {
     private fun parseFeeLines(entity: OrderEntity): List<com.example.wooauto.domain.models.FeeLine> {
         // 如果实体已经有feeLines字段，直接使用
         if (entity.feeLines.isNotEmpty()) {
-            println("【费用行】订单#${entity.number} - 实体中直接存在${entity.feeLines.size}个费用行")
+            // println("【费用行】订单#${entity.number} - 实体中直接存在${entity.feeLines.size}个费用行")
             return entity.feeLines.map { feeLineEntity ->
                 com.example.wooauto.domain.models.FeeLine(
                     id = feeLineEntity.id,
@@ -594,7 +594,7 @@ object OrderMapper {
                         totalTax = "0.00"
                     )
                 )
-                println("【费用行解析】订单#${entity.number} - 从备注提取配送费: $deliveryFee")
+                // println("【费用行解析】订单#${entity.number} - 从备注提取配送费: $deliveryFee")
             }
             
             val tip = extractTipAmount(entity.customerNote)
@@ -607,10 +607,10 @@ object OrderMapper {
                         totalTax = "0.00"
                     )
                 )
-                println("【费用行解析】订单#${entity.number} - 从备注提取小费: $tip")
+                // println("【费用行解析】订单#${entity.number} - 从备注提取小费: $tip")
             }
         } catch (e: Exception) {
-            println("【费用行解析】订单#${entity.number} - 解析费用行出错: ${e.message}")
+            // println("【费用行解析】订单#${entity.number} - 解析费用行出错: ${e.message}")
         }
         
         return result

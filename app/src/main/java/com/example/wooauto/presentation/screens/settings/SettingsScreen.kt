@@ -148,6 +148,22 @@ fun SettingsScreen(
                         SettingsNavigationItem(
                             title = stringResource(R.string.printer_settings),
                             icon = Icons.Filled.Print,
+                            subTitle = run {
+                                val currentPrinter = viewModel.currentPrinterConfig.collectAsState().value
+                                val printerStatus = viewModel.printerStatus.collectAsState().value
+                                val defaultLabel = stringResource(R.string.default_printer_label)
+                                
+                                if (currentPrinter != null && printerStatus.name == "CONNECTED") {
+                                    "${currentPrinter.name} - ${currentPrinter.paperWidth}mm"
+                                } else {
+                                    val defaultPrinter = viewModel.printerConfigs.collectAsState().value.find { it.isDefault }
+                                    if (defaultPrinter != null) {
+                                        "${defaultPrinter.name} - ${defaultPrinter.paperWidth}mm ($defaultLabel)"
+                                    } else {
+                                        stringResource(R.string.no_printers_configured_prompt)
+                                    }
+                                }
+                            },
                             onClick = {
                                 Log.d("设置导航", "点击了打印设置项")
                                 showPrinterSettingsDialog = true
@@ -478,7 +494,8 @@ fun SettingsScreen(
                 ) {
                     PrinterSettingsDialogContent(
                         viewModel = viewModel,
-                        onClose = { showPrinterSettingsDialog = false }
+                        onClose = { showPrinterSettingsDialog = false },
+                        navController = navController
                     )
                 }
             }

@@ -857,7 +857,7 @@ class OrderRepositoryImpl @Inject constructor(
                     printedOrderIds.add(order.id)
 //                    Log.d("OrderRepositoryImpl", "【打印状态详情】订单 #${order.number} (ID=${order.id}) 状态=$status 已标记为已打印")
                 } else {
-                    Log.d("OrderRepositoryImpl", "【打印状态详情】订单 #${order.number} (ID=${order.id}) 状态=$status 尚未打印")
+//                    Log.d("OrderRepositoryImpl", "【打印状态详情】订单 #${order.number} (ID=${order.id}) 状态=$status 尚未打印")
                 }
             }
         }
