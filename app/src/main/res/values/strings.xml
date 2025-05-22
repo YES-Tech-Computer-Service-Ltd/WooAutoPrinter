@@ -244,8 +244,6 @@
 
     <!-- Common -->
     <string name="save">Save</string>
-    <string name="cancel">Cancel</string>
-    <string name="confirm">Confirm</string>
     <string name="loading">Loading…</string>
     <string name="error">Error</string>
     <string name="success">Success</string>
@@ -336,24 +334,24 @@
     <string name="paired">Paired</string>
     <string name="select">Select</string>
     <string name="request_bluetooth_location_permission">Request Bluetooth and Location permissions</string>
-    <string name="printer_configuration">Printer Configuration</string>
+    <string name="printer_configuration">printer configuration</string>
     <string name="paper_width_setting">Paper Width Setting</string>
     <string name="paper_width">Paper Width</string>
-    <string name="select_paper_width">Select paper width</string>
-    <string name="paper_width_58mm">58mm (50mm effective width)</string>
-    <string name="paper_width_80mm">80mm (72mm effective width)</string>
-    <string name="printer_options">Printer Options</string>
+    <string name="select_paper_width">Select Paper Width</string>
+    <string name="paper_width_58mm">58mm</string>
+    <string name="paper_width_80mm">80mm</string>
+    <string name="printer_options">printer options</string>
     <string name="save_printer_config">Save printer configuration</string>
-    <string name="please_enter_name_address">Please enter printer name and address</string>
+    <string name="please_enter_name_address">please enter name and address</string>
     <string name="printer_config_saved">Printer configuration saved</string>
     <string name="back">Back</string>
 
     <string name="ensure_printer_on">Tip: Make sure the printer is turned on and discoverable. For Android 7 devices, you may need to pair the printer in system Bluetooth settings first.</string>
     <string name="printer_config">Printer Configuration</string>
-    <string name="paper_width_setup">Paper Width Setting</string>
-    <string name="set_default_printer">Set as default printer</string>
-    <string name="request_bluetooth_location_permissions">Request Bluetooth and Location permissions</string>
-    <string name="auto_cut_paper">Auto Cut Paper</string>
+    <string name="printer_basic_info">Printer Basic Info</string>
+    <string name="set_as_default_printer">Set as default printer</string>
+    <string name="confirm_device_selection">Confirm Device Selection</string>
+    <string name="device_selection_confirmation">Are you sure you want to select this device?</string>
 
     <!-- 更新版本相关字符串资源 -->
     <string name="checking_for_updates">Checking for updates…</string>
@@ -426,5 +424,13 @@
     <string name="add_printer_icon_desc">Add printer</string>
     <string name="no_printers_configured_prompt">No printers configured</string>
     <string name="tap_here_to_add_new_printer">Tap here to add a new printer</string>
+    <string name="confirm">confirm</string>
+    <string name="cancel">cancel</string>
+
+    <!-- 打印机操作按钮文字 -->
+    <string name="printer_settings_button">pinrter settings</string>
+    <string name="test_print_button">test print</string>
+    <string name="delete_printer_button">delete printer</string>
+    <string name="default_printer_label">default printer</string>
 
 </resources>

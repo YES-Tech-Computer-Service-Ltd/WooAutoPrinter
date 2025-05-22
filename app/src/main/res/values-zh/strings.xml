@@ -428,4 +428,10 @@
     <string name="add_printer_icon_desc">添加打印机</string>
     <string name="no_printers_configured_prompt">目前没有配置打印机</string>
     <string name="tap_here_to_add_new_printer">点击此处添加新打印机</string>
+
+    <string name="printer_settings_button">打印机设置</string>
+    <string name="test_print_button">测试打印</string>
+    <string name="delete_printer_button">删除打印机</string>
+    <string name="default_printer_label">默认</string>
+
 </resources>
