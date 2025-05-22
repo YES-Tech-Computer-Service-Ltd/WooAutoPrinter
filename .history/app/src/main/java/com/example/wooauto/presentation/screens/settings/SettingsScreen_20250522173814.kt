@@ -74,7 +74,6 @@ fun SettingsScreen(
     
     // 预先获取需要用到的字符串资源
     val featureComingSoonText = stringResource(R.string.feature_coming_soon)
-    val licenseRequiredMessage = stringResource(R.string.license_required_message)
     
     val currentLocale by viewModel.currentLocale.collectAsState(initial = Locale.getDefault())
     
@@ -177,7 +176,7 @@ fun SettingsScreen(
                                     showPrinterSettingsDialog = true
                                 } else {
                                     coroutineScope.launch {
-                                        snackbarHostState.showSnackbar(licenseRequiredMessage)
+                                        snackbarHostState.showSnackbar(stringResource(R.string.license_required_message))
                                     }
                                 }
                             }
@@ -199,7 +198,7 @@ fun SettingsScreen(
                                     showPrintTemplatesDialog = true
                                 } else {
                                     coroutineScope.launch {
-                                        snackbarHostState.showSnackbar(licenseRequiredMessage)
+                                        snackbarHostState.showSnackbar(stringResource(R.string.license_required_message))
                                     }
                                 }
                             }
@@ -226,16 +225,9 @@ fun SettingsScreen(
                                     stringResource(R.string.sound_disabled)
                                 }
                             },
-                            isLocked = !isLicenseValid,
                             onClick = {
-                                if (isLicenseValid) {
-                                    Log.d("设置导航", "点击了声音设置项")
-                                    showSoundSettingsDialog = true
-                                } else {
-                                    coroutineScope.launch {
-                                        snackbarHostState.showSnackbar(licenseRequiredMessage)
-                                    }
-                                }
+                                Log.d("设置导航", "点击了声音设置项")
+                                showSoundSettingsDialog = true
                             }
                         )
                         
@@ -275,16 +267,9 @@ fun SettingsScreen(
                                 }
                             },
                             icon = Icons.Filled.SettingsApplications,
-                            isLocked = !isLicenseValid,
                             onClick = {
-                                if (isLicenseValid) {
-                                    Log.d("设置导航", "点击了自动打印设置项")
-                                    showAutomationSettingsDialog = true
-                                } else {
-                                    coroutineScope.launch {
-                                        snackbarHostState.showSnackbar(licenseRequiredMessage)
-                                    }
-                                }
+                                Log.d("设置导航", "点击了自动打印设置项")
+                                showAutomationSettingsDialog = true 
                             }
                         )
                     }

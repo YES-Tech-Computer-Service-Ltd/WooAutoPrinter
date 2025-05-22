@@ -74,7 +74,6 @@ fun SettingsScreen(
     
     // 预先获取需要用到的字符串资源
     val featureComingSoonText = stringResource(R.string.feature_coming_soon)
-    val licenseRequiredMessage = stringResource(R.string.license_required_message)
     
     val currentLocale by viewModel.currentLocale.collectAsState(initial = Locale.getDefault())
     
@@ -177,7 +176,7 @@ fun SettingsScreen(
                                     showPrinterSettingsDialog = true
                                 } else {
                                     coroutineScope.launch {
-                                        snackbarHostState.showSnackbar(licenseRequiredMessage)
+                                        snackbarHostState.showSnackbar(stringResource(R.string.license_required_message))
                                     }
                                 }
                             }
@@ -199,7 +198,7 @@ fun SettingsScreen(
                                     showPrintTemplatesDialog = true
                                 } else {
                                     coroutineScope.launch {
-                                        snackbarHostState.showSnackbar(licenseRequiredMessage)
+                                        snackbarHostState.showSnackbar(stringResource(R.string.license_required_message))
                                     }
                                 }
                             }
@@ -233,7 +232,7 @@ fun SettingsScreen(
                                     showSoundSettingsDialog = true
                                 } else {
                                     coroutineScope.launch {
-                                        snackbarHostState.showSnackbar(licenseRequiredMessage)
+                                        snackbarHostState.showSnackbar(stringResource(R.string.license_required_message))
                                     }
                                 }
                             }
@@ -282,7 +281,7 @@ fun SettingsScreen(
                                     showAutomationSettingsDialog = true
                                 } else {
                                     coroutineScope.launch {
-                                        snackbarHostState.showSnackbar(licenseRequiredMessage)
+                                        snackbarHostState.showSnackbar(stringResource(R.string.license_required_message))
                                     }
                                 }
                             }
