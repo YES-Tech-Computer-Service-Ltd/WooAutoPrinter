@@ -187,6 +187,7 @@ class MainActivity : ComponentActivity(), OrderNotificationManager.NotificationC
         isInitialized.set(true)
     }
     
+    @RequiresApi(Build.VERSION_CODES.S)
     @Composable
     private fun MainAppContent() {
         WooAutoTheme {
@@ -194,7 +195,7 @@ class MainActivity : ComponentActivity(), OrderNotificationManager.NotificationC
                 modifier = Modifier.fillMaxSize(),
                 color = MaterialTheme.colorScheme.background
             ) {
-                WooAutoApp.getContent()
+                WooAutoApp.GetContent()
                 
                 // 显示新订单弹窗
                 if (showNewOrderDialog && currentNewOrder != null) {
