@@ -2,6 +2,8 @@ package com.example.wooauto.presentation.screens.settings.PrinterSettings
 
 import android.Manifest
 import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothManager
+import android.content.Context
 import android.os.Build
 import android.util.Log
 import androidx.annotation.RequiresPermission
@@ -38,6 +40,7 @@ import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -87,7 +90,9 @@ import com.example.wooauto.presentation.navigation.Screen
 import kotlinx.coroutines.launch
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.example.wooauto.presentation.screens.settings.SettingsViewModel
+import kotlinx.coroutines.delay
 
 @Composable
 private fun PrinterList(
@@ -99,9 +104,13 @@ private fun PrinterList(
     onEdit: (PrinterConfig) -> Unit,
     onDelete: (PrinterConfig) -> Unit,
     onTestPrint: (PrinterConfig) -> Unit,
-    onSetDefault: (PrinterConfig, Boolean) -> Unit
+    onSetDefault: (PrinterConfig, Boolean) -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    LazyColumn {
+    LazyColumn(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
         items(printerConfigs) { printer ->
             PrinterConfigItem(
                 printerConfig = printer,
@@ -113,13 +122,6 @@ private fun PrinterList(
                 onTestPrint = { onTestPrint(printer) },
                 onSetDefault = { isDefault -> onSetDefault(printer, isDefault) }
             )
-            
-            if (printer != printerConfigs.last()) {
-                HorizontalDivider(
-                    modifier = Modifier.padding(vertical = 8.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant
-                )
-            }
         }
     }
 }
@@ -134,7 +136,6 @@ private fun PrinterSettingsContent(
     isScanning: Boolean,
     availablePrinters: List<PrinterDevice>,
     connectionErrorMessage: String?,
-    isConnecting: Boolean,
     showDeleteDialog: Boolean,
     printerToDelete: PrinterConfig?,
     showScanDialog: Boolean,
@@ -152,38 +153,45 @@ private fun PrinterSettingsContent(
     onConfirmDelete: () -> Unit,
     onDismissScanDialog: () -> Unit
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(16.dp)
+    Box(
+        modifier = modifier.fillMaxSize()
     ) {
-        // 显示错误消息（如果有）
-        if (connectionErrorMessage != null) {
-            ErrorMessageCard(
-                errorMessage = connectionErrorMessage,
-                onDismiss = onClearError
-            )
-        }
-        
-        if (printerConfigs.isEmpty()) {
-            // 当没有打印机时，显示新的提示卡片
-            NoPrintersInfoCard(onAddPrinter = onAddPrinter)
-        } else {
-            // 显示打印机列表
-            PrinterList(
-                printerConfigs = printerConfigs,
-                currentPrinterConfig = currentPrinterConfig,
-                printerStatus = printerStatus,
-                isPrinting = isPrinting,
-                onConnect = onConnect,
-                onEdit = onEdit,
-                onDelete = onDelete,
-                onTestPrint = onTestPrint,
-                onSetDefault = onSetDefault
-            )
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp)
+        ) {
+            // 显示错误消息（如果有）
+            if (connectionErrorMessage != null) {
+                ErrorMessageCard(
+                    errorMessage = connectionErrorMessage,
+                    onDismiss = onClearError
+                )
+            }
             
-            // 添加打印机卡片 (即使有打印机也显示，以便添加更多)
-            AddPrinterCard(onClick = onAddPrinter)
+            if (printerConfigs.isEmpty()) {
+                // 当没有打印机时，显示新的提示卡片
+                NoPrintersInfoCard(onAddPrinter = onAddPrinter)
+            } else {
+                // 显示打印机列表 - 使用权重让其占用剩余空间
+                PrinterList(
+                    printerConfigs = printerConfigs,
+                    currentPrinterConfig = currentPrinterConfig,
+                    printerStatus = printerStatus,
+                    isPrinting = isPrinting,
+                    onConnect = onConnect,
+                    onEdit = onEdit,
+                    onDelete = onDelete,
+                    onTestPrint = onTestPrint,
+                    onSetDefault = onSetDefault,
+                    modifier = Modifier.weight(1f)
+                )
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                // 添加打印机卡片 (即使有打印机也显示，以便添加更多)
+                AddPrinterCard(onClick = onAddPrinter)
+            }
         }
         
         // 删除确认对话框
@@ -211,9 +219,10 @@ private fun PrinterSettingsContent(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-public fun PrinterSettingsScreen(
+fun PrinterSettingsScreen(
     navController: NavController,
-    viewModel: SettingsViewModel = hiltViewModel()
+    viewModel: SettingsViewModel = hiltViewModel(),
+    onClose: () -> Unit
 ) {
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -225,31 +234,30 @@ public fun PrinterSettingsScreen(
     val isScanning by viewModel.isScanning.collectAsState()
     val availablePrinters by viewModel.availablePrinters.collectAsState()
     val connectionErrorMessage by viewModel.connectionErrorMessage.collectAsState()
-    val isConnecting by viewModel.isConnecting.collectAsState()
     
     var showDeleteDialog by remember { mutableStateOf(false) }
     var printerToDelete by remember { mutableStateOf<PrinterConfig?>(null) }
     var showScanDialog by remember { mutableStateOf(false) }
+    var showConfigurationDialog by remember { mutableStateOf(false) }
+    var selectedPrinterForConfig by remember { mutableStateOf<PrinterConfig?>(null) }
     
-    // 预先获取一些字符串资源
     val printerConnectedSuccessMsg = stringResource(id = R.string.printer_connected_success)
     val printerDisconnectedMsg = stringResource(id = R.string.printer_disconnected)
     val printerConnectionFailedMsg = stringResource(id = R.string.printer_connection_failed)
-    val connectingPrinterMsg = stringResource(id = R.string.connecting_printer)
     val testPrintSuccessMsg = stringResource(id = R.string.test_print_success)
     val testPrintFailedMsg = stringResource(id = R.string.test_print_failed)
-    val printerErrorMsg = stringResource(id = R.string.printer_error)
     val setAsDefaultSuccessMsg = stringResource(id = R.string.set_as_default_success)
     val printerDeletedMsg = stringResource(id = R.string.printer_deleted)
-    val addPrinterText = stringResource(id = R.string.add_printer)
-    val backText = stringResource(id = R.string.back)
+    val closeButtonDesc = stringResource(R.string.close)
     val printerSettingsTitle = stringResource(id = R.string.printer_settings_title)
+    val connectingPrinterMsg = stringResource(id = R.string.connecting_printer)
+    val printerConfigSavedMsg = stringResource(id = R.string.printer_config_saved)
     
     LaunchedEffect(key1 = Unit) {
         viewModel.loadPrinterConfigs()
     }
     
-    LaunchedEffect(printerStatus, connectionErrorMessage, isConnecting) {
+    LaunchedEffect(printerStatus, connectionErrorMessage) {
         if (printerStatus == PrinterStatus.CONNECTED && showScanDialog) {
             showScanDialog = false
             snackbarHostState.showSnackbar(printerConnectedSuccessMsg)
@@ -262,21 +270,13 @@ public fun PrinterSettingsScreen(
             TopAppBar(
                 title = { Text(printerSettingsTitle) },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = backText)
+                    IconButton(onClick = onClose) {
+                        Icon(Icons.Default.Close, contentDescription = closeButtonDesc)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                ),
-                actions = {
-                    IconButton(onClick = { 
-                        navController.navigate(Screen.PrinterDetails.printerDetailsRoute("new"))
-                    }) {
-                        Icon(Icons.Default.Add, contentDescription = addPrinterText)
-                    }
-                }
+                    containerColor = MaterialTheme.colorScheme.surface,
+                )
             )
         }
     ) { paddingValues ->
@@ -289,7 +289,6 @@ public fun PrinterSettingsScreen(
             isScanning = isScanning,
             availablePrinters = availablePrinters,
             connectionErrorMessage = connectionErrorMessage,
-            isConnecting = isConnecting,
             showDeleteDialog = showDeleteDialog,
             printerToDelete = printerToDelete,
             showScanDialog = showScanDialog,
@@ -309,7 +308,8 @@ public fun PrinterSettingsScreen(
                 }
             },
             onEdit = { printer ->
-                navController.navigate(Screen.PrinterDetails.printerDetailsRoute(printer.id))
+                selectedPrinterForConfig = printer
+                showConfigurationDialog = true
             },
             onDelete = { printer ->
                 printerToDelete = printer
@@ -327,7 +327,7 @@ public fun PrinterSettingsScreen(
                             snackbarHostState.showSnackbar(errorMsgDisplay)
                         }
                     } catch (e: Exception) {
-                        snackbarHostState.showSnackbar("$printerErrorMsg ${e.message ?: ""}")
+                        snackbarHostState.showSnackbar("打印机错误: ${e.message ?: ""}")
                     }
                 }
             },
@@ -341,21 +341,11 @@ public fun PrinterSettingsScreen(
                 }
             },
             onClearError = { viewModel.clearConnectionError() },
-            onAddPrinter = { navController.navigate(Screen.PrinterDetails.printerDetailsRoute("new")) },
+            onAddPrinter = { showScanDialog = true },
             onScan = { viewModel.scanPrinters() },
-            onStopScan = {
-                if (viewModel.getPrinterManager() is BluetoothPrinterManager) {
-                    (viewModel.getPrinterManager() as BluetoothPrinterManager).stopDiscovery()
-                }
-                viewModel.stopScanning()
-            },
+            onStopScan = { viewModel.stopScanning() },
             onDeviceSelected = { device ->
-                if (!isConnecting) {
-                    viewModel.connectPrinter(device)
-                    if (device.status == PrinterStatus.CONNECTED) {
-                        showScanDialog = false
-                    }
-                }
+                viewModel.connectPrinter(device)
             },
             onDismissDeleteDialog = { showDeleteDialog = false },
             onConfirmDelete = {
@@ -369,6 +359,59 @@ public fun PrinterSettingsScreen(
             },
             onDismissScanDialog = { showScanDialog = false }
         )
+        
+        // 配置对话框
+        if (showConfigurationDialog && selectedPrinterForConfig != null) {
+            Dialog(
+                onDismissRequest = { showConfigurationDialog = false },
+                properties = DialogProperties(
+                    usePlatformDefaultWidth = false,
+                    dismissOnBackPress = true,
+                    dismissOnClickOutside = true
+                )
+            ) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth(0.95f)
+                        .height(600.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                ) {
+                    val printer = selectedPrinterForConfig!!
+                    ConfigurationScreen(
+                        paperWidth = printer.paperWidth.toString(),
+                        onPaperWidthChange = { paperWidth ->
+                            selectedPrinterForConfig = printer.copy(
+                                paperWidth = paperWidth.toIntOrNull() ?: PrinterConfig.PAPER_WIDTH_57MM
+                            )
+                        },
+                        isDefault = printer.isDefault,
+                        onIsDefaultChange = { isDefault ->
+                            selectedPrinterForConfig = printer.copy(isDefault = isDefault)
+                        },
+                        name = printer.name,
+                        onNameChange = { name ->
+                            selectedPrinterForConfig = printer.copy(name = name)
+                        },
+                        address = printer.address,
+                        onAddressChange = { address ->
+                            selectedPrinterForConfig = printer.copy(address = address)
+                        },
+                        onSave = {
+                            viewModel.savePrinterConfig(selectedPrinterForConfig!!)
+                            coroutineScope.launch {
+                                snackbarHostState.showSnackbar(printerConfigSavedMsg)
+                                delay(500)
+                                showConfigurationDialog = false
+                            }
+                        },
+                        onClose = { showConfigurationDialog = false },
+                        viewModel = viewModel,
+                        snackbarHostState = snackbarHostState
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -739,136 +782,143 @@ private fun PrinterConfigItem(
                 .fillMaxWidth()
                 .padding(16.dp)
         ) {
-            // 打印机名称和状态
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // 默认打印机指示器
-                if (printerConfig.isDefault) {
-                    DefaultPrinterIndicator()
-                }
-                
-                // 打印机名称
                 Column(
                     modifier = Modifier.weight(1f)
                 ) {
                     Text(
-                        text = printerConfig.getDisplayName(),
+                        text = printerConfig.name,
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        fontWeight = FontWeight.Bold
                     )
-                    
-                    Text(
-                        text = stringResource(id = R.string.is_default_printer),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    PrinterInfo(printerConfig)
                 }
                 
-                // 连接状态指示器
-                ConnectionStatusIndicator(isPrinting = isPrinting, isConnected = isConnected)
-                
-                Spacer(modifier = Modifier.width(8.dp))
-                
-                // 连接/断开按钮
-                ConnectButton(isPrinting = isPrinting, isConnected = isConnected, onClick = onConnect)
+                // 连接按钮
+                Button(
+                    onClick = onConnect,
+                    enabled = !isPrinting
+                ) {
+                    if (isPrinting) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Text(
+                            text = if (isConnected) {
+                                stringResource(id = R.string.disconnect)
+                            } else {
+                                stringResource(id = R.string.connect)
+                            }
+                        )
+                    }
+                }
             }
-            
-            Spacer(modifier = Modifier.height(8.dp))
-            
-            // 打印机地址和其他信息
-            PrinterInfo(printerConfig = printerConfig)
             
             Spacer(modifier = Modifier.height(12.dp))
             
-            // 操作按钮
-            PrinterActions(
-                isConnected = isConnected,
-                isPrinting = isPrinting,
-                onEdit = onEdit,
-                onTestPrint = onTestPrint,
-                onDelete = onDelete
-            )
-            
-            // 设为默认打印机开关
-            if (!printerConfig.isDefault) {
-                Spacer(modifier = Modifier.height(8.dp))
-                DefaultPrinterSwitch(
-                    isDefault = printerConfig.isDefault,
-                    onSetDefault = onSetDefault
-                )
-            }
-            
-            // 自动打印开关
-            if (printerConfig.isDefault) {
-                Spacer(modifier = Modifier.height(8.dp))
-                AutoPrintSwitch(
-                    printerConfig = printerConfig,
-                    onSetDefault = onSetDefault
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun DefaultPrinterIndicator() {
-    Box(
-        modifier = Modifier
-            .size(24.dp)
-            .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.primary)
-            .padding(4.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(
-            imageVector = Icons.Filled.Check,
-            contentDescription = "默认",
-            tint = MaterialTheme.colorScheme.onPrimary,
-            modifier = Modifier.size(16.dp)
-        )
-    }
-    
-    Spacer(modifier = Modifier.width(8.dp))
-}
-
-@Composable
-private fun ConnectionStatusIndicator(isPrinting: Boolean, isConnected: Boolean) {
-    Box(
-        modifier = Modifier
-            .size(12.dp)
-            .clip(CircleShape)
-            .background(
-                when {
-                    isPrinting -> MaterialTheme.colorScheme.tertiary
-                    isConnected -> MaterialTheme.colorScheme.primary
-                    else -> MaterialTheme.colorScheme.error
+            // 三个操作按钮 - 横向排列
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // 设置按钮
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier
+                        .clickable { onEdit() }
+                        .padding(12.dp)
+                        .weight(1f)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Settings,
+                        contentDescription = stringResource(id = R.string.edit_printer),
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(28.dp)
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = stringResource(id = R.string.printer_settings_button),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
-            )
-            .border(
-                width = 2.dp,
-                color = MaterialTheme.colorScheme.surface,
-                shape = CircleShape
-            )
-    )
-}
-
-@Composable
-private fun ConnectButton(isPrinting: Boolean, isConnected: Boolean, onClick: () -> Unit) {
-    TextButton(onClick = onClick) {
-        if (isPrinting) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(24.dp),
-                strokeWidth = 2.dp
-            )
-        } else {
-            Text(
-                text = if (isConnected) stringResource(id = R.string.disconnect) else stringResource(id = R.string.connect),
-                color = if (isConnected) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
-            )
+                
+                // 测试打印按钮
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier
+                        .clickable { onTestPrint() }
+                        .padding(12.dp)
+                        .weight(1f)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Print,
+                        contentDescription = stringResource(id = R.string.test_print),
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(28.dp)
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = stringResource(id = R.string.test_print_button),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                
+                // 删除按钮
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier
+                        .clickable { onDelete() }
+                        .padding(12.dp)
+                        .weight(1f)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = stringResource(id = R.string.delete_printer),
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(28.dp)
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = stringResource(id = R.string.delete_printer_button),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            // 底部区域：默认打印机设置
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.clickable { onSetDefault(!printerConfig.isDefault) }
+            ) {
+                Switch(
+                    checked = printerConfig.isDefault,
+                    onCheckedChange = onSetDefault
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = stringResource(id = R.string.set_as_default),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
         }
     }
 }
@@ -894,111 +944,13 @@ private fun PrinterInfo(printerConfig: PrinterConfig) {
     )
 }
 
-@Composable
-private fun PrinterActions(
-    isConnected: Boolean,
-    isPrinting: Boolean,
-    onEdit: () -> Unit,
-    onTestPrint: () -> Unit,
-    onDelete: () -> Unit
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        // 编辑按钮
-        IconButton(onClick = onEdit) {
-            Icon(
-                imageVector = Icons.Default.Edit,
-                contentDescription = stringResource(id = R.string.edit),
-                tint = MaterialTheme.colorScheme.primary
-            )
-        }
-        
-        // 测试打印按钮
-        TextButton(
-            onClick = onTestPrint,
-            enabled = isConnected && !isPrinting
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Print,
-                contentDescription = stringResource(id = R.string.test_print),
-                tint = MaterialTheme.colorScheme.primary
-            )
-            Spacer(modifier = Modifier.width(4.dp))
-            Text(stringResource(id = R.string.test_print_action))
-        }
-        
-        // 删除按钮
-        TextButton(onClick = onDelete) {
-            Icon(
-                imageVector = Icons.Filled.Delete,
-                contentDescription = stringResource(id = R.string.delete),
-                tint = MaterialTheme.colorScheme.error
-            )
-            Spacer(modifier = Modifier.width(4.dp))
-            Text(
-                text = stringResource(id = R.string.delete),
-                color = MaterialTheme.colorScheme.error
-            )
-        }
-    }
-}
-
-@Composable
-private fun DefaultPrinterSwitch(isDefault: Boolean, onSetDefault: (Boolean) -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onSetDefault(!isDefault) },
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = stringResource(id = R.string.set_as_default),
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.weight(1f)
-        )
-        
-        Switch(
-            checked = isDefault,
-            onCheckedChange = { onSetDefault(!isDefault) }
-        )
-    }
-}
-
-@Composable
-private fun AutoPrintSwitch(printerConfig: PrinterConfig, onSetDefault: (Boolean) -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable {
-                val updatedConfig = printerConfig.copy(isAutoPrint = !printerConfig.isAutoPrint)
-                onSetDefault(updatedConfig.isDefault)
-            },
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = stringResource(id = R.string.auto_print_new_orders),
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.weight(1f)
-        )
-        
-        Switch(
-            checked = printerConfig.isAutoPrint,
-            onCheckedChange = {
-                val updatedConfig = printerConfig.copy(isAutoPrint = it)
-                onSetDefault(updatedConfig.isDefault)
-            }
-        )
-    }
-}
-
 /**
- * 检查设备是否已配对 (不需要Composable上下文的版本)
+ * 检查设备是否已配对
  */
-@RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+@Composable
 private fun isPairedDevice(device: PrinterDevice): Boolean {
-    val bluetoothAdapter = BluetoothAdapter.getDefaultAdapter() ?: return false
+    val bluetoothManager = LocalContext.current.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
+    val bluetoothAdapter = bluetoothManager.adapter ?: return false
     try {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             //todo
@@ -1022,7 +974,8 @@ private fun isPairedDevice(device: PrinterDevice): Boolean {
 @Composable
 public fun PrinterSettingsDialogContent(
     viewModel: SettingsViewModel = hiltViewModel(),
-    onClose: () -> Unit
+    onClose: () -> Unit,
+    navController: NavController
 ) {
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -1034,29 +987,30 @@ public fun PrinterSettingsDialogContent(
     val isScanning by viewModel.isScanning.collectAsState()
     val availablePrinters by viewModel.availablePrinters.collectAsState()
     val connectionErrorMessage by viewModel.connectionErrorMessage.collectAsState()
-    val isConnecting by viewModel.isConnecting.collectAsState()
     
     var showDeleteDialog by remember { mutableStateOf(false) }
     var printerToDelete by remember { mutableStateOf<PrinterConfig?>(null) }
     var showScanDialog by remember { mutableStateOf(false) }
+    var showConfigurationDialog by remember { mutableStateOf(false) }
+    var selectedPrinterForConfig by remember { mutableStateOf<PrinterConfig?>(null) }
     
     val printerConnectedSuccessMsg = stringResource(id = R.string.printer_connected_success)
     val printerDisconnectedMsg = stringResource(id = R.string.printer_disconnected)
     val printerConnectionFailedMsg = stringResource(id = R.string.printer_connection_failed)
-    val connectingPrinterMsg = stringResource(id = R.string.connecting_printer)
     val testPrintSuccessMsg = stringResource(id = R.string.test_print_success)
     val testPrintFailedMsg = stringResource(id = R.string.test_print_failed)
-    val printerErrorMsg = stringResource(id = R.string.printer_error)
     val setAsDefaultSuccessMsg = stringResource(id = R.string.set_as_default_success)
     val printerDeletedMsg = stringResource(id = R.string.printer_deleted)
     val closeButtonDesc = stringResource(R.string.close)
     val printerSettingsTitle = stringResource(id = R.string.printer_settings_title)
+    val connectingPrinterMsg = stringResource(id = R.string.connecting_printer)
+    val printerConfigSavedMsg = stringResource(id = R.string.printer_config_saved)
     
     LaunchedEffect(key1 = Unit) {
         viewModel.loadPrinterConfigs()
     }
     
-    LaunchedEffect(printerStatus, connectionErrorMessage, isConnecting) {
+    LaunchedEffect(printerStatus, connectionErrorMessage) {
         if (printerStatus == PrinterStatus.CONNECTED && showScanDialog) {
             showScanDialog = false
             snackbarHostState.showSnackbar(printerConnectedSuccessMsg)
@@ -1088,7 +1042,6 @@ public fun PrinterSettingsDialogContent(
             isScanning = isScanning,
             availablePrinters = availablePrinters,
             connectionErrorMessage = connectionErrorMessage,
-            isConnecting = isConnecting,
             showDeleteDialog = showDeleteDialog,
             printerToDelete = printerToDelete,
             showScanDialog = showScanDialog,
@@ -1108,7 +1061,8 @@ public fun PrinterSettingsDialogContent(
                 }
             },
             onEdit = { printer ->
-                Log.d("PrinterSettings", "Edit printer: ${printer.id}")
+                selectedPrinterForConfig = printer
+                showConfigurationDialog = true
             },
             onDelete = { printer ->
                 printerToDelete = printer
@@ -1126,7 +1080,7 @@ public fun PrinterSettingsDialogContent(
                             snackbarHostState.showSnackbar(errorMsgDisplay)
                         }
                     } catch (e: Exception) {
-                        snackbarHostState.showSnackbar("$printerErrorMsg ${e.message ?: ""}")
+                        snackbarHostState.showSnackbar("打印机错误: ${e.message ?: ""}")
                     }
                 }
             },
@@ -1142,19 +1096,9 @@ public fun PrinterSettingsDialogContent(
             onClearError = { viewModel.clearConnectionError() },
             onAddPrinter = { showScanDialog = true },
             onScan = { viewModel.scanPrinters() },
-            onStopScan = {
-                if (viewModel.getPrinterManager() is BluetoothPrinterManager) {
-                    (viewModel.getPrinterManager() as BluetoothPrinterManager).stopDiscovery()
-                }
-                viewModel.stopScanning()
-            },
+            onStopScan = { viewModel.stopScanning() },
             onDeviceSelected = { device ->
-                if (!isConnecting) {
-                    viewModel.connectPrinter(device)
-                    if (device.status == PrinterStatus.CONNECTED) {
-                        showScanDialog = false
-                    }
-                }
+                viewModel.connectPrinter(device)
             },
             onDismissDeleteDialog = { showDeleteDialog = false },
             onConfirmDelete = {
@@ -1168,5 +1112,58 @@ public fun PrinterSettingsDialogContent(
             },
             onDismissScanDialog = { showScanDialog = false }
         )
+        
+        // 配置对话框
+        if (showConfigurationDialog && selectedPrinterForConfig != null) {
+            Dialog(
+                onDismissRequest = { showConfigurationDialog = false },
+                properties = DialogProperties(
+                    usePlatformDefaultWidth = false,
+                    dismissOnBackPress = true,
+                    dismissOnClickOutside = true
+                )
+            ) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth(0.95f)
+                        .height(600.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                ) {
+                    val printer = selectedPrinterForConfig!!
+                    ConfigurationScreen(
+                        paperWidth = printer.paperWidth.toString(),
+                        onPaperWidthChange = { paperWidth ->
+                            selectedPrinterForConfig = printer.copy(
+                                paperWidth = paperWidth.toIntOrNull() ?: PrinterConfig.PAPER_WIDTH_57MM
+                            )
+                        },
+                        isDefault = printer.isDefault,
+                        onIsDefaultChange = { isDefault ->
+                            selectedPrinterForConfig = printer.copy(isDefault = isDefault)
+                        },
+                        name = printer.name,
+                        onNameChange = { name ->
+                            selectedPrinterForConfig = printer.copy(name = name)
+                        },
+                        address = printer.address,
+                        onAddressChange = { address ->
+                            selectedPrinterForConfig = printer.copy(address = address)
+                        },
+                        onSave = {
+                            viewModel.savePrinterConfig(selectedPrinterForConfig!!)
+                            coroutineScope.launch {
+                                snackbarHostState.showSnackbar(printerConfigSavedMsg)
+                                delay(500)
+                                showConfigurationDialog = false
+                            }
+                        },
+                        onClose = { showConfigurationDialog = false },
+                        viewModel = viewModel,
+                        snackbarHostState = snackbarHostState
+                    )
+                }
+            }
+        }
     }
 } 
