@@ -478,6 +478,7 @@ fun SettingsScreen(
                 ) {
                     PrinterSettingsDialogContent(
                         viewModel = viewModel,
+                        navController = navController,
                         onClose = { showPrinterSettingsDialog = false }
                     )
                 }

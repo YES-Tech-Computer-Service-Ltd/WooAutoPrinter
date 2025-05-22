@@ -62,7 +62,6 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.example.wooauto.presentation.screens.settings.PrinterSettings.PrinterDetailsScreen
-import com.example.wooauto.presentation.screens.settings.PrinterSettings.PrinterSettingsScreen
 
 private const val TAG = "WooAutoApp"
 
@@ -466,7 +465,10 @@ fun AppContent() {
     }
 }
 
-// 使用现有的PrinterSettingsScreen组件，移除未实现的组件
+@Composable
+fun PrinterSettingsScreen(navController: NavHostController) {
+    TODO("Not yet implemented")
+}
 
 
 @RequiresApi(Build.VERSION_CODES.S)

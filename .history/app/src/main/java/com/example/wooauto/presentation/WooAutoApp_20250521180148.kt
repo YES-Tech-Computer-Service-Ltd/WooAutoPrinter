@@ -62,7 +62,6 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.example.wooauto.presentation.screens.settings.PrinterSettings.PrinterDetailsScreen
-import com.example.wooauto.presentation.screens.settings.PrinterSettings.PrinterSettingsScreen
 
 private const val TAG = "WooAutoApp"
 

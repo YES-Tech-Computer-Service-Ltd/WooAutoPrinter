@@ -52,7 +52,7 @@ import com.example.wooauto.presentation.components.WooTopBar
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import com.example.wooauto.presentation.screens.settings.PrinterSettings.PrinterSettingsDialogContent
+import com.example.wooauto.presentation.screens.settings.PrinterSettings.PrinterListDialogContent
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -150,7 +150,7 @@ fun SettingsScreen(
                             icon = Icons.Filled.Print,
                             onClick = {
                                 Log.d("设置导航", "点击了打印设置项")
-                                showPrinterSettingsDialog = true
+                                navController.navigate(Screen.PrinterSettings.route)
                             }
                         )
                         
@@ -476,8 +476,9 @@ fun SettingsScreen(
                     shape = RoundedCornerShape(16.dp),
                     elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
                 ) {
-                    PrinterSettingsDialogContent(
+                    PrinterListDialogContent(
                         viewModel = viewModel,
+                        navController = navController,
                         onClose = { showPrinterSettingsDialog = false }
                     )
                 }

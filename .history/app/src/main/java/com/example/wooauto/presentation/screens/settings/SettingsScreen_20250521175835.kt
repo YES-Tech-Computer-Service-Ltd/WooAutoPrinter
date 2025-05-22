@@ -52,7 +52,7 @@ import com.example.wooauto.presentation.components.WooTopBar
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import com.example.wooauto.presentation.screens.settings.PrinterSettings.PrinterSettingsDialogContent
+import com.example.wooauto.presentation.screens.settings.PrinterSettings.PrinterListDialogContent
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -478,6 +478,7 @@ fun SettingsScreen(
                 ) {
                     PrinterSettingsDialogContent(
                         viewModel = viewModel,
+                        navController = navController,
                         onClose = { showPrinterSettingsDialog = false }
                     )
                 }

@@ -76,8 +76,8 @@ data class PrinterConfig(
         const val PRINTER_TYPE_USB = "usb"
         
         // 纸张宽度
-        const val PAPER_WIDTH_57MM = 58 // 58mm 打印机，有效打印宽度为50mm
-        const val PAPER_WIDTH_80MM = 80 // 80mm 打印机，有效打印宽度为72mm
+        const val PAPER_WIDTH_57MM = 58
+        const val PAPER_WIDTH_80MM = 80
         
         // 字体大小
         const val FONT_SIZE_SMALL = 0

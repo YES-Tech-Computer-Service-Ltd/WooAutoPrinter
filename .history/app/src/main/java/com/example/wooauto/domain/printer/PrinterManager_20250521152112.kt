@@ -74,6 +74,19 @@ interface PrinterManager {
 }
 
 /**
+ * 打印机状态
+ */
+enum class PrinterStatus {
+    DISCONNECTED,   // 未连接
+    CONNECTING,     // 连接中
+    CONNECTED,      // 已连接
+    ERROR,          // 连接错误
+    PAPER_OUT,      // 缺纸
+    OVERHEATED,     // 过热
+    LOW_BATTERY     // 电量低
+}
+
+/**
  * 打印机设备
  */
 data class PrinterDevice(

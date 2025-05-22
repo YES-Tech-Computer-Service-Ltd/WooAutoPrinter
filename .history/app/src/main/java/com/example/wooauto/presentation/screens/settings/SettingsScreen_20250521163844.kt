@@ -477,6 +477,7 @@ fun SettingsScreen(
                     elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
                 ) {
                     PrinterSettingsDialogContent(
+                        navController = navController,
                         viewModel = viewModel,
                         onClose = { showPrinterSettingsDialog = false }
                     )
