@@ -35,6 +35,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -54,6 +55,11 @@ fun DeviceSelectionScreen(
     onScanClick: () -> Unit,
     onDeviceSelected: (PrinterDevice) -> Unit
 ) {
+    // 添加LaunchedEffect在屏幕首次显示时自动开始扫描
+    LaunchedEffect(key1 = Unit) {
+        onScanClick()
+    }
+    
     Column(
         modifier = Modifier
             .fillMaxSize()
