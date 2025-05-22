@@ -5,6 +5,8 @@ import androidx.annotation.RequiresApi
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -13,6 +15,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -32,6 +35,7 @@ import com.example.wooauto.domain.printer.PrinterDevice
 import com.example.wooauto.presentation.screens.settings.SettingsViewModel
 import kotlinx.coroutines.launch
 import java.util.UUID
+import kotlinx.coroutines.delay
 
 @RequiresApi(Build.VERSION_CODES.S)
 @OptIn(ExperimentalMaterial3Api::class)
@@ -52,6 +56,8 @@ fun PrinterDetailsScreen(
     
     // 添加一个状态，用于跟踪是否已经选择了设备
     var hasSelectedDevice by remember { mutableStateOf(!isNewPrinter) }
+    var showDeviceConfirmDialog by remember { mutableStateOf(false) }
+    var selectedDevice by remember { mutableStateOf<PrinterDevice?>(null) }
     
     val printerConfig by remember {
         mutableStateOf(
@@ -79,7 +85,6 @@ fun PrinterDetailsScreen(
     val type by remember { mutableStateOf(printerConfig.type) }
     var paperWidth by remember { mutableStateOf(printerConfig.paperWidth.toString()) }
     var isDefault by remember { mutableStateOf(printerConfig.isDefault) }
-    val autoCut by remember { mutableStateOf(printerConfig.autoCut) }
     
     // 页面加载时扫描打印机列表
     LaunchedEffect(key1 = Unit) {
@@ -129,12 +134,38 @@ fun PrinterDetailsScreen(
                 isScanning = isScanning,
                 onScanClick = { viewModel.scanPrinters() },
                 onDeviceSelected = { device ->
-                    // 选择设备后更新配置
-                    name = device.name
-                    address = device.address
-                    hasSelectedDevice = true
+                    selectedDevice = device
+                    showDeviceConfirmDialog = true
                 }
             )
+            
+            if (showDeviceConfirmDialog && selectedDevice != null) {
+                AlertDialog(
+                    onDismissRequest = { showDeviceConfirmDialog = false },
+                    title = { Text(stringResource(id = R.string.confirm_device_selection)) },
+                    text = { Text(stringResource(id = R.string.device_selection_confirmation, selectedDevice?.name ?: "")) },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                selectedDevice?.let { device ->
+                                    name = device.name
+                                    address = device.address
+                                    hasSelectedDevice = true
+                                    showDeviceConfirmDialog = false
+                                    selectedDevice = null  // 清除选中的设备
+                                }
+                            }
+                        ) {
+                            Text(stringResource(id = R.string.confirm))
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showDeviceConfirmDialog = false }) {
+                            Text(stringResource(id = R.string.cancel))
+                        }
+                    }
+                )
+            }
         } else {
             // 在lambda外部获取字符串资源
             val missingFieldsMessage = stringResource(id = R.string.please_enter_name_address)
@@ -146,6 +177,10 @@ fun PrinterDetailsScreen(
                 onPaperWidthChange = { paperWidth = it },
                 isDefault = isDefault,
                 onIsDefaultChange = { isDefault = it },
+                name = name,
+                onNameChange = { name = it },
+                address = address,
+                onAddressChange = { address = it },
                 onSave = {
                     // 验证必填字段
                     if (name.isBlank() || address.isBlank()) {
@@ -161,22 +196,22 @@ fun PrinterDetailsScreen(
                         address = address,
                         type = type,
                         paperWidth = paperWidth.toIntOrNull() ?: PrinterConfig.PAPER_WIDTH_57MM,
-                        isDefault = isDefault,
-                        brand = printerConfig.brand,
-                        autoCut = autoCut
+                        isDefault = isDefault
                     )
                     
                     viewModel.savePrinterConfig(updatedConfig)
                     coroutineScope.launch {
                         snackbarHostState.showSnackbar(configSavedMessage)
+                        // 确保在显示提示消息后再返回
+                        delay(500)
+                        navController.popBackStack()
                     }
-                    
-                    // 返回上一页
+                },
+                onClose = {
                     navController.popBackStack()
                 },
                 viewModel = viewModel,
-                snackbarHostState = snackbarHostState,
-                paddingValues = paddingValues
+                snackbarHostState = snackbarHostState
             )
         }
     }
