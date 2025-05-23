@@ -43,17 +43,7 @@ import com.example.wooauto.licensing.LicenseStatus
  * 订单详情对话框
  */
 @OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun OrderDetailDialog(
-    order: Order,
-    onDismiss: () -> Unit,
-    onStatusChange: (Long, String) -> Unit,
-    onMarkAsPrinted: (Long) -> Unit
-) {
-    val viewModel: OrdersViewModel = hiltViewModel()
-    remember { viewModel.licenseManager }
-    val licenseInfo by viewModel.licenseManager.licenseInfo.observeAsState()
-    val currencySymbol by viewModel.currencySymbol.collectAsState()
+@Composablefun OrderDetailDialog(    order: Order,    onDismiss: () -> Unit,    onStatusChange: (Long, String) -> Unit,    onMarkAsPrinted: (Long) -> Unit) {    val viewModel: OrdersViewModel = hiltViewModel()    remember { viewModel.licenseManager }    val licenseInfo by viewModel.licenseManager.licenseInfo.observeAsState()    val currencySymbol by viewModel.currencySymbol.collectAsState()
     
     var showStatusOptions by remember { mutableStateOf(false) }
     var showTemplateOptions by remember { mutableStateOf(false) }
@@ -372,7 +362,7 @@ fun OrderDetailDialog(
                         )
                         
                         if (displayOrder.items.isNotEmpty()) {
-                            OrderItemsList(items = displayOrder.items, currencySymbol = currencySymbol)
+                            OrderItemsList(items = displayOrder.items)
                         } else {
                             Text(
                                 text = stringResource(R.string.no_product_info),
@@ -1070,13 +1060,13 @@ fun TemplateSelectorDialog(
  * 订单商品列表
  */
 @Composable
-fun OrderItemsList(items: List<OrderItem>, currencySymbol: String) {
+fun OrderItemsList(items: List<OrderItem>) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
     ) {
         items.forEach { item ->
-            OrderItemRow(item = item, currencySymbol = currencySymbol)
+            OrderItemRow(item = item)
             if (items.indexOf(item) < items.size - 1) {
                 HorizontalDivider(
                     modifier = Modifier.padding(vertical = 4.dp),
@@ -1092,7 +1082,7 @@ fun OrderItemsList(items: List<OrderItem>, currencySymbol: String) {
  * 单个商品行组件
  */
 @Composable
-fun OrderItemRow(item: OrderItem, currencySymbol: String) {
+fun OrderItemRow(item: OrderItem) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -1144,7 +1134,7 @@ fun OrderItemRow(item: OrderItem, currencySymbol: String) {
         
         // 价格
         Text(
-            text = "$currencySymbol${item.total}",
+            text = "¥${item.total}",
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Bold
         )

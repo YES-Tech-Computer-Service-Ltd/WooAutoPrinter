@@ -446,19 +446,5 @@
     <string name="store_address_hint">Enter store address</string>
     <string name="store_phone">Store Phone</string>
     <string name="store_phone_hint">Enter store phone number</string>
-    <string name="currency_symbol">Currency Symbol</string>
-    <string name="currency_symbol_hint">Select currency symbol</string>
-
-    <!-- Currency Options -->
-    <string name="currency_cny">Chinese Yuan</string>
-    <string name="currency_usd">US Dollar</string>
-    <string name="currency_cad">Canadian Dollar</string>
-    <string name="currency_eur">Euro</string>
-    <string name="currency_gbp">British Pound</string>
-    <string name="currency_jpy">Japanese Yen</string>
-    <string name="currency_krw">Korean Won</string>
-    <string name="currency_inr">Indian Rupee</string>
-    <string name="currency_rub">Russian Ruble</string>
-    <string name="currency_uah">Ukrainian Hryvnia</string>
 
 </resources>

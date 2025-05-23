@@ -494,8 +494,7 @@ fun OrdersScreen(
                     onStatusSelected = { status ->
                         statusFilter = status
                         viewModel.filterOrdersByStatus(status)
-                    },
-                    currencySymbol = currencySymbol
+                    }
                 )
             }
             

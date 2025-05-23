@@ -494,8 +494,7 @@ fun OrdersScreen(
                     onStatusSelected = { status ->
                         statusFilter = status
                         viewModel.filterOrdersByStatus(status)
-                    },
-                    currencySymbol = currencySymbol
+                    }
                 )
             }
             
@@ -528,8 +527,7 @@ private fun OrdersList(
     selectedStatus: String,
     searchQuery: String,
     onSelectOrder: (Order) -> Unit,
-    onStatusSelected: (String) -> Unit,
-    currencySymbol: String = "C$"
+    onStatusSelected: (String) -> Unit
 ) {
     val locale = LocalAppLocale.current
     
@@ -821,8 +819,7 @@ private fun OrdersList(
                 items(filteredOrders) { order ->
                     OrderCard(
                         order = order,
-                        onClick = { onSelectOrder(order) },
-                        currencySymbol = currencySymbol
+                        onClick = { onSelectOrder(order) }
                     )
                 }
             }
@@ -834,8 +831,7 @@ private fun OrdersList(
 @Composable
 fun OrderCard(
     order: Order,
-    onClick: () -> Unit,
-    currencySymbol: String = "C$"
+    onClick: () -> Unit
 ) {
     Card(
         modifier = Modifier
@@ -948,12 +944,7 @@ fun OrderCard(
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     
-                    Text(
-                        text = "$currencySymbol${order.total}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                    )
+                                        // 金额                    Text(                        text = "$currencySymbol${order.total}",                        style = MaterialTheme.typography.bodyMedium,                        fontWeight = FontWeight.Bold,                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)                    )
                 }
             }
             
@@ -1210,17 +1201,7 @@ fun UnreadOrdersDialog(
                         contentPadding = PaddingValues(16.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        items(unreadOrders) { order ->
-                            UnreadOrderItem(
-                                order = order,
-                                onClick = { 
-                                    // 点击时标记为已读
-                                    viewModel.markOrderAsRead(order.id)
-                                    onOrderClick(order)
-                                },
-                                currencySymbol = currencySymbol
-                            )
-                        }
+                                                items(unreadOrders) { order ->                            UnreadOrderItem(                                order = order,                                onClick = {                                     // 点击时标记为已读                                    viewModel.markOrderAsRead(order.id)                                    onOrderClick(order)                                },                                currencySymbol = currencySymbol                            )                        }
                     }
                 }
             }
@@ -1371,12 +1352,7 @@ fun UnreadOrderItem(
                     
                     Spacer(modifier = Modifier.width(4.dp))
                     
-                    Text(
-                        text = "$currencySymbol${order.total}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
+                                        Text(                        text = "$currencySymbol${order.total}",                        style = MaterialTheme.typography.bodyMedium,                        fontWeight = FontWeight.Bold,                        color = MaterialTheme.colorScheme.primary                    )
                 }
                 
                 // 备注信息（如果有）

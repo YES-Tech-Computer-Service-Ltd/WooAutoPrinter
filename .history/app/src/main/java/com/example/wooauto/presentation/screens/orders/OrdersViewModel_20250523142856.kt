@@ -76,14 +76,9 @@ class OrdersViewModel @Inject constructor(
     
     // 添加未读订单相关状态
     private val _unreadOrders = MutableStateFlow<List<Order>>(emptyList())
-    val unreadOrders: StateFlow<List<Order>> = _unreadOrders.asStateFlow()
+    val unreadOrders: StateFlow<List<Order>> = _unreadOrders
     
-    private val _unreadOrdersCount = MutableStateFlow(0)
-    val unreadOrdersCount: StateFlow<Int> = _unreadOrdersCount.asStateFlow()
-    
-    // 货币符号状态
-    private val _currencySymbol = MutableStateFlow("C$")
-    val currencySymbol: StateFlow<String> = _currencySymbol.asStateFlow()
+        private val _unreadOrdersCount = MutableStateFlow(0)    val unreadOrdersCount: StateFlow<Int> = _unreadOrdersCount    // 货币符号状态    private val _currencySymbol = MutableStateFlow("C$")    val currencySymbol: StateFlow<String> = _currencySymbol.asStateFlow()
 
     // 广播接收器
     private val ordersUpdateReceiver = object : BroadcastReceiver() {
@@ -114,9 +109,6 @@ class OrdersViewModel @Inject constructor(
         
         // 观察订单数据
         observeOrders()
-        
-        // 初始化货币符号
-        loadCurrencySymbol()
         
         // 应用启动时验证未读订单状态，然后重新加载未读订单
         viewModelScope.launch {
@@ -1171,20 +1163,5 @@ class OrdersViewModel @Inject constructor(
     // 清除导航事件
     fun clearNavigationEvent() {
         _navigationEvent.value = null
-    }
-    
-    // 加载货币符号
-    private fun loadCurrencySymbol() {
-        viewModelScope.launch {
-            try {
-                settingRepository.getCurrencySymbolFlow()
-                    .collectLatest { symbol ->
-                        _currencySymbol.value = symbol.ifEmpty { "C$" }
-                    }
-            } catch (e: Exception) {
-                Log.e(TAG, "加载货币符号失败: ${e.message}")
-                _currencySymbol.value = "C$" // 默认值
-            }
-        }
     }
 } 

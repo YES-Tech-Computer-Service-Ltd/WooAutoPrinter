@@ -479,24 +479,7 @@ fun OrdersScreen(
                     }
                 }
             } else {
-                // 有订单数据，显示订单列表
-                OrdersList(
-                    orders = orders,
-                    showUnreadOnly = showUnreadOrders,
-                    selectedStatus = statusFilter,
-                    searchQuery = searchQuery,
-                    onSelectOrder = { order ->
-                        viewModel.getOrderDetails(order.id)
-                        showOrderDetail = true
-                        // 标记订单为已读
-                        viewModel.markOrderAsRead(order.id)
-                    },
-                    onStatusSelected = { status ->
-                        statusFilter = status
-                        viewModel.filterOrdersByStatus(status)
-                    },
-                    currencySymbol = currencySymbol
-                )
+                                // 有订单数据，显示订单列表                OrdersList(                    orders = orders,                    showUnreadOnly = showUnreadOrders,                    selectedStatus = statusFilter,                    searchQuery = searchQuery,                    onSelectOrder = { order ->                        viewModel.getOrderDetails(order.id)                        showOrderDetail = true                        // 标记订单为已读                        viewModel.markOrderAsRead(order.id)                    },                    onStatusSelected = { status ->                        statusFilter = status                        viewModel.filterOrdersByStatus(status)                    },                    currencySymbol = currencySymbol                )
             }
             
             // 订单详情对话框

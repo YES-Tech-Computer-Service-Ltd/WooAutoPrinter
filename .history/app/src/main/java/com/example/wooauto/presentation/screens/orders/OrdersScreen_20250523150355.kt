@@ -494,8 +494,7 @@ fun OrdersScreen(
                     onStatusSelected = { status ->
                         statusFilter = status
                         viewModel.filterOrdersByStatus(status)
-                    },
-                    currencySymbol = currencySymbol
+                    }
                 )
             }
             
@@ -818,13 +817,7 @@ private fun OrdersList(
                 contentPadding = PaddingValues(bottom = 16.dp), // 增加底部内边距
                 verticalArrangement = Arrangement.spacedBy(4.dp) // 保持一致的间距
             ) {
-                items(filteredOrders) { order ->
-                    OrderCard(
-                        order = order,
-                        onClick = { onSelectOrder(order) },
-                        currencySymbol = currencySymbol
-                    )
-                }
+                                items(filteredOrders) { order ->                    OrderCard(                        order = order,                        onClick = { onSelectOrder(order) },                        currencySymbol = currencySymbol                    )                }
             }
         }
     }

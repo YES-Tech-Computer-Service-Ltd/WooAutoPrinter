@@ -494,8 +494,7 @@ fun OrdersScreen(
                     onStatusSelected = { status ->
                         statusFilter = status
                         viewModel.filterOrdersByStatus(status)
-                    },
-                    currencySymbol = currencySymbol
+                    }
                 )
             }
             
@@ -528,8 +527,7 @@ private fun OrdersList(
     selectedStatus: String,
     searchQuery: String,
     onSelectOrder: (Order) -> Unit,
-    onStatusSelected: (String) -> Unit,
-    currencySymbol: String = "C$"
+    onStatusSelected: (String) -> Unit
 ) {
     val locale = LocalAppLocale.current
     
@@ -821,8 +819,7 @@ private fun OrdersList(
                 items(filteredOrders) { order ->
                     OrderCard(
                         order = order,
-                        onClick = { onSelectOrder(order) },
-                        currencySymbol = currencySymbol
+                        onClick = { onSelectOrder(order) }
                     )
                 }
             }

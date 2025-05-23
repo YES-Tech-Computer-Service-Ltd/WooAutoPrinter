@@ -494,8 +494,7 @@ fun OrdersScreen(
                     onStatusSelected = { status ->
                         statusFilter = status
                         viewModel.filterOrdersByStatus(status)
-                    },
-                    currencySymbol = currencySymbol
+                    }
                 )
             }
             
@@ -521,16 +520,7 @@ fun OrdersScreen(
 /**
  * 订单列表组件
  */
-@Composable
-private fun OrdersList(
-    orders: List<Order>,
-    showUnreadOnly: Boolean,
-    selectedStatus: String,
-    searchQuery: String,
-    onSelectOrder: (Order) -> Unit,
-    onStatusSelected: (String) -> Unit,
-    currencySymbol: String = "C$"
-) {
+@Composableprivate fun OrdersList(    orders: List<Order>,    showUnreadOnly: Boolean,    selectedStatus: String,    searchQuery: String,    onSelectOrder: (Order) -> Unit,    onStatusSelected: (String) -> Unit,    currencySymbol: String = "C$") {
     val locale = LocalAppLocale.current
     
     // 定义状态选项列表 - 确保与API支持的值一致
@@ -821,8 +811,7 @@ private fun OrdersList(
                 items(filteredOrders) { order ->
                     OrderCard(
                         order = order,
-                        onClick = { onSelectOrder(order) },
-                        currencySymbol = currencySymbol
+                        onClick = { onSelectOrder(order) }
                     )
                 }
             }

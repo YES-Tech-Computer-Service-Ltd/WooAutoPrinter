@@ -37,7 +37,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -55,17 +54,6 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.example.wooauto.presentation.screens.settings.PrinterSettings.PrinterSettingsDialogContent
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Button
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
-import com.example.wooauto.presentation.screens.settings.StoreSettingsDialogContent
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -101,7 +89,6 @@ fun SettingsScreen(
     var showSoundSettingsDialog by remember { mutableStateOf(false) }
     var showPrintTemplatesDialog by remember { mutableStateOf(false) }
     var showPrinterSettingsDialog by remember { mutableStateOf(false) }
-    var showStoreSettingsDialog by remember { mutableStateOf(false) }
     
     Scaffold(
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
@@ -262,7 +249,9 @@ fun SettingsScreen(
                             onClick = { 
                                 /* 导航到店铺设置 */
                                 Log.d("设置导航", "点击了店铺信息设置项")
-                                showStoreSettingsDialog = true
+                                coroutineScope.launch {
+                                    snackbarHostState.showSnackbar(featureComingSoonText)
+                                }
                             }
                         )
 
@@ -545,23 +534,6 @@ fun SettingsScreen(
                 }
             }
         }
-
-        // Store Settings Dialog
-        if (showStoreSettingsDialog) {
-            Dialog(
-                onDismissRequest = { showStoreSettingsDialog = false },
-                properties = DialogProperties(
-                    usePlatformDefaultWidth = false,
-                    dismissOnBackPress = true,
-                    dismissOnClickOutside = true
-                )
-            ) {
-                StoreSettingsDialogContent(
-                    viewModel = viewModel,
-                    onClose = { showStoreSettingsDialog = false }
-                )
-            }
-        }
     }
 }
 
@@ -721,5 +693,4 @@ fun SettingItem(
             modifier = Modifier.size(16.dp)
         )
     }
-}
-
+} 

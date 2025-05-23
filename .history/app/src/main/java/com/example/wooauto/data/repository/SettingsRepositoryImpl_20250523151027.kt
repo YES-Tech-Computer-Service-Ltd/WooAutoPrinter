@@ -434,12 +434,7 @@ class SettingsRepositoryImpl @Inject constructor(
         return getStringSettingFlow(KEY_CURRENCY_SYMBOL, DEFAULT_CURRENCY_SYMBOL)
     }
 
-    // 辅助方法
-    private fun getStringSettingFlow(key: String, defaultValue: String): Flow<String> {
-        return settingDao.observeSettingByKey(key).map { entity ->
-            entity?.value ?: defaultValue
-        }
-    }
+        // 辅助方法    private fun getStringSettingFlow(key: String, defaultValue: String): Flow<String> {        return settingDao.observeSettingByKey(key).map { entity ->            entity?.value ?: defaultValue        }    }
 
     private fun getBooleanSettingFlow(key: String, defaultValue: Boolean): Flow<Boolean> {
         return flow {

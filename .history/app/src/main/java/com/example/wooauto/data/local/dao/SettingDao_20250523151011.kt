@@ -24,21 +24,7 @@ interface SettingDao {
     @Query("SELECT * FROM settings")
     fun getAllSettings(): Flow<List<SettingEntity>>
 
-    /**
-     * 根据键获取设置
-     * @param key 设置键
-     * @return 设置实体
-     */
-    @Query("SELECT * FROM settings WHERE `key` = :key")
-    suspend fun getSettingByKey(key: String): SettingEntity?
-
-    /**
-     * 观察指定键的设置变化
-     * @param key 设置键
-     * @return 设置实体流
-     */
-    @Query("SELECT * FROM settings WHERE `key` = :key")
-    fun observeSettingByKey(key: String): Flow<SettingEntity?>
+        /**     * 根据键获取设置     * @param key 设置键     * @return 设置实体     */    @Query("SELECT * FROM settings WHERE `key` = :key")    suspend fun getSettingByKey(key: String): SettingEntity?    /**     * 观察指定键的设置变化     * @param key 设置键     * @return 设置实体流     */    @Query("SELECT * FROM settings WHERE `key` = :key")    fun observeSettingByKey(key: String): Flow<SettingEntity?>
 
     /**
      * 删除设置

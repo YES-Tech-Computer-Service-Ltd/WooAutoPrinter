@@ -109,16 +109,7 @@ class OrdersViewModel @Inject constructor(
         checkConfiguration()
         registerBroadcastReceiver()
         
-        // 注册接收刷新订单的广播
-        registerRefreshOrdersBroadcastReceiver()
-        
-        // 观察订单数据
-        observeOrders()
-        
-        // 初始化货币符号
-        loadCurrencySymbol()
-        
-        // 应用启动时验证未读订单状态，然后重新加载未读订单
+                // 注册接收刷新订单的广播        registerRefreshOrdersBroadcastReceiver()                // 观察订单数据        observeOrders()                // 初始化货币符号        loadCurrencySymbol()                // 应用启动时验证未读订单状态，然后重新加载未读订单
         viewModelScope.launch {
             try {
                 Log.d(TAG, "应用启动：初始化未读订单状态")

@@ -43,17 +43,7 @@ import com.example.wooauto.licensing.LicenseStatus
  * 订单详情对话框
  */
 @OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun OrderDetailDialog(
-    order: Order,
-    onDismiss: () -> Unit,
-    onStatusChange: (Long, String) -> Unit,
-    onMarkAsPrinted: (Long) -> Unit
-) {
-    val viewModel: OrdersViewModel = hiltViewModel()
-    remember { viewModel.licenseManager }
-    val licenseInfo by viewModel.licenseManager.licenseInfo.observeAsState()
-    val currencySymbol by viewModel.currencySymbol.collectAsState()
+@Composablefun OrderDetailDialog(    order: Order,    onDismiss: () -> Unit,    onStatusChange: (Long, String) -> Unit,    onMarkAsPrinted: (Long) -> Unit) {    val viewModel: OrdersViewModel = hiltViewModel()    remember { viewModel.licenseManager }    val licenseInfo by viewModel.licenseManager.licenseInfo.observeAsState()    val currencySymbol by viewModel.currencySymbol.collectAsState()
     
     var showStatusOptions by remember { mutableStateOf(false) }
     var showTemplateOptions by remember { mutableStateOf(false) }
@@ -372,7 +362,7 @@ fun OrderDetailDialog(
                         )
                         
                         if (displayOrder.items.isNotEmpty()) {
-                            OrderItemsList(items = displayOrder.items, currencySymbol = currencySymbol)
+                            OrderItemsList(items = displayOrder.items)
                         } else {
                             Text(
                                 text = stringResource(R.string.no_product_info),
@@ -556,7 +546,9 @@ fun OrderDetailDialog(
                         displayOrder.taxLines.forEach { taxLine ->
                             when {
                                 taxLine.label.contains("PST", ignoreCase = true) -> {
-                                                                        OrderDetailRow(                                        label = stringResource(R.string.tax_pst, taxLine.ratePercent.toString()),                                        value = "$currencySymbol${taxLine.taxTotal}",
+                                    OrderDetailRow(
+                                        label = stringResource(R.string.tax_pst, taxLine.ratePercent.toString()),
+                                        value = "¥${taxLine.taxTotal}",
                                         icon = {
                                             Icon(
                                                 imageVector = Icons.Default.AccountBalance,
@@ -568,7 +560,9 @@ fun OrderDetailDialog(
                                     )
                                 }
                                 taxLine.label.contains("GST", ignoreCase = true) -> {
-                                                                        OrderDetailRow(                                        label = stringResource(R.string.tax_gst, taxLine.ratePercent.toString()),                                        value = "$currencySymbol${taxLine.taxTotal}",
+                                    OrderDetailRow(
+                                        label = stringResource(R.string.tax_gst, taxLine.ratePercent.toString()),
+                                        value = "¥${taxLine.taxTotal}",
                                         icon = {
                                             Icon(
                                                 imageVector = Icons.Default.AccountBalance,
@@ -581,7 +575,9 @@ fun OrderDetailDialog(
                                 }
                                 else -> {
                                     // 其他税费显示
-                                                                        OrderDetailRow(                                        label = "${taxLine.label} (${taxLine.ratePercent}%)",                                        value = "$currencySymbol${taxLine.taxTotal}",
+                                    OrderDetailRow(
+                                        label = "${taxLine.label} (${taxLine.ratePercent}%)",
+                                        value = "¥${taxLine.taxTotal}",
                                         icon = {
                                             Icon(
                                                 imageVector = Icons.Default.AccountBalance,
@@ -597,7 +593,9 @@ fun OrderDetailDialog(
                         
                         // 如果没有具体税费行，但有总税费，显示总税费
                         if (displayOrder.taxLines.isEmpty() && displayOrder.totalTax != "0.00" && displayOrder.totalTax.isNotEmpty()) {
-                                                        OrderDetailRow(                                label = stringResource(R.string.tax),                                value = "$currencySymbol${displayOrder.totalTax}",
+                            OrderDetailRow(
+                                label = stringResource(R.string.tax),
+                                value = "¥${displayOrder.totalTax}",
                                 icon = {
                                     Icon(
                                         imageVector = Icons.Default.AccountBalance,
@@ -625,7 +623,12 @@ fun OrderDetailDialog(
                                 fontWeight = FontWeight.Bold
                             )
                             
-                                                        Text(                                text = "$currencySymbol${displayOrder.total}",                                style = MaterialTheme.typography.titleMedium,                                fontWeight = FontWeight.Bold,                                color = MaterialTheme.colorScheme.primary                            )
+                            Text(
+                                text = "¥${displayOrder.total}",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
                         }
                         
                         // 显示订单状态
@@ -1070,13 +1073,13 @@ fun TemplateSelectorDialog(
  * 订单商品列表
  */
 @Composable
-fun OrderItemsList(items: List<OrderItem>, currencySymbol: String) {
+fun OrderItemsList(items: List<OrderItem>) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
     ) {
         items.forEach { item ->
-            OrderItemRow(item = item, currencySymbol = currencySymbol)
+            OrderItemRow(item = item)
             if (items.indexOf(item) < items.size - 1) {
                 HorizontalDivider(
                     modifier = Modifier.padding(vertical = 4.dp),
@@ -1092,7 +1095,7 @@ fun OrderItemsList(items: List<OrderItem>, currencySymbol: String) {
  * 单个商品行组件
  */
 @Composable
-fun OrderItemRow(item: OrderItem, currencySymbol: String) {
+fun OrderItemRow(item: OrderItem) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -1144,7 +1147,7 @@ fun OrderItemRow(item: OrderItem, currencySymbol: String) {
         
         // 价格
         Text(
-            text = "$currencySymbol${item.total}",
+            text = "¥${item.total}",
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Bold
         )

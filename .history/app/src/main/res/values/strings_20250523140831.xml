@@ -273,8 +273,7 @@
     <string name="api_configured">Configured</string>
     <string name="api_not_configured">Not Configured</string>
     <string name="printer_settings">Printer Settings</string>
-    <string name="store_settings">Store Settings</string>
-    <string name="auto_update">Auto Update</string>
+        <string name="store_settings">Store Settings</string>    <string name="auto_update">Auto Update</string>        <!-- Store Settings -->    <string name="store_basic_info">Basic Information</string>    <string name="store_name">Store Name</string>    <string name="store_address">Store Address</string>    <string name="store_phone">Store Phone</string>    <string name="currency_symbol">Currency Symbol</string>    <string name="contact_information">Contact Information</string>    <string name="store_email">Store Email</string>    <string name="store_website">Store Website</string>    <string name="business_information">Business Information</string>    <string name="business_hours">Business Hours</string>    <string name="business_hours_placeholder">Mon-Fri: 9:00-18:00\nSat-Sun: 10:00-16:00</string>    <string name="store_slogan">Store Slogan</string>    <string name="store_slogan_placeholder">Your store slogan or tagline</string>
 
     <!-- API Configuration Messages -->
     <string name="website_url_placeholder">For example：https://yourstore.com</string>
@@ -438,27 +437,5 @@
     <string name="order_date_label">Date</string>
     <string name="customer_name_label">Customer</string>
     <string name="contact_info_label">Contact</string>
-
-    <!-- Store Settings -->
-    <string name="store_name">Store Name</string>
-    <string name="store_name_hint">Enter store name</string>
-    <string name="store_address">Store Address</string>
-    <string name="store_address_hint">Enter store address</string>
-    <string name="store_phone">Store Phone</string>
-    <string name="store_phone_hint">Enter store phone number</string>
-    <string name="currency_symbol">Currency Symbol</string>
-    <string name="currency_symbol_hint">Select currency symbol</string>
-
-    <!-- Currency Options -->
-    <string name="currency_cny">Chinese Yuan</string>
-    <string name="currency_usd">US Dollar</string>
-    <string name="currency_cad">Canadian Dollar</string>
-    <string name="currency_eur">Euro</string>
-    <string name="currency_gbp">British Pound</string>
-    <string name="currency_jpy">Japanese Yen</string>
-    <string name="currency_krw">Korean Won</string>
-    <string name="currency_inr">Indian Rupee</string>
-    <string name="currency_rub">Russian Ruble</string>
-    <string name="currency_uah">Ukrainian Hryvnia</string>
 
 </resources>

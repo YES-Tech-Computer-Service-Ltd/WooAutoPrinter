@@ -154,10 +154,7 @@ fun OrdersScreen(
     val errorMessage by viewModel.errorMessage.collectAsState()
     val selectedOrder by viewModel.selectedOrder.collectAsState()
     val isRefreshing by viewModel.refreshing.collectAsState()
-    val currencySymbol by viewModel.currencySymbol.collectAsState()
-    
-    // 新增状态，用于控制何时显示UI
-    val isInitialized = remember { mutableStateOf(false) }
+        val currencySymbol by viewModel.currencySymbol.collectAsState()        // 新增状态，用于控制何时显示UI    val isInitialized = remember { mutableStateOf(false) }
     
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
@@ -494,8 +491,7 @@ fun OrdersScreen(
                     onStatusSelected = { status ->
                         statusFilter = status
                         viewModel.filterOrdersByStatus(status)
-                    },
-                    currencySymbol = currencySymbol
+                    }
                 )
             }
             
@@ -528,8 +524,7 @@ private fun OrdersList(
     selectedStatus: String,
     searchQuery: String,
     onSelectOrder: (Order) -> Unit,
-    onStatusSelected: (String) -> Unit,
-    currencySymbol: String = "C$"
+    onStatusSelected: (String) -> Unit
 ) {
     val locale = LocalAppLocale.current
     
@@ -821,8 +816,7 @@ private fun OrdersList(
                 items(filteredOrders) { order ->
                     OrderCard(
                         order = order,
-                        onClick = { onSelectOrder(order) },
-                        currencySymbol = currencySymbol
+                        onClick = { onSelectOrder(order) }
                     )
                 }
             }
@@ -834,8 +828,7 @@ private fun OrdersList(
 @Composable
 fun OrderCard(
     order: Order,
-    onClick: () -> Unit,
-    currencySymbol: String = "C$"
+    onClick: () -> Unit
 ) {
     Card(
         modifier = Modifier
@@ -948,12 +941,7 @@ fun OrderCard(
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     
-                    Text(
-                        text = "$currencySymbol${order.total}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                    )
+                                        // 金额                    Text(                        text = "$currencySymbol${order.total}",                        style = MaterialTheme.typography.bodyMedium,                        fontWeight = FontWeight.Bold,                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)                    )
                 }
             }
             
@@ -1088,7 +1076,6 @@ fun UnreadOrdersDialog(
 ) {
     // 获取未读订单列表
     val unreadOrders by viewModel.unreadOrders.collectAsState()
-    val currencySymbol by viewModel.currencySymbol.collectAsState()
     
     // 每次对话框打开时重新加载未读订单
     LaunchedEffect(key1 = Unit) {
@@ -1217,8 +1204,7 @@ fun UnreadOrdersDialog(
                                     // 点击时标记为已读
                                     viewModel.markOrderAsRead(order.id)
                                     onOrderClick(order)
-                                },
-                                currencySymbol = currencySymbol
+                                }
                             )
                         }
                     }
@@ -1231,8 +1217,7 @@ fun UnreadOrdersDialog(
 @Composable
 fun UnreadOrderItem(
     order: Order,
-    onClick: () -> Unit,
-    currencySymbol: String = "C$"
+    onClick: () -> Unit
 ) {
     Card(
         modifier = Modifier
@@ -1371,12 +1356,7 @@ fun UnreadOrderItem(
                     
                     Spacer(modifier = Modifier.width(4.dp))
                     
-                    Text(
-                        text = "$currencySymbol${order.total}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
+                                        Text(                        text = "$currencySymbol${order.total}",                        style = MaterialTheme.typography.bodyMedium,                        fontWeight = FontWeight.Bold,                        color = MaterialTheme.colorScheme.primary                    )
                 }
                 
                 // 备注信息（如果有）

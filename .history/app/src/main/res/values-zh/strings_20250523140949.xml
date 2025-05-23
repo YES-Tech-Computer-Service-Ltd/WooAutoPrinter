@@ -376,9 +376,7 @@
     <string name="api_configured">已配置</string>
     <string name="api_not_configured">未配置</string>
     <string name="printer_settings">打印机设置</string>
-    <string name="store_settings">店铺设置</string>
-    <string name="license_settings">许可设置</string>
-    <string name="auto_update">自动更新</string>
+    <string name="store_settings">店铺设置</string>    <string name="license_settings">许可设置</string>    <string name="auto_update">自动更新</string>        <!-- Store Settings -->    <string name="store_basic_info">基本信息</string>    <string name="store_name">店铺名称</string>    <string name="store_address">店铺地址</string>    <string name="store_phone">店铺电话</string>    <string name="currency_symbol">货币符号</string>    <string name="contact_information">联系信息</string>    <string name="store_email">店铺邮箱</string>    <string name="store_website">店铺网站</string>    <string name="business_information">营业信息</string>    <string name="business_hours">营业时间</string>    <string name="business_hours_placeholder">周一-周五: 9:00-18:00\n周六-周日: 10:00-16:00</string>    <string name="store_slogan">店铺标语</string>    <string name="store_slogan_placeholder">您的店铺标语或宣传语</string>
     <string name="unknown_error">未知错误</string>
     <string name="api_config_saved">API 配置已保存。</string>
     <string name="save_failed">保存失败。</string>
@@ -439,27 +437,5 @@
     <string name="order_date_label">下单时间</string>
     <string name="customer_name_label">客户姓名</string>
     <string name="contact_info_label">联系方式</string>
-
-    <!-- Store Settings -->
-    <string name="store_name">店铺名称</string>
-    <string name="store_name_hint">请输入店铺名称</string>
-    <string name="store_address">店铺地址</string>
-    <string name="store_address_hint">请输入店铺地址</string>
-    <string name="store_phone">联系电话</string>
-    <string name="store_phone_hint">请输入联系电话</string>
-    <string name="currency_symbol">货币符号</string>
-    <string name="currency_symbol_hint">请选择货币符号</string>
-
-    <!-- Currency Options -->
-    <string name="currency_cny">人民币</string>
-    <string name="currency_usd">美元</string>
-    <string name="currency_cad">加拿大元</string>
-    <string name="currency_eur">欧元</string>
-    <string name="currency_gbp">英镑</string>
-    <string name="currency_jpy">日元</string>
-    <string name="currency_krw">韩元</string>
-    <string name="currency_inr">印度卢比</string>
-    <string name="currency_rub">俄罗斯卢布</string>
-    <string name="currency_uah">乌克兰格里夫纳</string>
 
 </resources>

@@ -61,11 +61,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Button
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
-import com.example.wooauto.presentation.screens.settings.StoreSettingsDialogContent
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -723,3 +718,147 @@ fun SettingItem(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun StoreSettingsDialogContent(
+    viewModel: SettingsViewModel = hiltViewModel(),
+    onClose: () -> Unit
+) {
+    val scrollState = rememberScrollState()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
+    
+    val settingsSavedText = stringResource(R.string.settings_saved)
+    
+    // 获取当前商店信息状态
+    val storeName by viewModel.storeName.collectAsState()
+    val storeAddress by viewModel.storeAddress.collectAsState()
+    val storePhone by viewModel.storePhone.collectAsState()
+    
+    // 本地状态用于输入字段
+    var storeNameInput by remember { mutableStateOf(storeName) }
+    var storeAddressInput by remember { mutableStateOf(storeAddress) }
+    var storePhoneInput by remember { mutableStateOf(storePhone) }
+    
+    LaunchedEffect(storeName, storeAddress, storePhone) {
+        storeNameInput = storeName
+        storeAddressInput = storeAddress
+        storePhoneInput = storePhone
+    }
+    
+    Card(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(vertical = 32.dp, horizontal = 16.dp),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+    ) {
+        Scaffold(
+            snackbarHost = { SnackbarHost(snackbarHostState) },
+            topBar = {
+                TopAppBar(
+                    title = { Text(stringResource(R.string.store_settings)) },
+                    navigationIcon = {
+                        IconButton(onClick = onClose) {
+                            Icon(Icons.Default.Close, contentDescription = stringResource(R.string.close))
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                    )
+                )
+            }
+        ) { innerPadding ->
+            Column(
+                modifier = Modifier
+                    .padding(innerPadding)
+                    .fillMaxSize()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .verticalScroll(scrollState)
+                        .padding(16.dp)
+                ) {
+                    // 店铺名称
+                    Column(
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = stringResource(R.string.store_name),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                        OutlinedTextField(
+                            value = storeNameInput,
+                            onValueChange = { storeNameInput = it },
+                            label = { Text(stringResource(R.string.store_name_hint)) },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    // 店铺地址
+                    Column(
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = stringResource(R.string.store_address),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                        OutlinedTextField(
+                            value = storeAddressInput,
+                            onValueChange = { storeAddressInput = it },
+                            label = { Text(stringResource(R.string.store_address_hint)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            maxLines = 3
+                        )
+                    }
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    // 联系电话
+                    Column(
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = stringResource(R.string.store_phone),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                        OutlinedTextField(
+                            value = storePhoneInput,
+                            onValueChange = { storePhoneInput = it },
+                            label = { Text(stringResource(R.string.store_phone_hint)) },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+                
+                Button(
+                    onClick = {
+                        // TODO: 这里后续会添加保存商店信息的功能
+                        // viewModel.updateStoreName(storeNameInput)
+                        // viewModel.updateStoreAddress(storeAddressInput) 
+                        // viewModel.updateStorePhone(storePhoneInput)
+                        coroutineScope.launch {
+                            snackbarHostState.showSnackbar(settingsSavedText)
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, end = 16.dp, bottom = 16.dp, top = 8.dp)
+                ) {
+                    Text(stringResource(id = R.string.save_settings))
+                }
+            }
+        }
+    }
+} 

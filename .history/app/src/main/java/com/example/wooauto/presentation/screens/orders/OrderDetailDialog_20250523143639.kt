@@ -1064,35 +1064,7 @@ fun TemplateSelectorDialog(
             }
         }
     }
-}
-
-/**
- * 订单商品列表
- */
-@Composable
-fun OrderItemsList(items: List<OrderItem>, currencySymbol: String) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-    ) {
-        items.forEach { item ->
-            OrderItemRow(item = item, currencySymbol = currencySymbol)
-            if (items.indexOf(item) < items.size - 1) {
-                HorizontalDivider(
-                    modifier = Modifier.padding(vertical = 4.dp),
-                    thickness = 0.5.dp,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
-                )
-            }
-        }
-    }
-}
-
-/**
- * 单个商品行组件
- */
-@Composable
-fun OrderItemRow(item: OrderItem, currencySymbol: String) {
+}/** * 订单商品列表 */@Composablefun OrderItemsList(items: List<OrderItem>, currencySymbol: String) {    Column(        modifier = Modifier            .fillMaxWidth()    ) {        items.forEach { item ->            OrderItemRow(item = item, currencySymbol = currencySymbol)            if (items.indexOf(item) < items.size - 1) {                HorizontalDivider(                    modifier = Modifier.padding(vertical = 4.dp),                    thickness = 0.5.dp,                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)                )            }        }    }}/** * 单个商品行组件 */@Composablefun OrderItemRow(item: OrderItem, currencySymbol: String) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -1142,11 +1114,6 @@ fun OrderItemRow(item: OrderItem, currencySymbol: String) {
             modifier = Modifier.padding(horizontal = 8.dp)
         )
         
-        // 价格
-        Text(
-            text = "$currencySymbol${item.total}",
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Bold
-        )
+                // 价格        Text(            text = "$currencySymbol${item.total}",            style = MaterialTheme.typography.bodyMedium,            fontWeight = FontWeight.Bold        )
     }
 } 

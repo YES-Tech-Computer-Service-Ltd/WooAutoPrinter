@@ -43,17 +43,7 @@ import com.example.wooauto.licensing.LicenseStatus
  * 订单详情对话框
  */
 @OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun OrderDetailDialog(
-    order: Order,
-    onDismiss: () -> Unit,
-    onStatusChange: (Long, String) -> Unit,
-    onMarkAsPrinted: (Long) -> Unit
-) {
-    val viewModel: OrdersViewModel = hiltViewModel()
-    remember { viewModel.licenseManager }
-    val licenseInfo by viewModel.licenseManager.licenseInfo.observeAsState()
-    val currencySymbol by viewModel.currencySymbol.collectAsState()
+@Composablefun OrderDetailDialog(    order: Order,    onDismiss: () -> Unit,    onStatusChange: (Long, String) -> Unit,    onMarkAsPrinted: (Long) -> Unit) {    val viewModel: OrdersViewModel = hiltViewModel()    remember { viewModel.licenseManager }    val licenseInfo by viewModel.licenseManager.licenseInfo.observeAsState()    val currencySymbol by viewModel.currencySymbol.collectAsState()
     
     var showStatusOptions by remember { mutableStateOf(false) }
     var showTemplateOptions by remember { mutableStateOf(false) }
@@ -1066,17 +1056,12 @@ fun TemplateSelectorDialog(
     }
 }
 
-/**
- * 订单商品列表
- */
-@Composable
-fun OrderItemsList(items: List<OrderItem>, currencySymbol: String) {
+/** * 订单商品列表 */@Composablefun OrderItemsList(items: List<OrderItem>, currencySymbol: String) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
     ) {
-        items.forEach { item ->
-            OrderItemRow(item = item, currencySymbol = currencySymbol)
+                items.forEach { item ->            OrderItemRow(item = item, currencySymbol = currencySymbol)
             if (items.indexOf(item) < items.size - 1) {
                 HorizontalDivider(
                     modifier = Modifier.padding(vertical = 4.dp),
@@ -1088,11 +1073,7 @@ fun OrderItemsList(items: List<OrderItem>, currencySymbol: String) {
     }
 }
 
-/**
- * 单个商品行组件
- */
-@Composable
-fun OrderItemRow(item: OrderItem, currencySymbol: String) {
+/** * 单个商品行组件 */@Composablefun OrderItemRow(item: OrderItem, currencySymbol: String) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -1142,11 +1123,6 @@ fun OrderItemRow(item: OrderItem, currencySymbol: String) {
             modifier = Modifier.padding(horizontal = 8.dp)
         )
         
-        // 价格
-        Text(
-            text = "$currencySymbol${item.total}",
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Bold
-        )
+                // 价格        Text(            text = "$currencySymbol${item.total}",            style = MaterialTheme.typography.bodyMedium,            fontWeight = FontWeight.Bold        )
     }
 } 
