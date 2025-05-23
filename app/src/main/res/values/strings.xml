@@ -461,4 +461,9 @@
     <string name="currency_rub">Russian Ruble</string>
     <string name="currency_uah">Ukrainian Hryvnia</string>
 
+    <string name="paper_width_setup">paper width setup</string>
+    <string name="set_default_printer">set as default printer</string>
+    <string name="request_bluetooth_location_permissions">request bluetooth and location permissions</string>
+    <string name="auto_cut_paper">auto cut paper</string>
+
 </resources>

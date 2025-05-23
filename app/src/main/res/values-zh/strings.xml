@@ -462,4 +462,9 @@
     <string name="currency_rub">俄罗斯卢布</string>
     <string name="currency_uah">乌克兰格里夫纳</string>
 
+    <string name="printer_basic_info">打印机信息</string>
+    <string name="set_as_default_printer">设置为默认打印机</string>
+    <string name="confirm_device_selection">确认打印机</string>
+    <string name="device_selection_confirmation">你确定选择这台打印设备吗？</string>
+
 </resources>
