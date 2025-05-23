@@ -94,12 +94,7 @@ class SettingsRepositoryImpl @Inject constructor(
         const val KEY_AUTO_ORDER_PROCESSING_ENABLED = "auto_order_processing_enabled"
         const val KEY_DEFAULT_TEMPLATE_TYPE = "default_template_type"
         
-        // 默认值
-        const val DEFAULT_API_URL = "https://example.com/wp-json/wc/v3/"
-        const val DEFAULT_LANGUAGE = "en"
-        const val DEFAULT_CURRENCY = "USD"
-        const val DEFAULT_STORE_NAME = ""
-        const val DEFAULT_CURRENCY_SYMBOL = "C$"
+                // 默认值        const val DEFAULT_API_URL = "https://example.com/wp-json/wc/v3/"        const val DEFAULT_LANGUAGE = "en"        const val DEFAULT_CURRENCY = "USD"        const val DEFAULT_STORE_NAME = ""        const val DEFAULT_CURRENCY_SYMBOL = "C$"
         
         // 声音设置相关键名
         const val KEY_NOTIFICATION_VOLUME = "notification_volume"
@@ -442,8 +437,9 @@ class SettingsRepositoryImpl @Inject constructor(
     }
 
     private fun getBooleanSettingFlow(key: String, defaultValue: Boolean): Flow<Boolean> {
-        return settingDao.observeSettingByKey(key).map { entity ->
-            entity?.value?.toBoolean() ?: defaultValue
+        return flow {
+            val entity = settingDao.getSettingByKey(key)
+            emit(entity?.value?.toBoolean() ?: defaultValue)
         }
     }
 

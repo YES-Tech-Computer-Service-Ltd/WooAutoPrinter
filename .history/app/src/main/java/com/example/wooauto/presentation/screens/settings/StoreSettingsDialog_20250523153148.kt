@@ -204,21 +204,7 @@ fun StoreSettingsDialogContent(
                     Spacer(modifier = Modifier.height(16.dp))
                 }
                 
-                Button(
-                    onClick = {
-                        // 保存商店信息
-                        viewModel.updateStoreName(storeNameInput)
-                        viewModel.updateStoreAddress(storeAddressInput) 
-                        viewModel.updateStorePhone(storePhoneInput)
-                        viewModel.updateCurrencySymbol(currencySymbolInput)
-                        
-                        coroutineScope.launch {
-                            snackbarHostState.showSnackbar(settingsSavedText)
-                            // 延迟一点时间后关闭对话框，让用户看到保存成功提示
-                            kotlinx.coroutines.delay(1000)
-                            onClose()
-                        }
-                    },
+                                Button(                    onClick = {                        // 保存商店信息                        viewModel.updateStoreName(storeNameInput)                        viewModel.updateStoreAddress(storeAddressInput)                         viewModel.updateStorePhone(storePhoneInput)                        viewModel.updateCurrencySymbol(currencySymbolInput)                                                coroutineScope.launch {                            snackbarHostState.showSnackbar(settingsSavedText)                            // 延迟一点时间后关闭对话框，让用户看到保存成功提示                            kotlinx.coroutines.delay(1000)                            onClose()                        }                    },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(start = 16.dp, end = 16.dp, bottom = 16.dp, top = 8.dp)

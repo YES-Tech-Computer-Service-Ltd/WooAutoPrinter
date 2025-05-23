@@ -442,8 +442,9 @@ class SettingsRepositoryImpl @Inject constructor(
     }
 
     private fun getBooleanSettingFlow(key: String, defaultValue: Boolean): Flow<Boolean> {
-        return settingDao.observeSettingByKey(key).map { entity ->
-            entity?.value?.toBoolean() ?: defaultValue
+        return flow {
+            val entity = settingDao.getSettingByKey(key)
+            emit(entity?.value?.toBoolean() ?: defaultValue)
         }
     }
 

@@ -441,11 +441,7 @@ class SettingsRepositoryImpl @Inject constructor(
         }
     }
 
-    private fun getBooleanSettingFlow(key: String, defaultValue: Boolean): Flow<Boolean> {
-        return settingDao.observeSettingByKey(key).map { entity ->
-            entity?.value?.toBoolean() ?: defaultValue
-        }
-    }
+        private fun getBooleanSettingFlow(key: String, defaultValue: Boolean): Flow<Boolean> {        return settingDao.observeSettingByKey(key).map { entity ->            entity?.value?.toBoolean() ?: defaultValue        }    }
 
     /**
      * 获取自动打印开关状态
