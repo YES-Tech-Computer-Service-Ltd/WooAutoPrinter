@@ -259,10 +259,17 @@ fun SettingsScreen(
                         SettingsNavigationItem(
                             title = stringResource(R.string.store_settings),
                             icon = Icons.Default.Store,
-                            onClick = { 
-                                /* 导航到店铺设置 */
-                                Log.d("设置导航", "点击了店铺信息设置项")
-                                showStoreSettingsDialog = true
+                            subTitle = stringResource(R.string.store_settings_desc),
+                            isLocked = !isLicenseValid,
+                            onClick = {
+                                if (isLicenseValid) {
+                                    Log.d("设置导航", "点击了店铺信息设置项")
+                                    showStoreSettingsDialog = true
+                                } else {
+                                    coroutineScope.launch {
+                                        snackbarHostState.showSnackbar(licenseRequiredMessage)
+                                    }
+                                }
                             }
                         )
 
