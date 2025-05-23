@@ -160,7 +160,8 @@ fun ProductDetailDialog(
                             value = regularPrice,
                             onValueChange = { regularPrice = it },
                             label = { Text(stringResource(id = R.string.regular_price)) },
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = isLicenseValid
                         )
                         
                         Spacer(modifier = Modifier.height(16.dp))
@@ -168,7 +169,11 @@ fun ProductDetailDialog(
                         // 库存状态选择
                         ExposedDropdownMenuBox(
                             expanded = stockStatusExpanded,
-                            onExpandedChange = { stockStatusExpanded = it }
+                            onExpandedChange = { expanded ->
+                                if (isLicenseValid) {
+                                    stockStatusExpanded = expanded
+                                }
+                            }
                         ) {
                             OutlinedTextField(
                                 value = if (stockStatus == "instock") 
@@ -181,25 +186,30 @@ fun ProductDetailDialog(
                                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = stockStatusExpanded) },
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .menuAnchor()
+                                    .menuAnchor(),
+                                enabled = isLicenseValid
                             )
                             
                             ExposedDropdownMenu(
-                                expanded = stockStatusExpanded,
+                                expanded = stockStatusExpanded && isLicenseValid,
                                 onDismissRequest = { stockStatusExpanded = false }
                             ) {
                                 DropdownMenuItem(
                                     text = { Text(stringResource(id = R.string.stock_status_in_stock)) },
                                     onClick = {
-                                        stockStatus = "instock"
-                                        stockStatusExpanded = false
+                                        if (isLicenseValid) {
+                                            stockStatus = "instock"
+                                            stockStatusExpanded = false
+                                        }
                                     }
                                 )
                                 DropdownMenuItem(
                                     text = { Text(stringResource(id = R.string.stock_status_out_of_stock)) },
                                     onClick = {
-                                        stockStatus = "outofstock"
-                                        stockStatusExpanded = false
+                                        if (isLicenseValid) {
+                                            stockStatus = "outofstock"
+                                            stockStatusExpanded = false
+                                        }
                                     }
                                 )
                             }
