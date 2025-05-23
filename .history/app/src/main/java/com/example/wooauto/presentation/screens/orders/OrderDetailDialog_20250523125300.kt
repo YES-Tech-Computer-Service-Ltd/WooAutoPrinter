@@ -126,29 +126,30 @@ fun OrderDetailDialog(
                             .verticalScroll(scrollState)
                             .padding(16.dp)
                     ) {
-                        // 只显示订单号，移除重复的订单ID行
+                        // 修复：直接使用固定文本标签，避免字符串资源处理问题
                         OrderDetailRow(
-                            label = stringResource(R.string.order_number_label), 
+                            label = if (LocalContext.current.resources.configuration.locales.get(0).language == "zh") "订单号" else "Order",
                             value = "#${displayOrder.number}",
                             icon = {
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Filled.Article,
-                                    contentDescription = stringResource(R.string.order_number),
+                                    contentDescription = "Order Number",
                                     modifier = Modifier.size(16.dp),
                                     tint = MaterialTheme.colorScheme.primary
                                 )
                             }
                         )
                         
+                        // 移除重复的订单ID行，直接显示日期
                         val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
                         val formattedDate = dateFormat.format(displayOrder.dateCreated)
                         OrderDetailRow(
-                            label = stringResource(R.string.order_date_label),
+                            label = if (LocalContext.current.resources.configuration.locales.get(0).language == "zh") "下单时间" else "Order Date",
                             value = formattedDate,
                             icon = {
                                 Icon(
                                     imageVector = Icons.Default.Schedule,
-                                    contentDescription = stringResource(R.string.order_date),
+                                    contentDescription = "Order Date",
                                     modifier = Modifier.size(16.dp),
                                     tint = MaterialTheme.colorScheme.primary
                                 )
@@ -156,12 +157,12 @@ fun OrderDetailDialog(
                         )
                         
                         OrderDetailRow(
-                            label = stringResource(R.string.customer_name_label),
+                            label = if (LocalContext.current.resources.configuration.locales.get(0).language == "zh") "客户姓名" else "Customer",
                             value = displayOrder.customerName,
                             icon = {
                                 Icon(
                                     imageVector = Icons.Default.Person,
-                                    contentDescription = stringResource(R.string.customer_name),
+                                    contentDescription = "Customer Name",
                                     modifier = Modifier.size(16.dp),
                                     tint = MaterialTheme.colorScheme.primary
                                 )
@@ -170,7 +171,7 @@ fun OrderDetailDialog(
                         
                         // 手机号
                         OrderDetailRow(
-                            label = stringResource(R.string.contact_info_label),
+                            label = stringResource(R.string.contact_info).substringBefore(":"),
                             value = displayOrder.contactInfo.ifEmpty { stringResource(R.string.not_provided) },
                             icon = {
                                 Icon(
@@ -219,8 +220,7 @@ fun OrderDetailDialog(
                                 OutlinedButton(
                                     onClick = { onMarkAsPrinted(displayOrder.id) },
                                     modifier = Modifier.height(28.dp),
-                                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp),
-                                    enabled = licenseInfo?.status == LicenseStatus.VALID || licenseInfo?.status == LicenseStatus.TRIAL
+                                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp)
                                 ) {
                                     Text(
                                         text = stringResource(R.string.mark_as_printed),
@@ -688,21 +688,12 @@ fun OrderDetailDialog(
                                         shape = RoundedCornerShape(4.dp)
                                     )
                                     .padding(horizontal = 8.dp, vertical = 4.dp)
-                                    .clickable(
-                                        enabled = licenseInfo?.status == LicenseStatus.VALID || licenseInfo?.status == LicenseStatus.TRIAL
-                                    ) { 
-                                        if (licenseInfo?.status == LicenseStatus.VALID || licenseInfo?.status == LicenseStatus.TRIAL) {
-                                            showStatusOptions = true
-                                        }
-                                    }
+                                    .clickable { showStatusOptions = true }
                             ) {
                                 Text(
                                     text = statusText,
                                     style = MaterialTheme.typography.bodyMedium,
-                                    color = if (licenseInfo?.status == LicenseStatus.VALID || licenseInfo?.status == LicenseStatus.TRIAL) 
-                                        statusColor 
-                                    else 
-                                        statusColor.copy(alpha = 0.5f)
+                                    color = statusColor
                                 )
                             }
                         }
@@ -829,7 +820,7 @@ fun OrderDetailDialog(
                         enabled = licenseInfo?.status == LicenseStatus.VALID || licenseInfo?.status == LicenseStatus.TRIAL
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Edit,
+                            imageVector = Icons.Default.AttachMoney,
                             contentDescription = null,
                             modifier = Modifier.size(18.dp)
                         )
@@ -857,8 +848,8 @@ fun OrderDetailDialog(
         }
     }
     
-    // 显示状态选择对话框（仅在证书有效时）
-    if (showStatusOptions && (licenseInfo?.status == LicenseStatus.VALID || licenseInfo?.status == LicenseStatus.TRIAL)) {
+    // 显示状态选择对话框
+    if (showStatusOptions) {
         StatusChangeDialog(
             currentStatus = displayOrder.status,
             onDismiss = { showStatusOptions = false },
@@ -869,8 +860,8 @@ fun OrderDetailDialog(
         )
     }
     
-    // 添加模板选择对话框（仅在证书有效时）
-    if (showTemplateOptions && (licenseInfo?.status == LicenseStatus.VALID || licenseInfo?.status == LicenseStatus.TRIAL)) {
+    // 添加模板选择对话框
+    if (showTemplateOptions) {
         TemplateSelectorDialog(
             onDismiss = { showTemplateOptions = false },
             onTemplateSelected = { templateType ->

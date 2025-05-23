@@ -153,27 +153,14 @@ fun ProductDetailDialog(
                             textAlign = TextAlign.Center
                         )
                         
-                        Spacer(modifier = Modifier.height(24.dp))
-                        
-                        // 价格输入
-                        OutlinedTextField(
-                            value = regularPrice,
-                            onValueChange = { regularPrice = it },
-                            label = { Text(stringResource(id = R.string.regular_price)) },
-                            modifier = Modifier.fillMaxWidth(),
-                            enabled = isLicenseValid
-                        )
+                                                Spacer(modifier = Modifier.height(24.dp))                                                // 价格输入                        OutlinedTextField(                            value = regularPrice,                            onValueChange = { regularPrice = it },                            label = { Text(stringResource(id = R.string.regular_price)) },                            modifier = Modifier.fillMaxWidth(),                            enabled = isLicenseValid                        )
                         
                         Spacer(modifier = Modifier.height(16.dp))
                         
                         // 库存状态选择
                         ExposedDropdownMenuBox(
                             expanded = stockStatusExpanded,
-                            onExpandedChange = { expanded ->
-                                if (isLicenseValid) {
-                                    stockStatusExpanded = expanded
-                                }
-                            }
+                            onExpandedChange = { stockStatusExpanded = it }
                         ) {
                             OutlinedTextField(
                                 value = if (stockStatus == "instock") 
@@ -186,30 +173,25 @@ fun ProductDetailDialog(
                                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = stockStatusExpanded) },
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .menuAnchor(),
-                                enabled = isLicenseValid
+                                    .menuAnchor()
                             )
                             
                             ExposedDropdownMenu(
-                                expanded = stockStatusExpanded && isLicenseValid,
+                                expanded = stockStatusExpanded,
                                 onDismissRequest = { stockStatusExpanded = false }
                             ) {
                                 DropdownMenuItem(
                                     text = { Text(stringResource(id = R.string.stock_status_in_stock)) },
                                     onClick = {
-                                        if (isLicenseValid) {
-                                            stockStatus = "instock"
-                                            stockStatusExpanded = false
-                                        }
+                                        stockStatus = "instock"
+                                        stockStatusExpanded = false
                                     }
                                 )
                                 DropdownMenuItem(
                                     text = { Text(stringResource(id = R.string.stock_status_out_of_stock)) },
                                     onClick = {
-                                        if (isLicenseValid) {
-                                            stockStatus = "outofstock"
-                                            stockStatusExpanded = false
-                                        }
+                                        stockStatus = "outofstock"
+                                        stockStatusExpanded = false
                                     }
                                 )
                             }

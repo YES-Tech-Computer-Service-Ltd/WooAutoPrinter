@@ -857,8 +857,8 @@ fun OrderDetailDialog(
         }
     }
     
-    // 显示状态选择对话框（仅在证书有效时）
-    if (showStatusOptions && (licenseInfo?.status == LicenseStatus.VALID || licenseInfo?.status == LicenseStatus.TRIAL)) {
+    // 显示状态选择对话框
+    if (showStatusOptions) {
         StatusChangeDialog(
             currentStatus = displayOrder.status,
             onDismiss = { showStatusOptions = false },
@@ -869,8 +869,8 @@ fun OrderDetailDialog(
         )
     }
     
-    // 添加模板选择对话框（仅在证书有效时）
-    if (showTemplateOptions && (licenseInfo?.status == LicenseStatus.VALID || licenseInfo?.status == LicenseStatus.TRIAL)) {
+    // 添加模板选择对话框
+    if (showTemplateOptions) {
         TemplateSelectorDialog(
             onDismiss = { showTemplateOptions = false },
             onTemplateSelected = { templateType ->

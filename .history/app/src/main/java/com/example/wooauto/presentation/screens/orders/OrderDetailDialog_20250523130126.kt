@@ -219,8 +219,7 @@ fun OrderDetailDialog(
                                 OutlinedButton(
                                     onClick = { onMarkAsPrinted(displayOrder.id) },
                                     modifier = Modifier.height(28.dp),
-                                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp),
-                                    enabled = licenseInfo?.status == LicenseStatus.VALID || licenseInfo?.status == LicenseStatus.TRIAL
+                                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp)
                                 ) {
                                     Text(
                                         text = stringResource(R.string.mark_as_printed),
@@ -688,21 +687,12 @@ fun OrderDetailDialog(
                                         shape = RoundedCornerShape(4.dp)
                                     )
                                     .padding(horizontal = 8.dp, vertical = 4.dp)
-                                    .clickable(
-                                        enabled = licenseInfo?.status == LicenseStatus.VALID || licenseInfo?.status == LicenseStatus.TRIAL
-                                    ) { 
-                                        if (licenseInfo?.status == LicenseStatus.VALID || licenseInfo?.status == LicenseStatus.TRIAL) {
-                                            showStatusOptions = true
-                                        }
-                                    }
+                                    .clickable { showStatusOptions = true }
                             ) {
                                 Text(
                                     text = statusText,
                                     style = MaterialTheme.typography.bodyMedium,
-                                    color = if (licenseInfo?.status == LicenseStatus.VALID || licenseInfo?.status == LicenseStatus.TRIAL) 
-                                        statusColor 
-                                    else 
-                                        statusColor.copy(alpha = 0.5f)
+                                    color = statusColor
                                 )
                             }
                         }
@@ -829,7 +819,7 @@ fun OrderDetailDialog(
                         enabled = licenseInfo?.status == LicenseStatus.VALID || licenseInfo?.status == LicenseStatus.TRIAL
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Edit,
+                            imageVector = Icons.Default.AttachMoney,
                             contentDescription = null,
                             modifier = Modifier.size(18.dp)
                         )
@@ -857,8 +847,8 @@ fun OrderDetailDialog(
         }
     }
     
-    // 显示状态选择对话框（仅在证书有效时）
-    if (showStatusOptions && (licenseInfo?.status == LicenseStatus.VALID || licenseInfo?.status == LicenseStatus.TRIAL)) {
+    // 显示状态选择对话框
+    if (showStatusOptions) {
         StatusChangeDialog(
             currentStatus = displayOrder.status,
             onDismiss = { showStatusOptions = false },
@@ -869,8 +859,8 @@ fun OrderDetailDialog(
         )
     }
     
-    // 添加模板选择对话框（仅在证书有效时）
-    if (showTemplateOptions && (licenseInfo?.status == LicenseStatus.VALID || licenseInfo?.status == LicenseStatus.TRIAL)) {
+    // 添加模板选择对话框
+    if (showTemplateOptions) {
         TemplateSelectorDialog(
             onDismiss = { showTemplateOptions = false },
             onTemplateSelected = { templateType ->
