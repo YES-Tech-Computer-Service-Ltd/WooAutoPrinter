@@ -38,6 +38,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.ui.draw.clip
 import com.example.wooauto.licensing.LicenseStatus
+import com.example.wooauto.utils.LocalAppLocale
 
 /**
  * 订单详情对话框
@@ -53,6 +54,10 @@ fun OrderDetailDialog(
     val viewModel: OrdersViewModel = hiltViewModel()
     remember { viewModel.licenseManager }
     val licenseInfo by viewModel.licenseManager.licenseInfo.observeAsState()
+    
+    // 获取当前语言环境
+    val locale = LocalAppLocale.current
+    val isZh = locale.language == "zh"
     
     var showStatusOptions by remember { mutableStateOf(false) }
     var showTemplateOptions by remember { mutableStateOf(false) }
@@ -128,12 +133,12 @@ fun OrderDetailDialog(
                     ) {
                         // 只显示订单号，移除重复的订单ID行
                         OrderDetailRow(
-                            label = stringResource(R.string.order_number_label), 
+                            label = if (isZh) "订单号" else "Order", 
                             value = "#${displayOrder.number}",
                             icon = {
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Filled.Article,
-                                    contentDescription = stringResource(R.string.order_number),
+                                    contentDescription = "Order Number",
                                     modifier = Modifier.size(16.dp),
                                     tint = MaterialTheme.colorScheme.primary
                                 )
@@ -143,7 +148,7 @@ fun OrderDetailDialog(
                         val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
                         val formattedDate = dateFormat.format(displayOrder.dateCreated)
                         OrderDetailRow(
-                            label = stringResource(R.string.order_date_label),
+                            label = stringResource(R.string.order_date).substringBefore(":"),
                             value = formattedDate,
                             icon = {
                                 Icon(
@@ -156,7 +161,7 @@ fun OrderDetailDialog(
                         )
                         
                         OrderDetailRow(
-                            label = stringResource(R.string.customer_name_label),
+                            label = stringResource(R.string.customer_name).substringBefore(":"),
                             value = displayOrder.customerName,
                             icon = {
                                 Icon(
@@ -170,7 +175,7 @@ fun OrderDetailDialog(
                         
                         // 手机号
                         OrderDetailRow(
-                            label = stringResource(R.string.contact_info_label),
+                            label = stringResource(R.string.contact_info).substringBefore(":"),
                             value = displayOrder.contactInfo.ifEmpty { stringResource(R.string.not_provided) },
                             icon = {
                                 Icon(
@@ -819,7 +824,7 @@ fun OrderDetailDialog(
                         enabled = licenseInfo?.status == LicenseStatus.VALID || licenseInfo?.status == LicenseStatus.TRIAL
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Edit,
+                            imageVector = Icons.Default.AttachMoney,
                             contentDescription = null,
                             modifier = Modifier.size(18.dp)
                         )

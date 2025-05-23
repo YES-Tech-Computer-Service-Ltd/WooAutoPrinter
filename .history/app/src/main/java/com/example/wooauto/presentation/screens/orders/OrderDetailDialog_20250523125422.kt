@@ -126,14 +126,27 @@ fun OrderDetailDialog(
                             .verticalScroll(scrollState)
                             .padding(16.dp)
                     ) {
-                        // 只显示订单号，移除重复的订单ID行
+                        // 使用 order_number 字符串资源
                         OrderDetailRow(
-                            label = stringResource(R.string.order_number_label), 
-                            value = "#${displayOrder.number}",
+                            label = stringResource(R.string.order_number).substringBefore(":"), 
+                            value = displayOrder.number,
                             icon = {
                                 Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.Article,
+                                    imageVector = Icons.AutoMirrored.Filled.List,
                                     contentDescription = stringResource(R.string.order_number),
+                                    modifier = Modifier.size(16.dp),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        )
+                        
+                        OrderDetailRow(
+                            label = stringResource(R.string.order_id).substringBefore(":"), 
+                            value = displayOrder.id.toString(),
+                            icon = {
+                                Icon(
+                                    imageVector = Icons.Default.AttachMoney,
+                                    contentDescription = stringResource(R.string.order_id),
                                     modifier = Modifier.size(16.dp),
                                     tint = MaterialTheme.colorScheme.primary
                                 )
@@ -143,7 +156,7 @@ fun OrderDetailDialog(
                         val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
                         val formattedDate = dateFormat.format(displayOrder.dateCreated)
                         OrderDetailRow(
-                            label = stringResource(R.string.order_date_label),
+                            label = stringResource(R.string.order_date).substringBefore(":"),
                             value = formattedDate,
                             icon = {
                                 Icon(
@@ -156,7 +169,7 @@ fun OrderDetailDialog(
                         )
                         
                         OrderDetailRow(
-                            label = stringResource(R.string.customer_name_label),
+                            label = stringResource(R.string.customer_name).substringBefore(":"),
                             value = displayOrder.customerName,
                             icon = {
                                 Icon(
@@ -170,7 +183,7 @@ fun OrderDetailDialog(
                         
                         // 手机号
                         OrderDetailRow(
-                            label = stringResource(R.string.contact_info_label),
+                            label = stringResource(R.string.contact_info).substringBefore(":"),
                             value = displayOrder.contactInfo.ifEmpty { stringResource(R.string.not_provided) },
                             icon = {
                                 Icon(
@@ -819,7 +832,7 @@ fun OrderDetailDialog(
                         enabled = licenseInfo?.status == LicenseStatus.VALID || licenseInfo?.status == LicenseStatus.TRIAL
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Edit,
+                            imageVector = Icons.Default.AttachMoney,
                             contentDescription = null,
                             modifier = Modifier.size(18.dp)
                         )

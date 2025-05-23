@@ -819,7 +819,7 @@ fun OrderDetailDialog(
                         enabled = licenseInfo?.status == LicenseStatus.VALID || licenseInfo?.status == LicenseStatus.TRIAL
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Edit,
+                            imageVector = Icons.Default.AttachMoney,
                             contentDescription = null,
                             modifier = Modifier.size(18.dp)
                         )
