@@ -441,7 +441,7 @@
     <string name="contact_info_label">联系方式</string>
 
     <!-- Store Settings -->
-    <string name="store_settings_desc">配置店铺信息和货币单位</string>
+    <string name="store_settings_desc">配置店铺信息和货币</string>
     <string name="store_name">店铺名称</string>
     <string name="store_name_hint">请输入店铺名称</string>
     <string name="store_address">店铺地址</string>
