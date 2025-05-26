@@ -57,7 +57,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.example.wooauto.R
 import com.example.wooauto.domain.models.TemplateConfig
-import com.example.wooauto.domain.templates.TemplateType
+import com.example.wooauto.presentation.screens.settings.TemplateType
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)

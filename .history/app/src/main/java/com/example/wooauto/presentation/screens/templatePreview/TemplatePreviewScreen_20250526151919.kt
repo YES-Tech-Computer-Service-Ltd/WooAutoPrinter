@@ -57,7 +57,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.example.wooauto.R
 import com.example.wooauto.domain.models.TemplateConfig
-import com.example.wooauto.domain.templates.TemplateType
+import com.example.wooauto.presentation.screens.settings.TemplateType
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -949,44 +949,30 @@ fun TemplatePreviewDialogContent(
                         }
                     },
                     actions = {
-                        // 重置为默认配置按钮
-                        IconButton(
-                            onClick = {
-                                viewModel.resetToDefault(templateId, templateType)
-                            },
-                            enabled = !isLoading && !isSaving
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Refresh,
-                                contentDescription = "Reset to Default"
-                            )
-                        }
-                        
-                        // 保存按钮
-                        IconButton(
-                            onClick = {
-                                viewModel.saveCurrentConfig()
-                            },
-                            enabled = !isLoading && !isSaving && currentConfig != null
-                        ) {
-                            if (isSaving) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.padding(4.dp)
-                                )
-                            } else {
+                        if (isNewTemplate) {
+                            // 提前获取字符串资源
+                            val successMessage = stringResource(R.string.settings_saved)
+                            IconButton(onClick = {
+                                // 保存新模板并立即关闭对话框
+                                onClose() // 先关闭对话框
+                                coroutineScope.launch {
+                                    snackbarHostState.showSnackbar(successMessage)
+                                }
+                            }) {
                                 Icon(
                                     imageVector = Icons.Default.Save,
-                                    contentDescription = "Save"
+                                    contentDescription = stringResource(R.string.save)
                                 )
                             }
-                        }
-                        
-                        // 关闭按钮
-                        IconButton(onClick = { onClose() }) {
-                            Icon(
-                                imageVector = Icons.Default.Close,
-                                contentDescription = "Close"
-                            )
+                        } else {
+                            // 获取关闭按钮的字符串资源
+                            val closeString = stringResource(R.string.close)
+                            IconButton(onClick = { onClose() }) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = closeString
+                                )
+                            }
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
@@ -1015,52 +1001,48 @@ fun TemplatePreviewDialogContent(
                 when (selectedTabIndex) {
                     0 -> {
                         // 预览选项卡
-                        if (isLoading) {
-                            Box(
-                                modifier = Modifier.fillMaxSize(),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                CircularProgressIndicator()
-                            }
-                        } else {
-                            currentConfig?.let { config ->
-                                TemplatePreview(
-                                    showStoreInfo = config.showStoreInfo,
-                                    showOrderNumber = config.showOrderNumber,
-                                    showCustomerInfo = config.showCustomerInfo,
-                                    showOrderDate = config.showOrderDate,
-                                    showDeliveryInfo = config.showDeliveryInfo,
-                                    showPaymentInfo = config.showPaymentInfo,
-                                    showItemDetails = config.showItemDetails,
-                                    showItemPrices = config.showItemPrices,
-                                    showOrderNotes = config.showOrderNotes,
-                                    showTotals = config.showTotals,
-                                    showFooter = config.showFooter
-                                )
-                            }
-                        }
+                        TemplatePreview(
+                            showStoreInfo = showStoreInfo,
+                            showOrderNumber = showOrderNumber,
+                            showCustomerInfo = showCustomerInfo,
+                            showOrderDate = showOrderDate,
+                            showDeliveryInfo = showDeliveryInfo,
+                            showPaymentInfo = showPaymentInfo,
+                            showItemDetails = showItemDetails,
+                            showItemPrices = showItemPrices,
+                            showOrderNotes = showOrderNotes,
+                            showTotals = showTotals,
+                            showFooter = showFooter
+                        )
                     }
                     1 -> {
                         // 设置选项卡
-                        if (isLoading) {
-                            Box(
-                                modifier = Modifier.fillMaxSize(),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                CircularProgressIndicator()
-                            }
-                        } else {
-                            currentConfig?.let { config ->
-                                TemplateSettings(
-                                    config = config,
-                                    onConfigChange = { updatedConfig ->
-                                        viewModel.updateCurrentConfig(updatedConfig)
-                                    },
-                                    onClose = onClose,
-                                    snackbarHostState = snackbarHostState
-                                )
-                            }
-                        }
+                        TemplateSettings(
+                            showStoreInfo = showStoreInfo,
+                            onShowStoreInfoChange = { showStoreInfo = it },
+                            showOrderNumber = showOrderNumber,
+                            onShowOrderNumberChange = { showOrderNumber = it },
+                            showCustomerInfo = showCustomerInfo,
+                            onShowCustomerInfoChange = { showCustomerInfo = it },
+                            showOrderDate = showOrderDate,
+                            onShowOrderDateChange = { showOrderDate = it },
+                            showDeliveryInfo = showDeliveryInfo,
+                            onShowDeliveryInfoChange = { showDeliveryInfo = it },
+                            showPaymentInfo = showPaymentInfo,
+                            onShowPaymentInfoChange = { showPaymentInfo = it },
+                            showItemDetails = showItemDetails,
+                            onShowItemDetailsChange = { showItemDetails = it },
+                            showItemPrices = showItemPrices,
+                            onShowItemPricesChange = { showItemPrices = it },
+                            showOrderNotes = showOrderNotes,
+                            onShowOrderNotesChange = { showOrderNotes = it },
+                            showTotals = showTotals,
+                            onShowTotalsChange = { showTotals = it },
+                            showFooter = showFooter,
+                            onShowFooterChange = { showFooter = it },
+                            onClose = onClose,
+                            snackbarHostState = snackbarHostState
+                        )
                     }
                 }
             }

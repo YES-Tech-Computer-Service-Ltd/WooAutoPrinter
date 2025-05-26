@@ -57,7 +57,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.example.wooauto.R
 import com.example.wooauto.domain.models.TemplateConfig
-import com.example.wooauto.domain.templates.TemplateType
+import com.example.wooauto.presentation.screens.settings.TemplateType
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -1015,52 +1015,48 @@ fun TemplatePreviewDialogContent(
                 when (selectedTabIndex) {
                     0 -> {
                         // 预览选项卡
-                        if (isLoading) {
-                            Box(
-                                modifier = Modifier.fillMaxSize(),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                CircularProgressIndicator()
-                            }
-                        } else {
-                            currentConfig?.let { config ->
-                                TemplatePreview(
-                                    showStoreInfo = config.showStoreInfo,
-                                    showOrderNumber = config.showOrderNumber,
-                                    showCustomerInfo = config.showCustomerInfo,
-                                    showOrderDate = config.showOrderDate,
-                                    showDeliveryInfo = config.showDeliveryInfo,
-                                    showPaymentInfo = config.showPaymentInfo,
-                                    showItemDetails = config.showItemDetails,
-                                    showItemPrices = config.showItemPrices,
-                                    showOrderNotes = config.showOrderNotes,
-                                    showTotals = config.showTotals,
-                                    showFooter = config.showFooter
-                                )
-                            }
-                        }
+                        TemplatePreview(
+                            showStoreInfo = showStoreInfo,
+                            showOrderNumber = showOrderNumber,
+                            showCustomerInfo = showCustomerInfo,
+                            showOrderDate = showOrderDate,
+                            showDeliveryInfo = showDeliveryInfo,
+                            showPaymentInfo = showPaymentInfo,
+                            showItemDetails = showItemDetails,
+                            showItemPrices = showItemPrices,
+                            showOrderNotes = showOrderNotes,
+                            showTotals = showTotals,
+                            showFooter = showFooter
+                        )
                     }
                     1 -> {
                         // 设置选项卡
-                        if (isLoading) {
-                            Box(
-                                modifier = Modifier.fillMaxSize(),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                CircularProgressIndicator()
-                            }
-                        } else {
-                            currentConfig?.let { config ->
-                                TemplateSettings(
-                                    config = config,
-                                    onConfigChange = { updatedConfig ->
-                                        viewModel.updateCurrentConfig(updatedConfig)
-                                    },
-                                    onClose = onClose,
-                                    snackbarHostState = snackbarHostState
-                                )
-                            }
-                        }
+                        TemplateSettings(
+                            showStoreInfo = showStoreInfo,
+                            onShowStoreInfoChange = { showStoreInfo = it },
+                            showOrderNumber = showOrderNumber,
+                            onShowOrderNumberChange = { showOrderNumber = it },
+                            showCustomerInfo = showCustomerInfo,
+                            onShowCustomerInfoChange = { showCustomerInfo = it },
+                            showOrderDate = showOrderDate,
+                            onShowOrderDateChange = { showOrderDate = it },
+                            showDeliveryInfo = showDeliveryInfo,
+                            onShowDeliveryInfoChange = { showDeliveryInfo = it },
+                            showPaymentInfo = showPaymentInfo,
+                            onShowPaymentInfoChange = { showPaymentInfo = it },
+                            showItemDetails = showItemDetails,
+                            onShowItemDetailsChange = { showItemDetails = it },
+                            showItemPrices = showItemPrices,
+                            onShowItemPricesChange = { showItemPrices = it },
+                            showOrderNotes = showOrderNotes,
+                            onShowOrderNotesChange = { showOrderNotes = it },
+                            showTotals = showTotals,
+                            onShowTotalsChange = { showTotals = it },
+                            showFooter = showFooter,
+                            onShowFooterChange = { showFooter = it },
+                            onClose = onClose,
+                            snackbarHostState = snackbarHostState
+                        )
                     }
                 }
             }

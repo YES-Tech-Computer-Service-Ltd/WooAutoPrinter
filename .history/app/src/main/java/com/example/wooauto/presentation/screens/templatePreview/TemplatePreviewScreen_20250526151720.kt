@@ -57,15 +57,14 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.example.wooauto.R
 import com.example.wooauto.domain.models.TemplateConfig
-import com.example.wooauto.domain.templates.TemplateType
+import com.example.wooauto.presentation.screens.settings.TemplateType
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TemplatePreviewScreen(
     navController: NavController,
-    templateId: String,
-    viewModel: TemplateConfigViewModel = hiltViewModel()
+    templateId: String
 ) {
     // 确定模板类型
     val templateType = when (templateId) {
@@ -76,12 +75,14 @@ fun TemplatePreviewScreen(
         else -> TemplateType.FULL_DETAILS
     }
     
-    // 从ViewModel获取状态
-    val currentConfig by viewModel.currentConfig.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
-    val isSaving by viewModel.isSaving.collectAsState()
-    val errorMessage by viewModel.errorMessage.collectAsState()
-    val successMessage by viewModel.successMessage.collectAsState()
+    // 获取模板名称
+    val templateName = when (templateId) {
+        "full_details" -> "Full Order Details"
+        "delivery" -> "Delivery Receipt"
+        "kitchen" -> "Kitchen Order"
+        "new" -> "New Custom Template"
+        else -> "Custom Template"
+    }
     
     // 是否正在创建新模板
     val isNewTemplate = templateId == "new"
@@ -90,38 +91,21 @@ fun TemplatePreviewScreen(
     var selectedTabIndex by remember { mutableStateOf(0) }
     val tabs = listOf("Preview", "Settings")
     
+    // 创建复选框状态
+    var showStoreInfo by remember { mutableStateOf(true) }
+    var showOrderNumber by remember { mutableStateOf(true) }
+    var showCustomerInfo by remember { mutableStateOf(templateType != TemplateType.KITCHEN) }
+    var showOrderDate by remember { mutableStateOf(true) }
+    var showDeliveryInfo by remember { mutableStateOf(templateType == TemplateType.DELIVERY) }
+    var showPaymentInfo by remember { mutableStateOf(templateType == TemplateType.FULL_DETAILS) }
+    var showItemDetails by remember { mutableStateOf(true) }
+    var showItemPrices by remember { mutableStateOf(templateType != TemplateType.KITCHEN) }
+    var showOrderNotes by remember { mutableStateOf(templateType != TemplateType.KITCHEN) }
+    var showTotals by remember { mutableStateOf(templateType != TemplateType.KITCHEN) }
+    var showFooter by remember { mutableStateOf(templateType != TemplateType.KITCHEN) }
+    
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
-    
-    // 加载配置
-    LaunchedEffect(templateId) {
-        viewModel.loadConfigById(templateId, templateType)
-    }
-    
-    // 处理错误消息
-    LaunchedEffect(errorMessage) {
-        errorMessage?.let { message ->
-            snackbarHostState.showSnackbar(message)
-            viewModel.clearErrorMessage()
-        }
-    }
-    
-    // 处理成功消息
-    LaunchedEffect(successMessage) {
-        successMessage?.let { message ->
-            snackbarHostState.showSnackbar(message)
-            viewModel.clearSuccessMessage()
-        }
-    }
-    
-    // 获取模板名称
-    val templateName = currentConfig?.templateName ?: when (templateId) {
-        "full_details" -> "Full Order Details"
-        "delivery" -> "Delivery Receipt"
-        "kitchen" -> "Kitchen Order"
-        "new" -> "New Custom Template"
-        else -> "Custom Template"
-    }
     
     Scaffold(
         topBar = {
@@ -136,34 +120,26 @@ fun TemplatePreviewScreen(
                     }
                 },
                 actions = {
-                    // 重置为默认配置按钮
-                    IconButton(
-                        onClick = {
-                            viewModel.resetToDefault(templateId, templateType)
-                        },
-                        enabled = !isLoading && !isSaving
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = "Reset to Default"
-                        )
-                    }
-                    
-                    // 保存按钮
-                    IconButton(
-                        onClick = {
-                            viewModel.saveCurrentConfig()
-                        },
-                        enabled = !isLoading && !isSaving && currentConfig != null
-                    ) {
-                        if (isSaving) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.padding(4.dp)
-                            )
-                        } else {
+                    if (isNewTemplate) {
+                        IconButton(onClick = {
+                            // 保存新模板
+                            coroutineScope.launch {
+                                snackbarHostState.showSnackbar("Template saved")
+                                navController.popBackStack()
+                            }
+                        }) {
                             Icon(
                                 imageVector = Icons.Default.Save,
                                 contentDescription = "Save"
+                            )
+                        }
+                    } else {
+                        IconButton(onClick = {
+                            // 编辑现有模板
+                        }) {
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = "Edit"
                             )
                         }
                     }
@@ -195,52 +171,48 @@ fun TemplatePreviewScreen(
             when (selectedTabIndex) {
                 0 -> {
                     // 预览选项卡
-                    if (isLoading) {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            CircularProgressIndicator()
-                        }
-                    } else {
-                        currentConfig?.let { config ->
-                            TemplatePreview(
-                                showStoreInfo = config.showStoreInfo,
-                                showOrderNumber = config.showOrderNumber,
-                                showCustomerInfo = config.showCustomerInfo,
-                                showOrderDate = config.showOrderDate,
-                                showDeliveryInfo = config.showDeliveryInfo,
-                                showPaymentInfo = config.showPaymentInfo,
-                                showItemDetails = config.showItemDetails,
-                                showItemPrices = config.showItemPrices,
-                                showOrderNotes = config.showOrderNotes,
-                                showTotals = config.showTotals,
-                                showFooter = config.showFooter
-                            )
-                        }
-                    }
+                    TemplatePreview(
+                        showStoreInfo = showStoreInfo,
+                        showOrderNumber = showOrderNumber,
+                        showCustomerInfo = showCustomerInfo,
+                        showOrderDate = showOrderDate,
+                        showDeliveryInfo = showDeliveryInfo,
+                        showPaymentInfo = showPaymentInfo,
+                        showItemDetails = showItemDetails,
+                        showItemPrices = showItemPrices,
+                        showOrderNotes = showOrderNotes,
+                        showTotals = showTotals,
+                        showFooter = showFooter
+                    )
                 }
                 1 -> {
                     // 设置选项卡
-                    if (isLoading) {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            CircularProgressIndicator()
-                        }
-                    } else {
-                        currentConfig?.let { config ->
-                            TemplateSettings(
-                                config = config,
-                                onConfigChange = { updatedConfig ->
-                                    viewModel.updateCurrentConfig(updatedConfig)
-                                },
-                                onClose = { navController.navigateUp() },
-                                snackbarHostState = snackbarHostState
-                            )
-                        }
-                    }
+                    TemplateSettings(
+                        showStoreInfo = showStoreInfo,
+                        onShowStoreInfoChange = { showStoreInfo = it },
+                        showOrderNumber = showOrderNumber,
+                        onShowOrderNumberChange = { showOrderNumber = it },
+                        showCustomerInfo = showCustomerInfo,
+                        onShowCustomerInfoChange = { showCustomerInfo = it },
+                        showOrderDate = showOrderDate,
+                        onShowOrderDateChange = { showOrderDate = it },
+                        showDeliveryInfo = showDeliveryInfo,
+                        onShowDeliveryInfoChange = { showDeliveryInfo = it },
+                        showPaymentInfo = showPaymentInfo,
+                        onShowPaymentInfoChange = { showPaymentInfo = it },
+                        showItemDetails = showItemDetails,
+                        onShowItemDetailsChange = { showItemDetails = it },
+                        showItemPrices = showItemPrices,
+                        onShowItemPricesChange = { showItemPrices = it },
+                        showOrderNotes = showOrderNotes,
+                        onShowOrderNotesChange = { showOrderNotes = it },
+                        showTotals = showTotals,
+                        onShowTotalsChange = { showTotals = it },
+                        showFooter = showFooter,
+                        onShowFooterChange = { showFooter = it },
+                        onClose = { navController.navigateUp() },
+                        snackbarHostState = snackbarHostState
+                    )
                 }
             }
         }
@@ -704,8 +676,28 @@ fun TemplatePreview(
 
 @Composable
 fun TemplateSettings(
-    config: TemplateConfig,
-    onConfigChange: (TemplateConfig) -> Unit,
+    showStoreInfo: Boolean,
+    onShowStoreInfoChange: (Boolean) -> Unit,
+    showOrderNumber: Boolean,
+    onShowOrderNumberChange: (Boolean) -> Unit,
+    showCustomerInfo: Boolean,
+    onShowCustomerInfoChange: (Boolean) -> Unit,
+    showOrderDate: Boolean,
+    onShowOrderDateChange: (Boolean) -> Unit,
+    showDeliveryInfo: Boolean,
+    onShowDeliveryInfoChange: (Boolean) -> Unit,
+    showPaymentInfo: Boolean,
+    onShowPaymentInfoChange: (Boolean) -> Unit,
+    showItemDetails: Boolean,
+    onShowItemDetailsChange: (Boolean) -> Unit,
+    showItemPrices: Boolean,
+    onShowItemPricesChange: (Boolean) -> Unit,
+    showOrderNotes: Boolean,
+    onShowOrderNotesChange: (Boolean) -> Unit,
+    showTotals: Boolean,
+    onShowTotalsChange: (Boolean) -> Unit,
+    showFooter: Boolean,
+    onShowFooterChange: (Boolean) -> Unit,
     onClose: () -> Unit,
     snackbarHostState: SnackbarHostState
 ) {
@@ -732,98 +724,91 @@ fun TemplateSettings(
         
         SettingCheckbox(
             label = "Store Information",
-            isChecked = config.showStoreInfo,
-            onCheckedChange = { onConfigChange(config.copy(showStoreInfo = it)) }
+            isChecked = showStoreInfo,
+            onCheckedChange = onShowStoreInfoChange
         )
         
         SettingCheckbox(
             label = "Order Number",
-            isChecked = config.showOrderNumber,
-            onCheckedChange = { onConfigChange(config.copy(showOrderNumber = it)) }
+            isChecked = showOrderNumber,
+            onCheckedChange = onShowOrderNumberChange
         )
         
         SettingCheckbox(
             label = "Order Date and Time",
-            isChecked = config.showOrderDate,
-            onCheckedChange = { onConfigChange(config.copy(showOrderDate = it)) }
+            isChecked = showOrderDate,
+            onCheckedChange = onShowOrderDateChange
         )
         
         SettingCheckbox(
             label = "Customer Information",
-            isChecked = config.showCustomerInfo,
-            onCheckedChange = { onConfigChange(config.copy(showCustomerInfo = it)) }
+            isChecked = showCustomerInfo,
+            onCheckedChange = onShowCustomerInfoChange
         )
         
         SettingCheckbox(
             label = "Delivery Information",
-            isChecked = config.showDeliveryInfo,
-            onCheckedChange = { onConfigChange(config.copy(showDeliveryInfo = it)) }
+            isChecked = showDeliveryInfo,
+            onCheckedChange = onShowDeliveryInfoChange
         )
         
         SettingCheckbox(
             label = "Payment Method",
-            isChecked = config.showPaymentInfo,
-            onCheckedChange = { onConfigChange(config.copy(showPaymentInfo = it)) }
+            isChecked = showPaymentInfo,
+            onCheckedChange = onShowPaymentInfoChange
         )
         
         SettingCheckbox(
             label = "Order Items",
-            isChecked = config.showItemDetails,
-            onCheckedChange = { onConfigChange(config.copy(showItemDetails = it)) }
+            isChecked = showItemDetails,
+            onCheckedChange = onShowItemDetailsChange
         )
         
         SettingCheckbox(
             label = "Item Prices",
-            isChecked = config.showItemPrices,
-            onCheckedChange = { onConfigChange(config.copy(showItemPrices = it)) },
+            isChecked = showItemPrices,
+            onCheckedChange = onShowItemPricesChange,
             indented = true,
-            enabled = config.showItemDetails
+            enabled = showItemDetails
         )
         
         SettingCheckbox(
             label = "Order Notes",
-            isChecked = config.showOrderNotes,
-            onCheckedChange = { onConfigChange(config.copy(showOrderNotes = it)) }
+            isChecked = showOrderNotes,
+            onCheckedChange = onShowOrderNotesChange
         )
         
         SettingCheckbox(
             label = "Order Totals",
-            isChecked = config.showTotals,
-            onCheckedChange = { onConfigChange(config.copy(showTotals = it)) }
+            isChecked = showTotals,
+            onCheckedChange = onShowTotalsChange
         )
         
         SettingCheckbox(
             label = "Footer",
-            isChecked = config.showFooter,
-            onCheckedChange = { onConfigChange(config.copy(showFooter = it)) }
+            isChecked = showFooter,
+            onCheckedChange = onShowFooterChange
         )
         
         Spacer(modifier = Modifier.height(16.dp))
         
-        Text(
-            text = "Template Info",
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
-        
-        Text(
-            text = "Template ID: ${config.templateId}",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        
-        Text(
-            text = "Template Type: ${config.templateType.name}",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        
-        Text(
-            text = "Enabled Fields: ${config.getEnabledFieldCount()}",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
+        Button(
+            onClick = { 
+                // 保存模板设置并立即关闭对话框
+                onClose() // 先关闭对话框
+                coroutineScope.launch {
+                    snackbarHostState.showSnackbar(settingsSavedMessage)
+                }
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Icon(
+                imageVector = Icons.Default.Check,
+                contentDescription = null
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(text = stringResource(R.string.save_settings))
+        }
     }
 }
 
@@ -870,8 +855,7 @@ fun SettingCheckbox(
 @Composable
 fun TemplatePreviewDialogContent(
     templateId: String,
-    onClose: () -> Unit,
-    viewModel: TemplateConfigViewModel = hiltViewModel()
+    onClose: () -> Unit
 ) {
     // 确定模板类型
     val templateType = when (templateId) {
@@ -882,12 +866,14 @@ fun TemplatePreviewDialogContent(
         else -> TemplateType.FULL_DETAILS
     }
     
-    // 从ViewModel获取状态
-    val currentConfig by viewModel.currentConfig.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
-    val isSaving by viewModel.isSaving.collectAsState()
-    val errorMessage by viewModel.errorMessage.collectAsState()
-    val successMessage by viewModel.successMessage.collectAsState()
+    // 获取模板名称
+    val templateName = when (templateId) {
+        "full_details" -> "Full Order Details"
+        "delivery" -> "Delivery Receipt"
+        "kitchen" -> "Kitchen Order"
+        "new" -> "New Custom Template"
+        else -> "Custom Template"
+    }
     
     // 是否正在创建新模板
     val isNewTemplate = templateId == "new"
@@ -896,38 +882,21 @@ fun TemplatePreviewDialogContent(
     var selectedTabIndex by remember { mutableStateOf(0) }
     val tabs = listOf("Preview", "Settings")
     
+    // 创建复选框状态
+    var showStoreInfo by remember { mutableStateOf(true) }
+    var showOrderNumber by remember { mutableStateOf(true) }
+    var showCustomerInfo by remember { mutableStateOf(templateType != TemplateType.KITCHEN) }
+    var showOrderDate by remember { mutableStateOf(true) }
+    var showDeliveryInfo by remember { mutableStateOf(templateType == TemplateType.DELIVERY) }
+    var showPaymentInfo by remember { mutableStateOf(templateType == TemplateType.FULL_DETAILS) }
+    var showItemDetails by remember { mutableStateOf(true) }
+    var showItemPrices by remember { mutableStateOf(templateType != TemplateType.KITCHEN) }
+    var showOrderNotes by remember { mutableStateOf(templateType != TemplateType.KITCHEN) }
+    var showTotals by remember { mutableStateOf(templateType != TemplateType.KITCHEN) }
+    var showFooter by remember { mutableStateOf(templateType != TemplateType.KITCHEN) }
+    
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
-    
-    // 加载配置
-    LaunchedEffect(templateId) {
-        viewModel.loadConfigById(templateId, templateType)
-    }
-    
-    // 处理错误消息
-    LaunchedEffect(errorMessage) {
-        errorMessage?.let { message ->
-            snackbarHostState.showSnackbar(message)
-            viewModel.clearErrorMessage()
-        }
-    }
-    
-    // 处理成功消息
-    LaunchedEffect(successMessage) {
-        successMessage?.let { message ->
-            snackbarHostState.showSnackbar(message)
-            viewModel.clearSuccessMessage()
-        }
-    }
-    
-    // 获取模板名称
-    val templateName = currentConfig?.templateName ?: when (templateId) {
-        "full_details" -> "Full Order Details"
-        "delivery" -> "Delivery Receipt"
-        "kitchen" -> "Kitchen Order"
-        "new" -> "New Custom Template"
-        else -> "Custom Template"
-    }
     
     Card(
         modifier = Modifier
@@ -949,44 +918,30 @@ fun TemplatePreviewDialogContent(
                         }
                     },
                     actions = {
-                        // 重置为默认配置按钮
-                        IconButton(
-                            onClick = {
-                                viewModel.resetToDefault(templateId, templateType)
-                            },
-                            enabled = !isLoading && !isSaving
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Refresh,
-                                contentDescription = "Reset to Default"
-                            )
-                        }
-                        
-                        // 保存按钮
-                        IconButton(
-                            onClick = {
-                                viewModel.saveCurrentConfig()
-                            },
-                            enabled = !isLoading && !isSaving && currentConfig != null
-                        ) {
-                            if (isSaving) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.padding(4.dp)
-                                )
-                            } else {
+                        if (isNewTemplate) {
+                            // 提前获取字符串资源
+                            val successMessage = stringResource(R.string.settings_saved)
+                            IconButton(onClick = {
+                                // 保存新模板并立即关闭对话框
+                                onClose() // 先关闭对话框
+                                coroutineScope.launch {
+                                    snackbarHostState.showSnackbar(successMessage)
+                                }
+                            }) {
                                 Icon(
                                     imageVector = Icons.Default.Save,
-                                    contentDescription = "Save"
+                                    contentDescription = stringResource(R.string.save)
                                 )
                             }
-                        }
-                        
-                        // 关闭按钮
-                        IconButton(onClick = { onClose() }) {
-                            Icon(
-                                imageVector = Icons.Default.Close,
-                                contentDescription = "Close"
-                            )
+                        } else {
+                            // 获取关闭按钮的字符串资源
+                            val closeString = stringResource(R.string.close)
+                            IconButton(onClick = { onClose() }) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = closeString
+                                )
+                            }
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
@@ -1015,52 +970,48 @@ fun TemplatePreviewDialogContent(
                 when (selectedTabIndex) {
                     0 -> {
                         // 预览选项卡
-                        if (isLoading) {
-                            Box(
-                                modifier = Modifier.fillMaxSize(),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                CircularProgressIndicator()
-                            }
-                        } else {
-                            currentConfig?.let { config ->
-                                TemplatePreview(
-                                    showStoreInfo = config.showStoreInfo,
-                                    showOrderNumber = config.showOrderNumber,
-                                    showCustomerInfo = config.showCustomerInfo,
-                                    showOrderDate = config.showOrderDate,
-                                    showDeliveryInfo = config.showDeliveryInfo,
-                                    showPaymentInfo = config.showPaymentInfo,
-                                    showItemDetails = config.showItemDetails,
-                                    showItemPrices = config.showItemPrices,
-                                    showOrderNotes = config.showOrderNotes,
-                                    showTotals = config.showTotals,
-                                    showFooter = config.showFooter
-                                )
-                            }
-                        }
+                        TemplatePreview(
+                            showStoreInfo = showStoreInfo,
+                            showOrderNumber = showOrderNumber,
+                            showCustomerInfo = showCustomerInfo,
+                            showOrderDate = showOrderDate,
+                            showDeliveryInfo = showDeliveryInfo,
+                            showPaymentInfo = showPaymentInfo,
+                            showItemDetails = showItemDetails,
+                            showItemPrices = showItemPrices,
+                            showOrderNotes = showOrderNotes,
+                            showTotals = showTotals,
+                            showFooter = showFooter
+                        )
                     }
                     1 -> {
                         // 设置选项卡
-                        if (isLoading) {
-                            Box(
-                                modifier = Modifier.fillMaxSize(),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                CircularProgressIndicator()
-                            }
-                        } else {
-                            currentConfig?.let { config ->
-                                TemplateSettings(
-                                    config = config,
-                                    onConfigChange = { updatedConfig ->
-                                        viewModel.updateCurrentConfig(updatedConfig)
-                                    },
-                                    onClose = onClose,
-                                    snackbarHostState = snackbarHostState
-                                )
-                            }
-                        }
+                        TemplateSettings(
+                            showStoreInfo = showStoreInfo,
+                            onShowStoreInfoChange = { showStoreInfo = it },
+                            showOrderNumber = showOrderNumber,
+                            onShowOrderNumberChange = { showOrderNumber = it },
+                            showCustomerInfo = showCustomerInfo,
+                            onShowCustomerInfoChange = { showCustomerInfo = it },
+                            showOrderDate = showOrderDate,
+                            onShowOrderDateChange = { showOrderDate = it },
+                            showDeliveryInfo = showDeliveryInfo,
+                            onShowDeliveryInfoChange = { showDeliveryInfo = it },
+                            showPaymentInfo = showPaymentInfo,
+                            onShowPaymentInfoChange = { showPaymentInfo = it },
+                            showItemDetails = showItemDetails,
+                            onShowItemDetailsChange = { showItemDetails = it },
+                            showItemPrices = showItemPrices,
+                            onShowItemPricesChange = { showItemPrices = it },
+                            showOrderNotes = showOrderNotes,
+                            onShowOrderNotesChange = { showOrderNotes = it },
+                            showTotals = showTotals,
+                            onShowTotalsChange = { showTotals = it },
+                            showFooter = showFooter,
+                            onShowFooterChange = { showFooter = it },
+                            onClose = onClose,
+                            snackbarHostState = snackbarHostState
+                        )
                     }
                 }
             }

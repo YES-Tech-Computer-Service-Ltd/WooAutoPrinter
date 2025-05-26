@@ -57,7 +57,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.example.wooauto.R
 import com.example.wooauto.domain.models.TemplateConfig
-import com.example.wooauto.domain.templates.TemplateType
+import com.example.wooauto.presentation.screens.settings.TemplateType
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -870,8 +870,7 @@ fun SettingCheckbox(
 @Composable
 fun TemplatePreviewDialogContent(
     templateId: String,
-    onClose: () -> Unit,
-    viewModel: TemplateConfigViewModel = hiltViewModel()
+    onClose: () -> Unit
 ) {
     // 确定模板类型
     val templateType = when (templateId) {
@@ -882,12 +881,14 @@ fun TemplatePreviewDialogContent(
         else -> TemplateType.FULL_DETAILS
     }
     
-    // 从ViewModel获取状态
-    val currentConfig by viewModel.currentConfig.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
-    val isSaving by viewModel.isSaving.collectAsState()
-    val errorMessage by viewModel.errorMessage.collectAsState()
-    val successMessage by viewModel.successMessage.collectAsState()
+    // 获取模板名称
+    val templateName = when (templateId) {
+        "full_details" -> "Full Order Details"
+        "delivery" -> "Delivery Receipt"
+        "kitchen" -> "Kitchen Order"
+        "new" -> "New Custom Template"
+        else -> "Custom Template"
+    }
     
     // 是否正在创建新模板
     val isNewTemplate = templateId == "new"
@@ -896,38 +897,21 @@ fun TemplatePreviewDialogContent(
     var selectedTabIndex by remember { mutableStateOf(0) }
     val tabs = listOf("Preview", "Settings")
     
+    // 创建复选框状态
+    var showStoreInfo by remember { mutableStateOf(true) }
+    var showOrderNumber by remember { mutableStateOf(true) }
+    var showCustomerInfo by remember { mutableStateOf(templateType != TemplateType.KITCHEN) }
+    var showOrderDate by remember { mutableStateOf(true) }
+    var showDeliveryInfo by remember { mutableStateOf(templateType == TemplateType.DELIVERY) }
+    var showPaymentInfo by remember { mutableStateOf(templateType == TemplateType.FULL_DETAILS) }
+    var showItemDetails by remember { mutableStateOf(true) }
+    var showItemPrices by remember { mutableStateOf(templateType != TemplateType.KITCHEN) }
+    var showOrderNotes by remember { mutableStateOf(templateType != TemplateType.KITCHEN) }
+    var showTotals by remember { mutableStateOf(templateType != TemplateType.KITCHEN) }
+    var showFooter by remember { mutableStateOf(templateType != TemplateType.KITCHEN) }
+    
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
-    
-    // 加载配置
-    LaunchedEffect(templateId) {
-        viewModel.loadConfigById(templateId, templateType)
-    }
-    
-    // 处理错误消息
-    LaunchedEffect(errorMessage) {
-        errorMessage?.let { message ->
-            snackbarHostState.showSnackbar(message)
-            viewModel.clearErrorMessage()
-        }
-    }
-    
-    // 处理成功消息
-    LaunchedEffect(successMessage) {
-        successMessage?.let { message ->
-            snackbarHostState.showSnackbar(message)
-            viewModel.clearSuccessMessage()
-        }
-    }
-    
-    // 获取模板名称
-    val templateName = currentConfig?.templateName ?: when (templateId) {
-        "full_details" -> "Full Order Details"
-        "delivery" -> "Delivery Receipt"
-        "kitchen" -> "Kitchen Order"
-        "new" -> "New Custom Template"
-        else -> "Custom Template"
-    }
     
     Card(
         modifier = Modifier
@@ -949,44 +933,30 @@ fun TemplatePreviewDialogContent(
                         }
                     },
                     actions = {
-                        // 重置为默认配置按钮
-                        IconButton(
-                            onClick = {
-                                viewModel.resetToDefault(templateId, templateType)
-                            },
-                            enabled = !isLoading && !isSaving
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Refresh,
-                                contentDescription = "Reset to Default"
-                            )
-                        }
-                        
-                        // 保存按钮
-                        IconButton(
-                            onClick = {
-                                viewModel.saveCurrentConfig()
-                            },
-                            enabled = !isLoading && !isSaving && currentConfig != null
-                        ) {
-                            if (isSaving) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.padding(4.dp)
-                                )
-                            } else {
+                        if (isNewTemplate) {
+                            // 提前获取字符串资源
+                            val successMessage = stringResource(R.string.settings_saved)
+                            IconButton(onClick = {
+                                // 保存新模板并立即关闭对话框
+                                onClose() // 先关闭对话框
+                                coroutineScope.launch {
+                                    snackbarHostState.showSnackbar(successMessage)
+                                }
+                            }) {
                                 Icon(
                                     imageVector = Icons.Default.Save,
-                                    contentDescription = "Save"
+                                    contentDescription = stringResource(R.string.save)
                                 )
                             }
-                        }
-                        
-                        // 关闭按钮
-                        IconButton(onClick = { onClose() }) {
-                            Icon(
-                                imageVector = Icons.Default.Close,
-                                contentDescription = "Close"
-                            )
+                        } else {
+                            // 获取关闭按钮的字符串资源
+                            val closeString = stringResource(R.string.close)
+                            IconButton(onClick = { onClose() }) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = closeString
+                                )
+                            }
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
@@ -1015,52 +985,48 @@ fun TemplatePreviewDialogContent(
                 when (selectedTabIndex) {
                     0 -> {
                         // 预览选项卡
-                        if (isLoading) {
-                            Box(
-                                modifier = Modifier.fillMaxSize(),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                CircularProgressIndicator()
-                            }
-                        } else {
-                            currentConfig?.let { config ->
-                                TemplatePreview(
-                                    showStoreInfo = config.showStoreInfo,
-                                    showOrderNumber = config.showOrderNumber,
-                                    showCustomerInfo = config.showCustomerInfo,
-                                    showOrderDate = config.showOrderDate,
-                                    showDeliveryInfo = config.showDeliveryInfo,
-                                    showPaymentInfo = config.showPaymentInfo,
-                                    showItemDetails = config.showItemDetails,
-                                    showItemPrices = config.showItemPrices,
-                                    showOrderNotes = config.showOrderNotes,
-                                    showTotals = config.showTotals,
-                                    showFooter = config.showFooter
-                                )
-                            }
-                        }
+                        TemplatePreview(
+                            showStoreInfo = showStoreInfo,
+                            showOrderNumber = showOrderNumber,
+                            showCustomerInfo = showCustomerInfo,
+                            showOrderDate = showOrderDate,
+                            showDeliveryInfo = showDeliveryInfo,
+                            showPaymentInfo = showPaymentInfo,
+                            showItemDetails = showItemDetails,
+                            showItemPrices = showItemPrices,
+                            showOrderNotes = showOrderNotes,
+                            showTotals = showTotals,
+                            showFooter = showFooter
+                        )
                     }
                     1 -> {
                         // 设置选项卡
-                        if (isLoading) {
-                            Box(
-                                modifier = Modifier.fillMaxSize(),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                CircularProgressIndicator()
-                            }
-                        } else {
-                            currentConfig?.let { config ->
-                                TemplateSettings(
-                                    config = config,
-                                    onConfigChange = { updatedConfig ->
-                                        viewModel.updateCurrentConfig(updatedConfig)
-                                    },
-                                    onClose = onClose,
-                                    snackbarHostState = snackbarHostState
-                                )
-                            }
-                        }
+                        TemplateSettings(
+                            showStoreInfo = showStoreInfo,
+                            onShowStoreInfoChange = { showStoreInfo = it },
+                            showOrderNumber = showOrderNumber,
+                            onShowOrderNumberChange = { showOrderNumber = it },
+                            showCustomerInfo = showCustomerInfo,
+                            onShowCustomerInfoChange = { showCustomerInfo = it },
+                            showOrderDate = showOrderDate,
+                            onShowOrderDateChange = { showOrderDate = it },
+                            showDeliveryInfo = showDeliveryInfo,
+                            onShowDeliveryInfoChange = { showDeliveryInfo = it },
+                            showPaymentInfo = showPaymentInfo,
+                            onShowPaymentInfoChange = { showPaymentInfo = it },
+                            showItemDetails = showItemDetails,
+                            onShowItemDetailsChange = { showItemDetails = it },
+                            showItemPrices = showItemPrices,
+                            onShowItemPricesChange = { showItemPrices = it },
+                            showOrderNotes = showOrderNotes,
+                            onShowOrderNotesChange = { showOrderNotes = it },
+                            showTotals = showTotals,
+                            onShowTotalsChange = { showTotals = it },
+                            showFooter = showFooter,
+                            onShowFooterChange = { showFooter = it },
+                            onClose = onClose,
+                            snackbarHostState = snackbarHostState
+                        )
                     }
                 }
             }

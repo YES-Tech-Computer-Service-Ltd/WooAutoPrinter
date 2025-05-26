@@ -81,4 +81,14 @@ object DatabaseModule {
     fun provideTemplateConfigDao(database: AppDatabase): TemplateConfigDao {
         return database.templateConfigDao()
     }
+
+    /**
+     * 提供SettingDao实例
+     * @param database 数据库实例
+     * @return SettingDao实例
+     */
+    @Provides
+    fun provideSettingDao(database: AppDatabase): SettingDao {
+        return database.settingDao()
+    }
 } 
