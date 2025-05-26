@@ -21,9 +21,14 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.text.font.FontWeight
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.wooauto.presentation.screens.settings.SettingsViewModel
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -50,10 +55,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.example.wooauto.R
 import com.example.wooauto.domain.models.TemplateConfig
@@ -206,6 +209,9 @@ fun TemplatePreviewScreen(
                         currentConfig?.let { config ->
                             TemplatePreview(
                                 showStoreInfo = config.showStoreInfo,
+                                showStoreName = config.showStoreName,
+                                showStoreAddress = config.showStoreAddress,
+                                showStorePhone = config.showStorePhone,
                                 showOrderNumber = config.showOrderNumber,
                                 showCustomerInfo = config.showCustomerInfo,
                                 showOrderDate = config.showOrderDate,
@@ -250,6 +256,9 @@ fun TemplatePreviewScreen(
 @Composable
 fun TemplatePreview(
     showStoreInfo: Boolean,
+    showStoreName: Boolean,
+    showStoreAddress: Boolean,
+    showStorePhone: Boolean,
     showOrderNumber: Boolean,
     showCustomerInfo: Boolean,
     showOrderDate: Boolean,
@@ -286,31 +295,44 @@ fun TemplatePreview(
                 
                 // 商店信息
                 if (showStoreInfo) {
-                    Text(
-                        text = "MY STORE",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.fillMaxWidth(),
-                        textAlign = TextAlign.Center
-                    )
+                    var hasStoreContent = false
                     
-                    Text(
-                        text = "123 Main Street, City",
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.fillMaxWidth(),
-                        textAlign = TextAlign.Center
-                    )
+                    if (showStoreName) {
+                        Text(
+                            text = "MY STORE",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = TextAlign.Center
+                        )
+                        hasStoreContent = true
+                    }
                     
-                    Text(
-                        text = "Tel: (123) 456-7890",
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.fillMaxWidth(),
-                        textAlign = TextAlign.Center
-                    )
+                    if (showStoreAddress) {
+                        Text(
+                            text = "123 Main Street, City",
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = TextAlign.Center
+                        )
+                        hasStoreContent = true
+                    }
                     
-                    Spacer(modifier = Modifier.height(16.dp))
-                    HorizontalDivider()
-                    Spacer(modifier = Modifier.height(8.dp))
+                    if (showStorePhone) {
+                        Text(
+                            text = "Tel: (123) 456-7890",
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = TextAlign.Center
+                        )
+                        hasStoreContent = true
+                    }
+                    
+                    if (hasStoreContent) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        HorizontalDivider()
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
                 }
                 
                 // 订单编号
@@ -712,6 +734,20 @@ fun TemplateSettings(
     val coroutineScope = rememberCoroutineScope()
     val settingsSavedMessage = stringResource(R.string.settings_saved)
     
+    // 获取商店信息状态，用于检查是否已填写商店信息
+    val settingsViewModel: SettingsViewModel = hiltViewModel()
+    val storeName by settingsViewModel.storeName.collectAsState()
+    val storeAddress by settingsViewModel.storeAddress.collectAsState()
+    val storePhone by settingsViewModel.storePhone.collectAsState()
+    
+    // 检查商店信息是否已完整填写
+    val hasStoreInfo = storeName.isNotBlank() && (storeAddress.isNotBlank() || storePhone.isNotBlank())
+    
+    // 加载商店信息
+    LaunchedEffect(Unit) {
+        settingsViewModel.loadStoreInfo()
+    }
+    
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -730,11 +766,76 @@ fun TemplateSettings(
             modifier = Modifier.padding(bottom = 16.dp)
         )
         
+        // 商店信息主选项
         SettingCheckbox(
             label = "Store Information",
             isChecked = config.showStoreInfo,
-            onCheckedChange = { onConfigChange(config.copy(showStoreInfo = it)) }
+            onCheckedChange = { newValue ->
+                // 主选项控制所有子选项
+                onConfigChange(config.copy(
+                    showStoreInfo = newValue,
+                    showStoreName = newValue,
+                    showStoreAddress = newValue,
+                    showStorePhone = newValue
+                ))
+            },
+            enabled = hasStoreInfo,
+            subtitle = if (!hasStoreInfo) "Please configure store information in Settings → Store Settings first" else null
         )
+        
+        // 商店信息子选项 - 仅在主选项启用时显示
+        if (config.showStoreInfo && hasStoreInfo) {
+            // 商店名称
+            SettingCheckbox(
+                label = "Store Name",
+                isChecked = config.showStoreName,
+                onCheckedChange = { newValue ->
+                    val updatedConfig = config.copy(showStoreName = newValue)
+                    // 如果所有子选项都关闭，则关闭主选项
+                    if (!updatedConfig.showStoreName && !updatedConfig.showStoreAddress && !updatedConfig.showStorePhone) {
+                        onConfigChange(updatedConfig.copy(showStoreInfo = false))
+                    } else {
+                        onConfigChange(updatedConfig)
+                    }
+                },
+                indented = true,
+                enabled = storeName.isNotBlank()
+            )
+            
+            // 商店地址
+            SettingCheckbox(
+                label = "Store Address", 
+                isChecked = config.showStoreAddress,
+                onCheckedChange = { newValue ->
+                    val updatedConfig = config.copy(showStoreAddress = newValue)
+                    // 如果所有子选项都关闭，则关闭主选项
+                    if (!updatedConfig.showStoreName && !updatedConfig.showStoreAddress && !updatedConfig.showStorePhone) {
+                        onConfigChange(updatedConfig.copy(showStoreInfo = false))
+                    } else {
+                        onConfigChange(updatedConfig)
+                    }
+                },
+                indented = true,
+                enabled = storeAddress.isNotBlank()
+            )
+            
+            // 商店电话
+            SettingCheckbox(
+                label = "Store Phone",
+                isChecked = config.showStorePhone,
+                onCheckedChange = { newValue ->
+                    val updatedConfig = config.copy(showStorePhone = newValue)
+                    // 如果所有子选项都关闭，则关闭主选项
+                    if (!updatedConfig.showStoreName && !updatedConfig.showStoreAddress && !updatedConfig.showStorePhone) {
+                        onConfigChange(updatedConfig.copy(showStoreInfo = false))
+                    } else {
+                        onConfigChange(updatedConfig)
+                    }
+                },
+                indented = true,
+                enabled = storePhone.isNotBlank()
+            )
+        }
         
         SettingCheckbox(
             label = "Order Number",
@@ -824,6 +925,48 @@ fun TemplateSettings(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(bottom = 16.dp)
         )
+        
+        // 显示商店信息状态提示
+        if (!hasStoreInfo) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
+                )
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Warning,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    
+                    Spacer(modifier = Modifier.width(8.dp))
+                    
+                    Column {
+                        Text(
+                            text = "Store Information Required",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.error,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Please configure your store name and contact details in Settings → Store Settings to enable store information display.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -833,37 +976,56 @@ fun SettingCheckbox(
     isChecked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
     indented: Boolean = false,
-    enabled: Boolean = true
+    enabled: Boolean = true,
+    subtitle: String? = null
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(
-                start = if (indented) 32.dp else 0.dp,
-                top = 8.dp,
-                bottom = 8.dp
-            ),
-        verticalAlignment = Alignment.CenterVertically
+    Column(
+        modifier = Modifier.fillMaxWidth()
     ) {
-        Checkbox(
-            checked = isChecked,
-            onCheckedChange = onCheckedChange,
-            enabled = enabled
-        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(
+                    start = if (indented) 32.dp else 0.dp,
+                    top = 8.dp,
+                    bottom = if (subtitle != null) 4.dp else 8.dp
+                ),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Checkbox(
+                checked = isChecked,
+                onCheckedChange = onCheckedChange,
+                enabled = enabled
+            )
+            
+            Spacer(modifier = Modifier.width(8.dp))
+            
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyLarge,
+                color = if (enabled) 
+                    MaterialTheme.colorScheme.onSurface 
+                else 
+                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+            )
+        }
         
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodyLarge,
-            color = if (enabled) 
-                MaterialTheme.colorScheme.onSurface 
-            else 
-                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+        subtitle?.let {
+            Text(
+                text = it,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                modifier = Modifier.padding(
+                    start = if (indented) 32.dp + 48.dp else 48.dp, // 留出checkbox的空间
+                    bottom = 8.dp
+                )
+            )
+        }
+        
+        HorizontalDivider(
+            modifier = Modifier.padding(start = if (indented) 32.dp else 0.dp)
         )
     }
-    
-    HorizontalDivider(
-        modifier = Modifier.padding(start = if (indented) 32.dp else 0.dp)
-    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -1026,6 +1188,9 @@ fun TemplatePreviewDialogContent(
                             currentConfig?.let { config ->
                                 TemplatePreview(
                                     showStoreInfo = config.showStoreInfo,
+                                    showStoreName = config.showStoreName,
+                                    showStoreAddress = config.showStoreAddress,
+                                    showStorePhone = config.showStorePhone,
                                     showOrderNumber = config.showOrderNumber,
                                     showCustomerInfo = config.showCustomerInfo,
                                     showOrderDate = config.showOrderDate,
