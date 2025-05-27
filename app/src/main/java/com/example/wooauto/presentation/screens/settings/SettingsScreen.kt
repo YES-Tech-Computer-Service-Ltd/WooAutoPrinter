@@ -88,11 +88,20 @@ fun SettingsScreen(
     val featureComingSoonText = stringResource(R.string.feature_coming_soon)
     val licenseRequiredMessage = stringResource(R.string.license_required_message)
     
+    // 许可证状态检查 - 使用统一的权限检查逻辑
+    val licenseManager = viewModel.licenseManager
+    
+    // 进入设置页面时重新验证证书状态
+    LaunchedEffect(Unit) {
+        Log.d("SettingsScreen", "进入设置页面，重新检查证书状态")
+        viewModel.revalidateLicenseStatus()
+    }
+    
     val currentLocale by viewModel.currentLocale.collectAsState(initial = Locale.getDefault())
     
-    // 获取证书状态
+    // 获取统一的资格状态 - 使用新的资格检查系统
     val licenseStatus = viewModel.licenseStatusText.collectAsState().value
-    val isLicenseValid = licenseStatus.contains("验证") || licenseStatus.contains("Verified") || licenseStatus.contains("Trial")
+    val hasEligibility = licenseManager.hasEligibility
 
     // 各种对话框状态
     var showLanguageDialog by remember { mutableStateOf(false) }
@@ -183,9 +192,9 @@ fun SettingsScreen(
                                     }
                                 }
                             },
-                            isLocked = !isLicenseValid,
+                            isLocked = !hasEligibility,
                             onClick = {
-                                if (isLicenseValid) {
+                                if (hasEligibility) {
                                     Log.d("设置导航", "点击了打印设置项")
                                     showPrinterSettingsDialog = true
                                 } else {
@@ -205,9 +214,9 @@ fun SettingsScreen(
                             title = stringResource(R.string.printer_templates),
                             icon = Icons.Filled.Edit,
                             subTitle = stringResource(R.string.printer_templates_desc),
-                            isLocked = !isLicenseValid,
+                            isLocked = !hasEligibility,
                             onClick = {
-                                if (isLicenseValid) {
+                                if (hasEligibility) {
                                     Log.d("设置导航", "点击了模板设置项")
                                     showPrintTemplatesDialog = true
                                 } else {
@@ -239,9 +248,9 @@ fun SettingsScreen(
                                     stringResource(R.string.sound_disabled)
                                 }
                             },
-                            isLocked = !isLicenseValid,
+                            isLocked = !hasEligibility,
                             onClick = {
-                                if (isLicenseValid) {
+                                if (hasEligibility) {
                                     Log.d("设置导航", "点击了声音设置项")
                                     showSoundSettingsDialog = true
                                 } else {
@@ -260,9 +269,9 @@ fun SettingsScreen(
                             title = stringResource(R.string.store_settings),
                             icon = Icons.Default.Store,
                             subTitle = stringResource(R.string.store_settings_desc),
-                            isLocked = !isLicenseValid,
+                            isLocked = !hasEligibility,
                             onClick = {
-                                if (isLicenseValid) {
+                                if (hasEligibility) {
                                     Log.d("设置导航", "点击了店铺信息设置项")
                                     showStoreSettingsDialog = true
                                 } else {
@@ -293,9 +302,9 @@ fun SettingsScreen(
                                 }
                             },
                             icon = Icons.Filled.SettingsApplications,
-                            isLocked = !isLicenseValid,
+                            isLocked = !hasEligibility,
                             onClick = {
-                                if (isLicenseValid) {
+                                if (hasEligibility) {
                                     Log.d("设置导航", "点击了自动打印设置项")
                                     showAutomationSettingsDialog = true
                                 } else {

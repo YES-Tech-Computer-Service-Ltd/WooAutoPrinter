@@ -47,6 +47,10 @@ import com.example.wooauto.licensing.TrialTokenManager
 import com.example.wooauto.licensing.LicenseDataStore
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.liveData
+import kotlinx.coroutines.withTimeoutOrNull
+import com.example.wooauto.licensing.EligibilityInfo
+import com.example.wooauto.licensing.EligibilityStatus
+import com.example.wooauto.licensing.EligibilitySource
 
 /**
  * 定义模板条目的数据类
@@ -64,7 +68,7 @@ class SettingsViewModel @Inject constructor(
     private val orderRepository: DomainOrderRepository,
     private val printerManager: PrinterManager,
     private val updater: UpdaterInterface,
-    private val licenseManager: LicenseManager,
+    val licenseManager: LicenseManager,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -493,10 +497,16 @@ class SettingsViewModel @Inject constructor(
     }
     
     /**
-     * 连接打印机 - 优化安卓7支持
+     * 连接打印机 - 优化版本，避免重复操作
      */
     fun connectPrinter(device: PrinterDevice) {
         viewModelScope.launch {
+            // 防止重复连接请求
+            if (_isConnecting.value) {
+                Log.w("SettingsViewModel", "正在连接中，忽略重复请求")
+                return@launch
+            }
+            
             _isConnecting.value = true
             _connectionErrorMessage.value = null
             
@@ -513,11 +523,13 @@ class SettingsViewModel @Inject constructor(
                     type = device.type
                 )
                 
-                // 更新状态
+                // 更新状态为连接中
                 _printerStatus.value = PrinterStatus.CONNECTING
                 
-                // 开始连接
-                val connected = printerManager.connect(config)
+                // 使用超时控制连接
+                val connected = withTimeoutOrNull(10000) {
+                    printerManager.connect(config)
+                } ?: false
                 
                 if (connected) {
                     _printerStatus.value = PrinterStatus.CONNECTED
@@ -544,28 +556,39 @@ class SettingsViewModel @Inject constructor(
     }
     
     /**
-     * 根据已有配置连接打印机
+     * 根据已有配置连接打印机 - 简化版本
      */
     suspend fun connectPrinter(config: PrinterConfig): Boolean {
-        try {
+        return try {
+            // 防止重复连接
+            if (_isConnecting.value) {
+                Log.w("SettingsViewModel", "正在连接中，跳过请求")
+                return false
+            }
+            
             _isConnecting.value = true
             _connectionErrorMessage.value = null
             
+            // 直接调用打印机管理器的连接方法
             val connected = printerManager.connect(config)
+            
+            // 根据结果更新状态
             if (connected) {
                 _printerStatus.value = PrinterStatus.CONNECTED
+                _currentPrinterConfig.value = config
                 Log.d("SettingsViewModel", "成功连接打印机: ${config.name}")
             } else {
                 _printerStatus.value = PrinterStatus.ERROR
                 _connectionErrorMessage.value = "连接失败，请确保打印机已开启并在范围内"
                 Log.e("SettingsViewModel", "连接打印机失败: ${config.name}")
             }
-            return connected
+            
+            connected
         } catch (e: Exception) {
             Log.e("SettingsViewModel", "连接打印机异常", e)
             _printerStatus.value = PrinterStatus.ERROR
             _connectionErrorMessage.value = "连接异常: ${e.message ?: "未知错误"}"
-            return false
+            false
         } finally {
             _isConnecting.value = false
         }
@@ -1361,25 +1384,20 @@ class SettingsViewModel @Inject constructor(
     private fun loadLicenseInfo() {
         viewModelScope.launch {
             try {
-                // 获取设备ID和应用ID
-                val deviceId = android.provider.Settings.Secure.getString(
-                    context.contentResolver,
-                    android.provider.Settings.Secure.ANDROID_ID
-                )
-                val appId = context.packageName
-                
-                // 获取试用期剩余天数
-                _trialDaysRemaining.value = TrialTokenManager.getRemainingDays(context, deviceId, appId)
-                
                 // 监听许可证信息变化
                 licenseManager.licenseInfo.observeForever { info ->
                     updateLicenseStatusText(info)
                 }
                 
+                // 监听统一资格状态变化 - 新增
+                licenseManager.eligibilityInfo.observeForever { eligibilityInfo ->
+                    updateLicenseStatusTextFromEligibility(eligibilityInfo)
+                }
+                
                 // 立即更新一次许可证状态文本
                 updateLicenseStatusText(licenseManager.licenseInfo.value)
                 
-                Log.d(TAG, "许可证信息加载完成: 状态=${licenseManager.licenseInfo.value?.status}, 试用期剩余=${_trialDaysRemaining.value}")
+                Log.d(TAG, "许可证信息加载完成: 状态=${licenseManager.licenseInfo.value?.status}")
             } catch (e: Exception) {
                 Log.e(TAG, "加载许可证信息失败", e)
             }
@@ -1395,6 +1413,16 @@ class SettingsViewModel @Inject constructor(
                 if (info == null) {
                     _licenseStatusText.value = context.getString(R.string.license_status_unverified)
                     return@launch
+                }
+                
+                // 如果是试用期状态，同时更新试用期剩余天数
+                if (info.status == LicenseStatus.TRIAL) {
+                    val deviceId = android.provider.Settings.Secure.getString(
+                        context.contentResolver,
+                        android.provider.Settings.Secure.ANDROID_ID
+                    )
+                    val appId = context.packageName
+                    _trialDaysRemaining.value = TrialTokenManager.getRemainingDays(context, deviceId, appId)
                 }
                 
                 _licenseStatusText.value = when (info.status) {
@@ -1415,7 +1443,7 @@ class SettingsViewModel @Inject constructor(
                     }
                 }
                 
-                Log.d(TAG, "许可证状态文本已更新: ${_licenseStatusText.value}")
+                Log.d(TAG, "许可证状态文本已更新: ${_licenseStatusText.value}, 试用期剩余: ${_trialDaysRemaining.value}")
             } catch (e: Exception) {
                 Log.e(TAG, "更新许可证状态文本失败", e)
                 _licenseStatusText.value = context.getString(R.string.license_status_unverified)
@@ -1424,9 +1452,80 @@ class SettingsViewModel @Inject constructor(
     }
     
     /**
+     * 基于统一资格状态更新显示文本 - 新增
+     * 优先使用资格状态的displayMessage
+     */
+    private fun updateLicenseStatusTextFromEligibility(eligibilityInfo: EligibilityInfo?) {
+        viewModelScope.launch {
+            try {
+                if (eligibilityInfo == null) {
+                    _licenseStatusText.value = context.getString(R.string.license_status_unverified)
+                    return@launch
+                }
+                
+                // 如果资格基于试用期，更新试用期剩余天数
+                if (eligibilityInfo.source == EligibilitySource.TRIAL) {
+                    _trialDaysRemaining.value = eligibilityInfo.trialDaysRemaining
+                }
+                
+                // 使用资格状态的显示消息，如果为空则使用默认逻辑
+                _licenseStatusText.value = if (eligibilityInfo.displayMessage.isNotEmpty()) {
+                    eligibilityInfo.displayMessage
+                } else {
+                    // 备用显示逻辑
+                    when (eligibilityInfo.status) {
+                        EligibilityStatus.ELIGIBLE -> {
+                            if (eligibilityInfo.isLicensed) {
+                                context.getString(R.string.license_status_valid, eligibilityInfo.licenseEndDate)
+                            } else {
+                                context.getString(R.string.license_status_trial, eligibilityInfo.trialDaysRemaining)
+                            }
+                        }
+                        EligibilityStatus.INELIGIBLE -> {
+                            context.getString(R.string.license_status_expired)
+                        }
+                        EligibilityStatus.CHECKING -> {
+                            context.getString(R.string.license_status_verifying)
+                        }
+                        else -> {
+                            context.getString(R.string.license_status_unverified)
+                        }
+                    }
+                }
+                
+                Log.d(TAG, "基于资格状态更新许可证文本: ${_licenseStatusText.value}, 资格状态: ${eligibilityInfo.status}")
+            } catch (e: Exception) {
+                Log.e(TAG, "基于资格状态更新文本失败", e)
+                _licenseStatusText.value = context.getString(R.string.license_status_unverified)
+            }
+        }
+    }
+
+    /**
      * 获取许可证状态文本（供UI使用）
      */
     fun getLicenseStatusText(): String {
         return _licenseStatusText.value
+    }
+
+    /**
+     * 重新验证证书状态
+     * 主要用于在设置页面进入时刷新证书状态
+     */
+    fun revalidateLicenseStatus() {
+        viewModelScope.launch {
+            try {
+                Log.d(TAG, "开始重新验证证书状态")
+                
+                // 直接调用LicenseManager的验证方法
+                licenseManager.verifyLicense(context, viewModelScope) { isValid ->
+                    Log.d(TAG, "证书状态重新验证完成: $isValid")
+                    // 重新加载许可证信息以更新UI
+                    updateLicenseStatusText(licenseManager.licenseInfo.value)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "重新验证证书状态出错: ${e.message}", e)
+            }
+        }
     }
 } 

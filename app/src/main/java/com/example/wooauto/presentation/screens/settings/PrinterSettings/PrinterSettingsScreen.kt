@@ -93,6 +93,8 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.example.wooauto.presentation.screens.settings.SettingsViewModel
 import kotlinx.coroutines.delay
+import androidx.core.app.ActivityCompat
+import android.content.pm.PackageManager
 
 @Composable
 private fun PrinterList(
@@ -949,18 +951,28 @@ private fun PrinterInfo(printerConfig: PrinterConfig) {
  */
 @Composable
 private fun isPairedDevice(device: PrinterDevice): Boolean {
-    val bluetoothManager = LocalContext.current.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
+    val context = LocalContext.current
+    val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
     val bluetoothAdapter = bluetoothManager.adapter ?: return false
+    
     try {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            //todo
-            // Android 12及以上需要特殊权限处理，但这里我们直接尝试读取已配对设备
-            // 如果失败会抛出异常，由catch块处理
+            // Android 12及以上需要检查BLUETOOTH_CONNECT权限
+            if (ActivityCompat.checkSelfPermission(
+                context,
+                Manifest.permission.BLUETOOTH_CONNECT
+            ) != PackageManager.PERMISSION_GRANTED) {
+                Log.w("PrinterSettingsScreen", "缺少BLUETOOTH_CONNECT权限，无法检查配对状态")
+                return false
+            }
         }
         
         @Suppress("DEPRECATION")
         val pairedDevices = bluetoothAdapter.bondedDevices
         return pairedDevices?.any { it.address == device.address } ?: false
+    } catch (e: SecurityException) {
+        Log.e("PrinterSettingsScreen", "权限不足，无法检查设备配对状态", e)
+        return false
     } catch (e: Exception) {
         Log.e("PrinterSettingsScreen", "检查设备配对状态失败", e)
         return false
