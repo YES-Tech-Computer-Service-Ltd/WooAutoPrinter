@@ -17,38 +17,48 @@ data class TemplateConfig(
     // 模板名称
     val templateName: String = "",
     
-    // 是否显示商店信息
+    // === 商店信息 ===
+    // 是否显示商店信息（主控制选项）
     val showStoreInfo: Boolean = true,
+    // 商店信息细分选项
+    val showStoreName: Boolean = true,
+    val showStoreAddress: Boolean = true, 
+    val showStorePhone: Boolean = true,
     
-    // 是否显示订单编号
+    // === 订单基本信息 ===
+    // 是否显示订单信息（主控制选项）
+    val showOrderInfo: Boolean = true,
+    // 订单信息细分选项
     val showOrderNumber: Boolean = true,
-    
-    // 是否显示客户信息
-    val showCustomerInfo: Boolean = true,
-    
-    // 是否显示订单日期时间
     val showOrderDate: Boolean = true,
     
-    // 是否显示配送信息
+    // === 客户信息 ===
+    // 是否显示客户信息（主控制选项）
+    val showCustomerInfo: Boolean = true,
+    // 客户信息细分选项
+    val showCustomerName: Boolean = true,
+    val showCustomerPhone: Boolean = true,
     val showDeliveryInfo: Boolean = false,
     
+    // === 订单内容信息 ===
+    // 是否显示订单内容（主控制选项）
+    val showOrderContent: Boolean = true,
+    // 订单内容细分选项
+    val showItemDetails: Boolean = true,
+    val showItemPrices: Boolean = true,
+    val showOrderNotes: Boolean = true,
+    val showTotals: Boolean = true,
+    
+    // === 支付信息 ===
     // 是否显示支付信息
     val showPaymentInfo: Boolean = true,
     
-    // 是否显示商品详情
-    val showItemDetails: Boolean = true,
-    
-    // 是否显示商品价格
-    val showItemPrices: Boolean = true,
-    
-    // 是否显示订单备注
-    val showOrderNotes: Boolean = true,
-    
-    // 是否显示订单合计
-    val showTotals: Boolean = true,
-    
+    // === 页脚 ===
     // 是否显示页脚
     val showFooter: Boolean = true,
+    
+    // 自定义页脚文本
+    val footerText: String = "Thank you for your order!",
     
     // 创建时间
     val createdAt: Long = System.currentTimeMillis(),
@@ -56,6 +66,68 @@ data class TemplateConfig(
     // 最后修改时间
     val updatedAt: Long = System.currentTimeMillis()
 ) : Serializable {
+    
+    /**
+     * 计算启用的字段数量
+     */
+    fun getEnabledFieldCount(): Int {
+        var count = 0
+        if (showStoreInfo) count++
+        if (showOrderInfo) count++
+        if (showCustomerInfo) count++
+        if (showOrderContent) count++
+        if (showPaymentInfo) count++
+        if (showFooter) count++
+        return count
+    }
+    
+    /**
+     * 检查商店信息子选项的状态
+     */
+    fun getStoreInfoState(): Boolean? {
+        val storeSubOptions = listOf(showStoreName, showStoreAddress, showStorePhone)
+        return when {
+            storeSubOptions.all { it } -> true
+            storeSubOptions.none { it } -> false
+            else -> null // 部分选中
+        }
+    }
+    
+    /**
+     * 检查订单信息子选项的状态
+     */
+    fun getOrderInfoState(): Boolean? {
+        val orderSubOptions = listOf(showOrderNumber, showOrderDate)
+        return when {
+            orderSubOptions.all { it } -> true
+            orderSubOptions.none { it } -> false
+            else -> null // 部分选中
+        }
+    }
+    
+    /**
+     * 检查客户信息子选项的状态
+     */
+    fun getCustomerInfoState(): Boolean? {
+        val customerSubOptions = listOf(showCustomerName, showCustomerPhone, showDeliveryInfo)
+        return when {
+            customerSubOptions.all { it } -> true
+            customerSubOptions.none { it } -> false
+            else -> null // 部分选中
+        }
+    }
+    
+    /**
+     * 检查订单内容子选项的状态
+     */
+    fun getOrderContentState(): Boolean? {
+        val contentSubOptions = listOf(showItemDetails, showItemPrices, showOrderNotes, showTotals)
+        return when {
+            contentSubOptions.all { it } -> true
+            contentSubOptions.none { it } -> false
+            else -> null // 部分选中
+        }
+    }
     
     companion object {
         /**
@@ -84,16 +156,24 @@ data class TemplateConfig(
                 templateType = TemplateType.FULL_DETAILS,
                 templateName = "Full Order Details",
                 showStoreInfo = true,
+                showStoreName = true,
+                showStoreAddress = true,
+                showStorePhone = true,
+                showOrderInfo = true,
                 showOrderNumber = true,
-                showCustomerInfo = true,
                 showOrderDate = true,
-                showDeliveryInfo = false, // 完整详情默认不显示配送信息
-                showPaymentInfo = true,
+                showCustomerInfo = true,
+                showCustomerName = true,
+                showCustomerPhone = true,
+                showDeliveryInfo = true,
+                showOrderContent = true,
                 showItemDetails = true,
                 showItemPrices = true,
                 showOrderNotes = true,
                 showTotals = true,
-                showFooter = true
+                showPaymentInfo = true,
+                showFooter = true,
+                footerText = "Thank you for your order!"
             )
         }
         
@@ -106,16 +186,24 @@ data class TemplateConfig(
                 templateType = TemplateType.DELIVERY,
                 templateName = "Delivery Receipt",
                 showStoreInfo = true,
+                showStoreName = true,
+                showStoreAddress = true,
+                showStorePhone = true,
+                showOrderInfo = true,
                 showOrderNumber = true,
-                showCustomerInfo = true,
                 showOrderDate = true,
-                showDeliveryInfo = true, // 配送模板重点显示配送信息
-                showPaymentInfo = true,
+                showCustomerInfo = true,
+                showCustomerName = true,
+                showCustomerPhone = true,
+                showDeliveryInfo = true,
+                showOrderContent = true,
                 showItemDetails = true,
                 showItemPrices = true,
                 showOrderNotes = true,
                 showTotals = true,
-                showFooter = true
+                showPaymentInfo = true,
+                showFooter = true,
+                footerText = "Thank you for your order!\nVisit us online at www.mystore.com"
             )
         }
         
@@ -128,29 +216,35 @@ data class TemplateConfig(
                 templateType = TemplateType.KITCHEN,
                 templateName = "Kitchen Order",
                 showStoreInfo = false, // 厨房不需要商店信息
+                showStoreName = false,
+                showStoreAddress = false,
+                showStorePhone = false,
+                showOrderInfo = true,
                 showOrderNumber = true,
-                showCustomerInfo = false, // 厨房不需要客户信息
                 showOrderDate = true,
-                showDeliveryInfo = false, // 厨房不需要配送信息
-                showPaymentInfo = false, // 厨房不需要支付信息
+                showCustomerInfo = false, // 厨房不需要详细客户信息
+                showCustomerName = false,
+                showCustomerPhone = false,
+                showDeliveryInfo = false,
+                showOrderContent = true,
                 showItemDetails = true,
                 showItemPrices = false, // 厨房不需要价格信息
                 showOrderNotes = true, // 厨房需要看到制作备注
                 showTotals = false, // 厨房不需要价格合计
-                showFooter = false // 厨房不需要页脚
+                showPaymentInfo = false, // 厨房不需要支付信息
+                showFooter = false, // 厨房不需要页脚
+                footerText = ""
             )
         }
         
         /**
          * 所有预设模板的列表
          */
-        fun getAllPresetConfigs(): List<TemplateConfig> {
-            return listOf(
-                createDefaultConfig(TemplateType.FULL_DETAILS, "full_details"),
-                createDefaultConfig(TemplateType.DELIVERY, "delivery"),
-                createDefaultConfig(TemplateType.KITCHEN, "kitchen")
-            )
-        }
+        val PRESET_TEMPLATES = listOf(
+            "full_details",
+            "delivery", 
+            "kitchen"
+        )
     }
     
     /**
@@ -166,19 +260,7 @@ data class TemplateConfig(
     fun isValid(): Boolean {
         return templateId.isNotBlank() && 
                templateName.isNotBlank() &&
-               (showStoreInfo || showOrderNumber || showCustomerInfo || 
-                showOrderDate || showDeliveryInfo || showPaymentInfo || 
-                showItemDetails || showOrderNotes || showTotals || showFooter)
-    }
-    
-    /**
-     * 获取显示的字段数量
-     */
-    fun getEnabledFieldCount(): Int {
-        return listOf(
-            showStoreInfo, showOrderNumber, showCustomerInfo, showOrderDate,
-            showDeliveryInfo, showPaymentInfo, showItemDetails, showItemPrices,
-            showOrderNotes, showTotals, showFooter
-        ).count { it }
+               (showStoreInfo || showOrderInfo || showCustomerInfo || 
+                showOrderContent || showPaymentInfo || showFooter)
     }
 } 

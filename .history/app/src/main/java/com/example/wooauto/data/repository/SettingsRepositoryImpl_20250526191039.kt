@@ -69,7 +69,6 @@ class SettingsRepositoryImpl @Inject constructor(
         
         // 自定义模板相关键
         val CURRENT_CUSTOM_TEMPLATE_ID = stringPreferencesKey(KEY_CURRENT_CUSTOM_TEMPLATE_ID)
-        val DEFAULT_AUTO_PRINT_TEMPLATE_ID = stringPreferencesKey(KEY_DEFAULT_AUTO_PRINT_TEMPLATE_ID)
     }
 
     // 设置键名常量
@@ -113,7 +112,6 @@ class SettingsRepositoryImpl @Inject constructor(
         
         // 自定义模板相关键名
         const val KEY_CURRENT_CUSTOM_TEMPLATE_ID = "current_custom_template_id"
-        const val KEY_DEFAULT_AUTO_PRINT_TEMPLATE_ID = "default_auto_print_template_id"
     }
 
     private val autoUpdateKey = "auto_update"
@@ -716,33 +714,6 @@ class SettingsRepositoryImpl @Inject constructor(
     override suspend fun saveCustomTemplateId(templateId: String) {
         dataStore.edit { settings ->
             settings[PreferencesKeys.CURRENT_CUSTOM_TEMPLATE_ID] = templateId
-        }
-    }
-    
-    /**
-     * 获取默认自动打印模板ID
-     */
-    override suspend fun getDefaultAutoPrintTemplateId(): String? {
-        return dataStore.data
-            .catch { exception ->
-                if (exception is IOException) {
-                    Log.e("SettingsRepositoryImpl", "Error reading default_auto_print_template_id.", exception)
-                    emit(androidx.datastore.preferences.core.emptyPreferences())
-                } else {
-                    throw exception
-                }
-            }
-            .map { preferences ->
-                preferences[PreferencesKeys.DEFAULT_AUTO_PRINT_TEMPLATE_ID]
-            }.first()
-    }
-    
-    /**
-     * 保存默认自动打印模板ID
-     */
-    override suspend fun saveDefaultAutoPrintTemplateId(templateId: String) {
-        dataStore.edit { settings ->
-            settings[PreferencesKeys.DEFAULT_AUTO_PRINT_TEMPLATE_ID] = templateId
         }
     }
     

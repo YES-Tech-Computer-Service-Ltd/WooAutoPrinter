@@ -43,23 +43,26 @@ fun AutomationSettingsDialogContent(
     val selectedTemplateState by viewModel.defaultTemplateType.collectAsState()
     var selectedTemplate by remember { mutableStateOf(selectedTemplateState) }
     
+    // 记录当前选中的模板ID（用于支持自定义模板）
+    var selectedTemplateId by remember { mutableStateOf<String?>(null) }
+    
     // 添加TemplateConfigViewModel来获取所有模板
     val templateConfigViewModel: TemplateConfigViewModel = hiltViewModel()
     val allConfigs by templateConfigViewModel.allConfigs.collectAsState()
     val isLoadingTemplates by templateConfigViewModel.isLoading.collectAsState()
     
-    // 准备显示的模板选项
+    // 准备显示的模板选项（包含模板ID信息）
     val availableTemplates = remember(allConfigs) {
         val defaultTemplates = listOf(
-            TemplateType.FULL_DETAILS to "完整订单详情",
-            TemplateType.DELIVERY to "外卖单据", 
-            TemplateType.KITCHEN to "厨房订单"
+            Triple("full_details", TemplateType.FULL_DETAILS, "完整订单详情"),
+            Triple("delivery", TemplateType.DELIVERY, "外卖单据"), 
+            Triple("kitchen", TemplateType.KITCHEN, "厨房订单")
         )
         
         val customTemplates = allConfigs
             .filter { it.templateId.startsWith("custom_") }
             .map { config ->
-                TemplateType.FULL_DETAILS to config.templateName // 自定义模板都使用FULL_DETAILS类型，但显示自定义名称
+                Triple(config.templateId, TemplateType.FULL_DETAILS, config.templateName)
             }
         
         defaultTemplates + customTemplates
@@ -70,11 +73,38 @@ fun AutomationSettingsDialogContent(
     }
     LaunchedEffect(selectedTemplateState) {
         selectedTemplate = selectedTemplateState
+        // 根据TemplateType确定对应的默认模板ID（向后兼容）
+        selectedTemplateId = when (selectedTemplateState) {
+            TemplateType.FULL_DETAILS -> "full_details"
+            TemplateType.DELIVERY -> "delivery"
+            TemplateType.KITCHEN -> "kitchen"
+        }
     }
     
-    // 加载所有模板配置
+    // 加载所有模板配置和当前选中的自动打印模板
     LaunchedEffect(Unit) {
         templateConfigViewModel.loadAllConfigs()
+        // 尝试加载保存的自动打印模板ID
+        try {
+            val savedTemplateId = viewModel.settingsRepository.getDefaultAutoPrintTemplateId()
+            if (savedTemplateId != null) {
+                selectedTemplateId = savedTemplateId
+                // 如果是自定义模板，将selectedTemplate设为FULL_DETAILS
+                if (savedTemplateId.startsWith("custom_")) {
+                    selectedTemplate = TemplateType.FULL_DETAILS
+                } else {
+                    // 根据模板ID设置对应的TemplateType
+                    selectedTemplate = when (savedTemplateId) {
+                        "full_details" -> TemplateType.FULL_DETAILS
+                        "delivery" -> TemplateType.DELIVERY
+                        "kitchen" -> TemplateType.KITCHEN
+                        else -> TemplateType.FULL_DETAILS
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            // 如果加载失败，使用默认值
+        }
     }
     
     Card(
@@ -161,12 +191,17 @@ fun AutomationSettingsDialogContent(
                                 CircularProgressIndicator()
                             }
                         } else {
-                            availableTemplates.forEach { (templateType, templateName) ->
+                            availableTemplates.forEach { (templateId, templateType, templateName) ->
                                 TemplateTypeRow(
+                                    templateId = templateId,
                                     templateType = templateType,
                                     templateName = templateName,
-                                    currentSelectedType = selectedTemplate
-                                ) { selectedTemplate = it }
+                                    currentSelectedType = selectedTemplate,
+                                    currentSelectedId = selectedTemplateId
+                                ) { id, type -> 
+                                    selectedTemplateId = id
+                                    selectedTemplate = type
+                                }
                             }
                         }
                     }
@@ -177,8 +212,9 @@ fun AutomationSettingsDialogContent(
                 Button(
                     onClick = {
                         viewModel.updateAutomaticPrinting(automaticPrinting)
-                        if(automaticPrinting) { 
-                            viewModel.updateDefaultTemplateType(selectedTemplate)
+                        if(automaticPrinting && selectedTemplateId != null) { 
+                            // 使用新的方法同时保存模板ID和类型
+                            viewModel.updateDefaultAutoPrintTemplate(selectedTemplateId!!, selectedTemplate)
                         }
                         coroutineScope.launch {
                             snackbarHostState.showSnackbar(settingsSavedText)
@@ -197,21 +233,30 @@ fun AutomationSettingsDialogContent(
 
 @Composable
 private fun TemplateTypeRow(
+    templateId: String,
     templateType: TemplateType,
     templateName: String,
     currentSelectedType: TemplateType,
-    onSelected: (TemplateType) -> Unit
+    currentSelectedId: String?,
+    onSelected: (String, TemplateType) -> Unit
 ) {
+    // 判断是否选中：对于自定义模板比较ID，对于默认模板比较类型
+    val isSelected = if (templateId.startsWith("custom_")) {
+        currentSelectedId == templateId
+    } else {
+        currentSelectedType == templateType && currentSelectedId == templateId
+    }
+    
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
-            .clickable { onSelected(templateType) },
+            .clickable { onSelected(templateId, templateType) },
         verticalAlignment = Alignment.CenterVertically
     ) {
         RadioButton(
-            selected = currentSelectedType == templateType,
-            onClick = { onSelected(templateType) }
+            selected = isSelected,
+            onClick = { onSelected(templateId, templateType) }
         )
         Spacer(modifier = Modifier.width(8.dp))
         Text(templateName)

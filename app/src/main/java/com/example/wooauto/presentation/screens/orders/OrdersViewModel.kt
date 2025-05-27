@@ -726,6 +726,80 @@ class OrdersViewModel @Inject constructor(
     }
 
     /**
+     * 打印订单（使用具体的模板ID）
+     * @param orderId 订单ID
+     * @param templateId 模板ID，如果为null则使用默认模板
+     */
+    fun printOrderWithTemplate(orderId: Long, templateId: String? = null) {
+        viewModelScope.launch {
+            try {
+                Log.d("OrdersViewModel", "打印订单: $orderId, 模板ID: $templateId")
+                
+                // 获取订单信息
+                val order = orderRepository.getOrderById(orderId)
+                if (order == null) {
+                    Log.e("OrdersViewModel", "未找到订单: $orderId")
+                    return@launch
+                }
+                
+                // 获取默认打印机配置
+                val printerConfig = settingRepository.getDefaultPrinterConfig()
+                if (printerConfig == null) {
+                    Log.e("OrdersViewModel", "未找到默认打印机配置")
+                    return@launch
+                }
+                
+                // 如果指定了模板ID，临时设置为默认模板ID
+                if (templateId != null) {
+                    // 将模板ID转换为TemplateType（为了向后兼容）
+                    val templateType = when (templateId) {
+                        "full_details" -> TemplateType.FULL_DETAILS
+                        "delivery" -> TemplateType.DELIVERY
+                        "kitchen" -> TemplateType.KITCHEN
+                        else -> TemplateType.FULL_DETAILS // 自定义模板使用FULL_DETAILS类型
+                    }
+                    settingRepository.saveDefaultTemplateType(templateType)
+                    
+                    // 如果是自定义模板，还需要保存模板ID
+                    if (templateId.startsWith("custom_")) {
+                        settingRepository.saveCustomTemplateId(templateId)
+                    }
+                    
+                    Log.d("OrdersViewModel", "临时设置打印模板为: $templateType (ID: $templateId)")
+                }
+                
+                // 打印订单
+                val success = printerManager.printOrder(order, printerConfig)
+                if (success) {
+                    Log.d("OrdersViewModel", "【打印操作】打印订单成功: $orderId")
+                    // 标记订单为已打印
+                    markOrderAsPrinted(orderId)
+                    
+                    // 等待一下，确保数据库操作完成
+                    delay(200)
+                    
+                    // 刷新选中的订单，确保UI显示更新
+                    val updatedOrder = orderRepository.getOrderById(orderId)
+                    updatedOrder?.let {
+                        Log.d("OrdersViewModel", "【打印操作】更新选中订单为: ID=${it.id}, 打印状态=${it.isPrinted}")
+                        _selectedOrder.value = it
+                        
+                        // 验证显示的打印状态
+                        Log.d("OrdersViewModel", "【打印操作】验证selectedOrder状态: ${_selectedOrder.value?.isPrinted}")
+                    }
+                    
+                    // 不刷新订单列表，避免从API获取状态覆盖本地状态
+                    // refreshOrders()
+                } else {
+                    Log.e("OrdersViewModel", "打印订单失败: $orderId")
+                }
+            } catch (e: Exception) {
+                Log.e("OrdersViewModel", "打印订单时出错: ${e.message}", e)
+            }
+        }
+    }
+
+    /**
      * 打印订单
      * @param orderId 订单ID
      * @param templateType 模板类型，如果为null则使用默认模板

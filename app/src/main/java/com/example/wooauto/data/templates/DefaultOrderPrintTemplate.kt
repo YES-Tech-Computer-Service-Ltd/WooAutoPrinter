@@ -31,10 +31,18 @@ class DefaultOrderPrintTemplate @Inject constructor(
     override fun generateOrderPrintContent(order: Order, config: PrinterConfig): String {
         Log.d(TAG, "生成订单打印内容: ${order.number}")
         
-        // 首先检查是否有自定义模板ID
-        val customTemplateId = runBlocking { 
+        // 优先检查自动打印模板ID（用于自动打印场景）
+        val autoPrintTemplateId = runBlocking { 
+            settingRepository.getDefaultAutoPrintTemplateId()
+        }
+        
+        // 其次检查手动打印的自定义模板ID
+        val manualPrintTemplateId = runBlocking { 
             settingRepository.getCurrentCustomTemplateId()
         }
+        
+        // 优先使用自动打印模板ID，如果没有则使用手动打印模板ID
+        val customTemplateId = autoPrintTemplateId ?: manualPrintTemplateId
         
         val templateId: String
         val templateType: TemplateType
@@ -43,7 +51,7 @@ class DefaultOrderPrintTemplate @Inject constructor(
             // 使用自定义模板
             templateId = customTemplateId
             templateType = TemplateType.FULL_DETAILS // 自定义模板都使用FULL_DETAILS类型
-            Log.d(TAG, "使用自定义模板: $customTemplateId")
+            Log.d(TAG, "使用自定义模板: $customTemplateId (自动打印: $autoPrintTemplateId, 手动打印: $manualPrintTemplateId)")
         } else {
             // 使用默认模板
             templateType = runBlocking { 
