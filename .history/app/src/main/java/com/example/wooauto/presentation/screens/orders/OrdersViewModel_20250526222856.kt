@@ -370,7 +370,7 @@ class OrdersViewModel @Inject constructor(
                         
                         // 验证打印状态
                         val refreshedPrintedMap = refreshedOrders.associateBy({ it.id }, { it.isPrinted })
-                        // Log.d("OrdersViewModel", "【打印状态保护】刷新后，有 ${refreshedPrintedMap.count { it.value }} 个已打印订单")
+                        Log.d("OrdersViewModel", "【打印状态保护】刷新后，有 ${refreshedPrintedMap.count { it.value }} 个已打印订单")
                         
                         // 检查是否有任何打印状态丢失
                         val lostPrintStatus = currentPrintedMap.filter { it.value && refreshedPrintedMap[it.key] == false }
@@ -381,7 +381,7 @@ class OrdersViewModel @Inject constructor(
                             // 修复丢失的打印状态
                             val correctedOrders = refreshedOrders.map { order ->
                                 if (lostPrintStatus.containsKey(order.id)) {
-                                    // Log.d("OrdersViewModel", "【打印状态保护】修复订单 #${order.number} (ID=${order.id}) 的打印状态")
+                                    Log.d("OrdersViewModel", "【打印状态保护】修复订单 #${order.number} (ID=${order.id}) 的打印状态")
                                     order.copy(isPrinted = true)
                                 } else {
                                     order

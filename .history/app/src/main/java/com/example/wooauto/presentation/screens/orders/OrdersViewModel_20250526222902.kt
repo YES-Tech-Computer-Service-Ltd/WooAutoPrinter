@@ -381,7 +381,7 @@ class OrdersViewModel @Inject constructor(
                             // 修复丢失的打印状态
                             val correctedOrders = refreshedOrders.map { order ->
                                 if (lostPrintStatus.containsKey(order.id)) {
-                                    // Log.d("OrdersViewModel", "【打印状态保护】修复订单 #${order.number} (ID=${order.id}) 的打印状态")
+                                    Log.d("OrdersViewModel", "【打印状态保护】修复订单 #${order.number} (ID=${order.id}) 的打印状态")
                                     order.copy(isPrinted = true)
                                 } else {
                                     order
