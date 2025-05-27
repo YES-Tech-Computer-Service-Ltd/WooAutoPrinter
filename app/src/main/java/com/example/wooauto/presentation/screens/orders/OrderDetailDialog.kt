@@ -38,6 +38,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.ui.draw.clip
 import com.example.wooauto.licensing.LicenseStatus
+import com.example.wooauto.presentation.screens.templatePreview.TemplateConfigViewModel
 
 /**
  * 订单详情对话框
@@ -853,12 +854,12 @@ fun OrderDetailDialog(
     if (showTemplateOptions && (licenseInfo?.status == LicenseStatus.VALID || licenseInfo?.status == LicenseStatus.TRIAL)) {
         TemplateSelectorDialog(
             onDismiss = { showTemplateOptions = false },
-            onTemplateSelected = { templateType ->
+            onTemplateSelected = { templateId ->
                 // 记录打印前的状态
-                Log.d("OrderDetailDialog", "【打印状态修复】准备打印订单: ${displayOrder.id}, 当前打印状态: ${displayOrder.isPrinted}")
+                Log.d("OrderDetailDialog", "【打印状态修复】准备打印订单: ${displayOrder.id}, 当前打印状态: ${displayOrder.isPrinted}, 使用模板: $templateId")
                 
-                // 使用选定的模板打印
-                viewModel.printOrder(displayOrder.id, templateType)
+                // 使用新的方法直接传递模板ID
+                viewModel.printOrderWithTemplate(displayOrder.id, templateId)
                 
                 // 记录打印后的状态
                 Log.d("OrderDetailDialog", "【打印状态修复】已提交打印请求，等待状态变更")
@@ -993,13 +994,38 @@ fun StatusChangeDialog(
 @Composable
 fun TemplateSelectorDialog(
     onDismiss: () -> Unit,
-    onTemplateSelected: (TemplateType) -> Unit
+    onTemplateSelected: (String) -> Unit  // 改为接受模板ID而不是TemplateType
 ) {
-    val templateOptions = listOf(
-        Pair(TemplateType.FULL_DETAILS, stringResource(R.string.full_details_template)),
-        Pair(TemplateType.DELIVERY, stringResource(R.string.delivery_template)),
-        Pair(TemplateType.KITCHEN, stringResource(R.string.kitchen_template))
-    )
+    val templateConfigViewModel: TemplateConfigViewModel = hiltViewModel()
+    val allConfigs by templateConfigViewModel.allConfigs.collectAsState()
+    val isLoading by templateConfigViewModel.isLoading.collectAsState()
+    
+    // 加载所有模板配置
+    LaunchedEffect(Unit) {
+        templateConfigViewModel.loadAllConfigs()
+    }
+    
+    // 获取字符串资源
+    val fullDetailsTemplate = stringResource(R.string.full_details_template)
+    val deliveryTemplate = stringResource(R.string.delivery_template) 
+    val kitchenTemplate = stringResource(R.string.kitchen_template)
+    
+    // 准备显示的模板选项（默认 + 自定义）
+    val templateOptions = remember(allConfigs, fullDetailsTemplate, deliveryTemplate, kitchenTemplate) {
+        val defaultTemplates = listOf(
+            Triple("full_details", fullDetailsTemplate, Icons.AutoMirrored.Filled.Article),
+            Triple("delivery", deliveryTemplate, Icons.Default.LocalShipping),
+            Triple("kitchen", kitchenTemplate, Icons.Default.Restaurant)
+        )
+        
+        val customTemplates = allConfigs
+            .filter { it.templateId.startsWith("custom_") }
+            .map { config ->
+                Triple(config.templateId, config.templateName, Icons.Default.Description)
+            }
+        
+        defaultTemplates + customTemplates
+    }
     
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -1020,36 +1046,43 @@ fun TemplateSelectorDialog(
                 
                 Spacer(modifier = Modifier.height(16.dp))
                 
-                templateOptions.forEach { (type, description) ->
-                    Row(
+                if (isLoading) {
+                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable {
-                                onTemplateSelected(type)
-                            }
-                            .padding(vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                            .padding(32.dp),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = when(type) {
-                                TemplateType.FULL_DETAILS -> Icons.AutoMirrored.Filled.Article
-                                TemplateType.DELIVERY -> Icons.Default.LocalShipping
-                                TemplateType.KITCHEN -> Icons.Default.Restaurant
-                            },
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                        
-                        Spacer(modifier = Modifier.width(16.dp))
-                        
-                        Text(
-                            text = description,
-                            style = MaterialTheme.typography.bodyLarge
-                        )
+                        CircularProgressIndicator()
                     }
-                    
-                    if (type != TemplateType.KITCHEN) {
-                        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                } else {
+                    templateOptions.forEachIndexed { index, (templateId, description, icon) ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    onTemplateSelected(templateId)
+                                }
+                                .padding(vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = icon,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            
+                            Spacer(modifier = Modifier.width(16.dp))
+                            
+                            Text(
+                                text = description,
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                        }
+                        
+                        if (index < templateOptions.size - 1) {
+                            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                        }
                     }
                 }
                 

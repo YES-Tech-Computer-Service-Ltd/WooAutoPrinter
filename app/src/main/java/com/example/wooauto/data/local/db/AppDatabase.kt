@@ -21,10 +21,13 @@ import com.example.wooauto.data.local.entities.TemplateConfigEntity
  * - V3: 添加woofoodInfo、feeLines和taxLines字段支持配送费和小费显示
  * - V4: 添加isRead字段，支持订单已读/未读状态
  * - V5: 添加模板配置表，支持打印模板自定义配置
+ * - V6: 模板配置表添加商店信息细分字段（showStoreName、showStoreAddress、showStorePhone）
+ * - V7: 重新设计模板配置字段结构，按功能分组
+ * - V8: 添加自定义页脚文本字段（footerText）
  */
 @Database(
     entities = [OrderEntity::class, ProductEntity::class, SettingEntity::class, TemplateConfigEntity::class],
-    version = 5,
+    version = 8,
     exportSchema = false
 )
 @TypeConverters(RoomConverters::class)

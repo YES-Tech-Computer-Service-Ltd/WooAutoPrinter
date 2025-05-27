@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.wooauto.R
 import com.example.wooauto.domain.templates.TemplateType
+import com.example.wooauto.presentation.screens.templatePreview.TemplateConfigViewModel
 import kotlinx.coroutines.launch
 
 /**
@@ -42,11 +43,38 @@ fun AutomationSettingsDialogContent(
     val selectedTemplateState by viewModel.defaultTemplateType.collectAsState()
     var selectedTemplate by remember { mutableStateOf(selectedTemplateState) }
     
+    // 添加TemplateConfigViewModel来获取所有模板
+    val templateConfigViewModel: TemplateConfigViewModel = hiltViewModel()
+    val allConfigs by templateConfigViewModel.allConfigs.collectAsState()
+    val isLoadingTemplates by templateConfigViewModel.isLoading.collectAsState()
+    
+    // 准备显示的模板选项
+    val availableTemplates = remember(allConfigs) {
+        val defaultTemplates = listOf(
+            TemplateType.FULL_DETAILS to "完整订单详情",
+            TemplateType.DELIVERY to "外卖单据", 
+            TemplateType.KITCHEN to "厨房订单"
+        )
+        
+        val customTemplates = allConfigs
+            .filter { it.templateId.startsWith("custom_") }
+            .map { config ->
+                TemplateType.FULL_DETAILS to config.templateName // 自定义模板都使用FULL_DETAILS类型，但显示自定义名称
+            }
+        
+        defaultTemplates + customTemplates
+    }
+    
     LaunchedEffect(automaticPrintingState) {
         automaticPrinting = automaticPrintingState
     }
     LaunchedEffect(selectedTemplateState) {
         selectedTemplate = selectedTemplateState
+    }
+    
+    // 加载所有模板配置
+    LaunchedEffect(Unit) {
+        templateConfigViewModel.loadAllConfigs()
     }
     
     Card(
@@ -123,9 +151,24 @@ fun AutomationSettingsDialogContent(
                             modifier = Modifier.padding(top = 8.dp, bottom = 8.dp)
                         )
                         
-                        TemplateTypeRow(TemplateType.FULL_DETAILS, selectedTemplate) { selectedTemplate = it }
-                        TemplateTypeRow(TemplateType.DELIVERY, selectedTemplate) { selectedTemplate = it }
-                        TemplateTypeRow(TemplateType.KITCHEN, selectedTemplate) { selectedTemplate = it }
+                        if (isLoadingTemplates) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator()
+                            }
+                        } else {
+                            availableTemplates.forEach { (templateType, templateName) ->
+                                TemplateTypeRow(
+                                    templateType = templateType,
+                                    templateName = templateName,
+                                    currentSelectedType = selectedTemplate
+                                ) { selectedTemplate = it }
+                            }
+                        }
                     }
                     
                     Spacer(modifier = Modifier.height(16.dp))
@@ -155,14 +198,10 @@ fun AutomationSettingsDialogContent(
 @Composable
 private fun TemplateTypeRow(
     templateType: TemplateType,
+    templateName: String,
     currentSelectedType: TemplateType,
     onSelected: (TemplateType) -> Unit
 ) {
-    val textResId = when (templateType) {
-        TemplateType.FULL_DETAILS -> R.string.full_details_template
-        TemplateType.DELIVERY -> R.string.delivery_template
-        TemplateType.KITCHEN -> R.string.kitchen_template
-    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -175,6 +214,6 @@ private fun TemplateTypeRow(
             onClick = { onSelected(templateType) }
         )
         Spacer(modifier = Modifier.width(8.dp))
-        Text(stringResource(textResId))
+        Text(templateName)
     }
 } 

@@ -262,6 +262,18 @@ interface DomainSettingRepository {
      * @param templateType 模板类型
      */
     suspend fun saveDefaultTemplateType(templateType: TemplateType)
+    
+    /**
+     * 获取当前使用的自定义模板ID
+     * @return 自定义模板ID，如果没有则返回null
+     */
+    suspend fun getCurrentCustomTemplateId(): String?
+    
+    /**
+     * 保存当前使用的自定义模板ID
+     * @param templateId 自定义模板ID
+     */
+    suspend fun saveCustomTemplateId(templateId: String)
 
     /**
      * 获取自动打印启用状态

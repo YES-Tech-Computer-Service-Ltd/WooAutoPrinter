@@ -31,18 +31,31 @@ class DefaultOrderPrintTemplate @Inject constructor(
     override fun generateOrderPrintContent(order: Order, config: PrinterConfig): String {
         Log.d(TAG, "生成订单打印内容: ${order.number}")
         
-        // 获取当前的模板类型
-        val templateType = runBlocking { 
-            settingRepository.getDefaultTemplateType() ?: TemplateType.FULL_DETAILS 
+        // 首先检查是否有自定义模板ID
+        val customTemplateId = runBlocking { 
+            settingRepository.getCurrentCustomTemplateId()
         }
         
-        Log.d(TAG, "使用模板类型: $templateType")
+        val templateId: String
+        val templateType: TemplateType
         
-        // 获取模板配置ID
-        val templateId = when (templateType) {
-            TemplateType.FULL_DETAILS -> "full_details"
-            TemplateType.DELIVERY -> "delivery" 
-            TemplateType.KITCHEN -> "kitchen"
+        if (customTemplateId != null && customTemplateId.startsWith("custom_")) {
+            // 使用自定义模板
+            templateId = customTemplateId
+            templateType = TemplateType.FULL_DETAILS // 自定义模板都使用FULL_DETAILS类型
+            Log.d(TAG, "使用自定义模板: $customTemplateId")
+        } else {
+            // 使用默认模板
+            templateType = runBlocking { 
+                settingRepository.getDefaultTemplateType() ?: TemplateType.FULL_DETAILS 
+            }
+            
+            templateId = when (templateType) {
+                TemplateType.FULL_DETAILS -> "full_details"
+                TemplateType.DELIVERY -> "delivery" 
+                TemplateType.KITCHEN -> "kitchen"
+            }
+            Log.d(TAG, "使用默认模板类型: $templateType")
         }
         
         // 获取模板配置
@@ -202,6 +215,8 @@ class DefaultOrderPrintTemplate @Inject constructor(
      */
     private fun generateOrderInfo(order: Order, config: PrinterConfig, templateConfig: TemplateConfig,
                                  paperWidth: Int, showPrintTime: Boolean = true): String {
+        if (!templateConfig.showOrderInfo) return ""
+        
         val sb = StringBuilder()
         sb.append(ThermalPrinterFormatter.formatDivider(paperWidth))
         
@@ -230,28 +245,27 @@ class DefaultOrderPrintTemplate @Inject constructor(
                                     paperWidth: Int, 
                                     sectionTitle: String = "Customer Information", showMinimal: Boolean = false): String {
         if (!templateConfig.showCustomerInfo) return ""
-        if (order.customerName.isEmpty() && order.contactInfo.isEmpty() && order.billingInfo.isEmpty()) return ""
         
         val sb = StringBuilder()
-        sb.append(ThermalPrinterFormatter.formatDivider(paperWidth))
+        var hasContent = false
         
         if (!showMinimal) {
+            sb.append(ThermalPrinterFormatter.formatDivider(paperWidth))
             sb.append(ThermalPrinterFormatter.formatLeftText(ThermalPrinterFormatter.formatBold(sectionTitle), paperWidth))
         }
         
-        if (order.customerName.isNotEmpty()) {
+        if (templateConfig.showCustomerName && order.customerName.isNotEmpty()) {
             sb.append(ThermalPrinterFormatter.formatLabelValue("Customer", order.customerName, paperWidth))
+            hasContent = true
         }
         
-        if (!showMinimal && order.contactInfo.isNotEmpty()) {
+        if (templateConfig.showCustomerPhone && !showMinimal && order.contactInfo.isNotEmpty()) {
             sb.append(ThermalPrinterFormatter.formatLabelValue("Contact", order.contactInfo, paperWidth))
+            hasContent = true
         }
         
-        if (!showMinimal && order.billingInfo.isNotEmpty()) {
-            sb.append(ThermalPrinterFormatter.formatLabelValue("Address", order.billingInfo, paperWidth))
-        }
-        
-        return sb.toString()
+        // 如果没有任何内容，返回空字符串
+        return if (hasContent || showMinimal) sb.toString() else ""
     }
     
     /**
@@ -295,7 +309,7 @@ class DefaultOrderPrintTemplate @Inject constructor(
     private fun generateItemDetails(order: Order, config: PrinterConfig, templateConfig: TemplateConfig,
                                    paperWidth: Int, 
                                    sectionTitle: String = "Order Items", kitchenStyle: Boolean = false): String {
-        if (!templateConfig.showItemDetails) return ""
+        if (!templateConfig.showOrderContent || !templateConfig.showItemDetails) return ""
         
         val sb = StringBuilder()
         sb.append(ThermalPrinterFormatter.formatDivider(paperWidth))
@@ -356,7 +370,7 @@ class DefaultOrderPrintTemplate @Inject constructor(
      */
     private fun generateTotals(order: Order, config: PrinterConfig, templateConfig: TemplateConfig,
                               paperWidth: Int): String {
-        if (!templateConfig.showTotals) return ""
+        if (!templateConfig.showOrderContent || !templateConfig.showTotals) return ""
         
         val sb = StringBuilder()
         
@@ -419,7 +433,7 @@ class DefaultOrderPrintTemplate @Inject constructor(
     private fun generateOrderNotes(order: Order, config: PrinterConfig, templateConfig: TemplateConfig,
                                   paperWidth: Int,
                                   sectionTitle: String = "Order Notes:"): String {
-        if (!templateConfig.showOrderNotes || order.notes.isEmpty()) return ""
+        if (!templateConfig.showOrderContent || !templateConfig.showOrderNotes || order.notes.isEmpty()) return ""
         
         val sb = StringBuilder()
         sb.append(ThermalPrinterFormatter.formatDivider(paperWidth))
@@ -436,8 +450,8 @@ class DefaultOrderPrintTemplate @Inject constructor(
                               paperWidth: Int): String {
         val sb = StringBuilder()
         
-        if (templateConfig.showFooter) {
-            sb.append(ThermalPrinterFormatter.formatFooter("Thank you for your order!", paperWidth))
+        if (templateConfig.showFooter && templateConfig.footerText.isNotBlank()) {
+            sb.append(ThermalPrinterFormatter.formatFooter(templateConfig.footerText, paperWidth))
         } else {
             sb.append(ThermalPrinterFormatter.addEmptyLines(3))
         }
