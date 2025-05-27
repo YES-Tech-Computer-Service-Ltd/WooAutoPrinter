@@ -94,8 +94,6 @@ class ProductsViewModel @Inject constructor(
         Log.d("ProductsViewModel", "初始化ProductsViewModel")
         viewModelScope.launch {
             try {
-                // 确保证书验证
-                ensureLicenseVerification()
                 // 在初始化时不显示加载状态，避免闪烁
                 checkConfiguration(showLoadingIndicator = false)
             } catch (e: Exception) {
@@ -716,30 +714,5 @@ class ProductsViewModel @Inject constructor(
     
     fun clearLicenseSettingsNavigation() {
         _navigateToLicenseSettings.value = false
-    }
-    
-    /**
-     * 确保证书验证已执行
-     */
-    private fun ensureLicenseVerification() {
-        viewModelScope.launch {
-            try {
-                Log.d("ProductsViewModel", "检查证书验证状态")
-                val currentInfo = licenseManager.licenseInfo.value
-                
-                // 如果当前状态是未验证，或者需要重新验证，则触发验证
-                if (currentInfo?.status == com.example.wooauto.licensing.LicenseStatus.UNVERIFIED || 
-                    licenseManager.shouldRevalidate(24 * 60)) {
-                    Log.d("ProductsViewModel", "触发证书验证")
-                    licenseManager.verifyLicense(context, viewModelScope) { isValid ->
-                        Log.d("ProductsViewModel", "证书验证完成: $isValid")
-                    }
-                } else {
-                    Log.d("ProductsViewModel", "证书状态已是最新: ${currentInfo?.status}")
-                }
-            } catch (e: Exception) {
-                Log.e("ProductsViewModel", "证书验证检查失败", e)
-            }
-        }
     }
 } 

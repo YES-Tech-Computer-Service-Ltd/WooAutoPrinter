@@ -35,6 +35,7 @@ import com.example.wooauto.domain.models.Product
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.compose.runtime.livedata.observeAsState
 import com.example.wooauto.licensing.LicenseStatus
+import com.example.wooauto.licensing.EligibilityStatus
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -46,7 +47,8 @@ fun ProductDetailDialog(
 ) {
     remember { viewModel.licenseManager }
     val licenseInfo by viewModel.licenseManager.licenseInfo.observeAsState()
-    val isLicenseValid = viewModel.licenseManager.isLicenseValid
+    val eligibilityInfo by viewModel.licenseManager.eligibilityInfo.observeAsState()
+    val hasEligibility = eligibilityInfo?.status == EligibilityStatus.ELIGIBLE
     
     var regularPrice by remember { mutableStateOf(product.regularPrice) }
     var stockStatus by remember { mutableStateOf(product.stockStatus) }
@@ -161,7 +163,7 @@ fun ProductDetailDialog(
                             onValueChange = { regularPrice = it },
                             label = { Text(stringResource(id = R.string.regular_price)) },
                             modifier = Modifier.fillMaxWidth(),
-                            enabled = isLicenseValid
+                            enabled = hasEligibility
                         )
                         
                         Spacer(modifier = Modifier.height(16.dp))
@@ -170,7 +172,7 @@ fun ProductDetailDialog(
                         ExposedDropdownMenuBox(
                             expanded = stockStatusExpanded,
                             onExpandedChange = { expanded ->
-                                if (isLicenseValid) {
+                                if (hasEligibility) {
                                     stockStatusExpanded = expanded
                                 }
                             }
@@ -187,17 +189,17 @@ fun ProductDetailDialog(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .menuAnchor(),
-                                enabled = isLicenseValid
+                                enabled = hasEligibility
                             )
                             
                             ExposedDropdownMenu(
-                                expanded = stockStatusExpanded && isLicenseValid,
+                                expanded = stockStatusExpanded && hasEligibility,
                                 onDismissRequest = { stockStatusExpanded = false }
                             ) {
                                 DropdownMenuItem(
                                     text = { Text(stringResource(id = R.string.stock_status_in_stock)) },
                                     onClick = {
-                                        if (isLicenseValid) {
+                                        if (hasEligibility) {
                                             stockStatus = "instock"
                                             stockStatusExpanded = false
                                         }
@@ -206,7 +208,7 @@ fun ProductDetailDialog(
                                 DropdownMenuItem(
                                     text = { Text(stringResource(id = R.string.stock_status_out_of_stock)) },
                                     onClick = {
-                                        if (isLicenseValid) {
+                                        if (hasEligibility) {
                                             stockStatus = "outofstock"
                                             stockStatusExpanded = false
                                         }
@@ -231,7 +233,7 @@ fun ProductDetailDialog(
                     }
                     
                     // 如果证书无效，显示模糊层和提示
-                    if (!isLicenseValid) {
+                    if (!hasEligibility) {
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
@@ -347,7 +349,7 @@ fun ProductDetailDialog(
                             )
                         },
                         modifier = Modifier.weight(1f),
-                        enabled = isLicenseValid
+                        enabled = hasEligibility
                     ) {
                         Icon(
                             imageVector = Icons.Default.Check,
