@@ -89,28 +89,47 @@ class BackgroundPollingService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        Log.d(TAG, "【服务初始化】后台轮询服务开始初始化")
+        
         // 创建通知渠道并启动前台服务
         createNotificationChannel()
         startForeground()
         
-        // 创建协程作用域
+        // 延迟初始化，确保应用组件完全加载
         serviceScope.launch {
             try {
+                // 等待应用完成基础初始化
+                delay(2000) // 给应用2秒时间完成基础初始化
+                
+                Log.d(TAG, "【服务初始化】开始读取轮询配置")
+                
                 // 读取保存的轮询间隔设置
-                currentPollingInterval = wooCommerceConfig.pollingInterval.first()
+                currentPollingInterval = withTimeoutOrNull(5000) {
+                    wooCommerceConfig.pollingInterval.first()
+                } ?: DEFAULT_POLLING_INTERVAL
+                
                 if (currentPollingInterval < MIN_POLLING_INTERVAL) {
                     currentPollingInterval = DEFAULT_POLLING_INTERVAL
                 }
                 
-                Log.d(TAG, "服务初始化，当前轮询间隔: ${currentPollingInterval}秒")
+                Log.d(TAG, "【服务初始化】轮询间隔配置完成: ${currentPollingInterval}秒")
+                
+                // 注册前台状态监听器
+                registerForegroundStateReceiver()
+                
+                Log.d(TAG, "【服务初始化】后台服务初始化完成")
             } catch (e: Exception) {
-                Log.e(TAG, "初始化轮询间隔失败: ${e.message}")
+                Log.e(TAG, "【服务初始化】初始化失败: ${e.message}", e)
                 currentPollingInterval = DEFAULT_POLLING_INTERVAL
+                
+                // 即使初始化失败，也要注册监听器
+                try {
+                    registerForegroundStateReceiver()
+                } catch (e2: Exception) {
+                    Log.e(TAG, "【服务初始化】注册监听器失败: ${e2.message}")
+                }
             }
         }
-        
-        // 注册前台状态监听器
-        registerForegroundStateReceiver()
     }
     
     /**
@@ -441,6 +460,7 @@ class BackgroundPollingService : Service() {
 
     /**
      * 检查打印机连接状态并尝试重新连接
+     * 减少与心跳机制的冲突，降低检查频率
      */
     private suspend fun checkPrinterConnection() {
         try {
@@ -449,40 +469,41 @@ class BackgroundPollingService : Service() {
             if (printerConfig != null) {
                 // 检查打印机连接状态
                 val status = printerManager.getPrinterStatus(printerConfig)
-                Log.d(TAG, "当前打印机状态: $status")
                 
-                // 如果打印机未连接或处于错误状态，尝试重新连接
-                if (status == PrinterStatus.DISCONNECTED || status == PrinterStatus.ERROR) {
-                    Log.d(TAG, "打印机未连接，尝试重新连接...")
+                // 只在状态为ERROR时进行重连，让心跳机制处理DISCONNECTED状态
+                if (status == PrinterStatus.ERROR) {
+                    Log.d(TAG, "打印机状态错误，尝试重新连接...")
                     
-                    // 延迟一点时间再连接，防止频繁连接请求
-                    delay(500)
+                    // 延迟一点时间再连接，防止与心跳机制冲突
+                    delay(1000)
                     
-                    // 尝试连接打印机
-                    val connected = withTimeoutOrNull(5000) { // 增加5秒超时
+                    // 尝试连接打印机，添加超时控制
+                    val connected = withTimeoutOrNull(8000) {
                         printerManager.connect(printerConfig)
                     } ?: false
                     
                     if (connected) {
-                        Log.d(TAG, "成功重新连接打印机")
+                        Log.d(TAG, "后台服务成功重新连接打印机")
                     } else {
-                        Log.e(TAG, "无法重新连接打印机")
-                        // 如果连接失败，我们不立即重试，而是等待下一个轮询周期
-                        // 这样可以降低对蓝牙系统的压力
+                        Log.e(TAG, "后台服务无法重新连接打印机")
                     }
                 } else if (status == PrinterStatus.CONNECTED) {
-                    // 即使显示已连接，也发送测试指令确认连接状态 - 但减少频率
+                    // 降低测试频率，避免与心跳冲突
                     val minutes = System.currentTimeMillis() / 60000
-                    if (minutes % 5L == 0L) { // 每5分钟测试一次，修改为Long类型比较
-                        Log.d(TAG, "打印机显示已连接，发送测试指令确认状态")
-                        val testResult = printerManager.testConnection(printerConfig)
-                        if (!testResult) {
-                            Log.w(TAG, "打印机测试指令失败，尝试重新连接")
-                            val reconnected = printerManager.connect(printerConfig)
-                            Log.d(TAG, "重新连接结果: ${if (reconnected) "成功" else "失败"}")
+                    if (minutes % 10L == 0L) { // 改为每10分钟测试一次
+                        Log.d(TAG, "定期检查：打印机连接状态测试")
+                        try {
+                            val testResult = printerManager.testConnection(printerConfig)
+                            if (!testResult) {
+                                Log.w(TAG, "定期检查：打印机测试失败，标记为错误状态")
+                                // 不直接重连，让心跳机制处理
+                            }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "定期检查：测试连接异常", e)
                         }
                     }
                 }
+                // DISCONNECTED状态由心跳机制处理，避免重复处理
             } else {
                 Log.d(TAG, "没有配置默认打印机")
             }

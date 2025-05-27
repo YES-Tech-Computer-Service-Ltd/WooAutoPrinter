@@ -278,24 +278,15 @@ class GitHubUpdater @Inject constructor(
             }
             
             // 注册广播接收器
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                // Android 8.0及以上版本使用三参数版本
-                context.registerReceiver(
-                    receiver,
-                    IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE),
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        Context.RECEIVER_NOT_EXPORTED
-                    } else {
-                        0
-                    }
-                )
-            } else {
-                // Android 7.x及以下版本使用两参数版本
-                context.registerReceiver(
-                    receiver,
-                    IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
-                )
-            }
+            context.registerReceiver(
+                receiver,
+                IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE),
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    Context.RECEIVER_NOT_EXPORTED
+                } else {
+                    0
+                }
+            )
             
             // 保存接收器引用以便后续清理
             downloadReceiver = receiver
