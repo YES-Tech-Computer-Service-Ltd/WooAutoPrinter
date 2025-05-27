@@ -286,6 +286,18 @@ interface DomainSettingRepository {
      * @param templateId 模板ID
      */
     suspend fun saveDefaultAutoPrintTemplateId(templateId: String)
+    
+    /**
+     * 设置临时手动打印标志（用于区分手动打印和自动打印）
+     * @param isManualPrint 是否为手动打印
+     */
+    suspend fun setTemporaryManualPrintFlag(isManualPrint: Boolean)
+    
+    /**
+     * 获取并清除临时手动打印标志
+     * @return 是否为手动打印
+     */
+    suspend fun getAndClearTemporaryManualPrintFlag(): Boolean
 
     /**
      * 获取自动打印启用状态

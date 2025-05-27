@@ -22,4 +22,11 @@ interface OrderPrintTemplate {
      * @return 格式化后的测试打印内容
      */
     fun generateTestPrintContent(config: PrinterConfig): String
+    
+    /**
+     * 创建测试用的订单对象
+     * @param config 打印机配置
+     * @return 包含测试数据的订单对象
+     */
+    fun createTestOrder(config: PrinterConfig): Order
 } 

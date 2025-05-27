@@ -749,6 +749,9 @@ class OrdersViewModel @Inject constructor(
                     return@launch
                 }
                 
+                // 设置手动打印标志
+                settingRepository.setTemporaryManualPrintFlag(true)
+                
                 // 如果指定了模板ID，临时设置为默认模板ID
                 if (templateId != null) {
                     // 将模板ID转换为TemplateType（为了向后兼容）
@@ -760,9 +763,19 @@ class OrdersViewModel @Inject constructor(
                     }
                     settingRepository.saveDefaultTemplateType(templateType)
                     
-                    // 如果是自定义模板，还需要保存模板ID
+                    // 如果是自定义模板，保存模板ID
                     if (templateId.startsWith("custom_")) {
                         settingRepository.saveCustomTemplateId(templateId)
+                        Log.d("OrdersViewModel", "保存自定义模板ID: $templateId")
+                    } else {
+                        // 如果是默认模板，清除手动打印的自定义模板ID，避免冲突
+                        try {
+                            // 通过保存空字符串来清除自定义模板ID
+                            settingRepository.saveCustomTemplateId("")
+                            Log.d("OrdersViewModel", "已清除手动打印的自定义模板ID，使用默认模板: $templateType")
+                        } catch (e: Exception) {
+                            Log.e("OrdersViewModel", "清除自定义模板ID失败: ${e.message}")
+                        }
                     }
                     
                     Log.d("OrdersViewModel", "临时设置打印模板为: $templateType (ID: $templateId)")

@@ -70,6 +70,7 @@ class SettingsRepositoryImpl @Inject constructor(
         // 自定义模板相关键
         val CURRENT_CUSTOM_TEMPLATE_ID = stringPreferencesKey(KEY_CURRENT_CUSTOM_TEMPLATE_ID)
         val DEFAULT_AUTO_PRINT_TEMPLATE_ID = stringPreferencesKey(KEY_DEFAULT_AUTO_PRINT_TEMPLATE_ID)
+        val TEMPORARY_MANUAL_PRINT_FLAG = booleanPreferencesKey(KEY_TEMPORARY_MANUAL_PRINT_FLAG)
     }
 
     // 设置键名常量
@@ -114,6 +115,7 @@ class SettingsRepositoryImpl @Inject constructor(
         // 自定义模板相关键名
         const val KEY_CURRENT_CUSTOM_TEMPLATE_ID = "current_custom_template_id"
         const val KEY_DEFAULT_AUTO_PRINT_TEMPLATE_ID = "default_auto_print_template_id"
+        const val KEY_TEMPORARY_MANUAL_PRINT_FLAG = "temporary_manual_print_flag"
     }
 
     private val autoUpdateKey = "auto_update"
@@ -744,6 +746,40 @@ class SettingsRepositoryImpl @Inject constructor(
         dataStore.edit { settings ->
             settings[PreferencesKeys.DEFAULT_AUTO_PRINT_TEMPLATE_ID] = templateId
         }
+    }
+    
+    /**
+     * 设置临时手动打印标志
+     */
+    override suspend fun setTemporaryManualPrintFlag(isManualPrint: Boolean) {
+        dataStore.edit { settings ->
+            settings[PreferencesKeys.TEMPORARY_MANUAL_PRINT_FLAG] = isManualPrint
+        }
+    }
+    
+    /**
+     * 获取并清除临时手动打印标志
+     */
+    override suspend fun getAndClearTemporaryManualPrintFlag(): Boolean {
+        val isManual = dataStore.data
+            .catch { exception ->
+                if (exception is IOException) {
+                    Log.e("SettingsRepositoryImpl", "Error reading temporary_manual_print_flag.", exception)
+                    emit(androidx.datastore.preferences.core.emptyPreferences())
+                } else {
+                    throw exception
+                }
+            }
+            .map { preferences ->
+                preferences[PreferencesKeys.TEMPORARY_MANUAL_PRINT_FLAG] ?: false
+            }.first()
+        
+        // 读取后立即清除标志
+        dataStore.edit { settings ->
+            settings.remove(PreferencesKeys.TEMPORARY_MANUAL_PRINT_FLAG)
+        }
+        
+        return isManual
     }
     
     // License Key

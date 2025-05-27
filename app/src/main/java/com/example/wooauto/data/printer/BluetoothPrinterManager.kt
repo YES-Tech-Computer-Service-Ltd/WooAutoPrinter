@@ -869,22 +869,9 @@ class BluetoothPrinterManager @Inject constructor(
                 return false
             }
 
-            // 用简单内容进行测试
-            val testContent = """
-                [C]<b>printing test</b>
-                [C]----------------
-                [L]brand: ${config.brand.displayName}
-                [L]address: ${config.address}
-                [L]name: ${config.name}
-                [L]----------------
-                [C]test success
-                
-                
-                
-            """.trimIndent()
-
-            // 使用通用方法打印内容
-            val success = printContent(testContent, config)
+            // 创建测试订单并使用正常的打印流程
+            val testOrder = templateManager.createTestOrder(config)
+            val success = printOrder(testOrder, config)
 
             if (success) {
 //                Log.d(TAG, "打印测试成功")
@@ -1122,9 +1109,9 @@ class BluetoothPrinterManager @Inject constructor(
                         currentConnection?.write(resetCommand)
                         Thread.sleep(100)
                         
-                        // 发送走纸和换行命令以确保缓冲区被清空
-                        currentConnection?.write(byteArrayOf(0x0A, 0x0D, 0x0A))  // LF CR LF
-                        Thread.sleep(50)
+                        // 不发送额外的走纸命令，避免长走纸
+                        // currentConnection?.write(byteArrayOf(0x0A, 0x0D, 0x0A))  // LF CR LF
+                        // Thread.sleep(50)
                     } catch (e: Exception) {
                         // 记录错误但不中断流程
                         Log.e(TAG, "【打印机】初始化失败: ${e.message}")
@@ -1170,19 +1157,8 @@ class BluetoothPrinterManager @Inject constructor(
                 return false
             }
             
-            // 打印前清空缓冲区
-            try {
-                Log.d(TAG, "【打印机】打印前清空缓冲区")
-                // 清除缓冲区命令
-                currentConnection?.write(byteArrayOf(0x18))  // CAN
-                Thread.sleep(50)
-                // 重置打印机
-                currentConnection?.write(byteArrayOf(0x1B, 0x40))  // ESC @
-                Thread.sleep(50)
-            } catch (e: Exception) {
-                Log.e(TAG, "【打印机】打印前清空缓冲区失败: ${e.message}")
-                // 继续尝试打印，不要因为这个错误中断
-            }
+            // 不再在每次打印前都初始化，避免重复操作和长走纸
+            // 只有在连接时初始化一次就足够了
 
             // 预处理内容
             val fixedContent = validateAndFixPrintContent(content)
@@ -1199,23 +1175,8 @@ class BluetoothPrinterManager @Inject constructor(
             // 保存最后一次打印内容，用于重试
             lastPrintContent = contentWithExtra
 
-            // 开始打印前，简单清除缓冲区并初始化打印机
-            try {
-                Log.d(TAG, "【打印机】打印前清除缓冲区")
-                
-                // 初始化打印机 (这是最重要的命令)
-                val initCommand = byteArrayOf(0x1B, 0x40)  // ESC @
-                currentConnection?.write(initCommand)
-                Thread.sleep(100)
-
-                // 清除缓冲区
-                val cancelCommand = byteArrayOf(0x18)  // CAN
-                currentConnection?.write(cancelCommand)
-                Thread.sleep(50)
-            } catch (e: Exception) {
-                Log.e(TAG, "【打印机】清除缓冲区失败: ${e.message}")
-                // 继续尝试打印，不要因为这个错误中断
-            }
+            // 不在每次打印前重复初始化，避免长走纸
+            // 打印机在连接时已经初始化完成
             
             // 分块打印内容，解决缓冲区溢出问题
             Log.d(TAG, "开始分块打印内容（总长度: ${contentWithExtra.length}字符）")
@@ -1254,24 +1215,16 @@ class BluetoothPrinterManager @Inject constructor(
      * 确保打印内容有适当的结尾，添加特殊触发打印字符
      */
     private fun ensureProperEnding(content: String): String {
-        // 添加调试日志
-        Log.d(TAG, "【打印机】添加结尾和触发打印字符")
+        Log.d(TAG, "【打印机】确保内容适当结尾")
         
         // 确保内容以换行结束
         val contentWithNewLine = if (content.endsWith("\n")) content else "$content\n"
         
-        // 添加特殊的打印触发字符和额外的换行符
-        // 只使用控制字符，避免添加任何可见文本
-        val triggerSequence = "\n" + 
-                              // 部分切纸命令 (GS V 1)
-                              "\u001D\u0056\u0001" + 
-                              // 走纸和换行
-                              "\u000A\u000D\u000A" +
-                              // 增加一个空格后立即结束，不添加可见文本
-                              " \u000A"
+        // 只添加最小必要的结尾内容，避免长走纸
+        // 仅添加一个换行符和切纸命令，不添加多余的走纸
+        val triggerSequence = "\u001D\u0056\u0001"  // GS V 1 - 部分切纸命令
         
-        // 记录特殊字符添加情况
-        Log.d(TAG, "【打印机】添加了非可见触发打印字符序列")
+        Log.d(TAG, "【打印机】添加最小必要的结尾序列")
         
         return contentWithNewLine + triggerSequence
     }
@@ -2140,21 +2093,17 @@ class BluetoothPrinterManager @Inject constructor(
         try {
             Log.d(TAG, "执行测试打印")
 
-            // 检查是否为Star TSP100打印机
-            val isStarTSP100 = config.brand == PrinterBrand.STAR &&
-                    config.name.contains("TSP100", ignoreCase = true)
-
             // 1. 检查并确保连接
             if (!ensurePrinterConnected(config)) {
                 Log.e(TAG, "打印机连接失败，无法执行测试打印")
                 return@withContext false
             }
 
-            // 2. 生成测试打印内容
-            val testContent = templateManager.generateTestPrintContent(config)
+            // 2. 创建测试订单对象
+            val testOrder = templateManager.createTestOrder(config)
 
-            // 3. 执行打印
-            val success = printContent(testContent, config)
+            // 3. 使用正常的订单打印流程，这样可以享受完整的切纸逻辑
+            val success = printOrder(testOrder, config)
 
             if (success) {
                 Log.d(TAG, "测试打印成功")
@@ -2187,9 +2136,9 @@ class BluetoothPrinterManager @Inject constructor(
             for (line in lines) {
                 val trimmedLine = line.trim()
 
-                // 空行转换为一个空格的左对齐行，确保不会有空标签
+                // 空行保持为空行，不添加多余的空格
                 if (trimmedLine.isEmpty()) {
-                    fixedLines.add("[L] ")
+                    fixedLines.add("")
                     continue
                 }
 

@@ -140,9 +140,10 @@ class ThermalPrinterFormatter {
          * 格式化多行文本，确保每行不超过打印机宽度
          * @param text 文本内容
          * @param paperWidth 打印纸宽度
+         * @param alignment 对齐方式：'L'=左对齐，'C'=居中，'R'=右对齐
          * @return 格式化后的文本
          */
-        fun formatMultilineText(text: String, paperWidth: Int): String {
+        fun formatMultilineText(text: String, paperWidth: Int, alignment: Char = 'L'): String {
             val maxChars = getCharsPerLine(paperWidth)
             val sb = StringBuilder()
             
@@ -155,11 +156,11 @@ class ThermalPrinterFormatter {
                     var remainingText = line
                     while (remainingText.isNotEmpty()) {
                         val chunk = remainingText.take(maxChars)
-                        sb.append("[L]$chunk\n")
+                        sb.append("[$alignment]$chunk\n")
                         remainingText = remainingText.drop(maxChars)
                     }
                 } else {
-                    sb.append("[L]$line\n")
+                    sb.append("[$alignment]$line\n")
                 }
             }
             
@@ -184,7 +185,11 @@ class ThermalPrinterFormatter {
         fun formatFooter(text: String, paperWidth: Int): String {
             val sb = StringBuilder()
             sb.append(formatDivider(paperWidth))
-            sb.append(formatCenteredText(text, paperWidth))
+            
+            // 使用多行文本格式化方法，并设置为居中对齐
+            // 这样可以处理自动换行和手动换行的情况
+            sb.append(formatMultilineText(text, paperWidth, 'C'))
+            
             sb.append(addEmptyLines(3)) // 添加空行便于撕纸
             return sb.toString()
         }

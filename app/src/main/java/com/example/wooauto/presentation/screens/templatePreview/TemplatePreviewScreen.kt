@@ -226,7 +226,8 @@ fun TemplatePreviewScreen(
                                 showTotals = config.showTotals,
                                 showPaymentInfo = config.showPaymentInfo,
                                 showFooter = config.showFooter,
-                                footerText = config.footerText
+                                footerText = config.footerText,
+                                paperWidth = 80 // 设定为80mm进行预览
                             )
                         }
                     }
@@ -278,17 +279,103 @@ fun TemplatePreview(
     showTotals: Boolean,
     showPaymentInfo: Boolean,
     showFooter: Boolean,
-    footerText: String
+    footerText: String,
+    paperWidth: Int = 80, // 默认80mm
+    settingsViewModel: SettingsViewModel = hiltViewModel()
 ) {
-    Box(
+    // 获取商店信息
+    val storeName by settingsViewModel.storeName.collectAsState()
+    val storeAddress by settingsViewModel.storeAddress.collectAsState()
+    val storePhone by settingsViewModel.storePhone.collectAsState()
+    
+    // 加载商店信息
+    LaunchedEffect(Unit) {
+        settingsViewModel.loadStoreInfo()
+    }
+    
+    // 纸张宽度切换状态
+    var currentPaperWidth by remember { mutableStateOf(paperWidth) }
+    
+    // 根据纸张宽度计算显示宽度
+    val displayWidth = when (currentPaperWidth) {
+        57 -> 200.dp // 58mm纸张对应较窄的显示
+        80 -> 300.dp // 80mm纸张对应较宽的显示
+        else -> 250.dp // 默认宽度
+    }
+    
+    val paperWidthText = when (currentPaperWidth) {
+        57 -> "58mm"
+        80 -> "80mm" 
+        else -> "${currentPaperWidth}mm"
+    }
+    
+    Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp),
-        contentAlignment = Alignment.TopCenter
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        // 纸张宽度提示和切换
         Card(
             modifier = Modifier
-                .fillMaxWidth()
+                .padding(bottom = 16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.primaryContainer
+            )
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = "预览宽度: $paperWidthText 热敏纸",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.weight(1f)
+                )
+                
+                // 切换到58mm按钮
+                Button(
+                    onClick = { currentPaperWidth = 57 },
+                    colors = if (currentPaperWidth == 57) {
+                        androidx.compose.material3.ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary
+                        )
+                    } else {
+                        androidx.compose.material3.ButtonDefaults.outlinedButtonColors()
+                    },
+                    modifier = Modifier.height(32.dp)
+                ) {
+                    Text(
+                        text = "58mm",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+                
+                // 切换到80mm按钮
+                Button(
+                    onClick = { currentPaperWidth = 80 },
+                    colors = if (currentPaperWidth == 80) {
+                        androidx.compose.material3.ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary
+                        )
+                    } else {
+                        androidx.compose.material3.ButtonDefaults.outlinedButtonColors()
+                    },
+                    modifier = Modifier.height(32.dp)
+                ) {
+                    Text(
+                        text = "80mm",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+        }
+        
+        Card(
+            modifier = Modifier
+                .width(displayWidth)
                 .padding(horizontal = 8.dp),
             elevation = CardDefaults.cardElevation(
                 defaultElevation = 2.dp
@@ -307,9 +394,9 @@ fun TemplatePreview(
                 if (showStoreInfo) {
                     var hasStoreContent = false
                     
-                    if (showStoreName) {
+                    if (showStoreName && storeName.isNotEmpty()) {
                         Text(
-                            text = "MY STORE",
+                            text = storeName,
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.fillMaxWidth(),
@@ -318,9 +405,9 @@ fun TemplatePreview(
                         hasStoreContent = true
                     }
                     
-                    if (showStoreAddress) {
+                    if (showStoreAddress && storeAddress.isNotEmpty()) {
                         Text(
-                            text = "123 Main Street, City",
+                            text = storeAddress,
                             style = MaterialTheme.typography.bodyMedium,
                             modifier = Modifier.fillMaxWidth(),
                             textAlign = TextAlign.Center
@@ -328,14 +415,51 @@ fun TemplatePreview(
                         hasStoreContent = true
                     }
                     
-                    if (showStorePhone) {
+                    if (showStorePhone && storePhone.isNotEmpty()) {
                         Text(
-                            text = "Tel: (123) 456-7890",
+                            text = "Tel: $storePhone",
                             style = MaterialTheme.typography.bodyMedium,
                             modifier = Modifier.fillMaxWidth(),
                             textAlign = TextAlign.Center
                         )
                         hasStoreContent = true
+                    }
+                    
+                    // 如果用户没有设置商店信息，显示示例信息
+                    if (!hasStoreContent) {
+                        if (showStoreName) {
+                            Text(
+                                text = "store name",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.fillMaxWidth(),
+                                textAlign = TextAlign.Center,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            )
+                            hasStoreContent = true
+                        }
+                        
+                        if (showStoreAddress) {
+                            Text(
+                                text = "123 Business Avenue, Unit 100",
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.fillMaxWidth(),
+                                textAlign = TextAlign.Center,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            )
+                            hasStoreContent = true
+                        }
+                        
+                        if (showStorePhone) {
+                            Text(
+                                text = "Tel: （000）000-0000",
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.fillMaxWidth(),
+                                textAlign = TextAlign.Center,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            )
+                            hasStoreContent = true
+                        }
                     }
                     
                     if (hasStoreContent) {
@@ -358,7 +482,7 @@ fun TemplatePreview(
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = "WO12345",
+                                text = "ORD20250315001",
                                 style = MaterialTheme.typography.bodyMedium
                             )
                         }
@@ -375,7 +499,7 @@ fun TemplatePreview(
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = "2025-03-06 14:30",
+                                text = "2025-03-15 14:30",
                                 style = MaterialTheme.typography.bodyMedium
                             )
                         }
@@ -401,7 +525,7 @@ fun TemplatePreview(
                     
                     if (showCustomerName) {
                         Text(
-                            text = "Name: John Smith",
+                            text = "Name: Customer A",
                             style = MaterialTheme.typography.bodyMedium
                         )
                         hasCustomerContent = true
@@ -432,15 +556,15 @@ fun TemplatePreview(
                     Spacer(modifier = Modifier.height(4.dp))
                     
                     Text(
-                        text = "Address: 456 Oak Street, Apt 789",
+                        text = "Address: 123 Business Avenue, Unit 100",
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Text(
-                        text = "City: Springfield, ST 12345",
+                        text = "City: Business District, ST 12345",
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Text(
-                        text = "Delivery Method: Express Delivery",
+                        text = "Delivery Method: Standard Delivery",
                         style = MaterialTheme.typography.bodyMedium
                     )
                     
@@ -459,7 +583,7 @@ fun TemplatePreview(
                     Spacer(modifier = Modifier.height(4.dp))
                     
                     Text(
-                        text = "Credit Card (XXXX-XXXX-XXXX-1234)",
+                        text = "Credit Card (****-****-****-1234)",
                         style = MaterialTheme.typography.bodyMedium
                     )
                     
@@ -538,11 +662,11 @@ fun TemplatePreview(
                                 modifier = Modifier.weight(1.5f)
                             ) {
                                 Text(
-                                    text = "Chicken Fried Rice",
+                                    text = "Product A (Standard)",
                                     style = MaterialTheme.typography.bodyMedium
                                 )
                                 Text(
-                                    text = "No onions, extra sauce",
+                                    text = "Option: Extra Service",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                                 )
@@ -568,11 +692,11 @@ fun TemplatePreview(
                                 modifier = Modifier.weight(1.5f)
                             ) {
                                 Text(
-                                    text = "Chicken Fried Rice",
+                                    text = "Product A (Standard)",
                                     style = MaterialTheme.typography.bodyMedium
                                 )
                                 Text(
-                                    text = "No onions, extra sauce",
+                                    text = "Option: Extra Service",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                                 )
@@ -597,12 +721,12 @@ fun TemplatePreview(
                                 modifier = Modifier.weight(1.5f)
                             ) {
                                 Text(
-                                    text = "Spring Rolls",
+                                    text = "Product B (Basic)",
                                     style = MaterialTheme.typography.bodyMedium
                                 )
                             }
                             Text(
-                                text = "4",
+                                text = "1",
                                 style = MaterialTheme.typography.bodyMedium,
                                 modifier = Modifier.weight(0.5f),
                                 textAlign = TextAlign.Center
@@ -619,12 +743,12 @@ fun TemplatePreview(
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text(
-                                text = "Spring Rolls",
+                                text = "Product B (Basic)",
                                 style = MaterialTheme.typography.bodyMedium,
                                 modifier = Modifier.weight(1.5f)
                             )
                             Text(
-                                text = "4",
+                                text = "1",
                                 style = MaterialTheme.typography.bodyMedium,
                                 modifier = Modifier.weight(0.5f),
                                 textAlign = TextAlign.End
@@ -646,7 +770,7 @@ fun TemplatePreview(
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = "Please deliver to back door. Call when arrived.",
+                        text = "Special delivery instructions and customer requirements.",
                         style = MaterialTheme.typography.bodyMedium
                     )
                     
@@ -1356,7 +1480,8 @@ fun TemplatePreviewDialogContent(
                                     showTotals = config.showTotals,
                                     showPaymentInfo = config.showPaymentInfo,
                                     showFooter = config.showFooter,
-                                    footerText = config.footerText
+                                    footerText = config.footerText,
+                                    paperWidth = 80 // 设定为80mm进行预览
                                 )
                             }
                         }

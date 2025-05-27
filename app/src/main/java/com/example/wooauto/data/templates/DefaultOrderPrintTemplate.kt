@@ -3,6 +3,10 @@ package com.example.wooauto.data.templates
 import android.content.Context
 import android.util.Log
 import com.example.wooauto.domain.models.Order
+import com.example.wooauto.domain.models.OrderItem
+import com.example.wooauto.domain.models.ItemOption
+import com.example.wooauto.domain.models.TaxLine
+import com.example.wooauto.domain.models.WooFoodInfo
 import com.example.wooauto.domain.models.PrinterConfig
 import com.example.wooauto.domain.models.TemplateConfig
 import com.example.wooauto.domain.repositories.DomainSettingRepository
@@ -31,18 +35,24 @@ class DefaultOrderPrintTemplate @Inject constructor(
     override fun generateOrderPrintContent(order: Order, config: PrinterConfig): String {
         Log.d(TAG, "生成订单打印内容: ${order.number}")
         
-        // 优先检查自动打印模板ID（用于自动打印场景）
-        val autoPrintTemplateId = runBlocking { 
-            settingRepository.getDefaultAutoPrintTemplateId()
+        // 检查是否为手动打印（会自动清除标志）
+        val isManualPrint = runBlocking { 
+            settingRepository.getAndClearTemporaryManualPrintFlag()
         }
         
-        // 其次检查手动打印的自定义模板ID
-        val manualPrintTemplateId = runBlocking { 
-            settingRepository.getCurrentCustomTemplateId()
+        val customTemplateId = if (isManualPrint) {
+            // 手动打印：使用手动打印模板ID
+            runBlocking { 
+                settingRepository.getCurrentCustomTemplateId()
+            }?.takeIf { it.isNotEmpty() }
+        } else {
+            // 自动打印：使用自动打印模板ID
+            runBlocking { 
+                settingRepository.getDefaultAutoPrintTemplateId()
+            }?.takeIf { it.isNotEmpty() }
         }
         
-        // 优先使用自动打印模板ID，如果没有则使用手动打印模板ID
-        val customTemplateId = autoPrintTemplateId ?: manualPrintTemplateId
+        Log.d(TAG, "打印模式: ${if (isManualPrint) "手动打印" else "自动打印"}, 使用模板ID: $customTemplateId")
         
         val templateId: String
         val templateType: TemplateType
@@ -51,11 +61,11 @@ class DefaultOrderPrintTemplate @Inject constructor(
             // 使用自定义模板
             templateId = customTemplateId
             templateType = TemplateType.FULL_DETAILS // 自定义模板都使用FULL_DETAILS类型
-            Log.d(TAG, "使用自定义模板: $customTemplateId (自动打印: $autoPrintTemplateId, 手动打印: $manualPrintTemplateId)")
+            Log.d(TAG, "使用自定义模板: $customTemplateId")
         } else {
             // 使用默认模板
             templateType = runBlocking { 
-                settingRepository.getDefaultTemplateType() ?: TemplateType.FULL_DETAILS 
+            settingRepository.getDefaultTemplateType() ?: TemplateType.FULL_DETAILS 
             }
             
             templateId = when (templateType) {
@@ -88,8 +98,7 @@ class DefaultOrderPrintTemplate @Inject constructor(
         val paperWidth = config.paperWidth
         val sb = StringBuilder()
         
-        // 组合各个模块
-        sb.append(generateHeader(order, config, templateConfig, paperWidth))
+        // 组合各个模块 - 使用商店信息生成方法，避免重复
         sb.append(generateStoreInfo(order, config, templateConfig, paperWidth))
         sb.append(generateOrderInfo(order, config, templateConfig, paperWidth))
         sb.append(generateCustomerInfo(order, config, templateConfig, paperWidth))
@@ -113,7 +122,9 @@ class DefaultOrderPrintTemplate @Inject constructor(
         // 配送模板特殊标题
         if (templateConfig.showStoreInfo) {
             val storeName = runBlocking { settingRepository.getStoreNameFlow().first() }
-            sb.append(ThermalPrinterFormatter.formatTitle(storeName, paperWidth))
+            if (storeName.isNotEmpty()) {
+                sb.append(ThermalPrinterFormatter.formatTitle(storeName, paperWidth))
+            }
         }
         sb.append(ThermalPrinterFormatter.formatTitle("DELIVERY RECEIPT", paperWidth))
         sb.append(ThermalPrinterFormatter.addEmptyLines(1))
@@ -143,7 +154,9 @@ class DefaultOrderPrintTemplate @Inject constructor(
         // 厨房模板特殊标题
         if (templateConfig.showStoreInfo) {
             val storeName = runBlocking { settingRepository.getStoreNameFlow().first() }
-            sb.append(ThermalPrinterFormatter.formatTitle(storeName, paperWidth))
+            if (storeName.isNotEmpty()) {
+                sb.append(ThermalPrinterFormatter.formatTitle(storeName, paperWidth))
+            }
         }
         sb.append(ThermalPrinterFormatter.formatTitle("KITCHEN ORDER", paperWidth))
         sb.append(ThermalPrinterFormatter.formatDivider(paperWidth))
@@ -176,9 +189,11 @@ class DefaultOrderPrintTemplate @Inject constructor(
         val sb = StringBuilder()
         val storeName = runBlocking { settingRepository.getStoreNameFlow().first() }
         
-        // 标题 (总是打印)
-        sb.append(ThermalPrinterFormatter.formatTitle(storeName, paperWidth))
-        sb.append(ThermalPrinterFormatter.addEmptyLines(1))
+        // 只有当商店名称不为空时才打印标题
+        if (storeName.isNotEmpty()) {
+            sb.append(ThermalPrinterFormatter.formatTitle(storeName, paperWidth))
+            sb.append(ThermalPrinterFormatter.addEmptyLines(1))
+        }
         
         return sb.toString()
     }
@@ -192,12 +207,14 @@ class DefaultOrderPrintTemplate @Inject constructor(
         if (!templateConfig.showStoreInfo) return ""
         
         val sb = StringBuilder()
+        var hasContent = false
         
         // 根据细分选项显示对应的商店信息
         if (templateConfig.showStoreName) {
             val storeName = runBlocking { settingRepository.getStoreNameFlow().first() }
             if (storeName.isNotEmpty()) {
                 sb.append(ThermalPrinterFormatter.formatCenteredText(storeName, paperWidth))
+                hasContent = true
             }
         }
         
@@ -205,6 +222,7 @@ class DefaultOrderPrintTemplate @Inject constructor(
             val storeAddress = runBlocking { settingRepository.getStoreAddressFlow().first() }
             if (storeAddress.isNotEmpty()) {
                 sb.append(ThermalPrinterFormatter.formatCenteredText(storeAddress, paperWidth))
+                hasContent = true
             }
         }
         
@@ -212,10 +230,12 @@ class DefaultOrderPrintTemplate @Inject constructor(
             val storePhone = runBlocking { settingRepository.getStorePhoneFlow().first() }
             if (storePhone.isNotEmpty()) {
                 sb.append(ThermalPrinterFormatter.formatCenteredText("Tel: $storePhone", paperWidth))
+                hasContent = true
             }
         }
         
-        return sb.toString()
+        // 只有当有实际内容时才返回，避免打印空白区域
+        return if (hasContent) sb.toString() else ""
     }
     
     /**
@@ -344,13 +364,13 @@ class DefaultOrderPrintTemplate @Inject constructor(
             val name = item.name
             
             if (!kitchenStyle && templateConfig.showItemPrices) {
-                val price = formatPrice(item.price.toDouble())
-                sb.append(ThermalPrinterFormatter.formatItemPriceLine(name, item.quantity.toInt(), price, paperWidth))
+                val price = item.price
+                sb.append(ThermalPrinterFormatter.formatItemPriceLine(name, item.quantity, price, paperWidth))
             } else {
                 sb.append(ThermalPrinterFormatter.formatLeftText(
                     ThermalPrinterFormatter.formatBold("${item.quantity} x $name"), 
-                    paperWidth
-                ))
+                paperWidth
+            ))
             }
             
             // 商品选项
@@ -470,49 +490,248 @@ class DefaultOrderPrintTemplate @Inject constructor(
     // ==================== 其他方法 ====================
     
     override fun generateTestPrintContent(config: PrinterConfig): String {
+        // 不再直接生成测试内容，而是创建测试订单对象
+        // 这个方法保留是为了接口兼容性，但实际测试打印会使用createTestOrder
+        return "[L]Test print will use order printing logic"
+    }
+    
+    /**
+     * 创建测试用的订单对象，包含完整的测试数据
+     */
+    override fun createTestOrder(config: PrinterConfig): Order {
         val paperWidth = config.paperWidth
-        val sb = StringBuilder()
         
-        val storeName = runBlocking { settingRepository.getStoreNameFlow().first() }
-        
-        // 标题
-        sb.append(ThermalPrinterFormatter.formatTitle(storeName, paperWidth))
-        sb.append(ThermalPrinterFormatter.formatTitle("printing test", paperWidth))
-        sb.append(ThermalPrinterFormatter.addEmptyLines(1))
-        
-        // 打印机信息
-        sb.append(ThermalPrinterFormatter.formatDivider(paperWidth))
-        sb.append(ThermalPrinterFormatter.formatLabelValue("printer name", config.name, paperWidth))
-        sb.append(ThermalPrinterFormatter.formatLabelValue("printer address", config.address, paperWidth))
-        sb.append(ThermalPrinterFormatter.formatLabelValue("printer brand", config.brand.displayName, paperWidth))
-        
-        // 根据不同的打印宽度显示不同的信息
-        val paperWidthInfo = when (paperWidth) {
-            PrinterConfig.PAPER_WIDTH_57MM -> "57mm"
-            PrinterConfig.PAPER_WIDTH_80MM -> "80mm"
-            else -> "${paperWidth}mm"
+        // 根据纸张宽度创建不同的测试数据
+        return when (paperWidth) {
+            PrinterConfig.PAPER_WIDTH_57MM -> create58mmTestOrder()
+            PrinterConfig.PAPER_WIDTH_80MM -> create80mmTestOrder()
+            else -> createDefaultTestOrder()
         }
-        
-        sb.append(ThermalPrinterFormatter.formatLabelValue("paper width", paperWidthInfo, paperWidth))
-        
-        // 测试各种格式
-        sb.append(ThermalPrinterFormatter.formatDivider(paperWidth))
-        sb.append(ThermalPrinterFormatter.formatLeftText("left check", paperWidth))
-        sb.append(ThermalPrinterFormatter.formatCenteredText("middle check", paperWidth))
-        sb.append(ThermalPrinterFormatter.formatRightText("right check", paperWidth))
-        
-        // 测试商品格式
-        sb.append(ThermalPrinterFormatter.formatDivider(paperWidth))
-        sb.append(ThermalPrinterFormatter.formatItemPriceLine("Ginger Beef", 2, "38.00", paperWidth))
-        sb.append(ThermalPrinterFormatter.formatItemPriceLine("Spicy Tofu", 1, "28.00", paperWidth))
-        sb.append(ThermalPrinterFormatter.formatLeftRightText("total:", "66.00", paperWidth))
-        
-        // 结尾
-        sb.append(ThermalPrinterFormatter.formatDivider(paperWidth))
-        sb.append(ThermalPrinterFormatter.formatCenteredText("printing test finished", paperWidth))
-        sb.append(ThermalPrinterFormatter.addEmptyLines(1))
-        
-        return sb.toString()
+    }
+    
+
+    
+    /**
+     * 创建58mm测试订单
+     */
+    private fun create58mmTestOrder(): Order {
+        val currentTime = Date()
+        return Order(
+            id = 999001L,
+            number = "TEST-58MM-001",
+            status = "processing",
+            dateCreated = currentTime,
+            total = "$82.50",
+            customerName = "Test Customer",
+            contactInfo = "555-TEST-001",
+            billingInfo = "Test Billing Address",
+            paymentMethod = "Credit Card",
+            items = listOf(
+                OrderItem(
+                    id = 1,
+                    productId = 101,
+                    name = "Chicken Curry",
+                    quantity = 2,
+                    price = "$19.00",
+                    subtotal = "$38.00",
+                    total = "$38.00",
+                    image = "",
+                    options = listOf(
+                        ItemOption("Spice Level", "Medium"),
+                        ItemOption("Rice", "Jasmine")
+                    )
+                ),
+                OrderItem(
+                    id = 2,
+                    productId = 102,
+                    name = "Beef Stew",
+                    quantity = 1,
+                    price = "$28.00",
+                    subtotal = "$28.00",
+                    total = "$28.00",
+                    image = "",
+                    options = listOf()
+                ),
+                OrderItem(
+                    id = 3,
+                    productId = 103,
+                    name = "Rice Bowl",
+                    quantity = 3,
+                    price = "$3.00",
+                    subtotal = "$9.00",
+                    total = "$9.00",
+                    image = "",
+                    options = listOf()
+                )
+            ),
+            isPrinted = false,
+            notificationShown = false,
+            notes = "58MM printer test order - all functions normal",
+            woofoodInfo = WooFoodInfo(
+                orderMethod = "Takeaway",
+                deliveryTime = null,
+                deliveryAddress = null,
+                deliveryFee = null,
+                tip = null,
+                isDelivery = false
+            ),
+            subtotal = "$75.00",
+            totalTax = "$7.50",
+            discountTotal = "0.00",
+            taxLines = listOf(
+                TaxLine(1, "GST", 5.0, "$7.50")
+            )
+        )
+    }
+    
+    /**
+     * 创建80mm测试订单
+     */
+    private fun create80mmTestOrder(): Order {
+        val currentTime = Date()
+        return Order(
+            id = 999002L,
+            number = "TEST-80MM-002",
+            status = "processing",
+            dateCreated = currentTime,
+            total = "$177.48",
+            customerName = "John Smith",
+            contactInfo = "555-***-8888",
+            billingInfo = "123 Business Avenue, Unit 100, Business District, ST 12345",
+            paymentMethod = "Credit Card",
+            items = listOf(
+                OrderItem(
+                    id = 1,
+                    productId = 201,
+                    name = "Braised Pork Set",
+                    quantity = 2,
+                    price = "$45.00",
+                    subtotal = "$90.00",
+                    total = "$90.00",
+                    image = "",
+                    options = listOf(
+                        ItemOption("Side dishes", "Rice, Vegetables, Soup"),
+                        ItemOption("Spice Level", "Mild")
+                    )
+                ),
+                OrderItem(
+                    id = 2,
+                    productId = 202,
+                    name = "Kung Pao Chicken",
+                    quantity = 1,
+                    price = "$32.00",
+                    subtotal = "$32.00",
+                    total = "$32.00",
+                    image = "",
+                    options = listOf(
+                        ItemOption("Spice level", "Medium"),
+                        ItemOption("Oil", "Less oil")
+                    )
+                ),
+                OrderItem(
+                    id = 3,
+                    productId = 203,
+                    name = "Hot & Sour Soup",
+                    quantity = 2,
+                    price = "$12.00",
+                    subtotal = "$24.00",
+                    total = "$24.00",
+                    image = "",
+                    options = listOf()
+                ),
+                OrderItem(
+                    id = 4,
+                    productId = 204,
+                    name = "Cola (Large)",
+                    quantity = 3,
+                    price = "$8.00",
+                    subtotal = "$24.00",
+                    total = "$24.00",
+                    image = "",
+                    options = listOf(
+                        ItemOption("Temperature", "Cold"),
+                        ItemOption("Ice", "Normal")
+                    )
+                )
+            ),
+            isPrinted = false,
+            notificationShown = false,
+            notes = "80MM thermal printer comprehensive test order.\nAll printing functions including alignment, formatting, and cutting are being tested.\nIf this prints correctly, your printer is working properly.",
+            woofoodInfo = WooFoodInfo(
+                orderMethod = "Delivery",
+                deliveryTime = "45-60 minutes",
+                deliveryAddress = "123 Business Avenue, Unit 100, Business District, ST 12345",
+                deliveryFee = "$5.00",
+                tip = "$15.00",
+                isDelivery = true
+            ),
+            subtotal = "$146.00",
+            totalTax = "$18.48",
+            discountTotal = "10.00",
+            taxLines = listOf(
+                TaxLine(1, "GST", 5.0, "$7.70"),
+                TaxLine(2, "PST", 7.0, "$10.78")
+            )
+        )
+    }
+    
+    /**
+     * 创建默认测试订单
+     */
+    private fun createDefaultTestOrder(): Order {
+        val currentTime = Date()
+        return Order(
+            id = 999003L,
+            number = "TEST-DEFAULT-003",
+            status = "processing",
+            dateCreated = currentTime,
+            total = "$65.00",
+            customerName = "Test Customer",
+            contactInfo = "555-TEST-003",
+            billingInfo = "Test Billing Address",
+            paymentMethod = "Credit Card",
+            items = listOf(
+                OrderItem(
+                    id = 1,
+                    productId = 301,
+                    name = "Test Item A",
+                    quantity = 2,
+                    price = "$25.00",
+                    subtotal = "$50.00",
+                    total = "$50.00",
+                    image = "",
+                    options = listOf()
+                ),
+                OrderItem(
+                    id = 2,
+                    productId = 302,
+                    name = "Test Item B",
+                    quantity = 1,
+                    price = "$15.00",
+                    subtotal = "$15.00",
+                    total = "$15.00",
+                    image = "",
+                    options = listOf()
+                )
+            ),
+            isPrinted = false,
+            notificationShown = false,
+            notes = "Default printer test order for compatibility",
+            woofoodInfo = WooFoodInfo(
+                orderMethod = "Takeaway",
+                deliveryTime = null,
+                deliveryAddress = null,
+                deliveryFee = null,
+                tip = null,
+                isDelivery = false
+            ),
+            subtotal = "$60.00",
+            totalTax = "$5.00",
+            discountTotal = "0.00",
+            taxLines = listOf(
+                TaxLine(1, "Tax", 8.3, "$5.00")
+            )
+        )
     }
     
     // 辅助方法：格式化价格
