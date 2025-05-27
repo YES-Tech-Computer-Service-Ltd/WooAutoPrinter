@@ -20,8 +20,17 @@ import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import java.util.concurrent.TimeUnit
 import kotlin.math.ceil
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.longPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.preferencesDataStore
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import java.util.Calendar
 import java.util.Date
+
+private val Context.trialDataStore by preferencesDataStore(name = "trial_data")
 
 /**
  * 用于管理应用试用期的工具类
@@ -29,16 +38,22 @@ import java.util.Date
 object TrialTokenManager {
     private const val TAG = "TrialTokenManager"
     
-    // 试用期天数（现在统一使用SharedPreferences中的KEY_EXPIRES）
-    private const val DEFAULT_TRIAL_DAYS = 10
+    // 存储的键
+    private val TRIAL_START_KEY = longPreferencesKey("trial_start")
+    private val TRIAL_DEVICE_ID_KEY = stringPreferencesKey("trial_device_id")
+    private val TRIAL_APP_ID_KEY = stringPreferencesKey("trial_app_id")
+    private val TRIAL_EXPIRED_KEY = booleanPreferencesKey("trial_expired")
+
+    // 试用期天数
+    private const val TRIAL_DAYS = 14 // 14天试用期
     
-    // SharedPreferences存储的键
     private const val PREF_NAME = "secure_trial_data"
     private const val KEY_TOKEN = "trial_token"
     private const val KEY_SIGNATURE = "signature"
     private const val KEY_EXPIRES = "expires_in_days"
     private const val KEY_FIRST_LAUNCH = "first_launch_time"
     private const val KEY_SERVER_FIRST_LAUNCH = "server_first_launch_time"
+    private const val DEFAULT_TRIAL_DAYS = 10
     private const val MAX_RETRIES = 2
 
     private val client = OkHttpClient.Builder()
@@ -339,19 +354,48 @@ object TrialTokenManager {
     }
 
     /**
+     * 初始化试用期
+     */
+    private suspend fun initializeTrial(context: Context, deviceId: String, appId: String) {
+        val now = System.currentTimeMillis()
+        context.trialDataStore.edit { preferences ->
+            preferences[TRIAL_START_KEY] = now
+            preferences[TRIAL_DEVICE_ID_KEY] = deviceId
+            preferences[TRIAL_APP_ID_KEY] = appId
+            preferences[TRIAL_EXPIRED_KEY] = false
+        }
+        Log.d(TAG, "Trial初始化完成，开始日期: ${Date(now)}")
+    }
+
+    /**
+     * 标记试用期已过期
+     */
+    private suspend fun markTrialExpired(context: Context) {
+        context.trialDataStore.edit { preferences ->
+            preferences[TRIAL_EXPIRED_KEY] = true
+        }
+        Log.d(TAG, "已标记trial为过期")
+    }
+
+    /**
+     * 计算剩余天数
+     */
+    private fun calculateDaysLeft(startTime: Long, currentTime: Long): Int {
+        val elapsedDays = TimeUnit.MILLISECONDS.toDays(currentTime - startTime)
+        return (TRIAL_DAYS - elapsedDays).toInt().coerceAtLeast(0)
+    }
+    
+    /**
      * 获取试用期结束日期
      */
     suspend fun getTrialEndDate(context: Context): Date? {
         try {
-            // 使用SharedPreferences，与其他方法保持一致
-            val prefs = getPrefs(context)
-            val trialDays = prefs.getInt(KEY_EXPIRES, -1)
-            if (trialDays == -1) return null
+            val preferences = context.trialDataStore.data.first()
+            val trialStart = preferences[TRIAL_START_KEY] ?: return null
             
-            val firstLaunchTime = getOrInitFirstLaunchTime(context)
             val calendar = Calendar.getInstance()
-            calendar.timeInMillis = firstLaunchTime
-            calendar.add(Calendar.DAY_OF_MONTH, trialDays)
+            calendar.timeInMillis = trialStart
+            calendar.add(Calendar.DAY_OF_MONTH, TRIAL_DAYS)
             return calendar.time
         } catch (e: Exception) {
             Log.e(TAG, "获取试用期结束日期出错", e)
@@ -363,41 +407,25 @@ object TrialTokenManager {
      * 重置试用期（仅用于开发测试）
      */
     suspend fun resetTrial(context: Context) {
-        try {
-            // 清除SharedPreferences中的所有试用期数据
-            val prefs = getPrefs(context)
-            prefs.edit().clear().apply()
-            
-            // 重置缓存状态
-            cachedTrialValid = null
-            isTrialInitialized = false
-            
-            Log.d(TAG, "试用期已重置")
-        } catch (e: Exception) {
-            Log.e(TAG, "重置试用期出错", e)
+        context.trialDataStore.edit { preferences ->
+            preferences.clear()
         }
+        Log.d(TAG, "试用期已重置")
     }
 
     /**
-     * 获取剩余试用天数（使用SharedPreferences）
+     * 获取剩余试用天数
      */
     suspend fun getTrialDaysLeft(context: Context): Int {
         try {
-            // 使用SharedPreferences，与getRemainingDays()保持一致
-            val prefs = getPrefs(context)
-            val trialDays = prefs.getInt(KEY_EXPIRES, -1)
-            if (trialDays == -1) return 0
+            val preferences = context.trialDataStore.data.first()
+            val trialStart = preferences[TRIAL_START_KEY] ?: return 0
+            val isExpired = preferences[TRIAL_EXPIRED_KEY] ?: false
             
-            val firstLaunchTime = getOrInitFirstLaunchTime(context)
-            val currentTime = System.currentTimeMillis()
-            val trialEndTime = firstLaunchTime + TimeUnit.DAYS.toMillis(trialDays.toLong())
-            val remainingMillis = trialEndTime - currentTime
+            if (isExpired) return 0
             
-            return if (remainingMillis <= 0) {
-                0
-            } else {
-                ceil(remainingMillis.toDouble() / TimeUnit.DAYS.toMillis(1)).toInt()
-            }
+            val now = System.currentTimeMillis()
+            return calculateDaysLeft(trialStart, now)
         } catch (e: Exception) {
             Log.e(TAG, "获取剩余试用天数出错", e)
             return 0
@@ -406,18 +434,23 @@ object TrialTokenManager {
     
     /**
      * 强制结束试用期
-     * 使用SharedPreferences确保数据一致性
+     * 同时清理所有试用期数据存储位置，确保试用期彻底结束
      */
     suspend fun forceExpireTrial(context: Context) {
         try {
-            // 使用SharedPreferences设置过期标记
+            // 1. 标记DataStore中的试用期已过期
+            context.trialDataStore.edit { preferences ->
+                preferences[TRIAL_EXPIRED_KEY] = true
+            }
+            
+            // 2. 同时设置SharedPreferences中的过期标记
             val prefs = getPrefs(context)
             prefs.edit()
                 .putInt(KEY_EXPIRES, 0)
                 .putLong(KEY_FIRST_LAUNCH, 0L)
                 .apply()
                 
-            // 重置缓存状态
+            // 3. 重置缓存状态
             cachedTrialValid = false
             isTrialInitialized = false
             

@@ -172,8 +172,84 @@ fun AppContent() {
             Log.e("AppContent", "资格检查异常: ${e.message}", e)
             hasEligibility.value = false
             isEligibilityChecked.value = true
+    // ===== 许可验证相关状态 =====
+    // 异步加载试用状态
+    val isTrialChecked = remember { mutableStateOf(false) }
+    val isTrialValid = remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        val deviceId = Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID)
+        val appId = "wooauto_app"
+        Log.d("TrialDebug", "deviceId = $deviceId, appId = $appId")
+        try {
+            // 添加超时机制，确保不会无限卡住
+            val result = withTimeoutOrNull(5000) { // 5 秒超时
+                TrialTokenManager.isTrialValid(context, deviceId, appId)
+            } ?: false
+            isTrialValid.value = result
+            Log.d("TrialDebug", "Trial check completed, isTrialValid = ${isTrialValid.value}")
+            // 如果初始检查失败，尝试重试一次
+            if (!result) {
+                delay(1000)
+                val retryResult = withTimeoutOrNull(5000) {
+                    TrialTokenManager.isTrialValid(context, deviceId, appId)
+                } ?: false
+                isTrialValid.value = retryResult
+                Log.d("TrialDebug", "Trial check retry, isTrialValid = ${isTrialValid.value}")
+            }
+        } catch (e: Exception) {
+            Log.e("AppContent", "Error checking trial: $e")
+            isTrialValid.value = false
+        } finally {
+            isTrialChecked.value = true
+            Log.d("TrialDebug", "isTrialValid final value = ${isTrialValid.value}")
         }
     }
+
+    // 异步加载授权状态
+    val isLicensed = remember { mutableStateOf(false) }
+    val isStateLoaded = remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        try {
+            isLicensed.value = LicenseDataStore.isLicensed(context).first()
+            Log.d("AppContent", "Initial state - isLicensed = ${isLicensed.value}")
+            if (isLicensed.value) {
+                val endDateStr = LicenseDataStore.getLicenseEndDate(context).first()
+                val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+                val endDate = sdf.parse(endDateStr ?: "")
+                val currentDate = Calendar.getInstance().time
+                if (endDate != null && endDate.before(currentDate)) {
+                    Log.d("AppContent", "Local license expired: endDate=$endDateStr")
+                    LicenseDataStore.setLicensed(context, false)
+                    isLicensed.value = false
+                    Log.d("AppContent", "License expired - placeholder for future restrictions (e.g., disable new orders)")
+                }
+            }
+            isStateLoaded.value = true
+        } catch (e: Exception) {
+            Log.e("AppContent", "Failed to load license state: ${e.message}", e)
+            isStateLoaded.value = true
+        }
+    }
+
+    DisposableEffect(Unit) {
+        val job = coroutineScope.launch {
+            try {
+                LicenseDataStore.isLicensed(context).collect { licensed ->
+                    isLicensed.value = licensed
+                    Log.d("AppContent", "isLicensed updated to $licensed")
+                }
+            } catch (e: Exception) {
+                Log.e("AppContent", "Error collecting isLicensed: ${e.message}", e)
+            }
+        }
+        onDispose {
+            job.cancel()
+        }
+    }
+
+    // 最终访问许可
+    val hasAccess = remember { derivedStateOf { isTrialValid.value || isLicensed.value } }
+    Log.d("AppContent", "hasAccess = ${hasAccess.value}, isTrialValid = ${isTrialValid.value}, isLicensed = ${isLicensed.value}")
 
     // 导航完成标志
     val isInitialNavigationHandled = remember { mutableStateOf(false) }
@@ -229,12 +305,16 @@ fun AppContent() {
         }
     ) { paddingValues ->
         // 如果状态未加载完成，显示加载中，但添加超时逻辑
-        if (!isEligibilityChecked.value) {
+        if (!isTrialChecked.value || !isStateLoaded.value) {
             LaunchedEffect(Unit) {
                 delay(10000) // 最多等待 10 秒
-                if (!isEligibilityChecked.value) {
-                    Log.w("AppContent", "资格检查超时，强制完成")
-                    isEligibilityChecked.value = true
+                if (!isTrialChecked.value) {
+                    Log.w("AppContent", "Trial check timed out after 10 seconds, forcing completion")
+                    isTrialChecked.value = true
+                }
+                if (!isStateLoaded.value) {
+                    Log.w("AppContent", "State load timed out after 10 seconds, forcing completion")
+                    isStateLoaded.value = true
                 }
             }
             Box(
@@ -274,8 +354,7 @@ fun AppContent() {
                             try {
                                 Log.d("AppContent", "License activated, updating states")
                                 LicenseDataStore.setLicensed(context, true)
-                                isEligibilityChecked.value = true
-                                hasEligibility.value = true
+                                isLicensed.value = true
                                 val savedLicensed = LicenseDataStore.isLicensed(context).first()
                                 Log.d("AppContent", "Post-activation state - isLicensed: $savedLicensed")
                                 if (savedLicensed) {
@@ -380,11 +459,42 @@ fun AppContent() {
     }
 
     // 仅在 NavHost 初始化后执行初始导航
-    LaunchedEffect(isEligibilityChecked.value, isNavHostInitialized.value) {
-        if (isEligibilityChecked.value && isNavHostInitialized.value && !isInitialNavigationHandled.value) {
+    LaunchedEffect(isTrialChecked.value, isStateLoaded.value, isNavHostInitialized.value) {
+        if (isTrialChecked.value && isStateLoaded.value && isNavHostInitialized.value && !isInitialNavigationHandled.value) {
             delay(1000)
-            Log.d("AppContent", "资格状态已加载")
+            Log.d("AppContent", "试用期和许可状态已加载")
             isInitialNavigationHandled.value = true
+        }
+    }
+
+    // 移除许可验证失败强制跳转的逻辑
+    LaunchedEffect(isTrialChecked.value, isStateLoaded.value, isTrialValid.value, isLicensed.value, isNavHostInitialized.value) {
+        if (isTrialChecked.value && isStateLoaded.value && isNavHostInitialized.value && !isTrialValid.value && isLicensed.value) {
+            Log.d("AppContent", "已持有许可证且非试用期，执行服务器验证")
+            try {
+                LicenseVerificationManager.staticForceServerValidation(
+                    context,
+                    coroutineScope,
+                    onInvalid = {
+                        Log.d("AppContent", "服务器验证失败，但不再强制跳转")
+                        // 仅更新状态，不导航
+                        coroutineScope.launch {
+                            try {
+                                LicenseDataStore.setLicensed(context, false)
+                                isLicensed.value = false
+                                Log.d("AppContent", "许可状态已更新为无效，但允许继续使用所有功能")
+                            } catch (e: Exception) {
+                                Log.e("AppContent", "更新许可状态失败: ${e.message}", e)
+                            }
+                        }
+                    },
+                    onSuccess = {
+                        Log.d("AppContent", "服务器验证成功")
+                    }
+                )
+            } catch (e: Exception) {
+                Log.e("AppContent", "验证过程发生异常: ${e.message}", e)
+            }
         }
     }
 }

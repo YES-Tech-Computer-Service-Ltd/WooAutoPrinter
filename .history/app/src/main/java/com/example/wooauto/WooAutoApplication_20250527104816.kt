@@ -89,35 +89,27 @@ class WooAutoApplication : MultiDexApplication(), Configuration.Provider {
     private fun performStageInitialization() {
         applicationScope.launch {
             try {
-                // 先检查是否已初始化
-                val alreadyInitialized = synchronized(initializationLock) {
+                synchronized(initializationLock) {
                     if (isInitialized) {
                         Log.w("WooAutoApplication", "【应用初始化】应用已初始化，跳过重复初始化")
-                        true
-                    } else {
-                        false
+                        return@synchronized
                     }
-                }
-                
-                if (alreadyInitialized) return@launch
-                
-                // 阶段1：基础组件初始化
-                initializeBasicComponents()
-                
-                // 阶段2：权限相关初始化（延迟到需要时）
-                preparePermissionDependentComponents()
-                
-                // 阶段3：配置加载（在同步块外执行）
-                loadConfigurations()
-                
-                // 阶段4：服务准备（不立即启动）
-                prepareServices()
-                
-                // 标记初始化完成
-                synchronized(initializationLock) {
+                    
+                    // 阶段1：基础组件初始化
+                    initializeBasicComponents()
+                    
+                    // 阶段2：权限相关初始化（延迟到需要时）
+                    preparePermissionDependentComponents()
+                    
+                    // 阶段3：配置加载
+                    loadConfigurations()
+                    
+                    // 阶段4：服务准备（不立即启动）
+                    prepareServices()
+                    
                     isInitialized = true
+                    Log.d("WooAutoApplication", "【应用初始化】应用初始化完成")
                 }
-                Log.d("WooAutoApplication", "【应用初始化】应用初始化完成")
             } catch (e: Exception) {
                 Log.e("WooAutoApplication", "【应用初始化】初始化过程中发生异常", e)
             }
@@ -207,41 +199,6 @@ class WooAutoApplication : MultiDexApplication(), Configuration.Provider {
         }
     }
     
-    /**
-     * 初始化WorkManager
-     */
-    private fun initializeWorkManager() {
-        try {
-            WorkManager.initialize(this, workManagerConfiguration)
-            Log.d("WooAutoApplication", "【应用初始化】WorkManager初始化完成")
-        } catch (e: Exception) {
-            Log.e("WooAutoApplication", "【应用初始化】WorkManager初始化失败: ${e.message}", e)
-        }
-    }
-    
-    /**
-     * 执行遗留的初始化任务
-     */
-    private suspend fun performLegacyInitialization() {
-        try {
-            coroutineScope {
-                // 并行执行原有的初始化任务
-                val metadataJob = async { initializeMetadataProcessors() }
-                val notificationJob = async { initializeOrderNotificationManager() }
-                val licenseJob = async { initializeLicenseManager() }
-                
-                // 等待所有任务完成
-                metadataJob.await()
-                notificationJob.await()
-                licenseJob.await()
-                
-                Log.d("WooAutoApplication", "【应用初始化】遗留初始化任务完成")
-            }
-        } catch (e: Exception) {
-            Log.e("WooAutoApplication", "【应用初始化】遗留初始化任务失败: ${e.message}", e)
-        }
-    }
-    
     override fun onTerminate() {
         super.onTerminate()
         
@@ -319,13 +276,13 @@ class WooAutoApplication : MultiDexApplication(), Configuration.Provider {
                     // 检查配置是否有效
                     val isConfigValid = checkConfigurationValid()
                     if (isConfigValid) {
-                        // 检查统一资格是否有效 - 使用新的资格检查系统
-                        if (licenseManager.hasEligibility) {
+                        // 检查证书是否有效
+                        if (licenseManager.isLicenseValid) {
                             // 立即启动服务，不再延迟
                             startBackgroundPollingService()
                         } else {
-                            Log.w("WooAutoApplication", "无使用资格，不启动服务")
-                            // 如果需要定期检查资格状态，可以在这里启动
+                            Log.w("WooAutoApplication", "证书无效，不启动服务")
+                            // 如果需要定期检查证书状态，可以在这里启动
                             startLicenseMonitoring()
                         }
                     } else {

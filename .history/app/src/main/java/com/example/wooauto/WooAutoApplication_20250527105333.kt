@@ -319,13 +319,13 @@ class WooAutoApplication : MultiDexApplication(), Configuration.Provider {
                     // 检查配置是否有效
                     val isConfigValid = checkConfigurationValid()
                     if (isConfigValid) {
-                        // 检查统一资格是否有效 - 使用新的资格检查系统
-                        if (licenseManager.hasEligibility) {
+                        // 检查证书是否有效
+                        if (licenseManager.isLicenseValid) {
                             // 立即启动服务，不再延迟
                             startBackgroundPollingService()
                         } else {
-                            Log.w("WooAutoApplication", "无使用资格，不启动服务")
-                            // 如果需要定期检查资格状态，可以在这里启动
+                            Log.w("WooAutoApplication", "证书无效，不启动服务")
+                            // 如果需要定期检查证书状态，可以在这里启动
                             startLicenseMonitoring()
                         }
                     } else {

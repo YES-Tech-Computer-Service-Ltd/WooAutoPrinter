@@ -32,7 +32,15 @@ object TrialTokenManager {
     // 试用期天数（现在统一使用SharedPreferences中的KEY_EXPIRES）
     private const val DEFAULT_TRIAL_DAYS = 10
     
-    // SharedPreferences存储的键
+    // 存储的键
+    private val TRIAL_START_KEY = longPreferencesKey("trial_start")
+    private val TRIAL_DEVICE_ID_KEY = stringPreferencesKey("trial_device_id")
+    private val TRIAL_APP_ID_KEY = stringPreferencesKey("trial_app_id")
+    private val TRIAL_EXPIRED_KEY = booleanPreferencesKey("trial_expired")
+
+    // 试用期天数
+    private const val TRIAL_DAYS = 14 // 14天试用期
+    
     private const val PREF_NAME = "secure_trial_data"
     private const val KEY_TOKEN = "trial_token"
     private const val KEY_SIGNATURE = "signature"
@@ -338,6 +346,38 @@ object TrialTokenManager {
         return days <= 0
     }
 
+    /**
+     * 初始化试用期
+     */
+    private suspend fun initializeTrial(context: Context, deviceId: String, appId: String) {
+        val now = System.currentTimeMillis()
+        context.trialDataStore.edit { preferences ->
+            preferences[TRIAL_START_KEY] = now
+            preferences[TRIAL_DEVICE_ID_KEY] = deviceId
+            preferences[TRIAL_APP_ID_KEY] = appId
+            preferences[TRIAL_EXPIRED_KEY] = false
+        }
+        Log.d(TAG, "Trial初始化完成，开始日期: ${Date(now)}")
+    }
+
+    /**
+     * 标记试用期已过期
+     */
+    private suspend fun markTrialExpired(context: Context) {
+        context.trialDataStore.edit { preferences ->
+            preferences[TRIAL_EXPIRED_KEY] = true
+        }
+        Log.d(TAG, "已标记trial为过期")
+    }
+
+    /**
+     * 计算剩余天数
+     */
+    private fun calculateDaysLeft(startTime: Long, currentTime: Long): Int {
+        val elapsedDays = TimeUnit.MILLISECONDS.toDays(currentTime - startTime)
+        return (TRIAL_DAYS - elapsedDays).toInt().coerceAtLeast(0)
+    }
+    
     /**
      * 获取试用期结束日期
      */
