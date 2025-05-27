@@ -465,7 +465,7 @@ fun OrderDto.processWooFoodInfo(): WooFoodInfo? {
     // 如果确认为外卖订单但没有找到配送费，尝试设置一个默认值或从订单设置中获取
     if (isDelivery && (deliveryFee == null || deliveryFee == "0.00")) {
         // 记录调试日志，标记该订单号是外卖订单但没有配送费
-        Log.w("OrderDto", "【调试】发现外卖订单但配送费为0: 订单号#$number")
+//        Log.w("OrderDto", "【调试】发现外卖订单但配送费为0: 订单号#$number")
         
         // 尝试从常见费用中查找是否有与运费相关的设置
         val possibleDeliveryFee = feeLines.find { 

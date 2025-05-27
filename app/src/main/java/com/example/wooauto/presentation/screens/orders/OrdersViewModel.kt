@@ -105,6 +105,9 @@ class OrdersViewModel @Inject constructor(
     init {
         Log.d(TAG, "OrdersViewModel 初始化")
         
+        // 确保证书验证
+        ensureLicenseVerification()
+        
         // 检查配置和注册广播
         checkConfiguration()
         registerBroadcastReceiver()
@@ -179,9 +182,14 @@ class OrdersViewModel @Inject constructor(
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
                 context.registerReceiver(ordersUpdateReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
                 Log.d(TAG, "使用RECEIVER_NOT_EXPORTED标志成功注册订单广播接收器(Android 13+)")
+            } else if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                // Android 8.0-12，使用三参数版本但不使用RECEIVER_NOT_EXPORTED
+                context.registerReceiver(ordersUpdateReceiver, filter, 0)
+                Log.d(TAG, "成功注册订单广播接收器(Android 8-12)")
             } else {
+                // Android 7.x及以下，使用两参数版本
                 context.registerReceiver(ordersUpdateReceiver, filter)
-                Log.d(TAG, "成功注册订单广播接收器(Android 12及以下)")
+                Log.d(TAG, "成功注册订单广播接收器(Android 7及以下)")
             }
         } catch (e: Exception) {
             Log.e(TAG, "注册订单广播接收器失败: ${e.message}")
@@ -1271,6 +1279,31 @@ class OrdersViewModel @Inject constructor(
             } catch (e: Exception) {
                 Log.e(TAG, "加载货币符号失败: ${e.message}")
                 _currencySymbol.value = "C$" // 默认值
+            }
+        }
+    }
+    
+    /**
+     * 确保证书验证已执行
+     */
+    private fun ensureLicenseVerification() {
+        viewModelScope.launch {
+            try {
+                Log.d(TAG, "检查证书验证状态")
+                val currentInfo = licenseManager.licenseInfo.value
+                
+                // 如果当前状态是未验证，或者需要重新验证，则触发验证
+                if (currentInfo?.status == com.example.wooauto.licensing.LicenseStatus.UNVERIFIED || 
+                    licenseManager.shouldRevalidate(24 * 60)) {
+                    Log.d(TAG, "触发证书验证")
+                    licenseManager.verifyLicense(context, viewModelScope) { isValid ->
+                        Log.d(TAG, "证书验证完成: $isValid")
+                    }
+                } else {
+                    Log.d(TAG, "证书状态已是最新: ${currentInfo?.status}")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "证书验证检查失败", e)
             }
         }
     }
