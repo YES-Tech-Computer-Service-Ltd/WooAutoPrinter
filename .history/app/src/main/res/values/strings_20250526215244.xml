@@ -229,11 +229,15 @@
     <string name="preview_customer_name">Customer Name</string>
     <string name="preview_customer_phone">Customer Phone</string>
     <string name="preview_delivery_address">Delivery Address</string>
+    <string name="preview_item_name">Item Name</string>
+    <string name="preview_quantity">Quantity</string>
+    <string name="preview_price">Price</string>
     <string name="preview_subtotal">Subtotal</string>
     <string name="preview_tax">Tax</string>
     <string name="preview_total">Total</string>
     <string name="preview_payment_method">Payment Method</string>
     <string name="preview_order_notes">Order Notes</string>
+    <string name="preview_footer_text">Footer Text</string>
     
     <!-- Template Configuration -->
     <string name="template_receipt_content">Receipt Content</string>
@@ -274,6 +278,7 @@
     <string name="auto_print_template_full_details">Complete Order Details</string>
     <string name="auto_print_template_delivery">Delivery Receipt</string>
     <string name="auto_print_template_kitchen">Kitchen Order</string>
+    <string name="auto_print_settings">Auto Print Settings</string>
     <string name="automatic_printing">Automatic Printing</string>
     <string name="automatic_printing_desc">Automatically print new orders when received</string>
     <string name="print_templates">Print Templates</string>
@@ -389,13 +394,16 @@
     <!-- Automation Settings -->
     <string name="automatic_order_processing">Automatic Order Processing</string>
     <string name="automatic_order_processing_desc">Automatically accept and process new orders</string>
+    <string name="automatic_printing">Automatic Printing</string>
     <string name="select_default_template">Select Default Print Template</string>
     <string name="inventory_alerts">Inventory Alerts</string>
     <string name="inventory_alerts_desc">Get notified when inventory is low</string>
     <string name="daily_backup">Daily Backup</string>
     <string name="daily_backup_desc">Automatically backup data daily</string>
     <string name="order_processing">Order Processing</string>
+    <string name="print_templates">Print Templates</string>
     <string name="other_automation">Other Automation</string>
+    <string name="settings_saved">Settings have been saved</string>
 
     <string name="scan_qr_code">Scan QR Code</string>
     <string name="connection_test_success">Connection test successful!</string>
@@ -432,6 +440,8 @@
     <string name="paper_width_setting">Paper Width Setting</string>
     <string name="paper_width">Paper Width</string>
     <string name="select_paper_width">Select Paper Width</string>
+    <string name="paper_width_58mm">58mm</string>
+    <string name="paper_width_80mm">80mm</string>
     <string name="printer_options">printer options</string>
     <string name="save_printer_config">Save printer configuration</string>
     <string name="please_enter_name_address">please enter name and address</string>

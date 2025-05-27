@@ -856,13 +856,13 @@ fun OrderDetailDialog(
             onDismiss = { showTemplateOptions = false },
             onTemplateSelected = { templateId ->
                 // 记录打印前的状态
-//                Log.d("OrderDetailDialog", "【打印状态修复】准备打印订单: ${displayOrder.id}, 当前打印状态: ${displayOrder.isPrinted}, 使用模板: $templateId")
+                Log.d("OrderDetailDialog", "【打印状态修复】准备打印订单: ${displayOrder.id}, 当前打印状态: ${displayOrder.isPrinted}, 使用模板: $templateId")
                 
                 // 使用新的方法直接传递模板ID
                 viewModel.printOrderWithTemplate(displayOrder.id, templateId)
                 
                 // 记录打印后的状态
-//                Log.d("OrderDetailDialog", "【打印状态修复】已提交打印请求，等待状态变更")
+                Log.d("OrderDetailDialog", "【打印状态修复】已提交打印请求，等待状态变更")
                 
                 // 关闭模板选择对话框
                 showTemplateOptions = false

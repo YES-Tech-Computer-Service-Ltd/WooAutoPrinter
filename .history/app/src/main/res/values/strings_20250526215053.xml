@@ -216,24 +216,40 @@
     <string name="template_close">Close</string>
     
     <!-- Paper Width -->
-    <string name="paper_width_preview">Preview Width: %1$s Thermal Paper</string>
+    <string name="paper_width_preview">Preview Width: %1$s thermal paper</string>
     <string name="paper_width_58mm">58mm</string>
     <string name="paper_width_80mm">80mm</string>
     
     <!-- Preview Content -->
-    <string name="preview_store_name">Store Name</string>
-    <string name="preview_store_address">Store Address</string>
-    <string name="preview_store_phone">Store Phone</string>
-    <string name="preview_order_number">Order Number</string>
-    <string name="preview_order_date">Order Date</string>
-    <string name="preview_customer_name">Customer Name</string>
-    <string name="preview_customer_phone">Customer Phone</string>
-    <string name="preview_delivery_address">Delivery Address</string>
-    <string name="preview_subtotal">Subtotal</string>
-    <string name="preview_tax">Tax</string>
-    <string name="preview_total">Total</string>
-    <string name="preview_payment_method">Payment Method</string>
-    <string name="preview_order_notes">Order Notes</string>
+    <string name="preview_store_name">store name</string>
+    <string name="preview_store_address">123 Business Avenue, Unit 100</string>
+    <string name="preview_store_phone">Tel: (000) 000-0000</string>
+    <string name="preview_order_number">ORDER #:</string>
+    <string name="preview_order_number_value">ORD20250315001</string>
+    <string name="preview_order_date">DATE:</string>
+    <string name="preview_order_date_value">2025-03-15 14:30</string>
+    <string name="preview_customer_info">CUSTOMER INFORMATION</string>
+    <string name="preview_customer_name">Name: Customer A</string>
+    <string name="preview_customer_phone">Phone: (987) 654-3210</string>
+    <string name="preview_delivery_info">DELIVERY INFORMATION</string>
+    <string name="preview_delivery_address">Address: 123 Business Avenue, Unit 100</string>
+    <string name="preview_delivery_city">City: Business District, ST 12345</string>
+    <string name="preview_delivery_method">Delivery Method: Standard Delivery</string>
+    <string name="preview_payment_method">PAYMENT METHOD</string>
+    <string name="preview_payment_card">Credit Card (****-****-****-1234)</string>
+    <string name="preview_order_items">ORDER ITEMS</string>
+    <string name="preview_item_header">ITEM</string>
+    <string name="preview_qty_header">QTY</string>
+    <string name="preview_price_header">PRICE</string>
+    <string name="preview_product_a">Product A (Standard)</string>
+    <string name="preview_product_a_option">Option: Extra Service</string>
+    <string name="preview_product_b">Product B (Basic)</string>
+    <string name="preview_order_notes">ORDER NOTES:</string>
+    <string name="preview_order_notes_text">Special delivery instructions and customer requirements.</string>
+    <string name="preview_subtotal">Subtotal:</string>
+    <string name="preview_delivery_fee">Delivery Fee:</string>
+    <string name="preview_tax">Tax:</string>
+    <string name="preview_total">TOTAL:</string>
     
     <!-- Template Configuration -->
     <string name="template_receipt_content">Receipt Content</string>
@@ -271,9 +287,10 @@
     <string name="template_footer_tip">Tip: Use line breaks to create multiple lines. Leave blank to hide footer.</string>
     
     <!-- Automation Settings -->
-    <string name="auto_print_template_full_details">Complete Order Details</string>
+    <string name="auto_print_template_full_details">Full Order Details</string>
     <string name="auto_print_template_delivery">Delivery Receipt</string>
     <string name="auto_print_template_kitchen">Kitchen Order</string>
+    <string name="auto_print_settings">Auto Print Settings</string>
     <string name="automatic_printing">Automatic Printing</string>
     <string name="automatic_printing_desc">Automatically print new orders when received</string>
     <string name="print_templates">Print Templates</string>
@@ -389,13 +406,16 @@
     <!-- Automation Settings -->
     <string name="automatic_order_processing">Automatic Order Processing</string>
     <string name="automatic_order_processing_desc">Automatically accept and process new orders</string>
+    <string name="automatic_printing">Automatic Printing</string>
     <string name="select_default_template">Select Default Print Template</string>
     <string name="inventory_alerts">Inventory Alerts</string>
     <string name="inventory_alerts_desc">Get notified when inventory is low</string>
     <string name="daily_backup">Daily Backup</string>
     <string name="daily_backup_desc">Automatically backup data daily</string>
     <string name="order_processing">Order Processing</string>
+    <string name="print_templates">Print Templates</string>
     <string name="other_automation">Other Automation</string>
+    <string name="settings_saved">Settings have been saved</string>
 
     <string name="scan_qr_code">Scan QR Code</string>
     <string name="connection_test_success">Connection test successful!</string>
@@ -432,6 +452,8 @@
     <string name="paper_width_setting">Paper Width Setting</string>
     <string name="paper_width">Paper Width</string>
     <string name="select_paper_width">Select Paper Width</string>
+    <string name="paper_width_58mm">58mm</string>
+    <string name="paper_width_80mm">80mm</string>
     <string name="printer_options">printer options</string>
     <string name="save_printer_config">Save printer configuration</string>
     <string name="please_enter_name_address">please enter name and address</string>

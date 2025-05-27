@@ -221,9 +221,9 @@
     <string name="paper_width_80mm">80mm</string>
     
     <!-- Preview Content -->
-    <string name="preview_store_name">Store Name</string>
-    <string name="preview_store_address">Store Address</string>
-    <string name="preview_store_phone">Store Phone</string>
+    <string name="preview_store_name">Golden Dragon Restaurant</string>
+    <string name="preview_store_address">123 Business Avenue, Unit 100\nDowntown Plaza, NY 10001</string>
+    <string name="preview_store_phone">(555) 123-4567</string>
     <string name="preview_order_number">Order Number</string>
     <string name="preview_order_date">Order Date</string>
     <string name="preview_customer_name">Customer Name</string>

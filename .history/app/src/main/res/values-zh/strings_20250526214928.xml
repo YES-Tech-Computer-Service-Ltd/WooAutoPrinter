@@ -217,7 +217,39 @@
     
     <!-- Paper Width -->
     <string name="paper_width_preview">预览宽度: %1$s 热敏纸</string>
-
+    <string name="paper_width_58mm">58毫米</string>
+    <string name="paper_width_80mm">80毫米</string>
+    
+    <!-- Preview Content -->
+    <string name="preview_store_name">商店名称</string>
+    <string name="preview_store_address">示例地址123号商业大街100单元</string>
+    <string name="preview_store_phone">电话: (000) 000-0000</string>
+    <string name="preview_order_number">订单号:</string>
+    <string name="preview_order_number_value">ORD20250315001</string>
+    <string name="preview_order_date">日期:</string>
+    <string name="preview_order_date_value">2025-03-15 14:30</string>
+    <string name="preview_customer_info">客户信息</string>
+    <string name="preview_customer_name">姓名: 客户甲</string>
+    <string name="preview_customer_phone">电话: (987) 654-3210</string>
+    <string name="preview_delivery_info">配送信息</string>
+    <string name="preview_delivery_address">地址: 示例地址123号商业大街100单元</string>
+    <string name="preview_delivery_city">城市: 商业区, ST 12345</string>
+    <string name="preview_delivery_method">配送方式: 标准配送</string>
+    <string name="preview_payment_method">支付方式</string>
+    <string name="preview_payment_card">信用卡 (****-****-****-1234)</string>
+    <string name="preview_order_items">订单商品</string>
+    <string name="preview_item_header">商品</string>
+    <string name="preview_qty_header">数量</string>
+    <string name="preview_price_header">价格</string>
+    <string name="preview_product_a">产品A (标准)</string>
+    <string name="preview_product_a_option">选项: 额外服务</string>
+    <string name="preview_product_b">产品B (基础)</string>
+    <string name="preview_order_notes">订单备注:</string>
+    <string name="preview_order_notes_text">特殊配送说明和客户要求。</string>
+    <string name="preview_subtotal">小计:</string>
+    <string name="preview_delivery_fee">配送费:</string>
+    <string name="preview_tax">税费:</string>
+    <string name="preview_total">总计:</string>
     
     <!-- Template Configuration -->
     <string name="template_receipt_content">小票内容</string>
@@ -258,7 +290,11 @@
     <string name="auto_print_template_full_details">完整订单详情</string>
     <string name="auto_print_template_delivery">外卖单据</string>
     <string name="auto_print_template_kitchen">厨房订单</string>
+    <string name="auto_print_settings">自动打印设置</string>
+    <string name="automatic_printing">自动打印</string>
     <string name="automatic_printing_desc">收到新订单时自动打印</string>
+    <string name="print_templates">打印模板</string>
+    <string name="settings_saved">设置已保存</string>
     
     <!-- ViewModel Messages -->
     <string name="error_init_config_failed">初始化配置失败: %1$s</string>
@@ -364,7 +400,7 @@
     <!-- Automation Settings -->
     <string name="automatic_order_processing">自动接单</string>
     <string name="automatic_order_processing_desc">新订单自动接收处理</string>
-    <string name="automatic_printing">自动打印</string>
+    <string name="automatic_printing">订单打印</string>
     <string name="select_default_template">选择默认打印模板</string>
     <string name="inventory_alerts">库存提醒</string>
     <string name="inventory_alerts_desc">库存低时获得通知</string>
@@ -467,6 +503,7 @@
     <string name="open_camera_failed">打开相机进行QR扫描失败。</string>
     <string name="error_parsing_qr_code">解析二维码数据时出错。</string>
     <string name="auto_print_settings">自动打印设置</string>
+    <string name="automatic_printing_desc">启用或禁用新订单的自动打印功能</string>
     <string name="enable_auto_print">启用自动打印</string>
     <string name="default_print_template">默认打印模板</string>
     <string name="no_templates_available">暂无可用模板</string>

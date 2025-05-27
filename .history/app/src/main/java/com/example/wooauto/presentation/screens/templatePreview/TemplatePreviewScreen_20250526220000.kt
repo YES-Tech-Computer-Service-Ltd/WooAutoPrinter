@@ -390,93 +390,87 @@ fun TemplatePreview(
             ) {
                 // 热敏打印机格式 - 通常使用固定宽度的字体和简单排版
                 
-                // 商店信息
+                // 商店信息 - 主流小票格式
                 if (showStoreInfo) {
                     var hasStoreContent = false
                     
-                    if (showStoreName && storeName.isNotEmpty()) {
-                        // 店铺名称 - 大号字体，加粗，居中
+                    // 使用用户实际信息或示例信息
+                    val displayStoreName = if (storeName.isNotEmpty()) storeName else "Golden Dragon Restaurant"
+                    val displayStoreAddress = if (storeAddress.isNotEmpty()) storeAddress else "123 Business Avenue, Unit 100\nDowntown Plaza, NY 10001"
+                    val displayStorePhone = if (storePhone.isNotEmpty()) storePhone else "(555) 123-4567"
+                    
+                    // 店铺名称 - 大号字体，居中，加粗
+                    if (showStoreName) {
                         Text(
-                            text = storeName,
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.Bold,
+                            text = displayStoreName.uppercase(),
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.ExtraBold,
                             modifier = Modifier.fillMaxWidth(),
-                            textAlign = TextAlign.Center
+                            textAlign = TextAlign.Center,
+                            color = if (storeName.isNotEmpty()) 
+                                MaterialTheme.colorScheme.onSurface 
+                            else 
+                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                         )
+                        hasStoreContent = true
+                        
+                        // 装饰性分隔线
                         Spacer(modifier = Modifier.height(4.dp))
-                        hasStoreContent = true
-                    }
-                    
-                    if (showStoreAddress && storeAddress.isNotEmpty()) {
-                        // 店铺地址 - 中等字体，居中
                         Text(
-                            text = storeAddress,
-                            style = MaterialTheme.typography.bodyLarge,
+                            text = "═".repeat(if (currentPaperWidth == 57) 24 else 32),
+                            style = MaterialTheme.typography.bodySmall,
                             modifier = Modifier.fillMaxWidth(),
-                            textAlign = TextAlign.Center
+                            textAlign = TextAlign.Center,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
                         )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        hasStoreContent = true
+                        Spacer(modifier = Modifier.height(6.dp))
                     }
                     
-                    if (showStorePhone && storePhone.isNotEmpty()) {
-                        // 店铺电话 - 中等字体，居中，前缀"Tel: "
+                    // 店铺地址 - 支持多行显示
+                    if (showStoreAddress) {
+                        displayStoreAddress.split("\n").forEach { addressLine ->
+                            if (addressLine.isNotBlank()) {
+                                Text(
+                                    text = addressLine.trim(),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    textAlign = TextAlign.Center,
+                                    color = if (storeAddress.isNotEmpty()) 
+                                        MaterialTheme.colorScheme.onSurface 
+                                    else 
+                                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                )
+                            }
+                        }
+                        hasStoreContent = true
+                        Spacer(modifier = Modifier.height(4.dp))
+                    }
+                    
+                    // 店铺电话 - 格式化显示
+                    if (showStorePhone) {
                         Text(
-                            text = "Tel: $storePhone",
-                            style = MaterialTheme.typography.bodyLarge,
+                            text = "☎ $displayStorePhone",
+                            style = MaterialTheme.typography.bodyMedium,
                             modifier = Modifier.fillMaxWidth(),
-                            textAlign = TextAlign.Center
+                            textAlign = TextAlign.Center,
+                            color = if (storePhone.isNotEmpty()) 
+                                MaterialTheme.colorScheme.onSurface 
+                            else 
+                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                         )
-                        Spacer(modifier = Modifier.height(2.dp))
                         hasStoreContent = true
-                    }
-                    
-                    // 如果用户没有设置商店信息，显示示例信息
-                    if (!hasStoreContent) {
-                        if (showStoreName) {
-                            // 示例店铺名称 - 大号字体，加粗，居中
-                            Text(
-                                text = stringResource(R.string.preview_store_name),
-                                style = MaterialTheme.typography.headlineSmall,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.fillMaxWidth(),
-                                textAlign = TextAlign.Center,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            hasStoreContent = true
-                        }
-                        
-                        if (showStoreAddress) {
-                            // 示例店铺地址 - 中等字体，居中
-                            Text(
-                                text = "123 Business Avenue, Unit 100",
-                                style = MaterialTheme.typography.bodyLarge,
-                                modifier = Modifier.fillMaxWidth(),
-                                textAlign = TextAlign.Center,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                            )
-                            Spacer(modifier = Modifier.height(2.dp))
-                            hasStoreContent = true
-                        }
-                        
-                        if (showStorePhone) {
-                            // 示例店铺电话 - 中等字体，居中，前缀"Tel: "
-                            Text(
-                                text = "Tel: (000) 000-0000",
-                                style = MaterialTheme.typography.bodyLarge,
-                                modifier = Modifier.fillMaxWidth(),
-                                textAlign = TextAlign.Center,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                            )
-                            Spacer(modifier = Modifier.height(2.dp))
-                            hasStoreContent = true
-                        }
                     }
                     
                     if (hasStoreContent) {
-                        Spacer(modifier = Modifier.height(16.dp))
-                        HorizontalDivider()
+                        Spacer(modifier = Modifier.height(12.dp))
+                        // 主分隔线
+                        Text(
+                            text = "▬".repeat(if (currentPaperWidth == 57) 28 else 36),
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = TextAlign.Center,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                        )
                         Spacer(modifier = Modifier.height(8.dp))
                     }
                 }
@@ -913,20 +907,20 @@ fun TemplateSettings(
             .verticalScroll(rememberScrollState())
     ) {
         Text(
-            text = "Receipt Content",
+            text = stringResource(R.string.template_receipt_content),
             style = MaterialTheme.typography.titleLarge,
             modifier = Modifier.padding(bottom = 16.dp)
         )
         
         Text(
-            text = "Select which elements to show in the receipt template:",
+            text = stringResource(R.string.template_select_elements),
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.padding(bottom = 16.dp)
         )
         
         // === 商店信息组 ===
         SettingCheckbox(
-            label = "Store Information",
+            label = stringResource(R.string.template_store_info),
             isChecked = config.showStoreInfo,
             onCheckedChange = { newValue ->
                 // 主选项控制所有子选项
@@ -938,7 +932,7 @@ fun TemplateSettings(
                 ))
             },
             enabled = hasStoreInfo,
-            subtitle = if (!hasStoreInfo) "Please configure store information in Settings → Store Settings first" else null
+            subtitle = if (!hasStoreInfo) stringResource(R.string.template_store_info_required) else null
         )
         
         // 商店信息子选项

@@ -371,12 +371,12 @@ private fun DetailItem(label: String, value: String) {
             .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-                    Text(
-                text = stringResource(id = R.string.product_label_colon, label),
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                modifier = Modifier.width(100.dp)
-            )
+        Text(
+            text = "$label:",
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+            modifier = Modifier.width(100.dp)
+        )
         
         Text(
             text = value,

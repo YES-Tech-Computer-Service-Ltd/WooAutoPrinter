@@ -348,7 +348,7 @@ fun TemplatePreview(
                     modifier = Modifier.height(32.dp)
                 ) {
                     Text(
-                        text = stringResource(R.string.paper_width_58mm),
+                        text = "58mm",
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
@@ -366,7 +366,7 @@ fun TemplatePreview(
                     modifier = Modifier.height(32.dp)
                 ) {
                     Text(
-                        text = stringResource(R.string.paper_width_80mm),
+                        text = "80mm",
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
@@ -395,81 +395,69 @@ fun TemplatePreview(
                     var hasStoreContent = false
                     
                     if (showStoreName && storeName.isNotEmpty()) {
-                        // 店铺名称 - 大号字体，加粗，居中
                         Text(
                             text = storeName,
-                            style = MaterialTheme.typography.headlineSmall,
+                            style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.fillMaxWidth(),
                             textAlign = TextAlign.Center
                         )
-                        Spacer(modifier = Modifier.height(4.dp))
                         hasStoreContent = true
                     }
                     
                     if (showStoreAddress && storeAddress.isNotEmpty()) {
-                        // 店铺地址 - 中等字体，居中
                         Text(
                             text = storeAddress,
-                            style = MaterialTheme.typography.bodyLarge,
+                            style = MaterialTheme.typography.bodyMedium,
                             modifier = Modifier.fillMaxWidth(),
                             textAlign = TextAlign.Center
                         )
-                        Spacer(modifier = Modifier.height(2.dp))
                         hasStoreContent = true
                     }
                     
                     if (showStorePhone && storePhone.isNotEmpty()) {
-                        // 店铺电话 - 中等字体，居中，前缀"Tel: "
                         Text(
                             text = "Tel: $storePhone",
-                            style = MaterialTheme.typography.bodyLarge,
+                            style = MaterialTheme.typography.bodyMedium,
                             modifier = Modifier.fillMaxWidth(),
                             textAlign = TextAlign.Center
                         )
-                        Spacer(modifier = Modifier.height(2.dp))
                         hasStoreContent = true
                     }
                     
                     // 如果用户没有设置商店信息，显示示例信息
                     if (!hasStoreContent) {
                         if (showStoreName) {
-                            // 示例店铺名称 - 大号字体，加粗，居中
                             Text(
-                                text = stringResource(R.string.preview_store_name),
-                                style = MaterialTheme.typography.headlineSmall,
+                                text = "store name",
+                                style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.fillMaxWidth(),
                                 textAlign = TextAlign.Center,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                             )
-                            Spacer(modifier = Modifier.height(4.dp))
                             hasStoreContent = true
                         }
                         
                         if (showStoreAddress) {
-                            // 示例店铺地址 - 中等字体，居中
                             Text(
                                 text = "123 Business Avenue, Unit 100",
-                                style = MaterialTheme.typography.bodyLarge,
+                                style = MaterialTheme.typography.bodyMedium,
                                 modifier = Modifier.fillMaxWidth(),
                                 textAlign = TextAlign.Center,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                             )
-                            Spacer(modifier = Modifier.height(2.dp))
                             hasStoreContent = true
                         }
                         
                         if (showStorePhone) {
-                            // 示例店铺电话 - 中等字体，居中，前缀"Tel: "
                             Text(
-                                text = "Tel: (000) 000-0000",
-                                style = MaterialTheme.typography.bodyLarge,
+                                text = "Tel: （000）000-0000",
+                                style = MaterialTheme.typography.bodyMedium,
                                 modifier = Modifier.fillMaxWidth(),
                                 textAlign = TextAlign.Center,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                             )
-                            Spacer(modifier = Modifier.height(2.dp))
                             hasStoreContent = true
                         }
                     }

@@ -357,10 +357,10 @@ class OrdersViewModel @Inject constructor(
                 // 获取当前订单的打印状态映射，用于后续验证
                 val currentPrintedMap = _orders.value.associateBy({ it.id }, { it.isPrinted })
                 
-                // Log.d("OrdersViewModel", "【打印状态保护】刷新前，当前有 ${currentPrintedMap.count { it.value }} 个已打印订单")
-                // if (currentPrintedMap.any { it.value }) {
-                //     Log.d("OrdersViewModel", "【打印状态保护】刷新前已打印订单: ${currentPrintedMap.filter { it.value }.keys}")
-                // }
+                Log.d("OrdersViewModel", "【打印状态保护】刷新前，当前有 ${currentPrintedMap.count { it.value }} 个已打印订单")
+                if (currentPrintedMap.any { it.value }) {
+                    Log.d("OrdersViewModel", "【打印状态保护】刷新前已打印订单: ${currentPrintedMap.filter { it.value }.keys}")
+                }
                 
                 val apiConfigured = checkApiConfiguration()
                 if (apiConfigured) {
@@ -370,7 +370,7 @@ class OrdersViewModel @Inject constructor(
                         
                         // 验证打印状态
                         val refreshedPrintedMap = refreshedOrders.associateBy({ it.id }, { it.isPrinted })
-                        // Log.d("OrdersViewModel", "【打印状态保护】刷新后，有 ${refreshedPrintedMap.count { it.value }} 个已打印订单")
+                        Log.d("OrdersViewModel", "【打印状态保护】刷新后，有 ${refreshedPrintedMap.count { it.value }} 个已打印订单")
                         
                         // 检查是否有任何打印状态丢失
                         val lostPrintStatus = currentPrintedMap.filter { it.value && refreshedPrintedMap[it.key] == false }
@@ -381,7 +381,7 @@ class OrdersViewModel @Inject constructor(
                             // 修复丢失的打印状态
                             val correctedOrders = refreshedOrders.map { order ->
                                 if (lostPrintStatus.containsKey(order.id)) {
-                                    // Log.d("OrdersViewModel", "【打印状态保护】修复订单 #${order.number} (ID=${order.id}) 的打印状态")
+                                    Log.d("OrdersViewModel", "【打印状态保护】修复订单 #${order.number} (ID=${order.id}) 的打印状态")
                                     order.copy(isPrinted = true)
                                 } else {
                                     order
@@ -962,7 +962,7 @@ class OrdersViewModel @Inject constructor(
                     try {
                         val orderDao = orderRepository.getOrderDao()
                         val ids = orderDao.getUnreadOrderIds()
-                        // Log.d("OrdersViewModel", "数据库中找到 ${ids.size} 个未读订单ID: $ids")
+                        Log.d("OrdersViewModel", "数据库中找到 ${ids.size} 个未读订单ID: $ids")
                         ids
                     } catch (e: Exception) {
                         Log.e("OrdersViewModel", "获取未读订单ID时发生错误", e)
@@ -974,7 +974,7 @@ class OrdersViewModel @Inject constructor(
                     // 如果没有未读订单，直接清空未读订单列表和计数
                     _unreadOrders.value = emptyList()
                     _unreadOrdersCount.value = 0
-                    // Log.d("OrdersViewModel", "没有未读订单，已清空未读订单列表和计数")
+                    Log.d("OrdersViewModel", "没有未读订单，已清空未读订单列表和计数")
                     return@launch
                 }
                 
