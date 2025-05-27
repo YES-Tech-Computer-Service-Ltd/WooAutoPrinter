@@ -119,11 +119,11 @@ fun TemplatePreviewScreen(
     
     // 获取模板名称
     val templateName = currentConfig?.templateName ?: when (templateId) {
-        "full_details" -> "Full Order Details"
-        "delivery" -> "Delivery Receipt"
-        "kitchen" -> "Kitchen Order"
-        "new" -> "New Custom Template"
-        else -> "Custom Template"
+        "full_details" -> stringResource(R.string.template_full_order_details)
+        "delivery" -> stringResource(R.string.template_delivery_receipt)
+        "kitchen" -> stringResource(R.string.template_kitchen_order)
+        "new" -> stringResource(R.string.template_new_custom)
+        else -> stringResource(R.string.template_custom)
     }
     
     Scaffold(
@@ -134,7 +134,7 @@ fun TemplatePreviewScreen(
                     IconButton(onClick = { navController.navigateUp() }) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back"
+                            contentDescription = stringResource(R.string.template_back)
                         )
                     }
                 },
@@ -148,7 +148,7 @@ fun TemplatePreviewScreen(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Refresh,
-                            contentDescription = "Reset to Default"
+                            contentDescription = stringResource(R.string.template_reset_default)
                         )
                     }
                     
@@ -166,7 +166,7 @@ fun TemplatePreviewScreen(
                         } else {
                             Icon(
                                 imageVector = Icons.Default.Save,
-                                contentDescription = "Save"
+                                contentDescription = stringResource(R.string.template_save)
                             )
                         }
                     }
@@ -304,8 +304,8 @@ fun TemplatePreview(
     }
     
     val paperWidthText = when (currentPaperWidth) {
-        57 -> "58mm"
-        80 -> "80mm" 
+        57 -> stringResource(R.string.paper_width_58mm)
+        80 -> stringResource(R.string.paper_width_80mm)
         else -> "${currentPaperWidth}mm"
     }
     
@@ -329,7 +329,7 @@ fun TemplatePreview(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
-                    text = "预览宽度: $paperWidthText 热敏纸",
+                    text = stringResource(R.string.paper_width_preview, paperWidthText),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onPrimaryContainer,
                     modifier = Modifier.weight(1f)
@@ -348,7 +348,7 @@ fun TemplatePreview(
                     modifier = Modifier.height(32.dp)
                 ) {
                     Text(
-                        text = "58mm",
+                        text = stringResource(R.string.paper_width_58mm),
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
@@ -366,7 +366,7 @@ fun TemplatePreview(
                     modifier = Modifier.height(32.dp)
                 ) {
                     Text(
-                        text = "80mm",
+                        text = stringResource(R.string.paper_width_80mm),
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
@@ -395,69 +395,81 @@ fun TemplatePreview(
                     var hasStoreContent = false
                     
                     if (showStoreName && storeName.isNotEmpty()) {
+                        // 店铺名称 - 大号字体，加粗，居中
                         Text(
                             text = storeName,
-                            style = MaterialTheme.typography.titleMedium,
+                            style = MaterialTheme.typography.headlineSmall,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.fillMaxWidth(),
                             textAlign = TextAlign.Center
                         )
+                        Spacer(modifier = Modifier.height(4.dp))
                         hasStoreContent = true
                     }
                     
                     if (showStoreAddress && storeAddress.isNotEmpty()) {
+                        // 店铺地址 - 中等字体，居中
                         Text(
                             text = storeAddress,
-                            style = MaterialTheme.typography.bodyMedium,
+                            style = MaterialTheme.typography.bodyLarge,
                             modifier = Modifier.fillMaxWidth(),
                             textAlign = TextAlign.Center
                         )
+                        Spacer(modifier = Modifier.height(2.dp))
                         hasStoreContent = true
                     }
                     
                     if (showStorePhone && storePhone.isNotEmpty()) {
+                        // 店铺电话 - 中等字体，居中，前缀"Tel: "
                         Text(
                             text = "Tel: $storePhone",
-                            style = MaterialTheme.typography.bodyMedium,
+                            style = MaterialTheme.typography.bodyLarge,
                             modifier = Modifier.fillMaxWidth(),
                             textAlign = TextAlign.Center
                         )
+                        Spacer(modifier = Modifier.height(2.dp))
                         hasStoreContent = true
                     }
                     
                     // 如果用户没有设置商店信息，显示示例信息
                     if (!hasStoreContent) {
                         if (showStoreName) {
+                            // 示例店铺名称 - 大号字体，加粗，居中
                             Text(
-                                text = "store name",
-                                style = MaterialTheme.typography.titleMedium,
+                                text = stringResource(R.string.preview_store_name),
+                                style = MaterialTheme.typography.headlineSmall,
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.fillMaxWidth(),
                                 textAlign = TextAlign.Center,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                             )
+                            Spacer(modifier = Modifier.height(4.dp))
                             hasStoreContent = true
                         }
                         
                         if (showStoreAddress) {
+                            // 示例店铺地址 - 中等字体，居中
                             Text(
                                 text = "123 Business Avenue, Unit 100",
-                                style = MaterialTheme.typography.bodyMedium,
+                                style = MaterialTheme.typography.bodyLarge,
                                 modifier = Modifier.fillMaxWidth(),
                                 textAlign = TextAlign.Center,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                             )
+                            Spacer(modifier = Modifier.height(2.dp))
                             hasStoreContent = true
                         }
                         
                         if (showStorePhone) {
+                            // 示例店铺电话 - 中等字体，居中，前缀"Tel: "
                             Text(
-                                text = "Tel: （000）000-0000",
-                                style = MaterialTheme.typography.bodyMedium,
+                                text = "Tel: (000) 000-0000",
+                                style = MaterialTheme.typography.bodyLarge,
                                 modifier = Modifier.fillMaxWidth(),
                                 textAlign = TextAlign.Center,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                             )
+                            Spacer(modifier = Modifier.height(2.dp))
                             hasStoreContent = true
                         }
                     }

@@ -14,52 +14,52 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
- * 模板配置ViewModel
- * 管理模板配置的状态和业务逻辑
+ * Template Configuration ViewModel
+ * Manages template configuration state and business logic
  */
 @HiltViewModel
 class TemplateConfigViewModel @Inject constructor(
     private val templateConfigRepository: DomainTemplateConfigRepository
 ) : ViewModel() {
     
-    // 所有模板配置列表
+    // All template configurations list
     private val _allConfigs = MutableStateFlow<List<TemplateConfig>>(emptyList())
     val allConfigs: StateFlow<List<TemplateConfig>> = _allConfigs.asStateFlow()
     
-    // 当前正在编辑的模板配置
+    // Currently editing template configuration
     private val _currentConfig = MutableStateFlow<TemplateConfig?>(null)
     val currentConfig: StateFlow<TemplateConfig?> = _currentConfig.asStateFlow()
     
-    // 是否正在保存
+    // Is saving
     private val _isSaving = MutableStateFlow(false)
     val isSaving: StateFlow<Boolean> = _isSaving.asStateFlow()
     
-    // 是否正在加载
+    // Is loading
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
     
-    // 错误消息
+    // Error message
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
     
-    // 成功保存的消息
+    // Success message
     private val _successMessage = MutableStateFlow<String?>(null)
     val successMessage: StateFlow<String?> = _successMessage.asStateFlow()
     
     init {
-        // 初始化默认配置
+        // Initialize default configurations
         viewModelScope.launch {
             try {
                 templateConfigRepository.initializeDefaultConfigs()
                 loadAllConfigs()
             } catch (e: Exception) {
-                _errorMessage.value = "初始化配置失败: ${e.message}"
+                _errorMessage.value = "Failed to initialize configuration: ${e.message}"
             }
         }
     }
     
     /**
-     * 加载所有模板配置
+     * Load all template configurations
      */
     fun loadAllConfigs() {
         viewModelScope.launch {
@@ -67,31 +67,31 @@ class TemplateConfigViewModel @Inject constructor(
             try {
                 templateConfigRepository.getAllConfigs()
                     .catch { e ->
-                        _errorMessage.value = "加载配置失败: ${e.message}"
+                        _errorMessage.value = "Failed to load configuration: ${e.message}"
                     }
                     .collect { configs ->
                         _allConfigs.value = configs
                         _isLoading.value = false
                     }
             } catch (e: Exception) {
-                _errorMessage.value = "加载配置失败: ${e.message}"
+                _errorMessage.value = "Failed to load configuration: ${e.message}"
                 _isLoading.value = false
             }
         }
     }
     
     /**
-     * 根据模板ID加载配置
-     * @param templateId 模板ID
-     * @param templateType 模板类型（用于创建默认配置）
-     * @param customTemplateName 自定义模板名称（用于新建模板）
+     * Load configuration by template ID
+     * @param templateId Template ID
+     * @param templateType Template type (for creating default configuration)
+     * @param customTemplateName Custom template name (for new templates)
      */
     fun loadConfigById(templateId: String, templateType: TemplateType, customTemplateName: String? = null) {
         viewModelScope.launch {
             _isLoading.value = true
             try {
                 val config = if (templateId.startsWith("custom_") && customTemplateName != null) {
-                    // 创建新的自定义模板，所有选项默认为false
+                    // Create new custom template with all options defaulting to false
                     createCustomTemplate(templateId, customTemplateName, templateType)
                 } else {
                     templateConfigRepository.getOrCreateConfig(templateId, templateType)
@@ -99,21 +99,21 @@ class TemplateConfigViewModel @Inject constructor(
                 _currentConfig.value = config
                 _isLoading.value = false
             } catch (e: Exception) {
-                _errorMessage.value = "加载配置失败: ${e.message}"
+                _errorMessage.value = "Failed to load configuration: ${e.message}"
                 _isLoading.value = false
             }
         }
     }
     
     /**
-     * 创建自定义模板，所有选项默认为false
+     * Create custom template with all options defaulting to false
      */
     private fun createCustomTemplate(templateId: String, templateName: String, templateType: TemplateType): TemplateConfig {
         return TemplateConfig(
             templateId = templateId,
             templateType = templateType,
             templateName = templateName,
-            // 所有显示选项都设置为false
+            // All display options set to false
             showStoreInfo = false,
             showStoreName = false,
             showStoreAddress = false,
@@ -139,15 +139,15 @@ class TemplateConfigViewModel @Inject constructor(
     }
     
     /**
-     * 更新当前配置
-     * @param updatedConfig 更新后的配置
+     * Update current configuration
+     * @param updatedConfig Updated configuration
      */
     fun updateCurrentConfig(updatedConfig: TemplateConfig) {
         _currentConfig.value = updatedConfig
     }
     
     /**
-     * 保存当前配置
+     * Save current configuration
      */
     fun saveCurrentConfig() {
         val config = _currentConfig.value ?: return
@@ -156,90 +156,90 @@ class TemplateConfigViewModel @Inject constructor(
             _isSaving.value = true
             try {
                 templateConfigRepository.saveConfig(config)
-                _successMessage.value = "配置已保存"
+                _successMessage.value = "Configuration saved"
                 _isSaving.value = false
             } catch (e: Exception) {
-                _errorMessage.value = "保存配置失败: ${e.message}"
+                _errorMessage.value = "Failed to save configuration: ${e.message}"
                 _isSaving.value = false
             }
         }
     }
     
     /**
-     * 保存指定配置
-     * @param config 要保存的配置
+     * Save specified configuration
+     * @param config Configuration to save
      */
     fun saveConfig(config: TemplateConfig) {
         viewModelScope.launch {
             _isSaving.value = true
             try {
                 templateConfigRepository.saveConfig(config)
-                _successMessage.value = "配置已保存"
+                _successMessage.value = "Configuration saved"
                 _isSaving.value = false
                 
-                // 如果是当前正在编辑的配置，更新状态
+                // If this is the currently editing configuration, update the state
                 if (_currentConfig.value?.templateId == config.templateId) {
                     _currentConfig.value = config
                 }
             } catch (e: Exception) {
-                _errorMessage.value = "保存配置失败: ${e.message}"
+                _errorMessage.value = "Failed to save configuration: ${e.message}"
                 _isSaving.value = false
             }
         }
     }
     
     /**
-     * 重置配置为默认值
-     * @param templateId 模板ID
-     * @param templateType 模板类型
+     * Reset configuration to default values
+     * @param templateId Template ID
+     * @param templateType Template type
      */
     fun resetToDefault(templateId: String, templateType: TemplateType) {
         viewModelScope.launch {
             _isSaving.value = true
             try {
                 templateConfigRepository.resetToDefault(templateId, templateType)
-                // 重新加载配置
+                // Reload configuration
                 loadConfigById(templateId, templateType)
-                _successMessage.value = "已重置为默认配置"
+                _successMessage.value = "Reset to default configuration"
                 _isSaving.value = false
             } catch (e: Exception) {
-                _errorMessage.value = "重置配置失败: ${e.message}"
+                _errorMessage.value = "Failed to reset configuration: ${e.message}"
                 _isSaving.value = false
             }
         }
     }
     
     /**
-     * 删除配置
-     * @param templateId 模板ID
+     * Delete configuration
+     * @param templateId Template ID
      */
     fun deleteConfig(templateId: String) {
         viewModelScope.launch {
             _isSaving.value = true
             try {
                 templateConfigRepository.deleteConfig(templateId)
-                _successMessage.value = "配置已删除"
+                _successMessage.value = "Configuration deleted"
                 _isSaving.value = false
                 
-                // 如果删除的是当前配置，清空当前配置
+                // If deleting the current configuration, clear current configuration
                 if (_currentConfig.value?.templateId == templateId) {
                     _currentConfig.value = null
                 }
                 
-                // 重新加载所有配置
+                // Reload all configurations
                 loadAllConfigs()
             } catch (e: Exception) {
-                _errorMessage.value = "删除配置失败: ${e.message}"
+                _errorMessage.value = "Failed to delete configuration: ${e.message}"
                 _isSaving.value = false
             }
         }
     }
     
     /**
-     * 复制配置
-     * @param sourceTemplateId 源模板ID
-     * @param newTemplateId 新模板ID
-     * @param newTemplateName 新模板名称
+     * Copy configuration
+     * @param sourceTemplateId Source template ID
+     * @param newTemplateId New template ID
+     * @param newTemplateName New template name
      */
     fun copyConfig(sourceTemplateId: String, newTemplateId: String, newTemplateName: String) {
         viewModelScope.launch {
@@ -248,49 +248,49 @@ class TemplateConfigViewModel @Inject constructor(
                 val newConfig = templateConfigRepository.copyConfig(sourceTemplateId, newTemplateId, newTemplateName)
                 if (newConfig != null) {
                     _currentConfig.value = newConfig
-                    _successMessage.value = "配置已复制"
-                    loadAllConfigs() // 重新加载所有配置
+                    _successMessage.value = "Configuration copied"
+                    loadAllConfigs() // Reload all configurations
                 } else {
-                    _errorMessage.value = "复制配置失败：源配置不存在"
+                    _errorMessage.value = "Failed to copy configuration: source configuration not found"
                 }
                 _isSaving.value = false
             } catch (e: Exception) {
-                _errorMessage.value = "复制配置失败: ${e.message}"
+                _errorMessage.value = "Failed to copy configuration: ${e.message}"
                 _isSaving.value = false
             }
         }
     }
     
     /**
-     * 清除错误消息
+     * Clear error message
      */
     fun clearErrorMessage() {
         _errorMessage.value = null
     }
     
     /**
-     * 清除成功消息
+     * Clear success message
      */
     fun clearSuccessMessage() {
         _successMessage.value = null
     }
     
     /**
-     * 根据模板类型获取配置列表
-     * @param templateType 模板类型
+     * Get configurations by template type
+     * @param templateType Template type
      */
     fun getConfigsByType(templateType: TemplateType) {
         viewModelScope.launch {
             try {
                 templateConfigRepository.getConfigsByType(templateType)
                     .catch { e ->
-                        _errorMessage.value = "加载配置失败: ${e.message}"
+                        _errorMessage.value = "Failed to load configuration: ${e.message}"
                     }
                     .collect { configs ->
-                        // 可以根据需要处理特定类型的配置
+                        // Can handle type-specific configurations as needed
                     }
             } catch (e: Exception) {
-                _errorMessage.value = "加载配置失败: ${e.message}"
+                _errorMessage.value = "Failed to load configuration: ${e.message}"
             }
         }
     }
