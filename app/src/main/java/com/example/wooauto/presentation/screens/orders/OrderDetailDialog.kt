@@ -38,6 +38,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.ui.draw.clip
 import com.example.wooauto.licensing.LicenseStatus
+import com.example.wooauto.licensing.EligibilityStatus
 import com.example.wooauto.presentation.screens.templatePreview.TemplateConfigViewModel
 
 /**
@@ -54,7 +55,8 @@ fun OrderDetailDialog(
     val viewModel: OrdersViewModel = hiltViewModel()
     remember { viewModel.licenseManager }
     val licenseInfo by viewModel.licenseManager.licenseInfo.observeAsState()
-    val isLicenseValid = viewModel.licenseManager.isLicenseValid
+    val eligibilityInfo by viewModel.licenseManager.eligibilityInfo.observeAsState()
+    val hasEligibility = eligibilityInfo?.status == EligibilityStatus.ELIGIBLE
     val currencySymbol by viewModel.currencySymbol.collectAsState()
     
     var showStatusOptions by remember { mutableStateOf(false) }
@@ -223,7 +225,7 @@ fun OrderDetailDialog(
                                     onClick = { onMarkAsPrinted(displayOrder.id) },
                                     modifier = Modifier.height(28.dp),
                                     contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp),
-                                    enabled = isLicenseValid
+                                    enabled = hasEligibility
                                 ) {
                                     Text(
                                         text = stringResource(R.string.mark_as_printed),
@@ -671,9 +673,9 @@ fun OrderDetailDialog(
                                     )
                                     .padding(horizontal = 8.dp, vertical = 4.dp)
                                     .clickable(
-                                        enabled = isLicenseValid
+                                        enabled = hasEligibility
                                     ) { 
-                                        if (isLicenseValid) {
+                                        if (hasEligibility) {
                                             showStatusOptions = true
                                         }
                                     }
@@ -681,7 +683,7 @@ fun OrderDetailDialog(
                                 Text(
                                     text = statusText,
                                     style = MaterialTheme.typography.bodyMedium,
-                                    color = if (isLicenseValid) 
+                                    color = if (hasEligibility) 
                                         statusColor 
                                     else 
                                         statusColor.copy(alpha = 0.5f)
@@ -694,7 +696,7 @@ fun OrderDetailDialog(
                     }
                     
                     // 如果证书无效，显示模糊层和提示
-                    if (!isLicenseValid) {
+                    if (!hasEligibility) {
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
@@ -794,7 +796,7 @@ fun OrderDetailDialog(
                     Button(
                         onClick = { showTemplateOptions = true },
                         modifier = Modifier.weight(1f),
-                        enabled = isLicenseValid
+                        enabled = hasEligibility
                     ) {
                         Icon(
                             imageVector = Icons.Default.Print,
@@ -808,7 +810,7 @@ fun OrderDetailDialog(
                     OutlinedButton(
                         onClick = { showStatusOptions = true },
                         modifier = Modifier.weight(1f),
-                        enabled = isLicenseValid
+                        enabled = hasEligibility
                     ) {
                         Icon(
                             imageVector = Icons.Default.Edit,
@@ -840,7 +842,7 @@ fun OrderDetailDialog(
     }
     
     // 显示状态选择对话框（仅在证书有效时）
-    if (showStatusOptions && isLicenseValid) {
+    if (showStatusOptions && (hasEligibility)) {
         StatusChangeDialog(
             currentStatus = displayOrder.status,
             onDismiss = { showStatusOptions = false },
@@ -852,7 +854,7 @@ fun OrderDetailDialog(
     }
     
     // 添加模板选择对话框（仅在证书有效时）
-    if (showTemplateOptions && isLicenseValid) {
+    if (showTemplateOptions && (hasEligibility)) {
         TemplateSelectorDialog(
             onDismiss = { showTemplateOptions = false },
             onTemplateSelected = { templateId ->
