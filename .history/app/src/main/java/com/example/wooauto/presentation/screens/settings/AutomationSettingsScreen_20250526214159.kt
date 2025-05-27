@@ -52,18 +52,15 @@ fun AutomationSettingsDialogContent(
     val allConfigs by templateConfigViewModel.allConfigs.collectAsState()
     val isLoadingTemplates by templateConfigViewModel.isLoading.collectAsState()
     
-    // 获取Context用于字符串资源
-    val context = LocalContext.current
-    
     // 准备显示的模板选项（包含模板ID信息）
     val availableTemplates = remember(allConfigs) {
         val defaultTemplates = listOf(
             Triple("full_details", TemplateType.FULL_DETAILS, 
-                context.getString(R.string.auto_print_template_full_details)),
+                LocalContext.current.getString(R.string.auto_print_template_full_details)),
             Triple("delivery", TemplateType.DELIVERY, 
-                context.getString(R.string.auto_print_template_delivery)), 
+                LocalContext.current.getString(R.string.auto_print_template_delivery)), 
             Triple("kitchen", TemplateType.KITCHEN, 
-                context.getString(R.string.auto_print_template_kitchen))
+                LocalContext.current.getString(R.string.auto_print_template_kitchen))
         )
         
         val customTemplates = allConfigs

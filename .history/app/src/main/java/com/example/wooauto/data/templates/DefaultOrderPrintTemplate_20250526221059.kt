@@ -155,7 +155,7 @@ class DefaultOrderPrintTemplate @Inject constructor(
         if (templateConfig.showStoreInfo) {
             val storeName = runBlocking { settingRepository.getStoreNameFlow().first() }
             if (storeName.isNotEmpty()) {
-                sb.append(ThermalPrinterFormatter.formatStoreName(storeName, paperWidth))
+                sb.append(ThermalPrinterFormatter.formatTitle(storeName, paperWidth))
             }
         }
         sb.append(ThermalPrinterFormatter.formatTitle("KITCHEN ORDER", paperWidth))
@@ -191,7 +191,7 @@ class DefaultOrderPrintTemplate @Inject constructor(
         
         // 只有当商店名称不为空时才打印标题
         if (storeName.isNotEmpty()) {
-            sb.append(ThermalPrinterFormatter.formatStoreName(storeName, paperWidth))
+            sb.append(ThermalPrinterFormatter.formatTitle(storeName, paperWidth))
             sb.append(ThermalPrinterFormatter.addEmptyLines(1))
         }
         

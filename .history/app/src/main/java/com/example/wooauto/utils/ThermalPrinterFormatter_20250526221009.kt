@@ -48,19 +48,7 @@ class ThermalPrinterFormatter {
          * @return 格式化后的文本
          */
         fun formatStoreName(storeName: String, paperWidth: Int): String {
-            // 使用加粗和上下装饰线来突出显示店铺名称
-            val chars = getCharsPerLine(paperWidth)
-            val topBottomLine = "=".repeat(chars)
-            val sb = StringBuilder()
-            
-            // 上装饰线
-            sb.append("[C]$topBottomLine\n")
-            // 店铺名称（加粗，居中）
-            sb.append("[C]<b>$storeName</b>\n")
-            // 下装饰线
-            sb.append("[C]$topBottomLine\n")
-            
-            return sb.toString()
+            return "[C]<w><b>$storeName</b></w>\n"
         }
         
         /**
