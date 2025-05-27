@@ -198,6 +198,103 @@
     <string name="volume_max">100%</string>
     <!-- Sound Types -->
     <string name="sound_type_default">system default</string>
+    
+    <!-- Template Preview -->
+    <string name="template_full_order_details">Full Order Details</string>
+    <string name="template_delivery_receipt">Delivery Receipt</string>
+    <string name="template_kitchen_order">Kitchen Order</string>
+    <string name="template_new_custom">New Custom Template</string>
+    <string name="template_custom">Custom Template</string>
+    <string name="template_unknown">Unknown Template</string>
+    
+    <!-- Template Settings -->
+    <string name="template_tab_preview">Preview</string>
+    <string name="template_tab_settings">Settings</string>
+    <string name="template_reset_default">Reset to Default</string>
+    <string name="template_save">Save</string>
+    <string name="template_back">Back</string>
+    <string name="template_close">Close</string>
+    
+    <!-- Paper Width -->
+    <string name="paper_width_preview">Preview Width: %1$s Thermal Paper</string>
+    <string name="paper_width_58mm">58mm</string>
+    <string name="paper_width_80mm">80mm</string>
+    
+    <!-- Preview Content -->
+    <string name="preview_store_name">Store Name</string>
+    <string name="preview_store_address">Store Address</string>
+    <string name="preview_store_phone">Store Phone</string>
+    <string name="preview_order_number">Order Number</string>
+    <string name="preview_order_date">Order Date</string>
+    <string name="preview_customer_name">Customer Name</string>
+    <string name="preview_customer_phone">Customer Phone</string>
+    <string name="preview_delivery_address">Delivery Address</string>
+    <string name="preview_subtotal">Subtotal</string>
+    <string name="preview_tax">Tax</string>
+    <string name="preview_total">Total</string>
+    <string name="preview_payment_method">Payment Method</string>
+    <string name="preview_order_notes">Order Notes</string>
+    
+    <!-- Template Configuration -->
+    <string name="template_receipt_content">Receipt Content</string>
+    <string name="template_select_elements">Select which elements to show in the receipt template:</string>
+    <string name="template_store_info">Store Information</string>
+    <string name="template_store_info_required">Please configure store information in Settings → Store Settings first</string>
+    <string name="template_store_name">Store Name</string>
+    <string name="template_store_address">Store Address</string>
+    <string name="template_store_phone">Store Phone</string>
+    <string name="template_order_info">Order Information</string>
+    <string name="template_order_number">Order Number</string>
+    <string name="template_order_date_time">Order Date &amp; Time</string>
+    <string name="template_customer_info">Customer Information</string>
+    <string name="template_customer_name">Customer Name</string>
+    <string name="template_customer_phone">Customer Phone</string>
+    <string name="template_delivery_info">Delivery Information</string>
+    <string name="template_order_content">Order Content</string>
+    <string name="template_order_items">Order Items</string>
+    <string name="template_item_prices">Item Prices</string>
+    <string name="template_enable_items_first">Enable Order Items first</string>
+    <string name="template_order_notes">Order Notes</string>
+    <string name="template_order_totals">Order Totals</string>
+    <string name="template_payment_info">Payment Information</string>
+    <string name="template_footer">Footer</string>
+    <string name="template_info">Template Info</string>
+    <string name="template_id_label">Template ID: %1$s</string>
+    <string name="template_type_label">Template Type: %1$s</string>
+    <string name="template_enabled_fields">Enabled Fields: %1$d</string>
+    <string name="template_store_info_required_title">Store Information Required</string>
+    <string name="template_store_info_required_message">Please configure your store name and contact details in Settings → Store Settings to enable store information display.</string>
+    
+    <!-- Footer Editor -->
+    <string name="template_footer_custom">Custom Footer Text</string>
+    <string name="template_footer_placeholder">Enter custom footer text (supports multiple lines)</string>
+    <string name="template_footer_tip">Tip: Use line breaks to create multiple lines. Leave blank to hide footer.</string>
+    
+    <!-- Automation Settings -->
+    <string name="auto_print_template_full_details">Complete Order Details</string>
+    <string name="auto_print_template_delivery">Delivery Receipt</string>
+    <string name="auto_print_template_kitchen">Kitchen Order</string>
+    <string name="automatic_printing">Automatic Printing</string>
+    <string name="automatic_printing_desc">Automatically print new orders when received</string>
+    <string name="print_templates">Print Templates</string>
+    <string name="settings_saved">Settings saved</string>
+    
+    <!-- ViewModel Messages -->
+    <string name="error_init_config_failed">Failed to initialize configuration: %1$s</string>
+    <string name="error_load_config_failed">Failed to load configuration: %1$s</string>
+    <string name="error_save_config_failed">Failed to save configuration: %1$s</string>
+    <string name="error_reset_config_failed">Failed to reset configuration: %1$s</string>
+    <string name="error_delete_config_failed">Failed to delete configuration: %1$s</string>
+    <string name="error_copy_config_failed">Failed to copy configuration: %1$s</string>
+    <string name="error_copy_source_not_found">Failed to copy configuration: source configuration not found</string>
+    <string name="success_config_saved">Configuration saved</string>
+    <string name="success_config_reset">Reset to default configuration</string>
+    <string name="success_config_deleted">Configuration deleted</string>
+    <string name="success_config_copied">Configuration copied</string>
+    
+    <!-- Product Detail -->
+    <string name="product_id_label">ID: %1$d</string>
+    <string name="product_label_colon">%1$s:</string>
     <string name="sound_type_alarm">system alarm</string>
     <string name="sound_type_ringtone">system ringtone</string>
     <string name="sound_type_event">system event</string>
@@ -292,16 +389,13 @@
     <!-- Automation Settings -->
     <string name="automatic_order_processing">Automatic Order Processing</string>
     <string name="automatic_order_processing_desc">Automatically accept and process new orders</string>
-    <string name="automatic_printing">Automatic Printing</string>
     <string name="select_default_template">Select Default Print Template</string>
     <string name="inventory_alerts">Inventory Alerts</string>
     <string name="inventory_alerts_desc">Get notified when inventory is low</string>
     <string name="daily_backup">Daily Backup</string>
     <string name="daily_backup_desc">Automatically backup data daily</string>
     <string name="order_processing">Order Processing</string>
-    <string name="print_templates">Print Templates</string>
     <string name="other_automation">Other Automation</string>
-    <string name="settings_saved">Settings have been saved</string>
 
     <string name="scan_qr_code">Scan QR Code</string>
     <string name="connection_test_success">Connection test successful!</string>
@@ -338,8 +432,6 @@
     <string name="paper_width_setting">Paper Width Setting</string>
     <string name="paper_width">Paper Width</string>
     <string name="select_paper_width">Select Paper Width</string>
-    <string name="paper_width_58mm">58mm</string>
-    <string name="paper_width_80mm">80mm</string>
     <string name="printer_options">printer options</string>
     <string name="save_printer_config">Save printer configuration</string>
     <string name="please_enter_name_address">please enter name and address</string>
@@ -385,7 +477,6 @@
     <string name="open_camera_failed">Failed to open camera for QR scanning.</string>
     <string name="error_parsing_qr_code">Error parsing QR code data.</string>
     <string name="auto_print_settings">Auto Print Settings</string>
-    <string name="automatic_printing_desc">Enable or disable automatic printing of new orders</string>
     <string name="enable_auto_print">Enable Automatic Printing</string>
     <string name="default_print_template">Default Print Template</string>
     <string name="no_templates_available">No templates available</string>
