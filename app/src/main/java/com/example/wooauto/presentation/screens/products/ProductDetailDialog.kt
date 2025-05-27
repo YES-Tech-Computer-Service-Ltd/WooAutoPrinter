@@ -46,7 +46,7 @@ fun ProductDetailDialog(
 ) {
     remember { viewModel.licenseManager }
     val licenseInfo by viewModel.licenseManager.licenseInfo.observeAsState()
-    val isLicenseValid = licenseInfo?.status == LicenseStatus.VALID || licenseInfo?.status == LicenseStatus.TRIAL
+    val isLicenseValid = viewModel.licenseManager.isLicenseValid
     
     var regularPrice by remember { mutableStateOf(product.regularPrice) }
     var stockStatus by remember { mutableStateOf(product.stockStatus) }
