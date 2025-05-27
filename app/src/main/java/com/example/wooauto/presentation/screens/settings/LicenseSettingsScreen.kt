@@ -217,8 +217,8 @@ fun LicenseInfoRow(icon: ImageVector, label: String, value: String) {
 @Composable
 fun LicenseSettingsScreen(
     navController: NavController,
-    onLicenseActivated: () -> Unit,
-    onGoToAppClicked: () -> Unit
+    onLicenseActivated: () -> Unit = {},
+    onGoToAppClicked: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -288,18 +288,22 @@ fun LicenseSettingsScreen(
         }
     }
 
+    // 获取LicenseManager实例
+    val app = context.applicationContext as com.example.wooauto.WooAutoApplication
+    val licenseManager = app.licenseManager
+
     // 只在 isLicensed == true 且不在 Trial 模式时执行服务器验证
     LaunchedEffect(trialDaysRemaining) {
         if (isLicensed && (trialDaysRemaining == null || trialDaysRemaining!! <= 0)) {
             coroutineScope.launch {
-                LicenseVerificationManager.staticForceServerValidation(
-                    context = context,
-                    coroutineScope = coroutineScope,
-                    onInvalid = {
-                        snackbarHostState.showSnackbar("License verification failed. Please renew or activate a new license.")
-                        Log.d("LicenseSettingsScreen", "License verification failed - placeholder for future restrictions (e.g., disable new orders)")
+                licenseManager.verifyLicense(context, coroutineScope, force = true) { isValid ->
+                    if (!isValid) {
+                        coroutineScope.launch {
+                            snackbarHostState.showSnackbar("License verification failed. Please renew or activate a new license.")
+                            Log.d("LicenseSettingsScreen", "License verification failed - placeholder for future restrictions (e.g., disable new orders)")
+                        }
                     }
-                )
+                }
             }
         }
     }

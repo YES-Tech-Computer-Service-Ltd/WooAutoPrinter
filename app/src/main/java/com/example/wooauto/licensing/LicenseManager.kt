@@ -63,6 +63,14 @@ class LicenseManager @Inject constructor() {
         get() = _licenseInfo.value?.status == LicenseStatus.VALID || 
                 _licenseInfo.value?.status == LicenseStatus.TRIAL
     
+    // 统一的资格状态 - 新增
+    private val _eligibilityInfo = MutableLiveData<EligibilityInfo>(EligibilityInfo())
+    val eligibilityInfo: LiveData<EligibilityInfo> = _eligibilityInfo
+    
+    // 便捷的资格检查方法 - 新增
+    val hasEligibility: Boolean
+        get() = _eligibilityInfo.value?.status == EligibilityStatus.ELIGIBLE
+    
     /**
      * 验证证书
      * @param context 上下文
@@ -95,6 +103,8 @@ class LicenseManager @Inject constructor() {
                         LicenseStatus.TRIAL,
                         message = "试用期有效"
                     )
+                    // 同步试用期信息到资格状态 - 新增
+                    syncTrialInfoToEligibility(context)
                     withContext(Dispatchers.Main) {
                         onValidationComplete?.invoke(true)
                     }
@@ -236,6 +246,100 @@ class LicenseManager @Inject constructor() {
                 message = message
             )
         )
+        
+        // 更新资格状态 - 新增
+        updateEligibilityStatus()
+    }
+    
+    /**
+     * 更新统一的资格状态
+     * 根据证书状态和试用期状态计算资格
+     */
+    private fun updateEligibilityStatus() {
+        val currentLicense = _licenseInfo.value
+        val eligibility = calculateEligibilityStatus(currentLicense)
+        _eligibilityInfo.postValue(eligibility)
+    }
+    
+    /**
+     * 计算当前的资格状态
+     */
+    private fun calculateEligibilityStatus(licenseInfo: LicenseInfo?): EligibilityInfo {
+        if (licenseInfo == null) {
+            return EligibilityInfo(
+                status = EligibilityStatus.UNKNOWN,
+                displayMessage = "正在检查权限状态..."
+            )
+        }
+        
+        return when (licenseInfo.status) {
+            LicenseStatus.VALID -> {
+                val endDate = LicenseDataStore.calculateEndDate(licenseInfo.activationDate, licenseInfo.validity)
+                EligibilityInfo(
+                    status = EligibilityStatus.ELIGIBLE,
+                    isLicensed = true,
+                    isTrialActive = false,
+                    licenseEndDate = endDate,
+                    displayMessage = "证书有效 (到期: $endDate)",
+                    source = EligibilitySource.LICENSE
+                )
+            }
+            LicenseStatus.TRIAL -> {
+                // 需要获取试用期剩余天数 - 这里先用默认值，后面会同步
+                EligibilityInfo(
+                    status = EligibilityStatus.ELIGIBLE,
+                    isLicensed = false,
+                    isTrialActive = true,
+                    trialDaysRemaining = 0, // 将在verifyLicense中同步更新
+                    displayMessage = "试用期有效",
+                    source = EligibilitySource.TRIAL
+                )
+            }
+            LicenseStatus.VERIFYING -> {
+                EligibilityInfo(
+                    status = EligibilityStatus.CHECKING,
+                    displayMessage = "正在验证权限..."
+                )
+            }
+            LicenseStatus.INVALID, LicenseStatus.TIMEOUT -> {
+                EligibilityInfo(
+                    status = EligibilityStatus.INELIGIBLE,
+                    displayMessage = "权限已过期或无效"
+                )
+            }
+            else -> {
+                EligibilityInfo(
+                    status = EligibilityStatus.UNKNOWN,
+                    displayMessage = "权限状态未知"
+                )
+            }
+        }
+    }
+    
+    /**
+     * 同步试用期信息到资格状态
+     * 在验证试用期后调用，更新试用期剩余天数
+     */
+    private suspend fun syncTrialInfoToEligibility(context: Context) {
+        val currentEligibility = _eligibilityInfo.value
+        if (currentEligibility?.source == EligibilitySource.TRIAL) {
+            try {
+                val deviceId = android.provider.Settings.Secure.getString(
+                    context.contentResolver,
+                    android.provider.Settings.Secure.ANDROID_ID
+                )
+                val appId = context.packageName
+                val remainingDays = TrialTokenManager.getRemainingDays(context, deviceId, appId)
+                
+                val updatedEligibility = currentEligibility.copy(
+                    trialDaysRemaining = remainingDays,
+                    displayMessage = "试用期有效 (剩余: ${remainingDays}天)"
+                )
+                _eligibilityInfo.postValue(updatedEligibility)
+            } catch (e: Exception) {
+                Log.e("LicenseManager", "同步试用期信息失败: ${e.message}")
+            }
+        }
     }
     
     /**

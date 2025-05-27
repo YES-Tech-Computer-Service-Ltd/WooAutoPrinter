@@ -81,6 +81,21 @@ class LicenseVerificationManager @Inject constructor(
         return licenseManager.licenseInfo.value ?: LicenseInfo()
     }
     
+    /**
+     * 检查是否有权限资格 - 新增
+     * 统一检查证书和试用期状态
+     */
+    fun hasEligibility(): Boolean {
+        return licenseManager.hasEligibility
+    }
+    
+    /**
+     * 获取当前资格信息 - 新增
+     */
+    fun getEligibilityInfo(): EligibilityInfo {
+        return licenseManager.eligibilityInfo.value ?: EligibilityInfo()
+    }
+    
     companion object {
         // 为兼容旧代码提供的静态方法
         @Volatile
@@ -135,6 +150,26 @@ class LicenseVerificationManager @Inject constructor(
         @Deprecated("建议使用依赖注入获取的LicenseManager.isLicenseValid替代", level = DeprecationLevel.WARNING)
         fun staticIsLicenseValid(): Boolean {
             return getInstance().isLicenseValid()
+        }
+        
+        /**
+         * 静态检查是否有权限资格 - 新增
+         * @deprecated 建议通过依赖注入获取LicenseManager实例替代
+         */
+        @JvmStatic
+        @Deprecated("建议使用依赖注入获取的LicenseManager.hasEligibility替代", level = DeprecationLevel.WARNING)
+        fun staticHasEligibility(): Boolean {
+            return getInstance().hasEligibility()
+        }
+        
+        /**
+         * 静态获取资格信息 - 新增
+         * @deprecated 建议通过依赖注入获取LicenseManager实例替代
+         */
+        @JvmStatic
+        @Deprecated("建议使用依赖注入获取的LicenseManager.eligibilityInfo替代", level = DeprecationLevel.WARNING)
+        fun staticGetEligibilityInfo(): EligibilityInfo {
+            return getInstance().getEligibilityInfo()
         }
     }
 }
