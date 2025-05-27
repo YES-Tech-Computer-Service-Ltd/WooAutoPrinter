@@ -212,16 +212,21 @@ fun TemplatePreviewScreen(
                                 showStoreName = config.showStoreName,
                                 showStoreAddress = config.showStoreAddress,
                                 showStorePhone = config.showStorePhone,
+                                showOrderInfo = config.showOrderInfo,
                                 showOrderNumber = config.showOrderNumber,
-                                showCustomerInfo = config.showCustomerInfo,
                                 showOrderDate = config.showOrderDate,
+                                showCustomerInfo = config.showCustomerInfo,
+                                showCustomerName = config.showCustomerName,
+                                showCustomerPhone = config.showCustomerPhone,
                                 showDeliveryInfo = config.showDeliveryInfo,
-                                showPaymentInfo = config.showPaymentInfo,
+                                showOrderContent = config.showOrderContent,
                                 showItemDetails = config.showItemDetails,
                                 showItemPrices = config.showItemPrices,
                                 showOrderNotes = config.showOrderNotes,
                                 showTotals = config.showTotals,
-                                showFooter = config.showFooter
+                                showPaymentInfo = config.showPaymentInfo,
+                                showFooter = config.showFooter,
+                                footerText = config.footerText
                             )
                         }
                     }
@@ -259,16 +264,21 @@ fun TemplatePreview(
     showStoreName: Boolean,
     showStoreAddress: Boolean,
     showStorePhone: Boolean,
+    showOrderInfo: Boolean,
     showOrderNumber: Boolean,
-    showCustomerInfo: Boolean,
     showOrderDate: Boolean,
+    showCustomerInfo: Boolean,
+    showCustomerName: Boolean,
+    showCustomerPhone: Boolean,
     showDeliveryInfo: Boolean,
-    showPaymentInfo: Boolean,
+    showOrderContent: Boolean,
     showItemDetails: Boolean,
     showItemPrices: Boolean,
     showOrderNotes: Boolean,
     showTotals: Boolean,
-    showFooter: Boolean
+    showPaymentInfo: Boolean,
+    showFooter: Boolean,
+    footerText: String
 ) {
     Box(
         modifier = Modifier
@@ -335,46 +345,51 @@ fun TemplatePreview(
                     }
                 }
                 
-                // 订单编号
-                if (showOrderNumber) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = "ORDER #:",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "WO12345",
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    }
-                }
-                
-                // 订单日期
-                if (showOrderDate) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = "DATE:",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "2025-03-06 14:30",
-                            style = MaterialTheme.typography.bodyMedium
-                        )
+                // 订单基本信息
+                if (showOrderInfo) {
+                    if (showOrderNumber) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "ORDER #:",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "WO12345",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
                     }
                     
-                    Spacer(modifier = Modifier.height(8.dp))
+                    if (showOrderDate) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "DATE:",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "2025-03-06 14:30",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                    }
+                    
+                    if (showOrderNumber || showOrderDate) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
                 }
                 
                 // 客户信息
                 if (showCustomerInfo) {
+                    var hasCustomerContent = false
+                    
                     Text(
                         text = "CUSTOMER INFORMATION",
                         style = MaterialTheme.typography.titleSmall,
@@ -384,16 +399,25 @@ fun TemplatePreview(
                     
                     Spacer(modifier = Modifier.height(4.dp))
                     
-                    Text(
-                        text = "Name: John Smith",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    Text(
-                        text = "Phone: (987) 654-3210",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
+                    if (showCustomerName) {
+                        Text(
+                            text = "Name: John Smith",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        hasCustomerContent = true
+                    }
                     
-                    Spacer(modifier = Modifier.height(8.dp))
+                    if (showCustomerPhone) {
+                        Text(
+                            text = "Phone: (987) 654-3210",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        hasCustomerContent = true
+                    }
+                    
+                    if (hasCustomerContent) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
                 }
                 
                 // 配送信息
@@ -445,7 +469,7 @@ fun TemplatePreview(
                 HorizontalDivider()
                 
                 // 商品明细
-                if (showItemDetails) {
+                if (showOrderContent && showItemDetails) {
                     Spacer(modifier = Modifier.height(8.dp))
                     
                     Text(
@@ -612,7 +636,7 @@ fun TemplatePreview(
                 }
                 
                 // 订单备注
-                if (showOrderNotes) {
+                if (showOrderContent && showOrderNotes) {
                     HorizontalDivider()
                     Spacer(modifier = Modifier.height(8.dp))
                     
@@ -630,7 +654,7 @@ fun TemplatePreview(
                 }
                 
                 // 合计
-                if (showTotals) {
+                if (showOrderContent && showTotals) {
                     HorizontalDivider()
                     Spacer(modifier = Modifier.height(8.dp))
                     
@@ -701,23 +725,21 @@ fun TemplatePreview(
                 }
                 
                 // 页脚
-                if (showFooter) {
+                if (showFooter && footerText.isNotBlank()) {
                     HorizontalDivider()
                     Spacer(modifier = Modifier.height(8.dp))
                     
-                    Text(
-                        text = "Thank you for your order!",
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.fillMaxWidth(),
-                        textAlign = TextAlign.Center
-                    )
-                    
-                    Text(
-                        text = "Visit us online at www.mystore.com",
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.fillMaxWidth(),
-                        textAlign = TextAlign.Center
-                    )
+                    // 支持多行页脚文本
+                    footerText.split("\n").forEach { line ->
+                        if (line.isNotBlank()) {
+                            Text(
+                                text = line,
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.fillMaxWidth(),
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -766,7 +788,7 @@ fun TemplateSettings(
             modifier = Modifier.padding(bottom = 16.dp)
         )
         
-        // 商店信息主选项
+        // === 商店信息组 ===
         SettingCheckbox(
             label = "Store Information",
             isChecked = config.showStoreInfo,
@@ -783,15 +805,13 @@ fun TemplateSettings(
             subtitle = if (!hasStoreInfo) "Please configure store information in Settings → Store Settings first" else null
         )
         
-        // 商店信息子选项 - 仅在主选项启用时显示
+        // 商店信息子选项
         if (config.showStoreInfo && hasStoreInfo) {
-            // 商店名称
             SettingCheckbox(
                 label = "Store Name",
                 isChecked = config.showStoreName,
                 onCheckedChange = { newValue ->
                     val updatedConfig = config.copy(showStoreName = newValue)
-                    // 如果所有子选项都关闭，则关闭主选项
                     if (!updatedConfig.showStoreName && !updatedConfig.showStoreAddress && !updatedConfig.showStorePhone) {
                         onConfigChange(updatedConfig.copy(showStoreInfo = false))
                     } else {
@@ -802,13 +822,11 @@ fun TemplateSettings(
                 enabled = storeName.isNotBlank()
             )
             
-            // 商店地址
             SettingCheckbox(
                 label = "Store Address", 
                 isChecked = config.showStoreAddress,
                 onCheckedChange = { newValue ->
                     val updatedConfig = config.copy(showStoreAddress = newValue)
-                    // 如果所有子选项都关闭，则关闭主选项
                     if (!updatedConfig.showStoreName && !updatedConfig.showStoreAddress && !updatedConfig.showStorePhone) {
                         onConfigChange(updatedConfig.copy(showStoreInfo = false))
                     } else {
@@ -819,13 +837,11 @@ fun TemplateSettings(
                 enabled = storeAddress.isNotBlank()
             )
             
-            // 商店电话
             SettingCheckbox(
                 label = "Store Phone",
                 isChecked = config.showStorePhone,
                 onCheckedChange = { newValue ->
                     val updatedConfig = config.copy(showStorePhone = newValue)
-                    // 如果所有子选项都关闭，则关闭主选项
                     if (!updatedConfig.showStoreName && !updatedConfig.showStoreAddress && !updatedConfig.showStorePhone) {
                         onConfigChange(updatedConfig.copy(showStoreInfo = false))
                     } else {
@@ -837,67 +853,201 @@ fun TemplateSettings(
             )
         }
         
+        // === 订单基本信息组 ===
         SettingCheckbox(
-            label = "Order Number",
-            isChecked = config.showOrderNumber,
-            onCheckedChange = { onConfigChange(config.copy(showOrderNumber = it)) }
+            label = "Order Information",
+            isChecked = config.showOrderInfo,
+            onCheckedChange = { newValue ->
+                onConfigChange(config.copy(
+                    showOrderInfo = newValue,
+                    showOrderNumber = newValue,
+                    showOrderDate = newValue
+                ))
+            }
         )
         
-        SettingCheckbox(
-            label = "Order Date and Time",
-            isChecked = config.showOrderDate,
-            onCheckedChange = { onConfigChange(config.copy(showOrderDate = it)) }
-        )
+        // 订单信息子选项
+        if (config.showOrderInfo) {
+            SettingCheckbox(
+                label = "Order Number",
+                isChecked = config.showOrderNumber,
+                onCheckedChange = { newValue ->
+                    val updatedConfig = config.copy(showOrderNumber = newValue)
+                    if (!updatedConfig.showOrderNumber && !updatedConfig.showOrderDate) {
+                        onConfigChange(updatedConfig.copy(showOrderInfo = false))
+                    } else {
+                        onConfigChange(updatedConfig)
+                    }
+                },
+                indented = true
+            )
+            
+            SettingCheckbox(
+                label = "Order Date & Time",
+                isChecked = config.showOrderDate,
+                onCheckedChange = { newValue ->
+                    val updatedConfig = config.copy(showOrderDate = newValue)
+                    if (!updatedConfig.showOrderNumber && !updatedConfig.showOrderDate) {
+                        onConfigChange(updatedConfig.copy(showOrderInfo = false))
+                    } else {
+                        onConfigChange(updatedConfig)
+                    }
+                },
+                indented = true
+            )
+        }
         
+        // === 客户信息组 ===
         SettingCheckbox(
             label = "Customer Information",
             isChecked = config.showCustomerInfo,
-            onCheckedChange = { onConfigChange(config.copy(showCustomerInfo = it)) }
+            onCheckedChange = { newValue ->
+                onConfigChange(config.copy(
+                    showCustomerInfo = newValue,
+                    showCustomerName = newValue,
+                    showCustomerPhone = newValue,
+                    showDeliveryInfo = newValue
+                ))
+            }
         )
         
+        // 客户信息子选项
+        if (config.showCustomerInfo) {
+            SettingCheckbox(
+                label = "Customer Name",
+                isChecked = config.showCustomerName,
+                onCheckedChange = { newValue ->
+                    val updatedConfig = config.copy(showCustomerName = newValue)
+                    if (!updatedConfig.showCustomerName && !updatedConfig.showCustomerPhone && !updatedConfig.showDeliveryInfo) {
+                        onConfigChange(updatedConfig.copy(showCustomerInfo = false))
+                    } else {
+                        onConfigChange(updatedConfig)
+                    }
+                },
+                indented = true
+            )
+            
+            SettingCheckbox(
+                label = "Customer Phone",
+                isChecked = config.showCustomerPhone,
+                onCheckedChange = { newValue ->
+                    val updatedConfig = config.copy(showCustomerPhone = newValue)
+                    if (!updatedConfig.showCustomerName && !updatedConfig.showCustomerPhone && !updatedConfig.showDeliveryInfo) {
+                        onConfigChange(updatedConfig.copy(showCustomerInfo = false))
+                    } else {
+                        onConfigChange(updatedConfig)
+                    }
+                },
+                indented = true
+            )
+            
+            SettingCheckbox(
+                label = "Delivery Information",
+                isChecked = config.showDeliveryInfo,
+                onCheckedChange = { newValue ->
+                    val updatedConfig = config.copy(showDeliveryInfo = newValue)
+                    if (!updatedConfig.showCustomerName && !updatedConfig.showCustomerPhone && !updatedConfig.showDeliveryInfo) {
+                        onConfigChange(updatedConfig.copy(showCustomerInfo = false))
+                    } else {
+                        onConfigChange(updatedConfig)
+                    }
+                },
+                indented = true
+            )
+        }
+        
+        // === 订单内容组 ===
         SettingCheckbox(
-            label = "Delivery Information",
-            isChecked = config.showDeliveryInfo,
-            onCheckedChange = { onConfigChange(config.copy(showDeliveryInfo = it)) }
+            label = "Order Content",
+            isChecked = config.showOrderContent,
+            onCheckedChange = { newValue ->
+                onConfigChange(config.copy(
+                    showOrderContent = newValue,
+                    showItemDetails = newValue,
+                    showItemPrices = newValue,
+                    showOrderNotes = newValue,
+                    showTotals = newValue
+                ))
+            }
         )
         
+        // 订单内容子选项
+        if (config.showOrderContent) {
+            SettingCheckbox(
+                label = "Order Items",
+                isChecked = config.showItemDetails,
+                onCheckedChange = { newValue ->
+                    val updatedConfig = config.copy(showItemDetails = newValue)
+                    if (!updatedConfig.showItemDetails && !updatedConfig.showOrderNotes && !updatedConfig.showTotals) {
+                        onConfigChange(updatedConfig.copy(showOrderContent = false))
+                    } else {
+                        onConfigChange(updatedConfig)
+                    }
+                },
+                indented = true
+            )
+            
+            SettingCheckbox(
+                label = "Item Prices",
+                isChecked = config.showItemPrices,
+                onCheckedChange = { onConfigChange(config.copy(showItemPrices = it)) },
+                indented = true,
+                enabled = config.showItemDetails,
+                subtitle = if (!config.showItemDetails) "Enable Order Items first" else null
+            )
+            
+            SettingCheckbox(
+                label = "Order Notes",
+                isChecked = config.showOrderNotes,
+                onCheckedChange = { newValue ->
+                    val updatedConfig = config.copy(showOrderNotes = newValue)
+                    if (!updatedConfig.showItemDetails && !updatedConfig.showOrderNotes && !updatedConfig.showTotals) {
+                        onConfigChange(updatedConfig.copy(showOrderContent = false))
+                    } else {
+                        onConfigChange(updatedConfig)
+                    }
+                },
+                indented = true
+            )
+            
+            SettingCheckbox(
+                label = "Order Totals",
+                isChecked = config.showTotals,
+                onCheckedChange = { newValue ->
+                    val updatedConfig = config.copy(showTotals = newValue)
+                    if (!updatedConfig.showItemDetails && !updatedConfig.showOrderNotes && !updatedConfig.showTotals) {
+                        onConfigChange(updatedConfig.copy(showOrderContent = false))
+                    } else {
+                        onConfigChange(updatedConfig)
+                    }
+                },
+                indented = true
+            )
+        }
+        
+        // === 支付信息组 ===
         SettingCheckbox(
-            label = "Payment Method",
+            label = "Payment Information",
             isChecked = config.showPaymentInfo,
             onCheckedChange = { onConfigChange(config.copy(showPaymentInfo = it)) }
         )
         
-        SettingCheckbox(
-            label = "Order Items",
-            isChecked = config.showItemDetails,
-            onCheckedChange = { onConfigChange(config.copy(showItemDetails = it)) }
-        )
-        
-        SettingCheckbox(
-            label = "Item Prices",
-            isChecked = config.showItemPrices,
-            onCheckedChange = { onConfigChange(config.copy(showItemPrices = it)) },
-            indented = true,
-            enabled = config.showItemDetails
-        )
-        
-        SettingCheckbox(
-            label = "Order Notes",
-            isChecked = config.showOrderNotes,
-            onCheckedChange = { onConfigChange(config.copy(showOrderNotes = it)) }
-        )
-        
-        SettingCheckbox(
-            label = "Order Totals",
-            isChecked = config.showTotals,
-            onCheckedChange = { onConfigChange(config.copy(showTotals = it)) }
-        )
-        
+        // === 页脚组 ===
         SettingCheckbox(
             label = "Footer",
             isChecked = config.showFooter,
             onCheckedChange = { onConfigChange(config.copy(showFooter = it)) }
         )
+        
+        // 页脚文本编辑
+        if (config.showFooter) {
+            FooterTextEditor(
+                footerText = config.footerText,
+                onFooterTextChange = { newText ->
+                    onConfigChange(config.copy(footerText = newText))
+                }
+            )
+        }
         
         Spacer(modifier = Modifier.height(16.dp))
         
@@ -1033,14 +1183,15 @@ fun SettingCheckbox(
 fun TemplatePreviewDialogContent(
     templateId: String,
     onClose: () -> Unit,
+    customTemplateName: String? = null,
     viewModel: TemplateConfigViewModel = hiltViewModel()
 ) {
     // 确定模板类型
-    val templateType = when (templateId) {
-        "full_details" -> TemplateType.FULL_DETAILS
-        "delivery" -> TemplateType.DELIVERY
-        "kitchen" -> TemplateType.KITCHEN
-        "new" -> TemplateType.FULL_DETAILS // 默认为完整详情模板
+    val templateType = when {
+        templateId == "full_details" -> TemplateType.FULL_DETAILS
+        templateId == "delivery" -> TemplateType.DELIVERY
+        templateId == "kitchen" -> TemplateType.KITCHEN
+        templateId == "new" || templateId.startsWith("custom_") -> TemplateType.FULL_DETAILS // 自定义模板默认为完整详情模板
         else -> TemplateType.FULL_DETAILS
     }
     
@@ -1062,8 +1213,8 @@ fun TemplatePreviewDialogContent(
     val coroutineScope = rememberCoroutineScope()
     
     // 加载配置
-    LaunchedEffect(templateId) {
-        viewModel.loadConfigById(templateId, templateType)
+    LaunchedEffect(templateId, customTemplateName) {
+        viewModel.loadConfigById(templateId, templateType, customTemplateName)
     }
     
     // 处理错误消息
@@ -1083,12 +1234,12 @@ fun TemplatePreviewDialogContent(
     }
     
     // 获取模板名称
-    val templateName = currentConfig?.templateName ?: when (templateId) {
+    val templateName = currentConfig?.templateName ?: customTemplateName ?: when (templateId) {
         "full_details" -> "Full Order Details"
         "delivery" -> "Delivery Receipt"
         "kitchen" -> "Kitchen Order"
         "new" -> "New Custom Template"
-        else -> "Custom Template"
+        else -> if (templateId.startsWith("custom_")) "Custom Template" else "Unknown Template"
     }
     
     Card(
@@ -1191,16 +1342,21 @@ fun TemplatePreviewDialogContent(
                                     showStoreName = config.showStoreName,
                                     showStoreAddress = config.showStoreAddress,
                                     showStorePhone = config.showStorePhone,
+                                    showOrderInfo = config.showOrderInfo,
                                     showOrderNumber = config.showOrderNumber,
-                                    showCustomerInfo = config.showCustomerInfo,
                                     showOrderDate = config.showOrderDate,
+                                    showCustomerInfo = config.showCustomerInfo,
+                                    showCustomerName = config.showCustomerName,
+                                    showCustomerPhone = config.showCustomerPhone,
                                     showDeliveryInfo = config.showDeliveryInfo,
-                                    showPaymentInfo = config.showPaymentInfo,
+                                    showOrderContent = config.showOrderContent,
                                     showItemDetails = config.showItemDetails,
                                     showItemPrices = config.showItemPrices,
                                     showOrderNotes = config.showOrderNotes,
                                     showTotals = config.showTotals,
-                                    showFooter = config.showFooter
+                                    showPaymentInfo = config.showPaymentInfo,
+                                    showFooter = config.showFooter,
+                                    footerText = config.footerText
                                 )
                             }
                         }
@@ -1230,5 +1386,43 @@ fun TemplatePreviewDialogContent(
                 }
             }
         }
+    }
+}
+
+@Composable
+fun FooterTextEditor(
+    footerText: String,
+    onFooterTextChange: (String) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp)
+    ) {
+        Text(
+            text = "Custom Footer Text",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 4.dp)
+        )
+        
+        androidx.compose.material3.OutlinedTextField(
+            value = footerText,
+            onValueChange = onFooterTextChange,
+            modifier = Modifier.fillMaxWidth(),
+            placeholder = { 
+                Text("Enter custom footer text (supports multiple lines)")
+            },
+            minLines = 2,
+            maxLines = 4,
+            singleLine = false
+        )
+        
+        Text(
+            text = "Tip: Use line breaks to create multiple lines. Leave blank to hide footer.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+            modifier = Modifier.padding(top = 4.dp)
+        )
     }
 } 

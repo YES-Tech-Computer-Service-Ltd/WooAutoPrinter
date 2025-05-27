@@ -62,7 +62,15 @@ class TemplateConfigRepositoryImpl @Inject constructor(
         val configCount = templateConfigDao.getConfigCount()
         if (configCount == 0) {
             // 创建并保存默认配置
-            val defaultConfigs = TemplateConfig.getAllPresetConfigs()
+            val defaultConfigs = TemplateConfig.PRESET_TEMPLATES.map { templateId ->
+                val templateType = when (templateId) {
+                    "full_details" -> TemplateType.FULL_DETAILS
+                    "delivery" -> TemplateType.DELIVERY
+                    "kitchen" -> TemplateType.KITCHEN
+                    else -> TemplateType.FULL_DETAILS
+                }
+                TemplateConfig.createDefaultConfig(templateType, templateId)
+            }
             saveConfigs(defaultConfigs)
         }
     }

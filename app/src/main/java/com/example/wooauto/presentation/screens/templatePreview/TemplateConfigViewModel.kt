@@ -84,12 +84,18 @@ class TemplateConfigViewModel @Inject constructor(
      * 根据模板ID加载配置
      * @param templateId 模板ID
      * @param templateType 模板类型（用于创建默认配置）
+     * @param customTemplateName 自定义模板名称（用于新建模板）
      */
-    fun loadConfigById(templateId: String, templateType: TemplateType) {
+    fun loadConfigById(templateId: String, templateType: TemplateType, customTemplateName: String? = null) {
         viewModelScope.launch {
             _isLoading.value = true
             try {
-                val config = templateConfigRepository.getOrCreateConfig(templateId, templateType)
+                val config = if (templateId.startsWith("custom_") && customTemplateName != null) {
+                    // 创建新的自定义模板，所有选项默认为false
+                    createCustomTemplate(templateId, customTemplateName, templateType)
+                } else {
+                    templateConfigRepository.getOrCreateConfig(templateId, templateType)
+                }
                 _currentConfig.value = config
                 _isLoading.value = false
             } catch (e: Exception) {
@@ -97,6 +103,39 @@ class TemplateConfigViewModel @Inject constructor(
                 _isLoading.value = false
             }
         }
+    }
+    
+    /**
+     * 创建自定义模板，所有选项默认为false
+     */
+    private fun createCustomTemplate(templateId: String, templateName: String, templateType: TemplateType): TemplateConfig {
+        return TemplateConfig(
+            templateId = templateId,
+            templateType = templateType,
+            templateName = templateName,
+            // 所有显示选项都设置为false
+            showStoreInfo = false,
+            showStoreName = false,
+            showStoreAddress = false,
+            showStorePhone = false,
+            showOrderInfo = false,
+            showOrderNumber = false,
+            showOrderDate = false,
+            showCustomerInfo = false,
+            showCustomerName = false,
+            showCustomerPhone = false,
+            showDeliveryInfo = false,
+            showOrderContent = false,
+            showItemDetails = false,
+            showItemPrices = false,
+            showOrderNotes = false,
+            showTotals = false,
+            showPaymentInfo = false,
+            showFooter = false,
+            footerText = "",
+            createdAt = System.currentTimeMillis(),
+            updatedAt = System.currentTimeMillis()
+        )
     }
     
     /**
