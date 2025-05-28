@@ -101,8 +101,6 @@ class LicenseManager @Inject constructor() {
     ) {
         coroutineScope.launch(Dispatchers.IO) {
             try {
-                Log.d("LicenseManager", "开始后台验证许可证，用户可继续使用")
-                
                 // 更新状态为验证中，但仍保持可用
                 updateStatus(
                     LicenseStatus.VERIFYING,
@@ -129,8 +127,6 @@ class LicenseManager @Inject constructor() {
                             onValidationComplete?.invoke(true)
                         }
                         return@launch
-                    } else {
-                        Log.w("LicenseManager", "许可证验证失败，检查试用期")
                     }
                 }
                 
@@ -138,7 +134,6 @@ class LicenseManager @Inject constructor() {
                 val trialValid = checkTrialStatusSafely(context, deviceId, appId)
                 
                 if (trialValid) {
-                    Log.d("LicenseManager", "试用期有效，允许使用")
                     updateStatus(
                         LicenseStatus.TRIAL,
                         message = "试用期有效"
@@ -149,7 +144,6 @@ class LicenseManager @Inject constructor() {
                     }
                 } else {
                     // 只有在试用期也无效时才锁定
-                    Log.w("LicenseManager", "许可证和试用期都无效，锁定功能")
                     updateStatus(
                         LicenseStatus.INVALID,
                         message = "许可证和试用期均已过期，请激活许可证"
@@ -178,32 +172,12 @@ class LicenseManager @Inject constructor() {
      * 安全地检查试用期状态，出错时不影响用户使用
      */
     private suspend fun checkTrialStatusSafely(context: Context, deviceId: String, appId: String): Boolean {
-        val startTime = System.currentTimeMillis()
         return try {
-            Log.d("LicenseManager", "🕐 [${startTime}] 开始安全试用期检查...")
-            
-            val result = withTimeoutOrNull(3000) {
-                val checkStartTime = System.currentTimeMillis()
-                Log.d("LicenseManager", "🕐 [${checkStartTime}] 调用TrialTokenManager.isTrialValid...")
-                
-                val trialResult = TrialTokenManager.isTrialValid(context, deviceId, appId)
-                val checkDuration = System.currentTimeMillis() - checkStartTime
-                
-                Log.d("LicenseManager", "🕐 [${System.currentTimeMillis()}] TrialTokenManager.isTrialValid完成: $trialResult, 耗时: ${checkDuration}ms")
-                trialResult
-            }
-            
-            val totalDuration = System.currentTimeMillis() - startTime
-            if (result != null) {
-                Log.d("LicenseManager", "✅ [${System.currentTimeMillis()}] 安全试用期检查完成: $result, 总耗时: ${totalDuration}ms")
-                result
-            } else {
-                Log.w("LicenseManager", "⏰ [${System.currentTimeMillis()}] 试用期检查超时，默认允许使用, 总耗时: ${totalDuration}ms")
-                true // 超时时默认允许使用
-            }
+            withTimeoutOrNull(3000) {
+                TrialTokenManager.isTrialValid(context, deviceId, appId)
+            } ?: true // 超时时默认允许使用
         } catch (e: Exception) {
-            val totalDuration = System.currentTimeMillis() - startTime
-            Log.e("LicenseManager", "❌ [${System.currentTimeMillis()}] 检查试用期状态失败，默认允许使用, 总耗时: ${totalDuration}ms - ${e.message}")
+            Log.e("LicenseManager", "检查试用期状态失败，默认允许使用: ${e.message}")
             true // 异常时默认允许使用
         }
     }
@@ -212,31 +186,15 @@ class LicenseManager @Inject constructor() {
      * 在后台验证许可证，不阻塞用户使用
      */
     private suspend fun validateLicenseInBackground(licenseKey: String, deviceId: String): Boolean {
-        val startTime = System.currentTimeMillis()
         return try {
-            Log.d("LicenseManager", "🔐 [${startTime}] 开始后台许可证验证...")
-            
-            val result = withTimeoutOrNull(5000) {
-                val validationStartTime = System.currentTimeMillis()
-                Log.d("LicenseManager", "🔐 [${validationStartTime}] 调用LicenseValidator.validateLicense...")
-                
+            withTimeoutOrNull(5000) {
                 val validationResult = LicenseValidator.validateLicense(licenseKey, deviceId)
-                val validationDuration = System.currentTimeMillis() - validationStartTime
-                
-                Log.d("LicenseManager", "🔐 [${System.currentTimeMillis()}] LicenseValidator.validateLicense完成: success=${validationResult.success}, 耗时: ${validationDuration}ms")
                 
                 if (validationResult.success) {
                     // 获取许可证详情
-                    val detailsStartTime = System.currentTimeMillis()
-                    Log.d("LicenseManager", "📝 [${detailsStartTime}] 获取许可证详情...")
-                    
                     val details = LicenseValidator.getLicenseDetails(licenseKey)
-                    val detailsDuration = System.currentTimeMillis() - detailsStartTime
-                    
-                    Log.d("LicenseManager", "📝 [${System.currentTimeMillis()}] 获取许可证详情完成: $details, 耗时: ${detailsDuration}ms")
                     
                     if (details is LicenseDetailsResult.Success) {
-                        val statusUpdateStartTime = System.currentTimeMillis()
                         updateStatus(
                             LicenseStatus.VALID,
                             activationDate = details.activationDate,
@@ -246,31 +204,16 @@ class LicenseManager @Inject constructor() {
                             licensedTo = details.licensedTo,
                             message = "许可证有效"
                         )
-                        val statusUpdateDuration = System.currentTimeMillis() - statusUpdateStartTime
-                        Log.d("LicenseManager", "📊 [${System.currentTimeMillis()}] 许可证状态更新完成, 耗时: ${statusUpdateDuration}ms")
-                        
                         true
                     } else {
-                        Log.w("LicenseManager", "⚠️ [${System.currentTimeMillis()}] 无法获取许可证详情")
                         false
                     }
                 } else {
-                    Log.w("LicenseManager", "⚠️ [${System.currentTimeMillis()}] 许可证验证失败: ${validationResult.message}")
                     false
                 }
-            }
-            
-            val totalDuration = System.currentTimeMillis() - startTime
-            if (result != null) {
-                Log.d("LicenseManager", "✅ [${System.currentTimeMillis()}] 后台许可证验证完成: $result, 总耗时: ${totalDuration}ms")
-                result
-            } else {
-                Log.w("LicenseManager", "⏰ [${System.currentTimeMillis()}] 许可证验证超时, 总耗时: ${totalDuration}ms")
-                false // 超时返回false
-            }
+            } ?: false // 超时返回false
         } catch (e: Exception) {
-            val totalDuration = System.currentTimeMillis() - startTime
-            Log.e("LicenseManager", "❌ [${System.currentTimeMillis()}] 许可证验证异常, 总耗时: ${totalDuration}ms - ${e.message}")
+            Log.e("LicenseManager", "许可证验证异常: ${e.message}")
             false
         }
     }
@@ -304,8 +247,6 @@ class LicenseManager @Inject constructor() {
         // 基于新的LicenseInfo计算资格状态，确保状态同步
         val eligibility = calculateEligibilityStatus(newLicenseInfo)
         _eligibilityInfo.postValue(eligibility)
-        
-        Log.d("LicenseManager", "🔄 [${System.currentTimeMillis()}] 状态更新: LicenseStatus=${status}, EligibilityStatus=${eligibility.status}, isLicensed=${eligibility.isLicensed}")
     }
     
     /**
@@ -393,8 +334,6 @@ class LicenseManager @Inject constructor() {
             val appId = context.packageName
             val remainingDays = TrialTokenManager.getRemainingDays(context, deviceId, appId)
             
-            Log.d("LicenseManager", "🔄 [${System.currentTimeMillis()}] 同步试用期信息: remainingDays=$remainingDays")
-            
             // 强制更新为试用期状态，不依赖当前的source
             val updatedEligibility = EligibilityInfo(
                 status = EligibilityStatus.ELIGIBLE,
@@ -406,9 +345,8 @@ class LicenseManager @Inject constructor() {
             )
             _eligibilityInfo.postValue(updatedEligibility)
             
-            Log.d("LicenseManager", "✅ [${System.currentTimeMillis()}] 试用期状态已同步: status=${updatedEligibility.status}, days=$remainingDays")
         } catch (e: Exception) {
-            Log.e("LicenseManager", "❌ [${System.currentTimeMillis()}] 同步试用期信息失败: ${e.message}")
+            Log.e("LicenseManager", "同步试用期信息失败: ${e.message}")
             
             // 即使同步失败，也要设置一个合理的默认状态
             val defaultEligibility = EligibilityInfo(
@@ -460,108 +398,63 @@ class LicenseManager @Inject constructor() {
      * 新策略：默认允许使用，后台验证，只有明确失败才锁定
      */
     suspend fun forceRevalidateAndSync(context: Context): Boolean {
-        val totalStartTime = System.currentTimeMillis()
         return withContext(Dispatchers.IO) {
             try {
-                Log.d("LicenseManager", "🚀 [${totalStartTime}] 开始强制重新验证和同步所有状态（默认允许使用）")
-                
                 // 设置为检查状态，但保持可用
-                val statusUpdateTime = System.currentTimeMillis()
                 updateStatus(LicenseStatus.VERIFYING, message = "强制验证中，功能可正常使用")
                 updateEligibilityToChecking()
-                Log.d("LicenseManager", "📊 [${System.currentTimeMillis()}] 状态更新完成，耗时: ${System.currentTimeMillis() - statusUpdateTime}ms")
                 
-                val deviceIdStartTime = System.currentTimeMillis()
                 val deviceId = android.provider.Settings.Secure.getString(
                     context.contentResolver,
                     android.provider.Settings.Secure.ANDROID_ID
                 )
                 val appId = context.packageName
-                Log.d("LicenseManager", "📱 [${System.currentTimeMillis()}] 获取设备信息完成，耗时: ${System.currentTimeMillis() - deviceIdStartTime}ms")
                 
                 // 1. 检查本地许可证状态
-                val localCheckStartTime = System.currentTimeMillis()
                 val isLicensedLocally = LicenseDataStore.isLicensed(context).first()
                 val licenseKey = LicenseDataStore.getLicenseKey(context).first()
-                val localCheckDuration = System.currentTimeMillis() - localCheckStartTime
-                
-                Log.d("LicenseManager", "💾 [${System.currentTimeMillis()}] 本地许可证状态检查完成: licensed=$isLicensedLocally, key=${licenseKey.take(8)}..., 耗时: ${localCheckDuration}ms")
                 
                 // 2. 如果有许可证，验证许可证
                 if (isLicensedLocally && licenseKey.isNotEmpty()) {
-                    val licenseValidationStartTime = System.currentTimeMillis()
-                    Log.d("LicenseManager", "🔐 [${licenseValidationStartTime}] 开始许可证验证...")
-                    
                     val licenseValid = validateLicenseInBackground(licenseKey, deviceId)
-                    val licenseValidationDuration = System.currentTimeMillis() - licenseValidationStartTime
-                    
-                    Log.d("LicenseManager", "🔐 [${System.currentTimeMillis()}] 许可证验证完成: $licenseValid, 耗时: ${licenseValidationDuration}ms")
                     
                     if (licenseValid) {
-                        val totalDuration = System.currentTimeMillis() - totalStartTime
-                        Log.d("LicenseManager", "✅ [${System.currentTimeMillis()}] 许可证验证成功，总耗时: ${totalDuration}ms")
                         return@withContext true
-                    } else {
-                        Log.w("LicenseManager", "⚠️ [${System.currentTimeMillis()}] 许可证验证失败，检查试用期")
                     }
                 }
                 
                 // 3. 检查试用期状态
-                val trialCheckStartTime = System.currentTimeMillis()
-                Log.d("LicenseManager", "🕐 [${trialCheckStartTime}] 开始试用期状态检查...")
-                
                 val trialValid = checkTrialStatusSafely(context, deviceId, appId)
-                val trialCheckDuration = System.currentTimeMillis() - trialCheckStartTime
-                Log.d("LicenseManager", "🕐 [${System.currentTimeMillis()}] 试用期状态检查完成: valid=$trialValid, 耗时: ${trialCheckDuration}ms")
-                
-                val trialDaysStartTime = System.currentTimeMillis()
                 val trialDays = if (trialValid) {
                     try {
-                        val days = TrialTokenManager.getRemainingDays(context, deviceId, appId)
-                        val trialDaysDuration = System.currentTimeMillis() - trialDaysStartTime
-                        Log.d("LicenseManager", "📅 [${System.currentTimeMillis()}] 获取试用期天数完成: $days, 耗时: ${trialDaysDuration}ms")
-                        days
+                        TrialTokenManager.getRemainingDays(context, deviceId, appId)
                     } catch (e: Exception) {
-                        val trialDaysDuration = System.currentTimeMillis() - trialDaysStartTime
-                        Log.e("LicenseManager", "❌ [${System.currentTimeMillis()}] 获取试用期天数失败，耗时: ${trialDaysDuration}ms - ${e.message}")
+                        Log.e("LicenseManager", "获取试用期天数失败: ${e.message}")
                         10 // 默认给10天
                     }
                 } else 0
                 
-                Log.d("LicenseManager", "📊 [${System.currentTimeMillis()}] 试用期状态汇总: valid=$trialValid, days=$trialDays")
-                
                 // 4. 根据结果设置最终状态
-                val finalStatusStartTime = System.currentTimeMillis()
                 if (trialValid && trialDays > 0) {
                     // 试用期有效
                     updateStatus(LicenseStatus.TRIAL, message = "试用期有效")
                     syncTrialInfoToEligibility(context)
-                    val finalStatusDuration = System.currentTimeMillis() - finalStatusStartTime
-                    val totalDuration = System.currentTimeMillis() - totalStartTime
-                    Log.d("LicenseManager", "✅ [${System.currentTimeMillis()}] 使用试用期，允许使用，状态更新耗时: ${finalStatusDuration}ms，总耗时: ${totalDuration}ms")
                     return@withContext true
                 } else {
                     // 只有在试用期明确无效且天数为0时才锁定
                     if (!trialValid && trialDays <= 0) {
                         updateStatus(LicenseStatus.INVALID, message = "无有效许可证或试用期")
                         updateEligibilityToIneligible()
-                        val finalStatusDuration = System.currentTimeMillis() - finalStatusStartTime
-                        val totalDuration = System.currentTimeMillis() - totalStartTime
-                        Log.w("LicenseManager", "🔒 [${System.currentTimeMillis()}] 许可证和试用期都明确无效，锁定功能，状态更新耗时: ${finalStatusDuration}ms，总耗时: ${totalDuration}ms")
                         return@withContext false
                     } else {
                         // 其他情况默认允许使用
                         updateStatus(LicenseStatus.TRIAL, message = "默认试用期有效")
-                        val finalStatusDuration = System.currentTimeMillis() - finalStatusStartTime
-                        val totalDuration = System.currentTimeMillis() - totalStartTime
-                        Log.d("LicenseManager", "✅ [${System.currentTimeMillis()}] 状态不确定，默认允许使用，状态更新耗时: ${finalStatusDuration}ms，总耗时: ${totalDuration}ms")
                         return@withContext true
                     }
                 }
                 
             } catch (e: Exception) {
-                val totalDuration = System.currentTimeMillis() - totalStartTime
-                Log.e("LicenseManager", "❌ [${System.currentTimeMillis()}] 强制重新验证失败，但默认允许使用，总耗时: ${totalDuration}ms - ${e.message}", e)
+                Log.e("LicenseManager", "强制重新验证失败，但默认允许使用: ${e.message}", e)
                 updateStatus(LicenseStatus.TRIAL, message = "验证异常，默认允许使用: ${e.message}")
                 return@withContext true
             }
