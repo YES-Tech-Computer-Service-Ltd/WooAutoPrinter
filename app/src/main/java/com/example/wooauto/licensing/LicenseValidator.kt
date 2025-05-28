@@ -33,139 +33,92 @@ sealed class LicenseDetailsResult {
 object LicenseValidator {
     private const val API_URL = "https://yestech.ca/"
 
+    /**
+     * 验证许可证
+     */
     suspend fun validateLicense(licenseKey: String, deviceId: String): LicenseValidationResult = withContext(Dispatchers.IO) {
         try {
-            val parameters = mapOf(
-                "fslm_v2_api_request" to "verify",
-                "fslm_api_key" to BuildConfig.LICENSE_API_KEY,
-                "license_key" to licenseKey,
-                "device_id" to deviceId
+            val response = makeApiRequest(
+                endpoint = "validate",
+                data = mapOf(
+                    "license_key" to licenseKey,
+                    "device_id" to deviceId,
+                    "app_id" to "wooauto_app"
+                )
             )
-            Log.d("LicenseValidator", "Sending validate request: licenseKey=$licenseKey, deviceId=$deviceId")
-            Log.d("LicenseValidator", "API Key: ${BuildConfig.LICENSE_API_KEY}")
-            Log.d("LicenseValidator", "API URL: $API_URL")
-            
-            val startTime = System.currentTimeMillis()
-            val response = performPostRequest(parameters)
-            val duration = System.currentTimeMillis() - startTime
-            Log.d("LicenseValidator", "Validate response: $response")
 
-            if (response.isBlank()) {
-                Log.e("LicenseValidator", "Empty response from server")
-                return@withContext LicenseValidationResult(false, "Empty response from server")
-            }
+            val jsonResponse = JSONObject(response)
+            val success = jsonResponse.getBoolean("success")
+            val message = jsonResponse.optString("message", "未知错误")
 
-            if (!isJsonValid(response)) {
-                Log.e("LicenseValidator", "Response is not valid JSON: $response")
-                return@withContext LicenseValidationResult(false, "Invalid response: not a valid JSON")
-            }
-
-            val json = JSONObject(response)
-            if (!json.has("result")) {
-                Log.e("LicenseValidator", "Response missing 'result' field: $response")
-                return@withContext LicenseValidationResult(false, "Invalid response: missing 'result' field")
-            }
-
-            val result = json.getString("result")
-            val message = json.optString("message", "No message provided")
-            val success = result == "success"
-
-            Log.d("LicenseValidator", "Validation result: success=$success, message=$message")
             LicenseValidationResult(success, message)
         } catch (e: Exception) {
-            LicenseValidationResult(false, "Network error: ${e.message}")
+            Log.e("LicenseValidator", "验证许可证时发生错误: ${e.message}", e)
+            LicenseValidationResult(false, "网络错误: ${e.message}")
         }
     }
 
+    /**
+     * 激活许可证
+     */
     suspend fun activateLicense(licenseKey: String, deviceId: String): LicenseValidationResult = withContext(Dispatchers.IO) {
         try {
-            val parameters = mapOf(
-                "fslm_v2_api_request" to "activate",
-                "fslm_api_key" to BuildConfig.LICENSE_API_KEY,
-                "license_key" to licenseKey,
-                "device_id" to deviceId
+            val response = makeApiRequest(
+                endpoint = "activate",
+                data = mapOf(
+                    "license_key" to licenseKey,
+                    "device_id" to deviceId,
+                    "app_id" to "wooauto_app"
+                )
             )
-            Log.d("LicenseValidator", "Sending activate request: licenseKey=$licenseKey, deviceId=$deviceId")
-            Log.d("LicenseValidator", "API Key: ${BuildConfig.LICENSE_API_KEY}")
-            Log.d("LicenseValidator", "API URL: $API_URL")
-            val response = performPostRequest(parameters)
-            Log.d("LicenseValidator", "Activate response: $response")
 
-            if (response.isBlank()) {
-                Log.e("LicenseValidator", "Empty response from server")
-                return@withContext LicenseValidationResult(false, "Empty response from server")
-            }
-
-            if (!isJsonValid(response)) {
-                Log.e("LicenseValidator", "Response is not valid JSON: $response")
-                return@withContext LicenseValidationResult(false, "Invalid response: not a valid JSON")
-            }
-
-            val json = JSONObject(response)
-            if (!json.has("result")) {
-                Log.e("LicenseValidator", "Response missing 'result' field: $response")
-                return@withContext LicenseValidationResult(false, "Invalid response: missing 'result' field")
-            }
-
-            val result = json.getString("result")
-            val message = json.optString("message", "No message provided")
-            val success = result == "success"
+            val jsonResponse = JSONObject(response)
+            val success = jsonResponse.getBoolean("success")
+            val message = jsonResponse.optString("message", "激活失败")
 
             LicenseValidationResult(success, message)
         } catch (e: Exception) {
-            Log.e("LicenseValidator", "Activation error: ${e.message}", e)
-            LicenseValidationResult(false, "Network error: ${e.message}")
+            Log.e("LicenseValidator", "激活许可证时发生错误: ${e.message}", e)
+            LicenseValidationResult(false, "网络错误: ${e.message}")
         }
     }
 
+    /**
+     * 获取许可证详情
+     */
     suspend fun getLicenseDetails(licenseKey: String): LicenseDetailsResult = withContext(Dispatchers.IO) {
         try {
-            val parameters = mapOf(
-                "fslm_v2_api_request" to "details",
-                "fslm_api_key" to BuildConfig.LICENSE_API_KEY,
-                "license_key" to licenseKey
+            val response = makeApiRequest(
+                endpoint = "details",
+                data = mapOf(
+                    "license_key" to licenseKey,
+                    "app_id" to "wooauto_app"
+                )
             )
-            Log.d("LicenseValidator", "Sending details request: licenseKey=$licenseKey")
-            val response = performPostRequest(parameters)
-            Log.d("LicenseValidator", "Details response: $response")
 
-            if (response.isBlank()) {
-                Log.e("LicenseValidator", "Empty response from server")
-                return@withContext LicenseDetailsResult.Error("Empty response from server")
-            }
-
-            if (!isJsonValid(response)) {
-                Log.e("LicenseValidator", "Response is not valid JSON: $response")
-                return@withContext LicenseDetailsResult.Error("Invalid response: not a valid JSON")
-            }
-
-            val json = JSONObject(response)
-            if (!json.has("license_status")) {
-                Log.e("LicenseValidator", "Response missing 'license_status' field: $response")
-                return@withContext LicenseDetailsResult.Error("Invalid response: missing 'license_status' field")
-            }
-
-            val status = json.getString("license_status")
-            if (status.equals("Active", ignoreCase = true)) {
-                val activationDate = json.optString("activation_date", "")
-                val validityStr = json.optString("valid", "3")
-                val validity = validityStr.toIntOrNull() ?: 3
-                val edition = json.optString("license_edition", "Spire")
-                val capabilities = json.optString("capabilities", "cap1, cap2")
-                val licensedTo = json.optString("licensed_to", "MockCustomer")
-                LicenseDetailsResult.Success(activationDate, validity, edition, capabilities, licensedTo)
+            val jsonResponse = JSONObject(response)
+            
+            if (jsonResponse.getBoolean("success")) {
+                val details = jsonResponse.getJSONObject("details")
+                LicenseDetailsResult.Success(
+                    activationDate = details.getString("activation_date"),
+                    validity = details.getInt("validity"),
+                    edition = details.optString("edition", "Standard"),
+                    capabilities = details.optString("capabilities", ""),
+                    licensedTo = details.optString("licensed_to", "未知用户")
+                )
             } else {
-                val message = "License status: $status"
+                val message = jsonResponse.optString("message", "获取详情失败")
                 LicenseDetailsResult.Error(message)
             }
         } catch (e: Exception) {
-            Log.e("LicenseValidator", "Details error: ${e.message}", e)
-            LicenseDetailsResult.Error("Network error: ${e.message}")
+            Log.e("LicenseValidator", "获取许可证详情时发生错误: ${e.message}", e)
+            LicenseDetailsResult.Error("网络错误: ${e.message}")
         }
     }
 
-    private suspend fun performPostRequest(parameters: Map<String, String>): String = withContext(Dispatchers.IO) {
-        val url = URL(API_URL)
+    private suspend fun makeApiRequest(endpoint: String, data: Map<String, String>): String = withContext(Dispatchers.IO) {
+        val url = URL(API_URL + endpoint)
         val conn = url.openConnection() as HttpURLConnection
         conn.requestMethod = "POST"
         conn.setRequestProperty("User-Agent", System.getProperty("http.agent") ?: "Android")
@@ -174,7 +127,7 @@ object LicenseValidator {
         conn.connectTimeout = 10000
         conn.readTimeout = 10000
 
-        val postData = parameters.map { (key, value) ->
+        val postData = data.map { (key, value) ->
             "$key=${URLEncoder.encode(value, StandardCharsets.UTF_8.name())}"
         }.joinToString("&")
         Log.d("LicenseValidator", "Post data: $postData")
@@ -205,14 +158,5 @@ object LicenseValidator {
 
         conn.disconnect()
         response
-    }
-
-    private fun isJsonValid(jsonString: String): Boolean {
-        return try {
-            JSONObject(jsonString)
-            true
-        } catch (e: Exception) {
-            false
-        }
     }
 }
