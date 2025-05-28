@@ -149,16 +149,16 @@ class SoundManager @Inject constructor(
     private fun loadSettings() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                Log.d(TAG, "[声音设置加载] 开始从存储加载声音配置...")
+                Log.d(TAG, "🔄 [声音设置加载] 开始从存储加载声音配置...")
                 val settings = settingsRepository.getSoundSettings()
                 _currentVolume.value = settings.notificationVolume
                 _currentSoundType.value = settings.soundType
                 _soundEnabled.value = settings.soundEnabled
                 _customSoundUri.value = settings.customSoundUri
                 
-                Log.d(TAG, "[声音设置加载] 已加载声音设置: 音量=${settings.notificationVolume}, 类型=${settings.soundType}, 启用=${settings.soundEnabled}, 自定义声音=${settings.customSoundUri}")
+                Log.d(TAG, "🔄 [声音设置加载] 已加载声音设置: 音量=${settings.notificationVolume}, 类型=${settings.soundType}, 启用=${settings.soundEnabled}, 自定义声音=${settings.customSoundUri}")
             } catch (e: Exception) {
-                Log.e(TAG, "[声音设置加载] 加载声音设置失败", e)
+                Log.e(TAG, "🔄 [声音设置加载] 加载声音设置失败", e)
             }
         }
     }
@@ -196,7 +196,7 @@ class SoundManager @Inject constructor(
         saveSettings()
         
         // 播放测试音效，让用户直接听到音量效果
-        Log.d(TAG, "[音效播放] 原因: 设置音量测试 - 新音量: $safeVolume, 声音类型: ${_currentSoundType.value}")
+        Log.d(TAG, "🔊 [音效播放] 原因: 设置音量测试 - 新音量: $safeVolume, 声音类型: ${_currentSoundType.value}")
         playSound(_currentSoundType.value)
     }
     
@@ -213,7 +213,7 @@ class SoundManager @Inject constructor(
             saveSettings()
             
             // 播放测试音效，让用户直接听到选择的音效
-            Log.d(TAG, "[音效播放] 原因: 设置声音类型测试 - 新类型: $type")
+            Log.d(TAG, "🔊 [音效播放] 原因: 设置声音类型测试 - 新类型: $type")
             playSound(type)
         }
     }
@@ -228,10 +228,8 @@ class SoundManager @Inject constructor(
         
         // 如果启用声音，播放一个测试音效
         if (enabled) {
-            Log.d(TAG, "[音效播放] 原因: 启用声音设置测试 - 声音类型: ${_currentSoundType.value}")
+            Log.d(TAG, "🔊 [音效播放] 原因: 启用声音功能测试 - 声音类型: ${_currentSoundType.value}")
             playSound(_currentSoundType.value)
-        } else {
-            Log.d(TAG, "[音效设置] 声音已禁用，不播放测试音效")
         }
     }
     
@@ -245,6 +243,7 @@ class SoundManager @Inject constructor(
         
         // 如果当前声音类型是自定义，那么播放测试音效
         if (_currentSoundType.value == SoundSettings.SOUND_TYPE_CUSTOM) {
+            Log.d(TAG, "🔊 [音效播放] 原因: 设置自定义声音测试 - URI: ${uri.take(50)}...")
             playSound(_currentSoundType.value)
         }
     }
@@ -256,11 +255,21 @@ class SoundManager @Inject constructor(
         synchronized(notificationLock) {
             val currentTime = System.currentTimeMillis()
             
+            // 记录调用来源
+            val stackTrace = Thread.currentThread().stackTrace
+            val caller = if (stackTrace.size > 3) {
+                "${stackTrace[3].className}.${stackTrace[3].methodName}:${stackTrace[3].lineNumber}"
+            } else {
+                "未知调用者"
+            }
+            
+            Log.d(TAG, "🔊 [音效播放] 原因: 订单通知 - 调用者: $caller, 声音类型: ${_currentSoundType.value}")
+            
             // 检查是否在短时间内连续播放
             if (currentTime - lastPlayTime < MIN_PLAY_INTERVAL) {
                 // 仅增加待处理通知计数，不立即播放
                 pendingNotifications++
-                Log.d(TAG, "[音效播放] 检测到短时间内连续通知，延迟播放，当前待处理通知: $pendingNotifications")
+                Log.d(TAG, "🔊 [音效延迟] 检测到短时间内连续通知，延迟播放，当前待处理通知: $pendingNotifications, 调用者: $caller")
                 
                 // 如果是第一个待处理通知，启动延迟处理
                 if (pendingNotifications == 1) {
@@ -276,10 +285,8 @@ class SoundManager @Inject constructor(
             lastPlayTime = currentTime
             pendingNotifications = 0
             
-            Log.d(TAG, "[音效播放] 原因: 订单通知 - 声音类型: ${_currentSoundType.value}")
             // 直接使用playSound方法确保声音类型一致性
             playSound(_currentSoundType.value)
-            Log.d(TAG, "播放订单通知声音: 类型=${_currentSoundType.value}")
         }
     }
     
@@ -289,7 +296,7 @@ class SoundManager @Inject constructor(
     private fun processPendingNotifications() {
         synchronized(notificationLock) {
             if (pendingNotifications > 0) {
-                Log.d(TAG, "[音效播放] 原因: 批量通知处理 - 处理 $pendingNotifications 个通知，声音类型: ${_currentSoundType.value}")
+                Log.d(TAG, "🔊 [音效播放] 原因: 处理批量通知 - 待处理通知数: $pendingNotifications, 声音类型: ${_currentSoundType.value}")
                 // 无论多少个通知，只播放一次声音
                 playSound(_currentSoundType.value)
                 pendingNotifications = 0
@@ -304,11 +311,25 @@ class SoundManager @Inject constructor(
      */
     fun playSound(type: String) {
         if (!_soundEnabled.value) {
-            Log.d(TAG, "[音效播放] 声音已禁用，不播放提示音")
+            Log.d(TAG, "🔇 [音效跳过] 声音已禁用，不播放提示音 - 类型: $type")
             return
         }
 
-        Log.d(TAG, "[音效播放] 开始播放声音 - 类型: $type, 音量: ${_currentVolume.value}%")
+        // 记录详细的调用信息
+        val stackTrace = Thread.currentThread().stackTrace
+        val caller = if (stackTrace.size > 3) {
+            "${stackTrace[3].className}.${stackTrace[3].methodName}:${stackTrace[3].lineNumber}"
+        } else {
+            "未知调用者"
+        }
+        
+        val caller2 = if (stackTrace.size > 4) {
+            "${stackTrace[4].className}.${stackTrace[4].methodName}:${stackTrace[4].lineNumber}"
+        } else {
+            "无更深层调用者"
+        }
+
+        Log.d(TAG, "🔊 [音效播放] 开始播放 - 类型: $type, 音量: ${_currentVolume.value}%, 直接调用者: $caller, 上层调用者: $caller2")
 
         // 如果已经有声音在播放，先停止
         stopCurrentSound()
@@ -317,25 +338,25 @@ class SoundManager @Inject constructor(
             // 根据声音类型使用不同的系统声音ID或URI
             when(type) {
                 SoundSettings.SOUND_TYPE_ALARM -> {
-                    Log.d(TAG, "[系统音效] 播放系统闹钟声音")
+                    Log.d(TAG, "🔊 [音效类型] 使用系统闹钟声音")
                     // 使用系统闹钟声音
                     playSystemSound(RingtoneManager.TYPE_ALARM)
                 }
                 
                 SoundSettings.SOUND_TYPE_RINGTONE -> {
-                    Log.d(TAG, "[系统音效] 播放系统铃声")
+                    Log.d(TAG, "🔊 [音效类型] 使用系统铃声")
                     // 使用系统铃声
                     playSystemSound(RingtoneManager.TYPE_RINGTONE)
                 }
                 
                 SoundSettings.SOUND_TYPE_DEFAULT -> {
-                    Log.d(TAG, "[系统音效] 播放默认通知声音")
+                    Log.d(TAG, "🔊 [音效类型] 使用默认通知声音")
                     // 默认通知声音
                     playSystemSound(RingtoneManager.TYPE_NOTIFICATION)
                 }
                 
                 SoundSettings.SOUND_TYPE_EVENT -> {
-                    Log.d(TAG, "[系统音效] 播放事件声音")
+                    Log.d(TAG, "🔊 [音效类型] 使用系统事件声音")
                     // 尝试使用系统事件声音，安卓原生没有这个类型，我们使用特定URI
                     try {
                         val uri = Settings.System.DEFAULT_NOTIFICATION_URI
@@ -347,7 +368,7 @@ class SoundManager @Inject constructor(
                 }
                 
                 SoundSettings.SOUND_TYPE_EMAIL -> {
-                    Log.d(TAG, "[系统音效] 播放邮件声音")
+                    Log.d(TAG, "🔊 [音效类型] 使用邮件声音")
                     // 尝试使用邮件声音，安卓原生没有这个类型，我们使用特定URI
                     try {
                         // 在不同Android版本上尝试不同的声音
@@ -381,45 +402,45 @@ class SoundManager @Inject constructor(
                         // 如果没有找到额外的铃声，使用默认通知声音
                         playSystemSound(RingtoneManager.TYPE_NOTIFICATION)
                     } catch (e: Exception) {
-                        Log.e(TAG, "[系统音效] 播放邮件声音失败: ${e.message}")
+                        Log.e(TAG, "播放邮件声音失败: ${e.message}")
                         // 备用声音
                         playSystemSound(RingtoneManager.TYPE_NOTIFICATION)
                     }
                 }
                 
                 SoundSettings.SOUND_TYPE_CUSTOM -> {
-                    Log.d(TAG, "[自定义音效] 播放自定义声音")
+                    Log.d(TAG, "🔊 [音效类型] 使用自定义声音文件")
                     // 播放自定义音频文件
                     if (_customSoundUri.value.isNotEmpty()) {
                         try {
                             // 直接使用保存的文件路径
                             val filePath = _customSoundUri.value
                             playCustomSound(filePath)
-                            Log.d(TAG, "[自定义音效] 播放自定义声音: $filePath")
+                            Log.d(TAG, "播放自定义声音: $filePath")
                         } catch (e: Exception) {
-                            Log.e(TAG, "[自定义音效] 播放自定义声音失败: ${e.message}", e)
+                            Log.e(TAG, "播放自定义声音失败: ${e.message}", e)
                             // 失败时使用默认声音
                             playSystemSound(RingtoneManager.TYPE_NOTIFICATION)
                         }
                     } else {
-                        Log.d(TAG, "[自定义音效] 自定义声音URI为空，使用默认声音")
+                        Log.d(TAG, "自定义声音URI为空，使用默认声音")
                         playSystemSound(RingtoneManager.TYPE_NOTIFICATION)
                     }
                 }
                 
                 else -> {
-                    Log.d(TAG, "[系统音效] 未知类型，使用默认通知声音")
+                    Log.d(TAG, "🔊 [音效类型] 未知类型，使用默认通知声音")
                     // 未知类型使用默认通知声音
                     playSystemSound(RingtoneManager.TYPE_NOTIFICATION)
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "[音效播放] 播放声音失败: ${e.message}", e)
+            Log.e(TAG, "🔊 [音效错误] 播放声音失败: ${e.message}, 类型: $type, 调用者: $caller", e)
             try {
                 // 兜底使用默认通知声音
                 playSystemSound(RingtoneManager.TYPE_NOTIFICATION)
             } catch (e: Exception) {
-                Log.e(TAG, "[音效播放] 播放备用声音也失败: ${e.message}", e)
+                Log.e(TAG, "🔊 [音效错误] 播放备用声音也失败: ${e.message}", e)
             }
         }
     }
@@ -430,13 +451,13 @@ class SoundManager @Inject constructor(
      */
     private fun playSystemSound(ringtoneType: Int) {
         try {
-            Log.d(TAG, "[系统音效] 开始播放系统声音 - 类型: $ringtoneType, 音量: ${_currentVolume.value}%")
+            Log.d(TAG, "🔊 [系统音效] 开始播放系统声音 - 类型: $ringtoneType, 音量: ${_currentVolume.value}%")
             
             // 停止之前的声音
             stopCurrentSound()
             
             val notificationUri = RingtoneManager.getDefaultUri(ringtoneType)
-            Log.d(TAG, "[系统音效] 获取到系统声音URI: $notificationUri")
+            Log.d(TAG, "🔊 [系统音效] 获取到系统声音URI: $notificationUri")
             
             ringtonePlayer = RingtoneManager.getRingtone(context, notificationUri)
             
@@ -445,37 +466,39 @@ class SoundManager @Inject constructor(
                 try {
                     val volume = _currentVolume.value / 100f
                     ringtonePlayer?.volume = volume
-                    Log.d(TAG, "[系统音效] 成功设置系统声音音量: $volume")
+                    Log.d(TAG, "🔊 [系统音效] 成功设置音量: $volume")
                 } catch (e: Exception) {
-                    Log.w(TAG, "[系统音效] 设置系统声音音量失败: ${e.message}")
+                    Log.w(TAG, "🔊 [系统音效] 设置系统声音音量失败: ${e.message}")
                 }
             }
             
             ringtonePlayer?.play()
             testSoundPlaying = true
-            Log.d(TAG, "[系统音效] 系统声音播放开始: 类型=$ringtoneType")
+            Log.d(TAG, "🔊 [系统音效] 系统声音播放开始成功 - 类型: $ringtoneType")
             
             // 添加自动停止计时器，防止声音一直循环播放
             CoroutineScope(Dispatchers.Main).launch {
                 delay(5000) // 5秒后自动停止
                 stopCurrentSound()
+                Log.d(TAG, "🔊 [系统音效] 系统声音5秒后自动停止")
             }
         } catch (e: Exception) {
-            Log.e(TAG, "[系统音效] 播放系统声音失败", e)
+            Log.e(TAG, "🔊 [系统音效错误] 播放系统声音失败 - 类型: $ringtoneType", e)
             // 回退到最基本的系统通知声音
             try {
                 val fallbackUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
                 ringtonePlayer = RingtoneManager.getRingtone(context, fallbackUri)
                 ringtonePlayer?.play()
-                Log.d(TAG, "[系统音效] 使用备用系统通知声音")
+                Log.d(TAG, "🔊 [系统音效] 使用备用通知声音播放成功")
                 
                 // 同样添加自动停止
                 CoroutineScope(Dispatchers.Main).launch {
                     delay(5000) // 5秒后自动停止
                     stopCurrentSound()
+                    Log.d(TAG, "🔊 [系统音效] 备用声音5秒后自动停止")
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "[系统音效] 播放备用系统声音也失败", e)
+                Log.e(TAG, "🔊 [系统音效错误] 播放备用系统声音也失败", e)
             }
         }
     }
@@ -485,7 +508,7 @@ class SoundManager @Inject constructor(
      */
     private fun playSpecificSound(uri: Uri) {
         try {
-            Log.d(TAG, "[特定音效] 开始播放特定URI声音: $uri, 音量: ${_currentVolume.value}%")
+            Log.d(TAG, "🔊 [特定URI音效] 开始播放特定URI声音: $uri, 音量: ${_currentVolume.value}%")
             
             // 停止之前的声音
             stopCurrentSound()
@@ -497,23 +520,24 @@ class SoundManager @Inject constructor(
                 try {
                     val volume = _currentVolume.value / 100f
                     ringtonePlayer?.volume = volume
-                    Log.d(TAG, "[特定音效] 成功设置特定声音音量: $volume")
+                    Log.d(TAG, "🔊 [特定URI音效] 成功设置音量: $volume")
                 } catch (e: Exception) {
-                    Log.w(TAG, "[特定音效] 设置声音音量失败: ${e.message}")
+                    Log.w(TAG, "🔊 [特定URI音效] 设置声音音量失败: ${e.message}")
                 }
             }
             
             ringtonePlayer?.play()
             testSoundPlaying = true
-            Log.d(TAG, "[特定音效] 特定URI声音播放开始: $uri")
+            Log.d(TAG, "🔊 [特定URI音效] 特定URI声音播放开始成功: $uri")
             
             // 添加自动停止计时器，防止声音一直循环播放
             CoroutineScope(Dispatchers.Main).launch {
                 delay(5000) // 5秒后自动停止
                 stopCurrentSound()
+                Log.d(TAG, "🔊 [特定URI音效] 特定URI声音5秒后自动停止")
             }
         } catch (e: Exception) {
-            Log.e(TAG, "[特定音效] 播放特定URI声音失败: ${e.message}", e)
+            Log.e(TAG, "🔊 [特定URI音效错误] 播放特定URI声音失败: $uri", e)
             // 播放备用声音
             playSystemSound(RingtoneManager.TYPE_NOTIFICATION)
         }
@@ -524,7 +548,7 @@ class SoundManager @Inject constructor(
      */
     private fun playCustomSound(filePath: String) {
         try {
-            Log.d(TAG, "[自定义音效] 开始播放自定义声音文件: $filePath, 音量: ${_currentVolume.value}%")
+            Log.d(TAG, "🔊 [自定义音效] 开始播放自定义声音文件: ${filePath.take(50)}..., 音量: ${_currentVolume.value}%")
             
             // 先停止当前声音
             stopCurrentSound()
@@ -545,16 +569,17 @@ class SoundManager @Inject constructor(
                 prepare()
                 start()
                 
+                Log.d(TAG, "🔊 [自定义音效] 自定义声音文件播放开始成功: ${filePath.take(50)}...")
+                
                 // 播放完成后释放资源
                 setOnCompletionListener {
                     it.release()
                     mediaPlayer = null
-                    Log.d(TAG, "[自定义音效] 自定义声音播放完成，已释放资源")
+                    Log.d(TAG, "🔊 [自定义音效] 自定义声音播放完成，资源已释放")
                 }
             }
             
             testSoundPlaying = true
-            Log.d(TAG, "[自定义音效] 自定义声音文件播放开始: $filePath")
             
             // 添加自动停止计时器，防止声音一直循环播放
             CoroutineScope(Dispatchers.Main).launch {
@@ -562,10 +587,10 @@ class SoundManager @Inject constructor(
                 mediaPlayer?.release()
                 mediaPlayer = null
                 testSoundPlaying = false
-                Log.d(TAG, "[自定义音效] 自定义声音自动停止")
+                Log.d(TAG, "🔊 [自定义音效] 自定义声音5秒后自动停止")
             }
         } catch (e: Exception) {
-            Log.e(TAG, "[自定义音效] 播放自定义声音文件失败: ${e.message}", e)
+            Log.e(TAG, "🔊 [自定义音效错误] 播放自定义声音文件失败: ${filePath.take(50)}...", e)
             // 播放备用声音
             playSystemSound(RingtoneManager.TYPE_NOTIFICATION)
         }
@@ -574,8 +599,12 @@ class SoundManager @Inject constructor(
     /**
      * 停止当前正在播放的声音
      */
-    private fun stopCurrentSound() {
+    fun stopCurrentSound() {
         try {
+            if (ringtonePlayer != null || mediaPlayer != null || testSoundPlaying) {
+                Log.d(TAG, "🔇 [停止音效] 停止当前播放的声音")
+            }
+            
             ringtonePlayer?.stop()
             ringtonePlayer = null
             
@@ -586,7 +615,7 @@ class SoundManager @Inject constructor(
             
             testSoundPlaying = false
         } catch (e: Exception) {
-            Log.e(TAG, "停止声音失败", e)
+            Log.e(TAG, "🔇 [停止音效错误] 停止声音失败", e)
         }
     }
     

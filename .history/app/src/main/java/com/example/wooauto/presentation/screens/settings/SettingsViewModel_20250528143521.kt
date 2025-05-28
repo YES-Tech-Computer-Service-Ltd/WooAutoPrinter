@@ -1370,14 +1370,14 @@ class SettingsViewModel @Inject constructor(
     fun refreshSoundSettings() {
         viewModelScope.launch {
             try {
-                Log.d(TAG, "[声音设置刷新] 开始刷新声音设置...")
+                Log.d(TAG, "🔄 [声音设置刷新] 开始刷新声音设置...")
                 val soundSettings = settingsRepository.getSoundSettings()
                 _soundVolume.value = soundSettings.notificationVolume
                 _soundType.value = soundSettings.soundType
                 _soundEnabled.value = soundSettings.soundEnabled
-                Log.d(TAG, "[声音设置刷新] 刷新声音设置成功: 音量=${soundSettings.notificationVolume}, 类型=${soundSettings.soundType}, 启用=${soundSettings.soundEnabled}")
+                Log.d(TAG, "🔄 [声音设置刷新] 刷新声音设置成功: 音量=${soundSettings.notificationVolume}, 类型=${soundSettings.soundType}, 启用=${soundSettings.soundEnabled}")
             } catch (e: Exception) {
-                Log.e(TAG, "[声音设置刷新] 刷新声音设置失败", e)
+                Log.e(TAG, "🔄 [声音设置刷新] 刷新声音设置失败", e)
             }
         }
     }

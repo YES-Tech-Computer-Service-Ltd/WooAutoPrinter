@@ -149,16 +149,15 @@ class SoundManager @Inject constructor(
     private fun loadSettings() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                Log.d(TAG, "[声音设置加载] 开始从存储加载声音配置...")
                 val settings = settingsRepository.getSoundSettings()
                 _currentVolume.value = settings.notificationVolume
                 _currentSoundType.value = settings.soundType
                 _soundEnabled.value = settings.soundEnabled
                 _customSoundUri.value = settings.customSoundUri
                 
-                Log.d(TAG, "[声音设置加载] 已加载声音设置: 音量=${settings.notificationVolume}, 类型=${settings.soundType}, 启用=${settings.soundEnabled}, 自定义声音=${settings.customSoundUri}")
+                Log.d(TAG, "已加载声音设置: 音量=${settings.notificationVolume}, 类型=${settings.soundType}, 启用=${settings.soundEnabled}, 自定义声音=${settings.customSoundUri}")
             } catch (e: Exception) {
-                Log.e(TAG, "[声音设置加载] 加载声音设置失败", e)
+                Log.e(TAG, "加载声音设置失败", e)
             }
         }
     }

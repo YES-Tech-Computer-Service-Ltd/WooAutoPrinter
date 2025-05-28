@@ -148,10 +148,10 @@ class SoundSettingsViewModel @Inject constructor(
      */
     fun playTestSound() {
         if (_soundEnabled.value) {
-            Log.d(TAG, "[ViewModel测试音效] 用户手动播放测试音效 - 声音类型: ${_soundType.value}, 音量: ${_notificationVolume.value}")
+            Log.d(TAG, "🔊 [ViewModel测试音效] 用户手动播放测试音效 - 声音类型: ${_soundType.value}, 音量: ${_notificationVolume.value}")
             soundManager.playSound(_soundType.value)
         } else {
-            Log.d(TAG, "[ViewModel测试音效] 声音已禁用，不播放测试音效")
+            Log.d(TAG, "🔇 [ViewModel测试音效] 声音已禁用，不播放测试音效")
         }
     }
     
