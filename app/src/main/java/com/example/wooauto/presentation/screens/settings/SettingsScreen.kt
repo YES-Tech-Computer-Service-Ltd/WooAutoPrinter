@@ -55,17 +55,6 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.example.wooauto.presentation.screens.settings.PrinterSettings.PrinterSettingsDialogContent
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Button
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
-import com.example.wooauto.presentation.screens.settings.StoreSettingsDialogContent
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -85,7 +74,6 @@ fun SettingsScreen(
     val defaultTemplateType by viewModel.defaultTemplateType.collectAsState()
     
     // 预先获取需要用到的字符串资源
-    val featureComingSoonText = stringResource(R.string.feature_coming_soon)
     val licenseRequiredMessage = stringResource(R.string.license_required_message)
     
     // 许可证状态检查 - 使用统一的权限检查逻辑
@@ -100,7 +88,6 @@ fun SettingsScreen(
     val currentLocale by viewModel.currentLocale.collectAsState(initial = Locale.getDefault())
     
     // 获取统一的资格状态 - 使用新的资格检查系统
-    val licenseStatus = viewModel.licenseStatusText.collectAsState().value
     val hasEligibility = licenseManager.hasEligibility
 
     // 各种对话框状态
