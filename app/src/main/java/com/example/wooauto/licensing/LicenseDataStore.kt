@@ -182,4 +182,22 @@ object LicenseDataStore {
             return ""
         }
     }
+
+    /**
+     * 解析日期字符串为Date对象
+     */
+    fun parseDateString(dateStr: String): java.util.Date {
+        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+        sdf.timeZone = TimeZone.getDefault()
+        val date = sdf.parse(dateStr) ?: throw IllegalArgumentException("Invalid date format: $dateStr")
+        
+        // 设置为当天的23:59:59，确保许可证在到期日当天仍然有效
+        val calendar = Calendar.getInstance(TimeZone.getDefault())
+        calendar.time = date
+        calendar.set(Calendar.HOUR_OF_DAY, 23)
+        calendar.set(Calendar.MINUTE, 59)
+        calendar.set(Calendar.SECOND, 59)
+        
+        return calendar.time
+    }
 }
