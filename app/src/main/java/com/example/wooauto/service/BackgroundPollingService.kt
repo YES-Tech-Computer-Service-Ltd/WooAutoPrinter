@@ -28,6 +28,8 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.util.*
 import javax.inject.Inject
 import kotlin.collections.HashSet
@@ -72,6 +74,7 @@ class BackgroundPollingService : Service() {
     // 使用IO调度器创建协程作用域，减少主线程负担
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var pollingJob: Job? = null
+    private var intervalMonitorJob: Job? = null // 独立的间隔监听任务
     private var latestPolledDate: Date? = null
     
     // 使用LRU方式管理处理过的订单ID，减少内存占用
@@ -81,6 +84,10 @@ class BackgroundPollingService : Service() {
     private var currentPollingInterval = DEFAULT_POLLING_INTERVAL
     private var isAppInForeground = false // 追踪应用是否在前台
     private var initialPollingComplete = false // 标记初始快速轮询是否完成
+    
+    // 并发控制
+    private val restartMutex = Mutex() // 防止重复重启轮询
+    private var isPollingActive = false // 轮询状态标记
     
     // 定义一个在前台时使用较短轮询间隔的倍数因子
     private val FOREGROUND_INTERVAL_FACTOR = 0.5f // 前台时轮询间隔是后台的一半
@@ -176,30 +183,32 @@ class BackgroundPollingService : Service() {
      * 根据应用是否在前台调整轮询间隔
      */
     private fun adjustPollingInterval() {
-        // 获取当前保存的轮询间隔设置
-        var baseInterval = DEFAULT_POLLING_INTERVAL
-        
-        // 尝试安全地获取Flow的当前值
         serviceScope.launch {
             try {
-                baseInterval = wooCommerceConfig.pollingInterval.first()
+                // 安全地获取基础轮询间隔
+                val baseInterval = withTimeoutOrNull(3000) {
+                    wooCommerceConfig.pollingInterval.first()
+                } ?: DEFAULT_POLLING_INTERVAL
+                
+                val newInterval = if (isAppInForeground) {
+                    // 前台使用较短的间隔
+                    (baseInterval * FOREGROUND_INTERVAL_FACTOR).toInt().coerceAtLeast(MIN_POLLING_INTERVAL)
+                } else {
+                    // 后台使用正常间隔
+                    baseInterval
+                }
+                
+                if (newInterval != currentPollingInterval) {
+                    Log.d(TAG, "调整轮询间隔: ${currentPollingInterval}秒 -> ${newInterval}秒 (前台状态: $isAppInForeground)")
+                    currentPollingInterval = newInterval
+                    
+                    // 使用互斥锁重启轮询以应用新间隔
+                    restartPolling()
+                }
             } catch (e: Exception) {
-                Log.e(TAG, "获取轮询间隔失败，使用默认值: $DEFAULT_POLLING_INTERVAL")
+                Log.e(TAG, "调整轮询间隔失败: ${e.message}", e)
             }
         }
-        
-        currentPollingInterval = if (isAppInForeground) {
-            // 前台使用较短的间隔
-            (baseInterval * FOREGROUND_INTERVAL_FACTOR).toInt().coerceAtLeast(MIN_POLLING_INTERVAL)
-        } else {
-            // 后台使用正常间隔
-            baseInterval
-        }
-        
-        Log.d(TAG, "调整轮询间隔: ${currentPollingInterval}秒 (前台状态: $isAppInForeground)")
-        
-        // 重启轮询以应用新间隔
-        restartPolling()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -220,8 +229,19 @@ class BackgroundPollingService : Service() {
     }
 
     override fun onDestroy() {
+        Log.d(TAG, "【服务销毁】开始清理资源")
+        
+        // 标记轮询为非活动状态
+        isPollingActive = false
+        
+        // 取消所有协程任务
         pollingJob?.cancel()
+        intervalMonitorJob?.cancel()
+        
+        // 取消整个服务协程作用域
         serviceScope.cancel()
+        
+        Log.d(TAG, "【服务销毁】资源清理完成")
         super.onDestroy()
     }
 
@@ -288,13 +308,39 @@ class BackgroundPollingService : Service() {
      * 用于配置更改后刷新
      */
     private fun restartPolling() {
-        Log.d(TAG, "重启轮询任务")
-        pollingJob?.cancel()
-        startPolling()
+        serviceScope.launch {
+            restartMutex.withLock {
+                Log.d(TAG, "重启轮询任务 (已加锁)")
+                
+                // 取消当前轮询任务
+                pollingJob?.cancel()
+                pollingJob = null
+                
+                // 取消间隔监听任务
+                intervalMonitorJob?.cancel()
+                intervalMonitorJob = null
+                
+                // 重置轮询状态
+                isPollingActive = false
+                
+                // 启动新的轮询任务
+                startPolling()
+            }
+        }
     }
 
     private fun startPolling() {
-        pollingJob?.cancel()
+        if (isPollingActive) {
+            Log.w(TAG, "轮询已在运行中，跳过重复启动")
+            return
+        }
+        
+        isPollingActive = true
+        Log.d(TAG, "开始启动轮询任务")
+        
+        // 启动独立的间隔监听任务（避免重复创建）
+        startIntervalMonitor()
+        
         pollingJob = serviceScope.launch {
             // 应用启动后先使用短间隔进行初始轮询
             var useInitialInterval = !initialPollingComplete
@@ -304,84 +350,102 @@ class BackgroundPollingService : Service() {
             }
             
             // 首先获取一次当前轮询间隔
-            val initialInterval = try {
-                wooCommerceConfig.pollingInterval.first().also { 
-                    if (!useInitialInterval) {
-                        currentPollingInterval = it
-                        Log.d(TAG, "初始化轮询间隔: ${it}秒")
-                    }
+            try {
+                if (!useInitialInterval) {
+                    currentPollingInterval = withTimeoutOrNull(3000) {
+                        wooCommerceConfig.pollingInterval.first()
+                    } ?: DEFAULT_POLLING_INTERVAL
+                    Log.d(TAG, "初始化轮询间隔: ${currentPollingInterval}秒")
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "获取初始轮询间隔失败，使用默认值: ${DEFAULT_POLLING_INTERVAL}秒", e)
-                DEFAULT_POLLING_INTERVAL
+                currentPollingInterval = DEFAULT_POLLING_INTERVAL
             }
             
-            // 监听轮询间隔变化
-            launch {
+            try {
+                // 主轮询循环
+                while (isActive && isPollingActive) {
+                    try {
+                        // 使用当前有效轮询间隔
+                        val effectiveInterval = if (useInitialInterval) {
+                            INITIAL_POLLING_INTERVAL
+                        } else {
+                            currentPollingInterval
+                        }
+                        
+                        // 检查配置有效性
+                        val isValid = checkConfigurationValid()
+                        if (isValid) {
+                            Log.d(TAG, "开始执行轮询周期，间隔: ${effectiveInterval}秒")
+                            
+                            // 记录轮询开始时间
+                            val pollStartTime = System.currentTimeMillis()
+                            
+                            // 自适应打印机检查 - 只在应用启动和有必要时检查
+                            if (!initialPollingComplete || (pollStartTime - (latestPolledDate?.time ?: 0)) > 5 * 60 * 1000) { // 5分钟检查一次
+                                checkPrinterConnection()
+                            }
+                            
+                            // 执行轮询操作
+                            pollOrders()
+                            
+                            // 如果这是初始轮询，标记完成
+                            if (useInitialInterval) {
+                                useInitialInterval = false
+                                initialPollingComplete = true
+                                Log.d(TAG, "初始快速轮询完成，切换到正常轮询间隔: ${currentPollingInterval}秒")
+                            }
+                            
+                            // 计算轮询执行时间
+                            val pollExecutionTime = System.currentTimeMillis() - pollStartTime
+                            Log.d(TAG, "轮询执行耗时: ${pollExecutionTime}ms")
+                            
+                            // 计算需要等待的时间，确保按照用户设置的间隔精确轮询
+                            val waitTime = (effectiveInterval * 1000L) - pollExecutionTime
+                            if (waitTime > 0) {
+                                Log.d(TAG, "等待下次轮询: ${waitTime}ms")
+                                delay(waitTime)
+                            } else {
+                                Log.w(TAG, "轮询执行时间超过间隔设置，无需等待立即开始下次轮询")
+                                delay(100) // 短暂等待以避免CPU占用过高
+                            }
+                        } else {
+                            Log.d(TAG, "配置未完成，跳过轮询，等待${effectiveInterval}秒后重试")
+                            delay(effectiveInterval * 1000L)
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "轮询周期执行出错: ${e.message}", e)
+                        delay(currentPollingInterval * 1000L) // 出错时仍然等待指定间隔
+                    }
+                }
+            } finally {
+                isPollingActive = false
+                Log.d(TAG, "轮询任务结束")
+            }
+        }
+    }
+    
+    /**
+     * 启动独立的间隔监听任务
+     */
+    private fun startIntervalMonitor() {
+        if (intervalMonitorJob?.isActive == true) {
+            Log.d(TAG, "间隔监听任务已在运行，跳过重复启动")
+            return
+        }
+        
+        intervalMonitorJob = serviceScope.launch {
+            try {
                 wooCommerceConfig.pollingInterval.collect { newInterval ->
-                    if (newInterval != currentPollingInterval && !useInitialInterval) {
-                        Log.d(TAG, "轮询间隔变更: ${currentPollingInterval}秒 -> ${newInterval}秒")
+                    if (newInterval != currentPollingInterval && initialPollingComplete) {
+                        Log.d(TAG, "检测到轮询间隔变更: ${currentPollingInterval}秒 -> ${newInterval}秒")
                         currentPollingInterval = newInterval
                         // 重新启动轮询以立即应用新间隔
                         restartPolling()
                     }
                 }
-            }
-            
-            // 主轮询循环
-            while (isActive) {
-                try {
-                    // 使用当前有效轮询间隔
-                    val effectiveInterval = if (useInitialInterval) {
-                        INITIAL_POLLING_INTERVAL
-                    } else {
-                        currentPollingInterval
-                    }
-                    
-                    // 检查配置有效性
-                    val isValid = checkConfigurationValid()
-                    if (isValid) {
-                        Log.d(TAG, "开始执行轮询周期，间隔: ${effectiveInterval}秒")
-                        
-                        // 记录轮询开始时间
-                        val pollStartTime = System.currentTimeMillis()
-                        
-                        // 自适应打印机检查 - 只在应用启动和有必要时检查
-                        if (!initialPollingComplete || (pollStartTime - (latestPolledDate?.time ?: 0)) > 5 * 60 * 1000) { // 5分钟检查一次
-                            checkPrinterConnection()
-                        }
-                        
-                        // 执行轮询操作
-                        pollOrders()
-                        
-                        // 如果这是初始轮询，标记完成
-                        if (useInitialInterval) {
-                            useInitialInterval = false
-                            initialPollingComplete = true
-                            Log.d(TAG, "初始快速轮询完成，切换到正常轮询间隔: ${currentPollingInterval}秒")
-                        }
-                        
-                        // 计算轮询执行时间
-                        val pollExecutionTime = System.currentTimeMillis() - pollStartTime
-                        Log.d(TAG, "轮询执行耗时: ${pollExecutionTime}ms")
-                        
-                        // 计算需要等待的时间，确保按照用户设置的间隔精确轮询
-                        val waitTime = (effectiveInterval * 1000L) - pollExecutionTime
-                        if (waitTime > 0) {
-                            Log.d(TAG, "等待下次轮询: ${waitTime}ms")
-                            delay(waitTime)
-                        } else {
-                            Log.w(TAG, "轮询执行时间超过间隔设置，无需等待立即开始下次轮询")
-                            delay(100) // 短暂等待以避免CPU占用过高
-                        }
-                    } else {
-                        Log.d(TAG, "配置未完成，跳过轮询，等待${effectiveInterval}秒后重试")
-                        delay(effectiveInterval * 1000L)
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "轮询周期执行出错: ${e.message}", e)
-                    delay(currentPollingInterval * 1000L) // 出错时仍然等待指定间隔
-                }
+            } catch (e: Exception) {
+                Log.e(TAG, "间隔监听任务异常: ${e.message}", e)
             }
         }
     }
@@ -674,7 +738,7 @@ class BackgroundPollingService : Service() {
                 Log.d(TAG, "【自动打印调试】准备自动打印新订单: #${order.number}, 打印机: ${printerConfig.name}")
                 
                 // 获取用户设置的默认模板类型
-                val defaultTemplateType = settingsRepository.getDefaultTemplateType() ?: TemplateType.FULL_DETAILS
+                val defaultTemplateType = settingsRepository.getDefaultTemplateType()
                 Log.d(TAG, "【自动打印调试】使用默认打印模板: $defaultTemplateType")
                 
                 // 检查打印机是否已连接，如果未连接则先尝试连接

@@ -272,21 +272,40 @@ fun LicenseSettingsScreen(
             // 检查当前状态是否需要重新验证
             val currentEligibility = eligibilityInfo
             val needsValidation = when {
-                currentEligibility == null -> true
-                currentEligibility.status == EligibilityStatus.UNKNOWN -> true
-                currentEligibility.status == EligibilityStatus.CHECKING -> true
-                licenseManager.shouldRevalidate(forceThresholdMinutes = 60) -> true
-                else -> false
+                currentEligibility == null -> {
+                    Log.d("LicenseSettingsScreen", "状态为空，需要验证")
+                    true
+                }
+                currentEligibility.status == EligibilityStatus.UNKNOWN -> {
+                    Log.d("LicenseSettingsScreen", "状态未知，需要验证")
+                    true
+                }
+                currentEligibility.status == EligibilityStatus.CHECKING -> {
+                    Log.d("LicenseSettingsScreen", "状态为验证中，可能之前验证未完成，需要重新验证")
+                    true
+                }
+                licenseManager.shouldRevalidate(forceThresholdMinutes = 60) -> {
+                    Log.d("LicenseSettingsScreen", "距离上次验证超过1小时，需要重新验证")
+                    true
+                }
+                else -> {
+                    Log.d("LicenseSettingsScreen", "当前状态有效，无需重新验证: ${currentEligibility.status}")
+                    false
+                }
             }
             
             if (needsValidation) {
                 // 只有在需要时才进行验证
                 launch {
-                    licenseManager.forceRevalidateAndSync(context)
+                    Log.d("LicenseSettingsScreen", "开始必要的后台验证")
+                    
+                    val isValid = licenseManager.forceRevalidateAndSync(context)
+                    
+                    Log.d("LicenseSettingsScreen", "后台验证完成: $isValid")
                 }
             }
         } catch (e: Exception) {
-            Log.e("LicenseSettingsScreen", "智能验证检查异常: ${e.message}", e)
+            Log.e("LicenseSettingsScreen", "智能验证检查异常 - ${e.message}", e)
         }
     }
 
@@ -296,7 +315,11 @@ fun LicenseSettingsScreen(
             isManualRefreshing = true
             coroutineScope.launch {
                 try {
+                    Log.d("LicenseSettingsScreen", "用户手动刷新许可证状态")
+                    
                     val isValid = licenseManager.forceRevalidateAndSync(context)
+                    
+                    Log.d("LicenseSettingsScreen", "手动刷新完成: $isValid")
                     
                     val message = if (isValid) "许可证状态已刷新" else "刷新完成"
                     snackbarHostState.showSnackbar(message)
@@ -321,7 +344,7 @@ fun LicenseSettingsScreen(
                 isLicenseExpired = endDateParsed.before(currentCalendar.time)
                 hasParseError = false
             } catch (e: Exception) {
-                Log.e("LicenseSettingsScreen", "解析结束日期错误: ${e.message}", e)
+                Log.e("LicenseSettingsScreen", "解析结束日期时出错: ${e.message}", e)
                 hasParseError = true
                 isLicenseExpired = false
             }
@@ -348,6 +371,8 @@ fun LicenseSettingsScreen(
         source = EligibilitySource.TRIAL
     )
     
+    Log.d("LicenseSettingsScreen", "渲染UI - 资格状态: ${safeEligibilityInfo.status}, 试用天数: ${safeEligibilityInfo.trialDaysRemaining}")
+
     // 基于统一的资格状态显示逻辑
     val (licenseStatusText, statusIcon, statusBackgroundColor) = when (safeEligibilityInfo.status) {
         EligibilityStatus.ELIGIBLE -> {
@@ -520,7 +545,12 @@ fun LicenseSettingsScreen(
                                         Settings.Secure.ANDROID_ID
                                     )
                                     val clean = licenseCode.filter { it.isLetterOrDigit() || it == '-' }
+                                    Log.d("LicenseDebug", "Activating license: $clean")
                                     val result = LicenseValidator.activateLicense(clean, deviceId)
+                                    Log.d(
+                                        "LicenseDebug",
+                                        "Activation result: success=${result.success}, message=${result.message}"
+                                    )
 
                                     if (result.success) {
                                         when (val details = LicenseValidator.getLicenseDetails(clean)) {
@@ -533,6 +563,7 @@ fun LicenseSettingsScreen(
                                                     localStartDate,
                                                     details.validity
                                                 )
+                                                Log.d("LicenseDebug", "Activation: calcEnd=$calcEnd")
                                                 
                                                 // 清除并保存新的许可证信息
                                                 LicenseDataStore.clearLicenseInfo(context)
@@ -551,9 +582,11 @@ fun LicenseSettingsScreen(
                                                 
                                                 // 强制结束试用期
                                                 TrialTokenManager.forceExpireTrial(context)
+                                                Log.d("LicenseSettingsScreen", "试用期已结束")
                                                 
                                                 // 重新验证许可证状态，更新LicenseManager的状态
                                                 val isValid = licenseManager.forceRevalidateAndSync(context)
+                                                Log.d("LicenseSettingsScreen", "许可证激活后统一验证结果: $isValid")
                                                 if (isValid) {
                                                     snackbarHostState.showSnackbar(
                                                         context.getString(R.string.license_success, calcEnd)
@@ -609,7 +642,12 @@ fun LicenseSettingsScreen(
                                         Settings.Secure.ANDROID_ID
                                     )
                                     val clean = licenseCode.filter { it.isLetterOrDigit() || it == '-' }
+                                    Log.d("LicenseDebug", "Activating license: $clean")
                                     val result = LicenseValidator.activateLicense(clean, deviceId)
+                                    Log.d(
+                                        "LicenseDebug",
+                                        "Activation result: success=${result.success}, message=${result.message}"
+                                    )
 
                                     if (result.success) {
                                         when (val details = LicenseValidator.getLicenseDetails(clean)) {
@@ -622,6 +660,7 @@ fun LicenseSettingsScreen(
                                                     localStartDate,
                                                     details.validity
                                                 )
+                                                Log.d("LicenseDebug", "Activation: calcEnd=$calcEnd")
                                                 
                                                 // 清除并保存新的许可证信息
                                                 LicenseDataStore.clearLicenseInfo(context)
@@ -640,9 +679,11 @@ fun LicenseSettingsScreen(
                                                 
                                                 // 强制结束试用期
                                                 TrialTokenManager.forceExpireTrial(context)
+                                                Log.d("LicenseSettingsScreen", "试用期已结束")
                                                 
                                                 // 重新验证许可证状态，更新LicenseManager的状态
                                                 val isValid = licenseManager.forceRevalidateAndSync(context)
+                                                Log.d("LicenseSettingsScreen", "许可证激活后统一验证结果: $isValid")
                                                 if (isValid) {
                                                     snackbarHostState.showSnackbar(
                                                         context.getString(R.string.license_success, calcEnd)
