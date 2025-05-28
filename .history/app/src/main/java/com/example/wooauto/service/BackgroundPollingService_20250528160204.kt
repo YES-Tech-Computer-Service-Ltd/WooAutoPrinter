@@ -426,13 +426,7 @@ class BackgroundPollingService : Service() {
                         }
                     } catch (e: Exception) {
                         Log.e(TAG, "轮询周期执行出错: ${e.message}", e)
-                        // 如果是取消异常，直接退出循环
-                        if (e is kotlinx.coroutines.CancellationException) {
-                            Log.d(TAG, "轮询任务被取消，正常退出")
-                            break
-                        }
-                        // 其他异常继续轮询，但等待指定间隔
-                        delay(currentPollingInterval * 1000L)
+                        delay(currentPollingInterval * 1000L) // 出错时仍然等待指定间隔
                     }
                 }
             } finally {

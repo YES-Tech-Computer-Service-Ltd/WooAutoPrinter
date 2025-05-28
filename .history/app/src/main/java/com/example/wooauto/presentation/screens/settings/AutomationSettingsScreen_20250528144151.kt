@@ -1,5 +1,6 @@
 package com.example.wooauto.presentation.screens.settings
 
+import android.util.Log
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -224,10 +225,22 @@ fun AutomationSettingsDialogContent(
                             viewModel.updateDefaultAutoPrintTemplate(selectedTemplateId!!, selectedTemplate)
                         }
                         
-                        // 通知后台服务重启轮询，使设置立即生效
-                        viewModel.notifyServiceToRestartPolling()
-                        
+                        // 重要修复：同步更新默认打印机的自动打印设置
                         coroutineScope.launch {
+                            try {
+                                val defaultPrinter = viewModel.settingsRepository.getDefaultPrinterConfig()
+                                if (defaultPrinter != null) {
+                                    // 更新默认打印机的isAutoPrint字段以保持与全局设置同步
+                                    val updatedPrinter = defaultPrinter.copy(isAutoPrint = automaticPrinting)
+                                    viewModel.settingsRepository.savePrinterConfig(updatedPrinter)
+                                    Log.d("AutomationSettings", "已同步更新默认打印机的自动打印设置: $automaticPrinting")
+                                } else {
+                                    Log.w("AutomationSettings", "未找到默认打印机配置，无法同步自动打印设置")
+                                }
+                            } catch (e: Exception) {
+                                Log.e("AutomationSettings", "同步打印机自动打印设置失败: ${e.message}")
+                            }
+                            
                             snackbarHostState.showSnackbar(settingsSavedText)
                         }
                     },

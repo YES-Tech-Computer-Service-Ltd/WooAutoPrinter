@@ -426,13 +426,7 @@ class BackgroundPollingService : Service() {
                         }
                     } catch (e: Exception) {
                         Log.e(TAG, "轮询周期执行出错: ${e.message}", e)
-                        // 如果是取消异常，直接退出循环
-                        if (e is kotlinx.coroutines.CancellationException) {
-                            Log.d(TAG, "轮询任务被取消，正常退出")
-                            break
-                        }
-                        // 其他异常继续轮询，但等待指定间隔
-                        delay(currentPollingInterval * 1000L)
+                        delay(currentPollingInterval * 1000L) // 出错时仍然等待指定间隔
                     }
                 }
             } finally {
@@ -454,19 +448,11 @@ class BackgroundPollingService : Service() {
         intervalMonitorJob = serviceScope.launch {
             try {
                 wooCommerceConfig.pollingInterval.collect { newInterval ->
-                    // 只有在轮询活动且间隔确实改变且初始轮询完成时才重启
-                    if (newInterval != currentPollingInterval && 
-                        initialPollingComplete && 
-                        isPollingActive &&
-                        !restartMutex.isLocked) {
+                    if (newInterval != currentPollingInterval && initialPollingComplete) {
                         Log.d(TAG, "检测到轮询间隔变更: ${currentPollingInterval}秒 -> ${newInterval}秒")
                         currentPollingInterval = newInterval
                         // 重新启动轮询以立即应用新间隔
                         restartPolling()
-                    } else if (newInterval != currentPollingInterval) {
-                        // 如果不满足重启条件，只更新间隔值
-                        Log.d(TAG, "更新轮询间隔但不重启: ${currentPollingInterval}秒 -> ${newInterval}秒")
-                        currentPollingInterval = newInterval
                     }
                 }
             } catch (e: Exception) {

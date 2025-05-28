@@ -938,19 +938,6 @@ class SettingsViewModel @Inject constructor(
             try {
                 settingsRepository.setAutoPrintEnabled(_automaticPrinting.value)
                 settingsRepository.setDefaultPrintTemplate(_defaultTemplateType.value)
-                
-                // 当启用全局自动打印时，确保默认打印机的isAutoPrint也为true
-                if (_automaticPrinting.value) {
-                    val currentPrinterConfig = settingsRepository.getDefaultPrinterConfig()
-                    if (currentPrinterConfig != null && !currentPrinterConfig.isAutoPrint) {
-                        // 更新打印机配置的自动打印设置
-                        val updatedConfig = currentPrinterConfig.copy(isAutoPrint = true)
-                        settingsRepository.savePrinterConfig(updatedConfig)
-                        _currentPrinterConfig.value = updatedConfig
-                        Log.d(TAG, "自动更新默认打印机的自动打印设置为: true")
-                    }
-                }
-                
                 // settingsRepository.saveAutomaticOrderProcessing(_automaticOrderProcessing.value)
                 // settingsRepository.saveInventoryAlerts(_inventoryAlerts.value)
                 // settingsRepository.saveDailyBackup(_dailyBackup.value)
@@ -967,6 +954,23 @@ class SettingsViewModel @Inject constructor(
     fun updateAutomaticPrinting(enabled: Boolean) {
         _automaticPrinting.value = enabled
         saveAutomationSettings()
+        
+        // 重要修复：同步更新默认打印机的自动打印设置
+        viewModelScope.launch {
+            try {
+                val defaultPrinter = settingsRepository.getDefaultPrinterConfig()
+                if (defaultPrinter != null) {
+                    // 更新默认打印机的isAutoPrint字段以保持与全局设置同步
+                    val updatedPrinter = defaultPrinter.copy(isAutoPrint = enabled)
+                    settingsRepository.savePrinterConfig(updatedPrinter)
+                    Log.d(TAG, "已同步更新默认打印机的自动打印设置: $enabled")
+                } else {
+                    Log.w(TAG, "未找到默认打印机配置，无法同步自动打印设置")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "同步打印机自动打印设置失败: ${e.message}")
+            }
+        }
     }
 
     /**

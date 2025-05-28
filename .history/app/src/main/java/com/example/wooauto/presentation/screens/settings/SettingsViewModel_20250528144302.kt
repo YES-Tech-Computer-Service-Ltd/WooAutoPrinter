@@ -924,6 +924,20 @@ class SettingsViewModel @Inject constructor(
                 // _inventoryAlerts.value = settingsRepository.getInventoryAlerts()
                 // _dailyBackup.value = settingsRepository.getDailyBackup()
                 Log.d(TAG, "成功加载自动化设置: autoPrint=${_automaticPrinting.value}, defaultTemplate=${_defaultTemplateType.value}")
+                
+                // 重要修复：确保全局自动打印设置与默认打印机设置同步
+                val defaultPrinter = settingsRepository.getDefaultPrinterConfig()
+                if (defaultPrinter != null) {
+                    if (defaultPrinter.isAutoPrint != _automaticPrinting.value) {
+                        Log.w(TAG, "检测到自动打印设置不同步，正在修复：全局=${_automaticPrinting.value}, 打印机=${defaultPrinter.isAutoPrint}")
+                        // 以全局设置为准，更新打印机配置
+                        val updatedPrinter = defaultPrinter.copy(isAutoPrint = _automaticPrinting.value)
+                        settingsRepository.savePrinterConfig(updatedPrinter)
+                        Log.d(TAG, "已同步打印机自动打印设置为: ${_automaticPrinting.value}")
+                    }
+                } else {
+                    Log.w(TAG, "未找到默认打印机配置")
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "加载自动化设置失败", e)
             }
@@ -938,19 +952,6 @@ class SettingsViewModel @Inject constructor(
             try {
                 settingsRepository.setAutoPrintEnabled(_automaticPrinting.value)
                 settingsRepository.setDefaultPrintTemplate(_defaultTemplateType.value)
-                
-                // 当启用全局自动打印时，确保默认打印机的isAutoPrint也为true
-                if (_automaticPrinting.value) {
-                    val currentPrinterConfig = settingsRepository.getDefaultPrinterConfig()
-                    if (currentPrinterConfig != null && !currentPrinterConfig.isAutoPrint) {
-                        // 更新打印机配置的自动打印设置
-                        val updatedConfig = currentPrinterConfig.copy(isAutoPrint = true)
-                        settingsRepository.savePrinterConfig(updatedConfig)
-                        _currentPrinterConfig.value = updatedConfig
-                        Log.d(TAG, "自动更新默认打印机的自动打印设置为: true")
-                    }
-                }
-                
                 // settingsRepository.saveAutomaticOrderProcessing(_automaticOrderProcessing.value)
                 // settingsRepository.saveInventoryAlerts(_inventoryAlerts.value)
                 // settingsRepository.saveDailyBackup(_dailyBackup.value)
@@ -967,6 +968,23 @@ class SettingsViewModel @Inject constructor(
     fun updateAutomaticPrinting(enabled: Boolean) {
         _automaticPrinting.value = enabled
         saveAutomationSettings()
+        
+        // 重要修复：同步更新默认打印机的自动打印设置
+        viewModelScope.launch {
+            try {
+                val defaultPrinter = settingsRepository.getDefaultPrinterConfig()
+                if (defaultPrinter != null) {
+                    // 更新默认打印机的isAutoPrint字段以保持与全局设置同步
+                    val updatedPrinter = defaultPrinter.copy(isAutoPrint = enabled)
+                    settingsRepository.savePrinterConfig(updatedPrinter)
+                    Log.d(TAG, "已同步更新默认打印机的自动打印设置: $enabled")
+                } else {
+                    Log.w(TAG, "未找到默认打印机配置，无法同步自动打印设置")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "同步打印机自动打印设置失败: ${e.message}")
+            }
+        }
     }
 
     /**

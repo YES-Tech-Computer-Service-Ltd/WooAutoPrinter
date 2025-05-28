@@ -223,10 +223,6 @@ fun AutomationSettingsDialogContent(
                             // 使用新的方法同时保存模板ID和类型
                             viewModel.updateDefaultAutoPrintTemplate(selectedTemplateId!!, selectedTemplate)
                         }
-                        
-                        // 通知后台服务重启轮询，使设置立即生效
-                        viewModel.notifyServiceToRestartPolling()
-                        
                         coroutineScope.launch {
                             snackbarHostState.showSnackbar(settingsSavedText)
                         }

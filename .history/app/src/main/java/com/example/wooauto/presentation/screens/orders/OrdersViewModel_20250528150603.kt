@@ -197,16 +197,6 @@ class OrdersViewModel @Inject constructor(
     }
 
     private fun checkConfiguration() {
-        // 防重复检查
-        val currentTime = System.currentTimeMillis()
-        if (isCheckingConfig || (currentTime - lastConfigCheckTime < minConfigCheckInterval)) {
-            Log.d(TAG, "配置检查请求过于频繁或正在进行中，忽略本次调用")
-            return
-        }
-        
-        isCheckingConfig = true
-        lastConfigCheckTime = currentTime
-        
         viewModelScope.launch {
             try {
                 Log.d(TAG, "正在检查API配置")
@@ -336,8 +326,6 @@ class OrdersViewModel @Inject constructor(
                 _isConfigured.value = false
                 _isLoading.value = false
                 _errorMessage.value = "无法检查API配置: ${e.message}"
-            } finally {
-                isCheckingConfig = false
             }
         }
     }
@@ -369,16 +357,6 @@ class OrdersViewModel @Inject constructor(
     }
     
     fun refreshOrders() {
-        // 防重复调用检查
-        val currentTime = System.currentTimeMillis()
-        if (isRefreshing || (currentTime - lastRefreshTime < minRefreshInterval)) {
-            Log.d(TAG, "刷新请求过于频繁或正在进行中，忽略本次调用（间隔: ${currentTime - lastRefreshTime}ms）")
-            return
-        }
-        
-        isRefreshing = true
-        lastRefreshTime = currentTime
-        
         viewModelScope.launch {
             _refreshing.value = true
             _isLoading.value = true
@@ -386,6 +364,11 @@ class OrdersViewModel @Inject constructor(
             try {
                 // 获取当前订单的打印状态映射，用于后续验证
                 val currentPrintedMap = _orders.value.associateBy({ it.id }, { it.isPrinted })
+                
+                // Log.d("OrdersViewModel", "【打印状态保护】刷新前，当前有 ${currentPrintedMap.count { it.value }} 个已打印订单")
+                // if (currentPrintedMap.any { it.value }) {
+                //     Log.d("OrdersViewModel", "【打印状态保护】刷新前已打印订单: ${currentPrintedMap.filter { it.value }.keys}")
+                // }
                 
                 val apiConfigured = checkApiConfiguration()
                 if (apiConfigured) {
@@ -395,6 +378,7 @@ class OrdersViewModel @Inject constructor(
                         
                         // 验证打印状态
                         val refreshedPrintedMap = refreshedOrders.associateBy({ it.id }, { it.isPrinted })
+                        // Log.d("OrdersViewModel", "【打印状态保护】刷新后，有 ${refreshedPrintedMap.count { it.value }} 个已打印订单")
                         
                         // 检查是否有任何打印状态丢失
                         val lostPrintStatus = currentPrintedMap.filter { it.value && refreshedPrintedMap[it.key] == false }
@@ -405,6 +389,7 @@ class OrdersViewModel @Inject constructor(
                             // 修复丢失的打印状态
                             val correctedOrders = refreshedOrders.map { order ->
                                 if (lostPrintStatus.containsKey(order.id)) {
+                                    // Log.d("OrdersViewModel", "【打印状态保护】修复订单 #${order.number} (ID=${order.id}) 的打印状态")
                                     order.copy(isPrinted = true)
                                 } else {
                                     order
@@ -428,7 +413,6 @@ class OrdersViewModel @Inject constructor(
             } finally {
                 _isLoading.value = false
                 _refreshing.value = false
-                isRefreshing = false
             }
         }
     }

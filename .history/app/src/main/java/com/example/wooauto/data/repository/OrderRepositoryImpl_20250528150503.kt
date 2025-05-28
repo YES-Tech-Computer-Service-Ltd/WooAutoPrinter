@@ -201,180 +201,200 @@ class OrderRepositoryImpl @Inject constructor(
         // 更新最后刷新时间
         lastRefreshTime = currentTime
         
-        try {
-            Log.d("OrderRepositoryImpl", "开始刷新订单, 状态: ${status ?: "所有"}, 日期筛选: ${afterDate?.toString() ?: "无"}")
-            
-            // 从orderDao直接获取已读订单ID，更可靠
-            val readOrderIds = orderDao.getReadOrderIds()
-            
-            // 获取所有订单ID
-            val allOrderIds = orderDao.getAllOrderIds()
-            
-            val config = settingsRepository.getWooCommerceConfig()
-            if (!config.isValid()) {
-                Log.e("OrderRepositoryImpl", "API配置无效，请检查设置")
-                return@withContext Result.failure(ApiError.fromHttpCode(401, "API配置无效，请检查设置"))
-            }
-            
-            val api = getApi(config)
-            val params = mutableMapOf<String, String>()
-            
-            // 特殊处理status参数，避免可能的格式问题
-            if (!status.isNullOrEmpty()) {
-                // 检查是否是有效的WooCommerce状态
-                val validStatuses = listOf("pending", "processing", "on-hold", "completed", "cancelled", "refunded", "failed", "trash", "any")
+        // 创建新的刷新任务
+        currentRefreshJob = repositoryScope.launch {
+            try {
+                Log.d("OrderRepositoryImpl", "开始刷新订单, 状态: ${status ?: "所有"}, 日期筛选: ${afterDate?.toString() ?: "无"}")
                 
-                if (validStatuses.contains(status.lowercase())) {
-                    // 是有效状态，直接添加
-                    params["status"] = status.lowercase()
-                    Log.d("OrderRepositoryImpl", "【参数修复】添加有效状态: ${status.lowercase()}")
-                } else {
-                    // 尝试映射可能的中文状态
-                    val statusMap = mapOf(
-                        "处理中" to "processing",
-                        "待付款" to "pending",
-                        "已完成" to "completed",
-                        "已取消" to "cancelled",
-                        "已退款" to "refunded",
-                        "失败" to "failed",
-                        "暂挂" to "on-hold"
-                    )
-                    
-                    val mappedStatus = statusMap[status]
-                    if (mappedStatus != null) {
-                        params["status"] = mappedStatus
-                        Log.d("OrderRepositoryImpl", "【参数修复】将中文状态 '$status' 映射为 '$mappedStatus'")
-                    } else {
-                        // 如果无法识别，则不添加此参数
-                        Log.w("OrderRepositoryImpl", "【参数修复】忽略无效状态: '$status'")
-                    }
+                // 从orderDao直接获取已读订单ID，更可靠
+                val readOrderIds = orderDao.getReadOrderIds()
+                
+                // 获取所有订单ID
+                val allOrderIds = orderDao.getAllOrderIds()
+                
+                val config = settingsRepository.getWooCommerceConfig()
+                if (!config.isValid()) {
+                    Log.e("OrderRepositoryImpl", "API配置无效，请检查设置")
+                    throw ApiError.fromHttpCode(401, "API配置无效，请检查设置")
                 }
-            }
-            
-            if (afterDate != null) {
-                val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
-                params["after"] = dateFormat.format(afterDate)
-            }
-            
-            // 计算30天前的时间戳，用于过滤较旧的订单，确保不会将旧订单错误标记为未读
-            val calendar = Calendar.getInstance()
-            calendar.add(Calendar.DAY_OF_YEAR, -30)  // 30天前
-            val thirtyDaysAgo = calendar.timeInMillis
-
-            Log.d("OrderRepositoryImpl", "【API请求】最终请求参数: $params")
-            val response = if (params.isEmpty()) {
-                api.getOrders(1, 100)
-            } else {
-                api.getOrdersWithParams(1, 100, params)
-            }
-            
-            // 在处理API订单前，获取现有数据库订单及其状态
-            val existingOrders = if (status != null) {
-                orderDao.getOrdersByStatus(status).first()
-            } else {
-                orderDao.getAllOrders().first()
-            }
-            val existingOrderMap = existingOrders.associateBy { it.id }
-            
-            // 找出所有已打印的订单ID，确保我们不会丢失打印状态
-            val printedOrderIds = existingOrders.filter { it.isPrinted }.map { it.id }
-            
-            // 转换为领域模型并保留已读状态
-            val orders = response.map { orderDto -> 
-                val order = orderDto.toOrder()
                 
-                // 首先检查是否在已读列表中
-                if (order.id in readOrderIds) {
-                    // 同时检查是否已打印
-                    if (order.id in printedOrderIds) {
-                        order.copy(isRead = true, isPrinted = true)
+                val api = getApi(config)
+                val params = mutableMapOf<String, String>()
+                
+                // 特殊处理status参数，避免可能的格式问题
+                if (!status.isNullOrEmpty()) {
+                    // 检查是否是有效的WooCommerce状态
+                    val validStatuses = listOf("pending", "processing", "on-hold", "completed", "cancelled", "refunded", "failed", "trash", "any")
+                    
+                    if (validStatuses.contains(status.lowercase())) {
+                        // 是有效状态，直接添加
+                        params["status"] = status.lowercase()
+                        Log.d("OrderRepositoryImpl", "【参数修复】添加有效状态: ${status.lowercase()}")
                     } else {
-                        order.copy(isRead = true)
-                    }
-                } else {
-                    // 然后检查数据库中的现有状态
-                    val existingOrder = existingOrderMap[order.id]
-                    if (existingOrder != null) {
-                        // 同时保留打印状态和已读状态
-                        order.copy(
-                            isRead = existingOrder.isRead,
-                            isPrinted = existingOrder.isPrinted
+                        // 尝试映射可能的中文状态
+                        val statusMap = mapOf(
+                            "处理中" to "processing",
+                            "待付款" to "pending",
+                            "已完成" to "completed",
+                            "已取消" to "cancelled",
+                            "已退款" to "refunded",
+                            "失败" to "failed",
+                            "暂挂" to "on-hold"
                         )
-                    } else {
-                        // 如果是较旧的订单（超过30天），直接标记为已读
-                        if (order.dateCreated.time < thirtyDaysAgo) {
-                            order.copy(isRead = true)
+                        
+                        val mappedStatus = statusMap[status]
+                        if (mappedStatus != null) {
+                            params["status"] = mappedStatus
+                            Log.d("OrderRepositoryImpl", "【参数修复】将中文状态 '$status' 映射为 '$mappedStatus'")
                         } else {
-                            order
+                            // 如果无法识别，则不添加此参数
+                            Log.w("OrderRepositoryImpl", "【参数修复】忽略无效状态: '$status'")
                         }
                     }
                 }
-            }
-            
-            // 生成要保存到数据库的实体对象
-            val orderEntities = orders.map { order ->
-                val entity = OrderMapper.mapDomainToEntity(order)
                 
-                // 检查现有状态，可能有额外需要保留的属性
-                val existingEntity = existingOrderMap[entity.id]
-                if (existingEntity != null) {
-                    // 保留已读状态和打印状态
-                    val isRead = if (entity.isRead || existingEntity.isRead) true else false
-                    
-                    // 保留打印状态 - 数据库中的状态优先级高于API
-                    val isPrinted = existingEntity.isPrinted || entity.isPrinted
-                    
-                    // 特别检查是否在已打印订单列表中，确保状态正确
-                    if (entity.id in printedOrderIds && !isPrinted) {
-                        entity.copy(isRead = isRead, isPrinted = true)
-                    } else {
-                        entity.copy(isRead = isRead, isPrinted = isPrinted)
-                    }
+                if (afterDate != null) {
+                    val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
+                    params["after"] = dateFormat.format(afterDate)
+                }
+                
+                // 计算30天前的时间戳，用于过滤较旧的订单，确保不会将旧订单错误标记为未读
+                val calendar = Calendar.getInstance()
+                calendar.add(Calendar.DAY_OF_YEAR, -30)  // 30天前
+                val thirtyDaysAgo = calendar.timeInMillis
+
+                Log.d("OrderRepositoryImpl", "【API请求】最终请求参数: $params")
+                val response = if (params.isEmpty()) {
+                    api.getOrders(1, 100)
                 } else {
-                    // 新订单，检查是否在已读ID列表中
-                    if (entity.id in readOrderIds) {
+                    api.getOrdersWithParams(1, 100, params)
+                }
+                
+                // 在处理API订单前，获取现有数据库订单及其状态
+                val existingOrders = if (status != null) {
+                    orderDao.getOrdersByStatus(status).first()
+                } else {
+                    orderDao.getAllOrders().first()
+                }
+                val existingOrderMap = existingOrders.associateBy { it.id }
+                
+                // 找出所有已打印的订单ID，确保我们不会丢失打印状态
+                val printedOrderIds = existingOrders.filter { it.isPrinted }.map { it.id }
+                if (printedOrderIds.isNotEmpty()) {
+//                    Log.d("OrderRepositoryImpl", "【应用启动】数据库中找到 ${printedOrderIds.size} 个已打印订单，将保留其打印状态")
+                }
+                
+                // 转换为领域模型并保留已读状态
+                val orders = response.map { orderDto -> 
+                    val order = orderDto.toOrder()
+                    
+                    // 首先检查是否在已读列表中
+                    if (order.id in readOrderIds) {
                         // 同时检查是否已打印
-                        if (entity.id in printedOrderIds) {
-                            entity.copy(isRead = true, isPrinted = true)
+                        if (order.id in printedOrderIds) {
+                            order.copy(isRead = true, isPrinted = true)
                         } else {
-                            entity.copy(isRead = true)
+                            order.copy(isRead = true)
                         }
-                    } else if (entity.dateCreated < thirtyDaysAgo) {
-                        // 老订单自动标记为已读
-                        entity.copy(isRead = true)
                     } else {
-                        entity
+                        // 然后检查数据库中的现有状态
+                        val existingOrder = existingOrderMap[order.id]
+                        if (existingOrder != null) {
+                            // 同时保留打印状态和已读状态
+                            order.copy(
+                                isRead = existingOrder.isRead,
+                                isPrinted = existingOrder.isPrinted
+                            )
+                        } else {
+                            // 如果是较旧的订单（超过30天），直接标记为已读
+                            if (order.dateCreated.time < thirtyDaysAgo) {
+//                                Log.d("OrderRepositoryImpl", "订单 #${order.number} (ID=${order.id}) 是较旧订单(>30天)，自动标记为已读")
+                                order.copy(isRead = true)
+                            } else {
+                                order
+                            }
+                        }
                     }
                 }
+                
+                // 生成要保存到数据库的实体对象
+                val orderEntities = orders.map { order ->
+                    val entity = OrderMapper.mapDomainToEntity(order)
+                    
+                    // 检查现有状态，可能有额外需要保留的属性
+                    val existingEntity = existingOrderMap[entity.id]
+                    if (existingEntity != null) {
+                        // 保留已读状态和打印状态
+                        val isRead = if (entity.isRead || existingEntity.isRead) true else false
+                        
+                        // 保留打印状态 - 数据库中的状态优先级高于API
+                        val isPrinted = existingEntity.isPrinted || entity.isPrinted
+                        
+                        // 日志记录状态变化
+                        if (isRead != entity.isRead || isPrinted != entity.isPrinted) {
+//                            Log.d("OrderRepositoryImpl", "【应用启动】订单 #${entity.number} (ID=${entity.id}) 状态更新: 已读=${isRead}, 已打印=${isPrinted}, API状态=${entity.isPrinted}")
+                        }
+                        
+                        // 特别检查是否在已打印订单列表中，确保状态正确
+                        if (entity.id in printedOrderIds && !isPrinted) {
+//                            Log.d("OrderRepositoryImpl", "【应用启动】警告：订单 #${entity.number} (ID=${entity.id}) 在已打印列表中但状态不一致，强制设为已打印")
+                            entity.copy(isRead = isRead, isPrinted = true)
+                        } else {
+                            entity.copy(isRead = isRead, isPrinted = isPrinted)
+                        }
+                    } else {
+                        // 新订单，检查是否在已读ID列表中
+                        if (entity.id in readOrderIds) {
+                            // 同时检查是否已打印
+                            if (entity.id in printedOrderIds) {
+                                entity.copy(isRead = true, isPrinted = true)
+                            } else {
+                                entity.copy(isRead = true)
+                            }
+                        } else if (entity.dateCreated < thirtyDaysAgo) {
+                            // 老订单自动标记为已读
+                            entity.copy(isRead = true)
+                        } else {
+                            entity
+                        }
+                    }
+                }
+                
+                // 智能更新数据库：不再删除全部数据，而是合并更新
+                if (status == null && afterDate == null) {
+                    // 全量更新模式：这里不删除数据，使用insertOrders的REPLACE模式更新
+//                    Log.d("OrderRepositoryImpl", "执行全量更新：${orderEntities.size} 个订单")
+                } else if (status != null) {
+                    // 按状态更新：只删除指定状态的旧数据
+//                    Log.d("OrderRepositoryImpl", "更新状态为 '$status' 的订单：${orderEntities.size} 个")
+                    orderDao.deleteOrdersByStatus(status)
+                }
+                
+                // 插入更新后的订单
+                orderDao.insertOrders(orderEntities)
+                
+                // 更新缓存
+                if (status == null) {
+                    // 全量更新缓存
+                    cachedOrders = orders
+                } else {
+                    // 部分更新缓存：按状态
+                    val filteredCache = cachedOrders.filter { it.status != status }
+                    val statusOrdersFromResponse = orders.filter { it.status == status }
+                    cachedOrders = filteredCache + statusOrdersFromResponse
+                }
+                
+                // 通知流更新
+                _ordersFlow.value = cachedOrders
+                updateOrdersByStatus()
+            } catch (e: Exception) {
+                throw e
             }
-            
-            // 智能更新数据库：不再删除全部数据，而是合并更新
-            if (status == null && afterDate == null) {
-                // 全量更新模式：这里不删除数据，使用insertOrders的REPLACE模式更新
-            } else if (status != null) {
-                // 按状态更新：只删除指定状态的旧数据
-                orderDao.deleteOrdersByStatus(status)
-            }
-            
-            // 插入更新后的订单
-            orderDao.insertOrders(orderEntities)
-            
-            // 更新缓存
-            if (status == null) {
-                // 全量更新缓存
-                cachedOrders = orders
-            } else {
-                // 增量更新缓存
-                val updatedCachedOrders = cachedOrders.filterNot { cachedOrder ->
-                    orders.any { newOrder -> newOrder.id == cachedOrder.id }
-                } + orders
-                cachedOrders = updatedCachedOrders
-            }
-            isOrdersCached = true
-            _ordersFlow.value = cachedOrders
-            updateOrdersByStatus()
-            
-            return@withContext Result.success(orders)
+        }
+        
+        return@withContext try {
+            currentRefreshJob?.join()
+            Result.success(cachedOrders)
         } catch (e: Exception) {
             val error = when (e) {
                 is ApiError -> e
@@ -382,7 +402,7 @@ class OrderRepositoryImpl @Inject constructor(
             }
             
             Log.e("OrderRepositoryImpl", "刷新订单数据失败: ${error.message}", e)
-            return@withContext Result.failure(error)
+            Result.failure(error)
         }
     }
 

@@ -218,19 +218,26 @@ fun OrdersScreen(
         }
     }
     
-    // 当进入此屏幕时执行初始化操作 - 简化逻辑，减少重复调用
+    // 当进入此屏幕时执行初始化操作
     LaunchedEffect(key1 = Unit) {
         Log.d("OrdersScreen", "LaunchedEffect 触发，开始初始化流程")
         
-        // 标记初始化完成，避免其他LaunchedEffect重复操作
-        isInitialized.value = true
-        
-        // 只检查API配置，不立即刷新订单（由ViewModel自身管理）
+        // 首先检查API是否已配置
         val configResult = viewModel.checkApiConfiguration()
         
-        if (!configResult) {
-            // API未配置时显示提示
-            Log.d("OrdersScreen", "API未配置，显示提示信息")
+        if (configResult) {
+            // API已配置，直接刷新订单数据
+            Log.d("OrdersScreen", "API已配置，直接刷新订单数据")
+            viewModel.refreshOrders()
+            // 数据加载完成后将初始化状态设为true
+            isInitialized.value = true
+        } else {
+            // API未配置，显示配置对话框
+            Log.d("OrdersScreen", "API未配置，显示配置对话框")
+            // 虽然未配置API，但仍然可以展示UI
+            isInitialized.value = true
+            
+            // 添加黑色Toast提示
             coroutineScope.launch {
                 snackbarHostState.showSnackbar(apiNotConfiguredMessage)
             }
@@ -296,17 +303,30 @@ fun OrdersScreen(
         }
     }
     
-    // 简化的导航监听 - 只在真正需要时刷新
+    // 检查API配置状态，优化判断逻辑
+    LaunchedEffect(isLoading, isConfigured, orders, errorMessage) {
+        Log.d("OrdersScreen", "检查API配置状态: isLoading=$isLoading, isConfigured=$isConfigured, 订单数量=${orders.size}, 错误=${errorMessage != null}")
+        
+        // 只有在没有错误消息的情况下才显示API配置对话框
+        if (errorMessage == null && !isLoading && !isConfigured && orders.isEmpty()) {
+            // 只有在未配置API且没有订单数据时才显示配置对话框
+            // 这里不再调用私有方法checkApiConfiguration，而是刷新订单
+            viewModel.refreshOrders()
+        } else {
+            // 已经加载了数据或API已配置或有错误消息，不显示配置对话框
+            // 这里不再调用私有方法checkApiConfiguration，而是刷新订单
+            viewModel.refreshOrders()
+        }
+    }
+    
+    // 订单页面每次成为活动页面时刷新API配置状态
     DisposableEffect(navController) {
         val listener = NavController.OnDestinationChangedListener { _, destination, _ ->
             val currentRoute = destination.route
-            if (currentRoute == NavigationItem.Orders.route && isInitialized.value) {
-                Log.d("OrdersScreen", "导航回订单页面，检查是否需要刷新")
-                // 只有在订单列表为空时才刷新，避免不必要的API调用
-                if (orders.isEmpty() && !isLoading) {
-                    Log.d("OrdersScreen", "订单列表为空且未在加载，执行刷新")
-                    viewModel.refreshOrders()
-                }
+            Log.d("OrdersScreen", "当前导航到页面: $currentRoute")
+            if (currentRoute == NavigationItem.Orders.route) {
+                Log.d("OrdersScreen", "导航回订单页面，刷新订单数据")
+                viewModel.refreshOrders()
             }
         }
         

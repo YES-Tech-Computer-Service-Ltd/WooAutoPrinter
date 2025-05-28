@@ -180,27 +180,6 @@ class OrderRepositoryImpl @Inject constructor(
     }
 
     override suspend fun refreshOrders(status: String?, afterDate: Date?): Result<List<Order>> = withContext(Dispatchers.IO) {
-        // 防重复调用检查
-        val currentTime = System.currentTimeMillis()
-        if (currentTime - lastRefreshTime < minRefreshInterval) {
-            Log.d("OrderRepositoryImpl", "刷新请求过于频繁，忽略本次调用（间隔: ${currentTime - lastRefreshTime}ms）")
-            return@withContext Result.success(cachedOrders)
-        }
-        
-        // 检查是否已有正在进行的刷新任务
-        if (currentRefreshJob?.isActive == true) {
-            Log.d("OrderRepositoryImpl", "已有刷新任务在进行中，等待完成...")
-            try {
-                currentRefreshJob?.join()
-                return@withContext Result.success(cachedOrders)
-            } catch (e: Exception) {
-                Log.w("OrderRepositoryImpl", "等待刷新任务完成时出错: ${e.message}")
-            }
-        }
-        
-        // 更新最后刷新时间
-        lastRefreshTime = currentTime
-        
         try {
             Log.d("OrderRepositoryImpl", "开始刷新订单, 状态: ${status ?: "所有"}, 日期筛选: ${afterDate?.toString() ?: "无"}")
             
@@ -268,6 +247,8 @@ class OrderRepositoryImpl @Inject constructor(
                 api.getOrdersWithParams(1, 100, params)
             }
             
+//            Log.d("OrderRepositoryImpl", "API返回 ${response.size} 个订单")
+            
             // 在处理API订单前，获取现有数据库订单及其状态
             val existingOrders = if (status != null) {
                 orderDao.getOrdersByStatus(status).first()
@@ -278,6 +259,9 @@ class OrderRepositoryImpl @Inject constructor(
             
             // 找出所有已打印的订单ID，确保我们不会丢失打印状态
             val printedOrderIds = existingOrders.filter { it.isPrinted }.map { it.id }
+            if (printedOrderIds.isNotEmpty()) {
+//                Log.d("OrderRepositoryImpl", "【应用启动】数据库中找到 ${printedOrderIds.size} 个已打印订单，将保留其打印状态")
+            }
             
             // 转换为领域模型并保留已读状态
             val orders = response.map { orderDto -> 
@@ -303,6 +287,7 @@ class OrderRepositoryImpl @Inject constructor(
                     } else {
                         // 如果是较旧的订单（超过30天），直接标记为已读
                         if (order.dateCreated.time < thirtyDaysAgo) {
+//                            Log.d("OrderRepositoryImpl", "订单 #${order.number} (ID=${order.id}) 是较旧订单(>30天)，自动标记为已读")
                             order.copy(isRead = true)
                         } else {
                             order
@@ -324,8 +309,14 @@ class OrderRepositoryImpl @Inject constructor(
                     // 保留打印状态 - 数据库中的状态优先级高于API
                     val isPrinted = existingEntity.isPrinted || entity.isPrinted
                     
+                    // 日志记录状态变化
+                    if (isRead != entity.isRead || isPrinted != entity.isPrinted) {
+//                        Log.d("OrderRepositoryImpl", "【应用启动】订单 #${entity.number} (ID=${entity.id}) 状态更新: 已读=${isRead}, 已打印=${isPrinted}, API状态=${entity.isPrinted}")
+                    }
+                    
                     // 特别检查是否在已打印订单列表中，确保状态正确
                     if (entity.id in printedOrderIds && !isPrinted) {
+//                        Log.d("OrderRepositoryImpl", "【应用启动】警告：订单 #${entity.number} (ID=${entity.id}) 在已打印列表中但状态不一致，强制设为已打印")
                         entity.copy(isRead = isRead, isPrinted = true)
                     } else {
                         entity.copy(isRead = isRead, isPrinted = isPrinted)
@@ -351,8 +342,10 @@ class OrderRepositoryImpl @Inject constructor(
             // 智能更新数据库：不再删除全部数据，而是合并更新
             if (status == null && afterDate == null) {
                 // 全量更新模式：这里不删除数据，使用insertOrders的REPLACE模式更新
+//                Log.d("OrderRepositoryImpl", "执行全量更新：${orderEntities.size} 个订单")
             } else if (status != null) {
                 // 按状态更新：只删除指定状态的旧数据
+//                Log.d("OrderRepositoryImpl", "更新状态为 '$status' 的订单：${orderEntities.size} 个")
                 orderDao.deleteOrdersByStatus(status)
             }
             
@@ -364,25 +357,20 @@ class OrderRepositoryImpl @Inject constructor(
                 // 全量更新缓存
                 cachedOrders = orders
             } else {
-                // 增量更新缓存
-                val updatedCachedOrders = cachedOrders.filterNot { cachedOrder ->
-                    orders.any { newOrder -> newOrder.id == cachedOrder.id }
-                } + orders
-                cachedOrders = updatedCachedOrders
+                // 部分更新缓存：按状态
+                val filteredCache = cachedOrders.filter { it.status != status }
+                val statusOrdersFromResponse = orders.filter { it.status == status }
+                cachedOrders = filteredCache + statusOrdersFromResponse
             }
-            isOrdersCached = true
+            
+            // 通知流更新
             _ordersFlow.value = cachedOrders
             updateOrdersByStatus()
             
             return@withContext Result.success(orders)
         } catch (e: Exception) {
-            val error = when (e) {
-                is ApiError -> e
-                else -> ApiError.fromException(e)
-            }
-            
-            Log.e("OrderRepositoryImpl", "刷新订单数据失败: ${error.message}", e)
-            return@withContext Result.failure(error)
+            Log.e("OrderRepositoryImpl", "刷新订单失败", e)
+            return@withContext Result.failure(e)
         }
     }
 

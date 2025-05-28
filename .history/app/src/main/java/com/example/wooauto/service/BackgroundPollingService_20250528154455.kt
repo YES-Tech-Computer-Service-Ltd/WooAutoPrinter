@@ -312,27 +312,16 @@ class BackgroundPollingService : Service() {
             restartMutex.withLock {
                 Log.d(TAG, "重启轮询任务 (已加锁)")
                 
-                // 标记轮询为非活动状态，停止当前轮询循环
-                isPollingActive = false
-                
-                // 等待当前轮询循环自然结束
-                try {
-                    pollingJob?.join()
-                } catch (e: Exception) {
-                    Log.d(TAG, "等待轮询任务结束: ${e.message}")
-                }
+                // 取消当前轮询任务
+                pollingJob?.cancel()
                 pollingJob = null
                 
-                // 等待间隔监听任务结束
-                try {
-                    intervalMonitorJob?.join()
-                } catch (e: Exception) {
-                    Log.d(TAG, "等待间隔监听任务结束: ${e.message}")
-                }
+                // 取消间隔监听任务
+                intervalMonitorJob?.cancel()
                 intervalMonitorJob = null
                 
-                // 短暂延迟确保资源释放
-                delay(100)
+                // 重置轮询状态
+                isPollingActive = false
                 
                 // 启动新的轮询任务
                 startPolling()
@@ -426,13 +415,7 @@ class BackgroundPollingService : Service() {
                         }
                     } catch (e: Exception) {
                         Log.e(TAG, "轮询周期执行出错: ${e.message}", e)
-                        // 如果是取消异常，直接退出循环
-                        if (e is kotlinx.coroutines.CancellationException) {
-                            Log.d(TAG, "轮询任务被取消，正常退出")
-                            break
-                        }
-                        // 其他异常继续轮询，但等待指定间隔
-                        delay(currentPollingInterval * 1000L)
+                        delay(currentPollingInterval * 1000L) // 出错时仍然等待指定间隔
                     }
                 }
             } finally {
@@ -454,19 +437,11 @@ class BackgroundPollingService : Service() {
         intervalMonitorJob = serviceScope.launch {
             try {
                 wooCommerceConfig.pollingInterval.collect { newInterval ->
-                    // 只有在轮询活动且间隔确实改变且初始轮询完成时才重启
-                    if (newInterval != currentPollingInterval && 
-                        initialPollingComplete && 
-                        isPollingActive &&
-                        !restartMutex.isLocked) {
+                    if (newInterval != currentPollingInterval && initialPollingComplete) {
                         Log.d(TAG, "检测到轮询间隔变更: ${currentPollingInterval}秒 -> ${newInterval}秒")
                         currentPollingInterval = newInterval
                         // 重新启动轮询以立即应用新间隔
                         restartPolling()
-                    } else if (newInterval != currentPollingInterval) {
-                        // 如果不满足重启条件，只更新间隔值
-                        Log.d(TAG, "更新轮询间隔但不重启: ${currentPollingInterval}秒 -> ${newInterval}秒")
-                        currentPollingInterval = newInterval
                     }
                 }
             } catch (e: Exception) {
@@ -663,6 +638,21 @@ class BackgroundPollingService : Service() {
                 
                 // 启用自动打印功能，并添加详细日志
                 Log.d(TAG, "====== 开始处理订单自动打印 ======")
+                
+                // 检查是否开启自动打印 - 需要同时检查全局设置和打印机设置
+                val globalAutoPrintEnabled = settingsRepository.getAutoPrintEnabled()
+                Log.d(TAG, "【自动打印调试】检查全局自动打印设置: enabled=$globalAutoPrintEnabled")
+                Log.d(TAG, "【自动打印调试】检查打印机自动打印设置: isAutoPrint=${printerConfig.isAutoPrint}")
+                
+                if (!globalAutoPrintEnabled) {
+                    Log.d(TAG, "【自动打印调试】全局自动打印功能未开启，跳过")
+                    return@launch
+                }
+                
+                if (!printerConfig.isAutoPrint) {
+                    Log.d(TAG, "【自动打印调试】打印机配置未开启自动打印，跳过")
+                    return@launch
+                }
                 
                 // 使用最终订单的打印状态判断是否需要打印
                 val shouldPrint = !finalOrder.isPrinted && finalOrder.status == "processing"

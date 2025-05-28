@@ -945,7 +945,7 @@ class SettingsViewModel @Inject constructor(
                     if (currentPrinterConfig != null && !currentPrinterConfig.isAutoPrint) {
                         // 更新打印机配置的自动打印设置
                         val updatedConfig = currentPrinterConfig.copy(isAutoPrint = true)
-                        settingsRepository.savePrinterConfig(updatedConfig)
+                        settingsRepository.saveDefaultPrinterConfig(updatedConfig)
                         _currentPrinterConfig.value = updatedConfig
                         Log.d(TAG, "自动更新默认打印机的自动打印设置为: true")
                     }
