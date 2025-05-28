@@ -13,7 +13,6 @@ import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.VerifiedUser
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.*
@@ -43,8 +42,6 @@ import com.example.wooauto.licensing.LicenseVerificationManager
 import com.example.wooauto.licensing.LicenseDetailsResult
 import com.example.wooauto.licensing.TrialTokenManager
 import com.example.wooauto.licensing.EligibilityStatus
-import com.example.wooauto.licensing.EligibilityInfo
-import com.example.wooauto.licensing.EligibilitySource
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
@@ -248,9 +245,9 @@ fun LicenseSettingsScreen(
     var licenseCode by remember { mutableStateOf(licenseKey) }
     
     // 基于统一的资格状态判断是否已激活
-    val isLicenseActivated = eligibilityInfo?.isLicensed ?: false
-    val isTrialActive = eligibilityInfo?.isTrialActive ?: true
-    val trialDaysRemaining = eligibilityInfo?.trialDaysRemaining ?: 10
+    val isLicenseActivated = eligibilityInfo?.isLicensed == true
+    val isTrialActive = eligibilityInfo?.isTrialActive == true
+    val trialDaysRemaining = eligibilityInfo?.trialDaysRemaining ?: 0
 
     // 获取 deviceId 和 appId
     val deviceId = Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID)
@@ -264,84 +261,30 @@ fun LicenseSettingsScreen(
     // 状态：许可证是否已过期
     var isLicenseExpired by remember { mutableStateOf(false) }
     var hasParseError by remember { mutableStateOf(false) }
-    var isManualRefreshing by remember { mutableStateOf(false) }
 
-    // 智能验证逻辑：只在必要时验证
+    // 在页面加载时初始化LicenseManager验证
     LaunchedEffect(Unit) {
         val startTime = System.currentTimeMillis()
-        Log.d("LicenseSettingsScreen", "检查是否需要验证许可证 - ${System.currentTimeMillis()}")
+        Log.d("LicenseSettingsScreen", "🚀 开始许可证验证 - ${System.currentTimeMillis()}")
         
         try {
-            // 检查当前状态是否需要重新验证
-            val currentEligibility = eligibilityInfo
-            val needsValidation = when {
-                currentEligibility == null -> {
-                    Log.d("LicenseSettingsScreen", "状态为空，需要验证")
-                    true
-                }
-                currentEligibility.status == EligibilityStatus.UNKNOWN -> {
-                    Log.d("LicenseSettingsScreen", "状态未知，需要验证")
-                    true
-                }
-                currentEligibility.status == EligibilityStatus.CHECKING -> {
-                    Log.d("LicenseSettingsScreen", "状态为验证中，可能之前验证未完成，需要重新验证")
-                    true
-                }
-                licenseManager.shouldRevalidate(forceThresholdMinutes = 60) -> {
-                    Log.d("LicenseSettingsScreen", "距离上次验证超过1小时，需要重新验证")
-                    true
-                }
-                else -> {
-                    Log.d("LicenseSettingsScreen", "当前状态有效，无需重新验证: ${currentEligibility.status}")
-                    false
-                }
-            }
-            
-            if (needsValidation) {
-                // 只有在需要时才进行验证
-                launch {
-                    val verificationStartTime = System.currentTimeMillis()
-                    Log.d("LicenseSettingsScreen", "📡 开始必要的后台验证 - $verificationStartTime")
-                    
-                    val isValid = licenseManager.forceRevalidateAndSync(context)
-                    val verificationEndTime = System.currentTimeMillis()
-                    val verificationDuration = verificationEndTime - verificationStartTime
-                    
-                    Log.d("LicenseSettingsScreen", "后台验证完成: $isValid, 耗时: ${verificationDuration}ms")
-                }
+            // 非阻塞式验证，不等待结果
+            launch {
+                val verificationStartTime = System.currentTimeMillis()
+                Log.d("LicenseSettingsScreen", "📡 开始后台验证 - $verificationStartTime")
+                
+                val isValid = licenseManager.forceRevalidateAndSync(context)
+                val verificationEndTime = System.currentTimeMillis()
+                val verificationDuration = verificationEndTime - verificationStartTime
+                
+                Log.d("LicenseSettingsScreen", "✅ 后台验证完成: $isValid, 耗时: ${verificationDuration}ms - $verificationEndTime")
             }
             
             val totalTime = System.currentTimeMillis() - startTime
-            Log.d("LicenseSettingsScreen", "🎯 智能验证检查完成，耗时: ${totalTime}ms")
+            Log.d("LicenseSettingsScreen", "🎯 UI初始化完成，耗时: ${totalTime}ms")
         } catch (e: Exception) {
             val errorTime = System.currentTimeMillis() - startTime
-            Log.e("LicenseSettingsScreen", "❌ 智能验证检查异常，耗时: ${errorTime}ms - ${e.message}", e)
-        }
-    }
-
-    // 手动刷新功能
-    val manualRefresh: () -> Unit = {
-        if (!isManualRefreshing) {
-            isManualRefreshing = true
-            coroutineScope.launch {
-                try {
-                    Log.d("LicenseSettingsScreen", "用户手动刷新许可证状态")
-                    val startTime = System.currentTimeMillis()
-                    
-                    val isValid = licenseManager.forceRevalidateAndSync(context)
-                    val duration = System.currentTimeMillis() - startTime
-                    
-                    Log.d("LicenseSettingsScreen", "手动刷新完成: $isValid, 耗时: ${duration}ms")
-                    
-                    val message = if (isValid) "许可证状态已刷新" else "刷新完成"
-                    snackbarHostState.showSnackbar(message)
-                } catch (e: Exception) {
-                    Log.e("LicenseSettingsScreen", "手动刷新失败: ${e.message}", e)
-                    snackbarHostState.showSnackbar("刷新失败: ${e.message}")
-                } finally {
-                    isManualRefreshing = false
-                }
-            }
+            Log.e("LicenseSettingsScreen", "❌ 验证过程异常，耗时: ${errorTime}ms - ${e.message}", e)
         }
     }
 
@@ -355,9 +298,9 @@ fun LicenseSettingsScreen(
                 val currentCalendar = Calendar.getInstance(TimeZone.getDefault())
                 isLicenseExpired = endDateParsed.before(currentCalendar.time)
                 hasParseError = false
-                Log.d("LicenseSettingsScreen", "📅 License expiration check - isExpired: $isLicenseExpired")
+                Log.d("LicenseSettingsScreen", "License expiration check - isExpired: $isLicenseExpired")
             } catch (e: Exception) {
-                Log.e("LicenseSettingsScreen", "❌ Error parsing end date: ${e.message}", e)
+                Log.e("LicenseSettingsScreen", "Error parsing end date: ${e.message}", e)
                 hasParseError = true
                 isLicenseExpired = false
             }
@@ -371,34 +314,33 @@ fun LicenseSettingsScreen(
     LaunchedEffect(licenseKey) {
         if (licenseKey.isNotEmpty() && licenseCode != licenseKey) {
             licenseCode = licenseKey
-            Log.d("LicenseSettingsScreen", "🔄 licenseKey updated to ${licenseKey.take(8)}..., licenseCode synchronized")
+            Log.d("LicenseSettingsScreen", "licenseKey updated to $licenseKey, licenseCode set to $licenseCode")
         }
     }
 
-    // 移除阻塞性等待，使用默认状态确保UI立即可用
-    // 如果eligibilityInfo为空，使用默认的允许状态
-    val safeEligibilityInfo = eligibilityInfo ?: EligibilityInfo(
-        status = EligibilityStatus.ELIGIBLE,
-        isTrialActive = true,
-        trialDaysRemaining = 10,
-        displayMessage = "正在加载权限状态...",
-        source = EligibilitySource.TRIAL
-    )
-    
-    Log.d("LicenseSettingsScreen", "🎨 渲染UI - 资格状态: ${safeEligibilityInfo.status}, 试用天数: ${safeEligibilityInfo.trialDaysRemaining}")
+    // 等待eligibilityInfo加载完成
+    if (eligibilityInfo == null) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator()
+        }
+        return
+    }
 
     // 基于统一的资格状态显示逻辑
-    val (licenseStatusText, statusIcon, statusBackgroundColor) = when (safeEligibilityInfo.status) {
+    val (licenseStatusText, statusIcon, statusBackgroundColor) = when (eligibilityInfo?.status) {
         EligibilityStatus.ELIGIBLE -> {
-            if (safeEligibilityInfo.isLicensed) {
+            if (isLicenseActivated) {
                 Triple(
                     "License is valid",
                     Icons.Default.CheckCircle,
                     Color(0xFFE0F7E0)
                 )
-            } else if (safeEligibilityInfo.isTrialActive) {
+            } else if (isTrialActive) {
                 Triple(
-                    "Trial Mode - ${safeEligibilityInfo.trialDaysRemaining} days remaining",
+                    "Trial Mode - $trialDaysRemaining days remaining",
                     Icons.Default.Timer,
                     Color(0xFFE0F7E0)
                 )
@@ -476,10 +418,10 @@ fun LicenseSettingsScreen(
                         imageVector = statusIcon,
                         contentDescription = null,
                         modifier = Modifier.size(24.dp),
-                        tint = if (safeEligibilityInfo.isLicensed) Color.Green else Color.Red
+                        tint = if (isLicenseActivated) Color.Green else Color.Red
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Column(modifier = Modifier.weight(1f)) {
+                    Column {
                         Text(
                             text = licenseStatusText,
                             style = MaterialTheme.typography.bodyLarge,
@@ -487,49 +429,12 @@ fun LicenseSettingsScreen(
                         )
                         Text(
                             text = when {
-                                safeEligibilityInfo.isLicensed -> "No action required."
-                                safeEligibilityInfo.isTrialActive -> "You are in trial mode."
+                                !isLicenseActivated && trialDaysRemaining > 0 -> "You are in trial mode."
+                                isLicenseActivated -> "No action required."
                                 else -> "Please activate a new license."
                             },
                             style = MaterialTheme.typography.bodyMedium
                         )
-                        
-                        // 显示最后验证时间
-                        val lastVerified = licenseInfo?.lastVerifiedTime ?: 0
-                        if (lastVerified > 0) {
-                            val timeSinceVerification = licenseManager.getTimeSinceLastVerification()
-                            val timeText = when {
-                                timeSinceVerification < 1 -> "刚刚验证"
-                                timeSinceVerification < 60 -> "${timeSinceVerification}分钟前验证"
-                                timeSinceVerification < 1440 -> "${timeSinceVerification / 60}小时前验证"
-                                else -> "${timeSinceVerification / 1440}天前验证"
-                            }
-                            Text(
-                                text = timeText,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                            )
-                        }
-                    }
-                    
-                    // 手动刷新按钮
-                    IconButton(
-                        onClick = manualRefresh,
-                        enabled = !isManualRefreshing
-                    ) {
-                        if (isManualRefreshing) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(24.dp),
-                                strokeWidth = 2.dp
-                            )
-                        } else {
-                            Icon(
-                                imageVector = Icons.Default.Refresh,
-                                contentDescription = "刷新许可证状态",
-                                modifier = Modifier.size(24.dp),
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        }
                     }
                 }
             }
@@ -759,7 +664,7 @@ fun LicenseSettingsScreen(
             LicenseInfoRow(
                 icon = Icons.Default.Science,
                 label = "Trial",
-                value = if (safeEligibilityInfo.isTrialActive) "Yes" else "No"
+                value = if (trialDaysRemaining > 0) "Yes" else "No"
             )
             LicenseInfoRow(
                 icon = Icons.Default.VerifiedUser,

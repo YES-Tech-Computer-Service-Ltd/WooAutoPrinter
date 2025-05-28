@@ -13,7 +13,6 @@ import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.VerifiedUser
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.*
@@ -269,30 +268,26 @@ fun LicenseSettingsScreen(
     // 智能验证逻辑：只在必要时验证
     LaunchedEffect(Unit) {
         val startTime = System.currentTimeMillis()
-        Log.d("LicenseSettingsScreen", "检查是否需要验证许可证 - ${System.currentTimeMillis()}")
+        Log.d("LicenseSettingsScreen", "🤔 检查是否需要验证许可证 - ${System.currentTimeMillis()}")
         
         try {
             // 检查当前状态是否需要重新验证
             val currentEligibility = eligibilityInfo
             val needsValidation = when {
                 currentEligibility == null -> {
-                    Log.d("LicenseSettingsScreen", "状态为空，需要验证")
+                    Log.d("LicenseSettingsScreen", "📝 状态为空，需要验证")
                     true
                 }
                 currentEligibility.status == EligibilityStatus.UNKNOWN -> {
-                    Log.d("LicenseSettingsScreen", "状态未知，需要验证")
-                    true
-                }
-                currentEligibility.status == EligibilityStatus.CHECKING -> {
-                    Log.d("LicenseSettingsScreen", "状态为验证中，可能之前验证未完成，需要重新验证")
+                    Log.d("LicenseSettingsScreen", "❓ 状态未知，需要验证")
                     true
                 }
                 licenseManager.shouldRevalidate(forceThresholdMinutes = 60) -> {
-                    Log.d("LicenseSettingsScreen", "距离上次验证超过1小时，需要重新验证")
+                    Log.d("LicenseSettingsScreen", "⏰ 距离上次验证超过1小时，需要重新验证")
                     true
                 }
                 else -> {
-                    Log.d("LicenseSettingsScreen", "当前状态有效，无需重新验证: ${currentEligibility.status}")
+                    Log.d("LicenseSettingsScreen", "✅ 当前状态有效，无需重新验证: ${currentEligibility.status}")
                     false
                 }
             }
@@ -307,7 +302,7 @@ fun LicenseSettingsScreen(
                     val verificationEndTime = System.currentTimeMillis()
                     val verificationDuration = verificationEndTime - verificationStartTime
                     
-                    Log.d("LicenseSettingsScreen", "后台验证完成: $isValid, 耗时: ${verificationDuration}ms")
+                    Log.d("LicenseSettingsScreen", "✅ 后台验证完成: $isValid, 耗时: ${verificationDuration}ms")
                 }
             }
             
@@ -325,18 +320,18 @@ fun LicenseSettingsScreen(
             isManualRefreshing = true
             coroutineScope.launch {
                 try {
-                    Log.d("LicenseSettingsScreen", "用户手动刷新许可证状态")
+                    Log.d("LicenseSettingsScreen", "🔄 用户手动刷新许可证状态")
                     val startTime = System.currentTimeMillis()
                     
                     val isValid = licenseManager.forceRevalidateAndSync(context)
                     val duration = System.currentTimeMillis() - startTime
                     
-                    Log.d("LicenseSettingsScreen", "手动刷新完成: $isValid, 耗时: ${duration}ms")
+                    Log.d("LicenseSettingsScreen", "🔄 手动刷新完成: $isValid, 耗时: ${duration}ms")
                     
                     val message = if (isValid) "许可证状态已刷新" else "刷新完成"
                     snackbarHostState.showSnackbar(message)
                 } catch (e: Exception) {
-                    Log.e("LicenseSettingsScreen", "手动刷新失败: ${e.message}", e)
+                    Log.e("LicenseSettingsScreen", "❌ 手动刷新失败: ${e.message}", e)
                     snackbarHostState.showSnackbar("刷新失败: ${e.message}")
                 } finally {
                     isManualRefreshing = false
@@ -479,7 +474,7 @@ fun LicenseSettingsScreen(
                         tint = if (safeEligibilityInfo.isLicensed) Color.Green else Color.Red
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Column(modifier = Modifier.weight(1f)) {
+                    Column {
                         Text(
                             text = licenseStatusText,
                             style = MaterialTheme.typography.bodyLarge,
@@ -493,43 +488,6 @@ fun LicenseSettingsScreen(
                             },
                             style = MaterialTheme.typography.bodyMedium
                         )
-                        
-                        // 显示最后验证时间
-                        val lastVerified = licenseInfo?.lastVerifiedTime ?: 0
-                        if (lastVerified > 0) {
-                            val timeSinceVerification = licenseManager.getTimeSinceLastVerification()
-                            val timeText = when {
-                                timeSinceVerification < 1 -> "刚刚验证"
-                                timeSinceVerification < 60 -> "${timeSinceVerification}分钟前验证"
-                                timeSinceVerification < 1440 -> "${timeSinceVerification / 60}小时前验证"
-                                else -> "${timeSinceVerification / 1440}天前验证"
-                            }
-                            Text(
-                                text = timeText,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                            )
-                        }
-                    }
-                    
-                    // 手动刷新按钮
-                    IconButton(
-                        onClick = manualRefresh,
-                        enabled = !isManualRefreshing
-                    ) {
-                        if (isManualRefreshing) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(24.dp),
-                                strokeWidth = 2.dp
-                            )
-                        } else {
-                            Icon(
-                                imageVector = Icons.Default.Refresh,
-                                contentDescription = "刷新许可证状态",
-                                modifier = Modifier.size(24.dp),
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        }
                     }
                 }
             }

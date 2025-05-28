@@ -283,10 +283,6 @@ fun LicenseSettingsScreen(
                     Log.d("LicenseSettingsScreen", "状态未知，需要验证")
                     true
                 }
-                currentEligibility.status == EligibilityStatus.CHECKING -> {
-                    Log.d("LicenseSettingsScreen", "状态为验证中，可能之前验证未完成，需要重新验证")
-                    true
-                }
                 licenseManager.shouldRevalidate(forceThresholdMinutes = 60) -> {
                     Log.d("LicenseSettingsScreen", "距离上次验证超过1小时，需要重新验证")
                     true
