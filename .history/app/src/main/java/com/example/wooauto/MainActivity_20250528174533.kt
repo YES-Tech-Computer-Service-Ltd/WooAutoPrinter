@@ -510,7 +510,7 @@ fun NewOrderPopup(
                                 fontWeight = FontWeight.Bold
                             )
                         }
-                        IconButton(onClick = onManualClose) {
+                        IconButton(onClick = onDismiss) {
                             Icon(
                                 imageVector = Icons.Default.Close,
                                 contentDescription = stringResource(R.string.close),

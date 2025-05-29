@@ -40,7 +40,8 @@ import com.example.wooauto.presentation.screens.orders.UnreadOrdersDialog
 fun WooAppBar(
     navController: NavController? = null,
     onSearch: (query: String, route: String) -> Unit = { _, _ -> },
-    onRefresh: (route: String) -> Unit = { _ -> }
+    onRefresh: (route: String) -> Unit = { _ -> },
+    onOrderClick: ((Long) -> Unit)? = null  // 新增订单点击回调
 ) {
     // 获取当前语言环境
     val locale = LocalAppLocale.current
@@ -96,7 +97,14 @@ fun WooAppBar(
             // 显示未读订单对话框
             if (showUnreadOrders) {
                 UnreadOrdersDialog(
-                    onDismiss = { showUnreadOrders = false }
+                    onDismiss = { showUnreadOrders = false },
+                    onOrderClick = { order ->
+                        // 点击订单时，关闭对话框并通过回调处理
+                        android.util.Log.d("WooAppBar", "UnreadOrdersDialog点击订单: ${order.id}")
+                        showUnreadOrders = false
+                        // 直接调用回调函数
+                        onOrderClick?.invoke(order.id)
+                    }
                 )
             }
         }

@@ -448,11 +448,9 @@ fun NewOrderPopup(
             // 用户手动关闭（点击外部区域或返回键）
             if (!isAutoClose) {
                 // 手动关闭标记为已读
-                onManualClose()
-            } else {
-                // 自动关闭，不标记为已读
-                onDismiss()
+                // 这里需要传递标记已读的逻辑
             }
+            onDismiss()
         },
         properties = DialogProperties(
             dismissOnBackPress = true,
@@ -510,7 +508,7 @@ fun NewOrderPopup(
                                 fontWeight = FontWeight.Bold
                             )
                         }
-                        IconButton(onClick = onManualClose) {
+                        IconButton(onClick = onDismiss) {
                             Icon(
                                 imageVector = Icons.Default.Close,
                                 contentDescription = stringResource(R.string.close),

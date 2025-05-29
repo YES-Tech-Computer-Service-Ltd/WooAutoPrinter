@@ -31,6 +31,9 @@ import androidx.compose.runtime.setValue
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.wooauto.presentation.screens.orders.OrdersViewModel
 import com.example.wooauto.presentation.screens.orders.UnreadOrdersDialog
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /**
  * 全局顶部栏组件
@@ -96,7 +99,41 @@ fun WooAppBar(
             // 显示未读订单对话框
             if (showUnreadOrders) {
                 UnreadOrdersDialog(
-                    onDismiss = { showUnreadOrders = false }
+                    onDismiss = { showUnreadOrders = false },
+                    onOrderClick = { order ->
+                        // 点击订单时，关闭对话框并显示订单详情
+                        android.util.Log.d("WooAppBar", "UnreadOrdersDialog点击订单: ${order.id}")
+                        showUnreadOrders = false
+                        // 使用广播通知OrdersScreen显示订单详情
+                        navController?.let { nc ->
+                            val context = nc.context
+                            
+                            // 首先确保导航到Orders页面
+                            android.util.Log.d("WooAppBar", "导航到Orders页面")
+                            try {
+                                nc.navigate(NavigationItem.Orders.route) {
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                                android.util.Log.d("WooAppBar", "导航成功")
+                            } catch (e: Exception) {
+                                android.util.Log.e("WooAppBar", "导航失败: ${e.message}")
+                            }
+                            
+                            // 延迟发送广播，确保OrdersScreen有时间初始化
+                            android.util.Log.d("WooAppBar", "延迟发送广播...")
+                            GlobalScope.launch {
+                                delay(200) // 延迟200ms
+                                val intent = android.content.Intent("com.example.wooauto.ACTION_OPEN_ORDER_DETAILS")
+                                intent.putExtra("orderId", order.id)
+                                android.util.Log.d("WooAppBar", "发送广播显示订单详情: ${order.id}")
+                                context.sendBroadcast(intent)
+                                android.util.Log.d("WooAppBar", "广播已发送")
+                            }
+                        } ?: run {
+                            android.util.Log.e("WooAppBar", "navController为null，无法发送广播")
+                        }
+                    }
                 )
             }
         }

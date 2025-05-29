@@ -60,6 +60,9 @@ fun WooAppBar(
             val searchOrdersPlaceholder = if (locale.language == "zh") "搜索订单..." else "Search orders..."
             val unreadOrdersText = if (locale.language == "zh") "未读订单" else "Unread Orders"
             
+            // 在Orders页面时，获取OrdersViewModel用于直接操作
+            val ordersViewModel: OrdersViewModel = hiltViewModel()
+            
             WooTopBar(
                 title = "", // 空标题，不显示
                 showSearch = true, // 显示搜索框
@@ -96,7 +99,27 @@ fun WooAppBar(
             // 显示未读订单对话框
             if (showUnreadOrders) {
                 UnreadOrdersDialog(
-                    onDismiss = { showUnreadOrders = false }
+                    onDismiss = { showUnreadOrders = false },
+                    onOrderClick = { order ->
+                        // 点击订单时，关闭对话框并直接操作ViewModel
+                        android.util.Log.d("WooAppBar", "UnreadOrdersDialog点击订单: ${order.id}")
+                        showUnreadOrders = false
+                        
+                        // 确保导航到Orders页面
+                        navController?.let { nc ->
+                            android.util.Log.d("WooAppBar", "确保导航到Orders页面")
+                            nc.navigate(NavigationItem.Orders.route) {
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        }
+                        
+                        // 直接调用OrdersViewModel的方法
+                        android.util.Log.d("WooAppBar", "直接调用getOrderDetails: ${order.id}")
+                        ordersViewModel.getOrderDetails(order.id)
+                        android.util.Log.d("WooAppBar", "getOrderDetails调用完成")
+                    },
+                    viewModel = ordersViewModel
                 )
             }
         }

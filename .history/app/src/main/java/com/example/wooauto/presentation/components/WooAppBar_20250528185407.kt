@@ -40,7 +40,8 @@ import com.example.wooauto.presentation.screens.orders.UnreadOrdersDialog
 fun WooAppBar(
     navController: NavController? = null,
     onSearch: (query: String, route: String) -> Unit = { _, _ -> },
-    onRefresh: (route: String) -> Unit = { _ -> }
+    onRefresh: (route: String) -> Unit = { _ -> },
+    ordersViewModel: OrdersViewModel? = null // 添加可选的OrdersViewModel参数
 ) {
     // 获取当前语言环境
     val locale = LocalAppLocale.current
@@ -59,6 +60,9 @@ fun WooAppBar(
             // 订单页面特有的顶部栏 - 只显示搜索框和未读订单按钮，不显示标题
             val searchOrdersPlaceholder = if (locale.language == "zh") "搜索订单..." else "Search orders..."
             val unreadOrdersText = if (locale.language == "zh") "未读订单" else "Unread Orders"
+            
+            // 优先使用传入的ViewModel，如果没有则获取默认的
+            val viewModel = ordersViewModel ?: hiltViewModel<OrdersViewModel>()
             
             WooTopBar(
                 title = "", // 空标题，不显示
@@ -96,7 +100,18 @@ fun WooAppBar(
             // 显示未读订单对话框
             if (showUnreadOrders) {
                 UnreadOrdersDialog(
-                    onDismiss = { showUnreadOrders = false }
+                    onDismiss = { showUnreadOrders = false },
+                    onOrderClick = { order ->
+                        // 点击订单时，关闭对话框并直接操作ViewModel
+                        android.util.Log.d("WooAppBar", "UnreadOrdersDialog点击订单: ${order.id}")
+                        showUnreadOrders = false
+                        
+                        // 直接调用OrdersViewModel的方法
+                        android.util.Log.d("WooAppBar", "直接调用getOrderDetails: ${order.id}")
+                        viewModel.getOrderDetails(order.id)
+                        android.util.Log.d("WooAppBar", "getOrderDetails调用完成")
+                    },
+                    viewModel = viewModel
                 )
             }
         }

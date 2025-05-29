@@ -26,7 +26,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -205,18 +204,13 @@ class MainActivity : ComponentActivity(), OrderNotificationManager.NotificationC
                     NewOrderPopup(
                         order = currentNewOrder!!,
                         onDismiss = { 
-                            // 只是隐藏弹窗，不处理已读状态（由NewOrderPopup内部处理）
-                            showNewOrderDialog = false
-                            currentNewOrder = null
-                        },
-                        onManualClose = {
-                            // 用户手动关闭时标记为已读
+                            // 标记订单为已读
                             orderNotificationManager.markOrderAsRead(currentNewOrder!!.id)
                             showNewOrderDialog = false
                             currentNewOrder = null
                         },
                         onViewDetails = {
-                            // 用户主动查看详情时标记为已读
+                            // 标记订单为已读
                             orderNotificationManager.markOrderAsRead(currentNewOrder!!.id)
                             // 保存订单ID，避免空指针异常
                             val orderId = currentNewOrder!!.id
@@ -229,7 +223,6 @@ class MainActivity : ComponentActivity(), OrderNotificationManager.NotificationC
                             sendBroadcast(intent)
                         },
                         onPrintOrder = {
-                            // 打印订单，不自动标记为已读
                             orderNotificationManager.markOrderAsPrinted(currentNewOrder!!.id) { updatedOrder ->
                                 updatedOrder?.let { 
                                     currentNewOrder = it
@@ -422,7 +415,6 @@ class MainActivity : ComponentActivity(), OrderNotificationManager.NotificationC
 fun NewOrderPopup(
     order: Order,
     onDismiss: () -> Unit,
-    onManualClose: () -> Unit,
     onViewDetails: () -> Unit,
     onPrintOrder: () -> Unit
 ) {
@@ -433,27 +425,14 @@ fun NewOrderPopup(
     // 计算商品总数
     val totalItems = order.items.sumOf { it.quantity }
     
-    // 用于区分自动关闭和手动关闭的状态
-    var isAutoClose by remember { mutableStateOf(false) }
-    
     // 10秒自动关闭定时器
     LaunchedEffect(key1 = order.id) {
         delay(10000) // 10秒后自动关闭
-        isAutoClose = true
-        onDismiss() // 自动关闭，不标记为已读
+        onDismiss()
     }
     
     Dialog(
-        onDismissRequest = {
-            // 用户手动关闭（点击外部区域或返回键）
-            if (!isAutoClose) {
-                // 手动关闭标记为已读
-                onManualClose()
-            } else {
-                // 自动关闭，不标记为已读
-                onDismiss()
-            }
-        },
+        onDismissRequest = onDismiss,
         properties = DialogProperties(
             dismissOnBackPress = true,
             dismissOnClickOutside = true,
@@ -510,7 +489,7 @@ fun NewOrderPopup(
                                 fontWeight = FontWeight.Bold
                             )
                         }
-                        IconButton(onClick = onManualClose) {
+                        IconButton(onClick = onDismiss) {
                             Icon(
                                 imageVector = Icons.Default.Close,
                                 contentDescription = stringResource(R.string.close),

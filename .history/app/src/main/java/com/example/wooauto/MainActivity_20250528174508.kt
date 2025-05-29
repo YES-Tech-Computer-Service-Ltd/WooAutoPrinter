@@ -205,13 +205,8 @@ class MainActivity : ComponentActivity(), OrderNotificationManager.NotificationC
                     NewOrderPopup(
                         order = currentNewOrder!!,
                         onDismiss = { 
-                            // 只是隐藏弹窗，不处理已读状态（由NewOrderPopup内部处理）
-                            showNewOrderDialog = false
-                            currentNewOrder = null
-                        },
-                        onManualClose = {
-                            // 用户手动关闭时标记为已读
-                            orderNotificationManager.markOrderAsRead(currentNewOrder!!.id)
+                            // 弹窗关闭时不自动标记为已读，让用户自己控制
+                            // 只是隐藏弹窗
                             showNewOrderDialog = false
                             currentNewOrder = null
                         },
@@ -422,7 +417,6 @@ class MainActivity : ComponentActivity(), OrderNotificationManager.NotificationC
 fun NewOrderPopup(
     order: Order,
     onDismiss: () -> Unit,
-    onManualClose: () -> Unit,
     onViewDetails: () -> Unit,
     onPrintOrder: () -> Unit
 ) {
@@ -448,11 +442,9 @@ fun NewOrderPopup(
             // 用户手动关闭（点击外部区域或返回键）
             if (!isAutoClose) {
                 // 手动关闭标记为已读
-                onManualClose()
-            } else {
-                // 自动关闭，不标记为已读
-                onDismiss()
+                // 这里需要传递标记已读的逻辑
             }
+            onDismiss()
         },
         properties = DialogProperties(
             dismissOnBackPress = true,
@@ -510,7 +502,7 @@ fun NewOrderPopup(
                                 fontWeight = FontWeight.Bold
                             )
                         }
-                        IconButton(onClick = onManualClose) {
+                        IconButton(onClick = onDismiss) {
                             Icon(
                                 imageVector = Icons.Default.Close,
                                 contentDescription = stringResource(R.string.close),

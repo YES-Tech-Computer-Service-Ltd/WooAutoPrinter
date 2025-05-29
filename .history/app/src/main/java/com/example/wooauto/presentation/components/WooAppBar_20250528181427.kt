@@ -96,7 +96,18 @@ fun WooAppBar(
             // 显示未读订单对话框
             if (showUnreadOrders) {
                 UnreadOrdersDialog(
-                    onDismiss = { showUnreadOrders = false }
+                    onDismiss = { showUnreadOrders = false },
+                    onOrderClick = { order ->
+                        // 点击订单时，关闭对话框并显示订单详情
+                        showUnreadOrders = false
+                        // 使用广播通知OrdersScreen显示订单详情
+                        navController?.let { nc ->
+                            val context = nc.context
+                            val intent = android.content.Intent("com.example.wooauto.ACTION_OPEN_ORDER_DETAILS")
+                            intent.putExtra("orderId", order.id)
+                            context.sendBroadcast(intent)
+                        }
+                    }
                 )
             }
         }

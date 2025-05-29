@@ -60,6 +60,9 @@ fun WooAppBar(
             val searchOrdersPlaceholder = if (locale.language == "zh") "搜索订单..." else "Search orders..."
             val unreadOrdersText = if (locale.language == "zh") "未读订单" else "Unread Orders"
             
+            // 获取OrdersViewModel用于处理未读订单
+            val ordersViewModel: OrdersViewModel = hiltViewModel()
+            
             WooTopBar(
                 title = "", // 空标题，不显示
                 showSearch = true, // 显示搜索框
@@ -96,7 +99,14 @@ fun WooAppBar(
             // 显示未读订单对话框
             if (showUnreadOrders) {
                 UnreadOrdersDialog(
-                    onDismiss = { showUnreadOrders = false }
+                    onDismiss = { showUnreadOrders = false },
+                    onOrderClick = { order ->
+                        // 点击订单时，关闭对话框并显示订单详情
+                        showUnreadOrders = false
+                        ordersViewModel.getOrderDetails(order.id)
+                        // 可以在这里添加导航到订单详情的逻辑
+                    },
+                    viewModel = ordersViewModel
                 )
             }
         }
