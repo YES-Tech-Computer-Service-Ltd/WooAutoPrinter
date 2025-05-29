@@ -34,6 +34,10 @@ import java.util.*
 import javax.inject.Inject
 import kotlin.collections.HashSet
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 
 @AndroidEntryPoint
 class BackgroundPollingService : Service() {
@@ -92,6 +96,11 @@ class BackgroundPollingService : Service() {
     // 定义一个在前台时使用较短轮询间隔的倍数因子
     private val FOREGROUND_INTERVAL_FACTOR = 0.5f // 前台时轮询间隔是后台的一半
 
+    // 添加网络状态监听相关组件
+    private var connectivityManager: ConnectivityManager? = null
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
+    private var isNetworkAvailable = true
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
@@ -101,6 +110,9 @@ class BackgroundPollingService : Service() {
         // 创建通知渠道并启动前台服务
         createNotificationChannel()
         startForeground()
+        
+        // 初始化网络监听器
+        initNetworkListener()
         
         // 延迟初始化，确保应用组件完全加载
         serviceScope.launch {
@@ -137,6 +149,8 @@ class BackgroundPollingService : Service() {
                 }
             }
         }
+        
+        Log.d(TAG, "服务创建完成")
     }
     
     /**
@@ -240,6 +254,14 @@ class BackgroundPollingService : Service() {
         
         // 取消整个服务协程作用域
         serviceScope.cancel()
+        
+        // 取消网络监听器注册
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            networkCallback?.let { callback ->
+                connectivityManager?.unregisterNetworkCallback(callback)
+                Log.d(TAG, "网络监听器已注销")
+            }
+        }
         
         Log.d(TAG, "【服务销毁】资源清理完成")
         super.onDestroy()
@@ -519,17 +541,22 @@ class BackgroundPollingService : Service() {
                 if (orders.isNotEmpty()) {
                     Log.d(TAG, "【自动打印调试】轮询成功，获取了 ${orders.size} 个处理中订单")
                     
-                    // 发送广播通知界面更新
-                    sendOrdersUpdatedBroadcast()
-                    
                     // 过滤并处理新订单
-                    processNewOrders(orders)
+                    val newOrderCount = processNewOrders(orders)
                     
-                    // 发送新订单广播
-                    sendNewOrdersBroadcast(orders.size)
-                    
-                    // 通知UI层刷新数据
-                    sendRefreshOrdersBroadcast()
+                    // 只有真正有新订单时才发送广播
+                    if (newOrderCount > 0) {
+                        // 发送广播通知界面更新
+                        sendOrdersUpdatedBroadcast()
+                        
+                        // 发送新订单广播
+                        sendNewOrdersBroadcast(newOrderCount)
+                        
+                        // 通知UI层刷新数据
+                        sendRefreshOrdersBroadcast()
+                    } else {
+                        Log.d(TAG, "【自动打印调试】虽然获取了订单，但都是已处理过的，不发送广播")
+                    }
                 } else {
                     // 减少无新订单时的日志输出频率
                     val minutes = System.currentTimeMillis() / 60000
@@ -601,7 +628,7 @@ class BackgroundPollingService : Service() {
         }
     }
 
-    private suspend fun processNewOrders(orders: List<Order>) {
+    private suspend fun processNewOrders(orders: List<Order>): Int {
         var newOrderCount = 0
         
         Log.d(TAG, "处理新订单，共 ${orders.size} 个")
@@ -694,6 +721,8 @@ class BackgroundPollingService : Service() {
                 Log.d(TAG, "订单跳过处理，原因: $skipReason: #${order.number}")
             }
         }
+        
+        return newOrderCount
     }
     
     /**
@@ -813,18 +842,15 @@ class BackgroundPollingService : Service() {
                 
                 Log.d(TAG, "【自动打印调试】打印结果: ${if (printResult) "成功" else "失败"}")
                 
-                // 如果打印成功，更新订单已打印状态
                 if (printResult) {
-                    Log.d(TAG, "【自动打印调试】打印成功，现在标记订单为已打印, ID: ${order.id}")
-                    val markResult = orderRepository.markOrderAsPrinted(order.id)
-                    Log.d(TAG, "【自动打印调试】标记订单为已打印结果: $markResult, 订单ID: ${order.id}")
+                    Log.d(TAG, "【自动打印调试】打印成功，订单将由打印管理器自动标记为已打印: #${order.number}")
                     
-                    // 验证更新是否成功
+                    // 验证标记是否成功（仅用于日志验证）
                     val finalOrder = orderRepository.getOrderById(order.id)
                     if (finalOrder?.isPrinted == true) {
-                        Log.d(TAG, "【自动打印调试】成功验证订单 #${order.number} 已被标记为已打印")
+                        Log.d(TAG, "【自动打印调试】验证：订单 #${order.number} 已被正确标记为已打印")
                     } else {
-                        Log.e(TAG, "【自动打印调试】警告：订单 #${order.number} 状态更新验证失败，数据库记录: ${finalOrder?.isPrinted}")
+                        Log.w(TAG, "【自动打印调试】注意：订单 #${order.number} 可能还未被标记为已打印，状态: ${finalOrder?.isPrinted}")
                     }
                 } else {
                     Log.e(TAG, "【自动打印调试】打印失败，订单 #${order.number} 维持未打印状态")
@@ -902,6 +928,79 @@ class BackgroundPollingService : Service() {
                     Log.e(TAG, "【自动打印调试】定期清理任务异常: ${e.message}", e)
                 }
             }
+        }
+    }
+
+    // 初始化网络监听器
+    private fun initNetworkListener() {
+        connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            networkCallback = object : ConnectivityManager.NetworkCallback() {
+                override fun onAvailable(network: Network) {
+                    super.onAvailable(network)
+                    val wasOffline = !isNetworkAvailable
+                    isNetworkAvailable = true
+                    
+                    // 只有在确实从离线状态恢复且当前正在轮询时，才触发一次额外轮询
+                    if (wasOffline && isPollingActive && initialPollingComplete) {
+                        Log.d(TAG, "网络从离线状态恢复，触发一次恢复轮询")
+                        serviceScope.launch {
+                            try {
+                                // 等待网络完全稳定
+                                delay(1000)
+                                // 只执行一次轮询，不发送额外广播
+                                val result = orderRepository.refreshProcessingOrdersForPolling(latestPolledDate)
+                                if (result.isSuccess) {
+                                    val orders = result.getOrDefault(emptyList())
+                                    if (orders.isNotEmpty()) {
+                                        Log.d(TAG, "网络恢复轮询成功，获取了 ${orders.size} 个订单")
+                                        // 只处理新订单，不发送多余广播
+                                        processNewOrders(orders)
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                Log.e(TAG, "网络恢复后轮询失败: ${e.message}")
+                            }
+                        }
+                    } else {
+                        Log.d(TAG, "网络连接已恢复 (无需额外轮询)")
+                    }
+                }
+                
+                override fun onLost(network: Network) {
+                    super.onLost(network)
+                    isNetworkAvailable = false
+                    Log.d(TAG, "网络连接已断开")
+                }
+                
+                override fun onCapabilitiesChanged(network: Network, networkCapabilities: NetworkCapabilities) {
+                    super.onCapabilitiesChanged(network, networkCapabilities)
+                    val hasInternet = networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+                                     networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+                    
+                    if (hasInternet != isNetworkAvailable) {
+                        val previousState = isNetworkAvailable
+                        isNetworkAvailable = hasInternet
+                        Log.d(TAG, "网络状态变化: $previousState -> $isNetworkAvailable")
+                        
+                        // 避免频繁的网络质量变化触发轮询
+                        if (hasInternet && !previousState && isPollingActive && initialPollingComplete) {
+                            Log.d(TAG, "网络质量恢复，但不触发额外轮询（由正常轮询周期处理）")
+                        }
+                    }
+                }
+            }
+            
+            val networkRequest = NetworkRequest.Builder()
+                .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                .addCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+                .build()
+                
+            connectivityManager?.registerNetworkCallback(networkRequest, networkCallback!!)
+            Log.d(TAG, "网络监听器已注册")
+        } else {
+            Log.d(TAG, "Android版本不支持网络回调，使用传统方式检查网络")
         }
     }
 } 

@@ -969,22 +969,22 @@ class BluetoothPrinterManager @Inject constructor(
      * @return 是否成功处理
      */
     private suspend fun handleSuccessfulPrint(order: Order): Boolean {
-//        Log.d(TAG, "打印成功，检查订单 ${order.id} 当前打印状态")
+        Log.d(TAG, "打印成功，检查订单 ${order.id} 当前打印状态")
 
         // 获取最新的订单信息
         val latestOrder = orderRepository.getOrderById(order.id)
 
         // 只有在订单未被标记为已打印时才进行标记
         if (latestOrder != null && !latestOrder.isPrinted) {
-//            Log.d(TAG, "标记订单 ${order.id} 为已打印")
+            Log.d(TAG, "标记订单 ${order.id} 为已打印")
             val markResult = orderRepository.markOrderAsPrinted(order.id)
             if (markResult) {
-//                Log.d(TAG, "成功标记订单 ${order.id} 为已打印")
+                Log.d(TAG, "成功标记订单 ${order.id} 为已打印")
             } else {
                 Log.e(TAG, "标记订单 ${order.id} 为已打印-失败")
             }
         } else {
-//            Log.d(TAG, "订单 ${order.id} 已被标记为已打印，跳过重复标记")
+            Log.d(TAG, "订单 ${order.id} 已被标记为已打印，跳过重复标记")
         }
 
         return true
