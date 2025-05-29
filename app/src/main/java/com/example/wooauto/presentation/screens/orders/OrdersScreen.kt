@@ -88,6 +88,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.compose.currentBackStackEntryAsState
 import com.example.wooauto.domain.models.Order
 import com.example.wooauto.domain.models.OrderItem
 import com.example.wooauto.navigation.NavigationItem
@@ -128,6 +129,7 @@ import com.example.wooauto.presentation.SearchEvent
 import com.example.wooauto.presentation.RefreshEvent
 import androidx.compose.ui.unit.Dp
 import com.example.wooauto.presentation.screens.orders.OrderDetailDialog
+import com.example.wooauto.presentation.screens.orders.UnreadOrdersDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -137,6 +139,11 @@ fun OrdersScreen(
 ) {
     Log.d("OrdersScreen", "订单屏幕初始化")
     
+    // 获取当前路由
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route ?: "unknown"
+    Log.d("OrdersScreen", "当前路由: $currentRoute")
+    
     // 获取当前语言环境
     val locale = LocalAppLocale.current
     val context = LocalContext.current
@@ -145,7 +152,6 @@ fun OrdersScreen(
     val apiNotConfiguredMessage = stringResource(R.string.api_notification_not_configured)
     val ordersTitle = stringResource(id = R.string.orders)
     val searchOrdersPlaceholder = if (locale.language == "zh") "搜索订单..." else "Search orders..."
-    val unreadOrdersText = if (locale.language == "zh") "未读订单" else "Unread Orders"
     val errorApiNotConfigured = stringResource(R.string.error_api_not_configured)
     
     val isConfigured by viewModel.isConfigured.collectAsState()
@@ -162,10 +168,10 @@ fun OrdersScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
     
+    // 搜索相关状态
     var searchQuery by remember { mutableStateOf("") }
     var showOrderDetail by remember { mutableStateOf(false) }
     var statusFilter by remember { mutableStateOf("") }
-    var showUnreadOrders by remember { mutableStateOf(false) }
     
     // 记录TopBar的实际高度
     var topBarHeight by remember { mutableStateOf(0.dp) }
@@ -218,6 +224,28 @@ fun OrdersScreen(
         }
     }
     
+    // 监听selectedOrder的变化，自动显示订单详情对话框
+    LaunchedEffect(selectedOrder?.id) {
+        Log.d("OrdersScreen", "LaunchedEffect触发 - selectedOrder?.id: ${selectedOrder?.id}, showOrderDetail: $showOrderDetail")
+        selectedOrder?.let { order ->
+            Log.d("OrdersScreen", "selectedOrder不为空: ${order.id}, 当前showOrderDetail: $showOrderDetail")
+            if (!showOrderDetail) {
+                Log.d("OrdersScreen", "检测到selectedOrder变化，显示订单详情对话框: ${order.id}")
+                showOrderDetail = true
+                Log.d("OrdersScreen", "已设置showOrderDetail = true")
+            } else {
+                Log.d("OrdersScreen", "showOrderDetail已经为true，跳过设置")
+            }
+        } ?: run {
+            Log.d("OrdersScreen", "selectedOrder为null")
+        }
+    }
+    
+    // 添加对selectedOrder的监听日志
+    LaunchedEffect(selectedOrder) {
+        Log.d("OrdersScreen", "selectedOrder状态变化: ${selectedOrder?.let { "订单ID=${it.id}, 订单号=${it.number}" } ?: "null"}")
+    }
+    
     // 当进入此屏幕时执行初始化操作 - 简化逻辑，减少重复调用
     LaunchedEffect(key1 = Unit) {
         Log.d("OrdersScreen", "LaunchedEffect 触发，开始初始化流程")
@@ -233,54 +261,6 @@ fun OrdersScreen(
             Log.d("OrdersScreen", "API未配置，显示提示信息")
             coroutineScope.launch {
                 snackbarHostState.showSnackbar(apiNotConfiguredMessage)
-            }
-        }
-    }
-    
-    // 注册接收新订单详情显示的广播接收器
-    DisposableEffect(key1 = context) {
-        val intentFilter = android.content.IntentFilter("com.example.wooauto.ACTION_OPEN_ORDER_DETAILS")
-        val receiver = object : android.content.BroadcastReceiver() {
-            override fun onReceive(context: android.content.Context?, intent: android.content.Intent?) {
-                if (intent?.action == "com.example.wooauto.ACTION_OPEN_ORDER_DETAILS") {
-                    val orderId = intent.getLongExtra("orderId", -1L)
-                    if (orderId != -1L) {
-                        Log.d("OrdersScreen", "收到显示订单详情广播，订单ID: $orderId")
-                        // 导航到Orders页面（如果不在的话）
-                        navController.navigate(NavigationItem.Orders.route) {
-                            // 防止创建多个实例
-                            launchSingleTop = true
-                            // 避免重复进入
-                            restoreState = true
-                        }
-                        // 显示订单详情
-                        viewModel.getOrderDetails(orderId)
-                        showOrderDetail = true
-                    }
-                }
-            }
-        }
-        
-        // 根据API级别使用相应的注册方法
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-            context.registerReceiver(receiver, intentFilter, android.content.Context.RECEIVER_NOT_EXPORTED)
-            Log.d("OrdersScreen", "使用RECEIVER_NOT_EXPORTED标志注册订单详情广播接收器(Android 13+)")
-        } else {
-            ContextCompat.registerReceiver(
-                context,
-                receiver,
-                intentFilter,
-                ContextCompat.RECEIVER_NOT_EXPORTED
-            )
-            Log.d("OrdersScreen", "标准方式注册订单详情广播接收器(Android 12及以下)")
-        }
-        
-        // 在效果结束时注销接收器
-        onDispose {
-            try {
-                context.unregisterReceiver(receiver)
-            } catch (e: Exception) {
-                Log.e("OrdersScreen", "注销接收器失败", e)
             }
         }
     }
@@ -462,14 +442,13 @@ fun OrdersScreen(
                 // 有订单数据，显示订单列表
                 OrdersList(
                     orders = orders,
-                    showUnreadOnly = showUnreadOrders,
                     selectedStatus = statusFilter,
                     searchQuery = searchQuery,
                     onSelectOrder = { order ->
                         viewModel.getOrderDetails(order.id)
                         showOrderDetail = true
-                        // 标记订单为已读
-                        viewModel.markOrderAsRead(order.id)
+                        // 不要在这里自动标记为已读，让用户手动控制
+                        // viewModel.markOrderAsRead(order.id)
                     },
                     onStatusSelected = { status ->
                         statusFilter = status
@@ -483,7 +462,10 @@ fun OrdersScreen(
             if (showOrderDetail && selectedOrder != null) {
                 OrderDetailDialog(
                     order = selectedOrder!!,
-                    onDismiss = { showOrderDetail = false },
+                    onDismiss = { 
+                        showOrderDetail = false
+                        viewModel.clearSelectedOrder()
+                    },
                     onStatusChange = { orderId, newStatus ->
                         // 调用状态变更逻辑
                         viewModel.updateOrderStatus(orderId, newStatus)
@@ -491,6 +473,10 @@ fun OrdersScreen(
                     onMarkAsPrinted = { orderId ->
                         // 直接调用标记为已打印的方法，不需要调用打印逻辑
                         viewModel.markOrderAsPrinted(orderId)
+                    },
+                    onMarkAsRead = { orderId ->
+                        // 当用户查看完订单详情并关闭对话框时，标记为已读
+                        viewModel.markOrderAsRead(orderId)
                     }
                 )
             }
@@ -504,7 +490,6 @@ fun OrdersScreen(
 @Composable
 private fun OrdersList(
     orders: List<Order>,
-    showUnreadOnly: Boolean,
     selectedStatus: String,
     searchQuery: String,
     onSelectOrder: (Order) -> Unit,
@@ -693,10 +678,8 @@ private fun OrdersList(
             val queryMatch = searchQuery.isEmpty() || 
                 it.number.contains(searchQuery, ignoreCase = true) || 
                 it.customerName.contains(searchQuery, ignoreCase = true)
-            // 未读过滤
-            val unreadMatch = !showUnreadOnly || !it.isRead
             
-            statusMatch && queryMatch && unreadMatch
+            statusMatch && queryMatch
         }
         
         if (filteredOrders.isEmpty()) {
@@ -740,7 +723,7 @@ private fun OrdersList(
                 Spacer(modifier = Modifier.height(24.dp))
                 
                 // 清除筛选按钮
-                if (selectedStatus.isNotEmpty() || searchQuery.isNotEmpty() || showUnreadOnly) {
+                if (selectedStatus.isNotEmpty() || searchQuery.isNotEmpty()) {
                     Button(
                         onClick = { 
                             // 清除所有筛选条件，恢复到默认视图
@@ -760,7 +743,7 @@ private fun OrdersList(
             }
         } else {
             // 添加筛选结果摘要
-            if (selectedStatus.isNotEmpty() || searchQuery.isNotEmpty() || showUnreadOnly) {
+            if (selectedStatus.isNotEmpty() || searchQuery.isNotEmpty()) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1057,343 +1040,5 @@ fun getStatusColor(status: String): Color {
         "cancelled", "failed" -> MaterialTheme.colorScheme.error
         "refunded" -> Color(0xFF4CAF50) // 绿色
         else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-    }
-}
-
-@Composable
-fun UnreadOrdersDialog(
-    onDismiss: () -> Unit,
-    onOrderClick: (Order) -> Unit,
-    viewModel: OrdersViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
-) {
-    // 获取未读订单列表
-    val unreadOrders by viewModel.unreadOrders.collectAsState()
-    val currencySymbol by viewModel.currencySymbol.collectAsState()
-    
-    // 每次对话框打开时重新加载未读订单
-    LaunchedEffect(key1 = Unit) {
-        viewModel.refreshUnreadOrders()
-    }
-    
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(
-            dismissOnBackPress = true,
-            dismissOnClickOutside = true
-        )
-    ) {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(max = 600.dp),
-            shape = RoundedCornerShape(16.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
-        ) {
-            Column(
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                // 标题栏
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(MaterialTheme.colorScheme.primaryContainer)
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Email,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                    
-                    Spacer(modifier = Modifier.width(8.dp))
-                    
-                    Text(
-                        text = stringResource(id = if (LocalAppLocale.current.language == "zh") R.string.unread_orders else R.string.unread_orders),
-                        style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                    
-                    Spacer(modifier = Modifier.weight(1f))
-                    
-                    IconButton(onClick = onDismiss) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "Close",
-                            tint = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    }
-                }
-                
-                // 未读订单数量统计
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f))
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = stringResource(
-                            id = if (LocalAppLocale.current.language == "zh") R.string.unread_orders_count else R.string.unread_orders_count,
-                            unreadOrders.size
-                        ),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    
-                    Spacer(modifier = Modifier.weight(1f))
-                    
-                    Text(
-                        text = stringResource(id = if (LocalAppLocale.current.language == "zh") R.string.mark_all_as_read else R.string.mark_all_as_read),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.clickable { 
-                            viewModel.markAllOrdersAsRead()
-                        }
-                    )
-                }
-                
-                // 未读订单列表
-                if (unreadOrders.isEmpty()) {
-                    // 显示空状态
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f)
-                            .padding(16.dp),
-                        verticalArrangement = Arrangement.Center,
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Email,
-                            contentDescription = null,
-                            modifier = Modifier.size(64.dp),
-                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
-                        )
-                        
-                        Spacer(modifier = Modifier.height(16.dp))
-                        
-                        Text(
-                            text = stringResource(id = if (LocalAppLocale.current.language == "zh") R.string.no_unread_orders else R.string.no_unread_orders),
-                            style = MaterialTheme.typography.titleMedium,
-                            textAlign = TextAlign.Center,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                        )
-                    }
-                } else {
-                    // 显示未读订单列表
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f),
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        items(unreadOrders) { order ->
-                            UnreadOrderItem(
-                                order = order,
-                                onClick = { 
-                                    // 点击时标记为已读
-                                    viewModel.markOrderAsRead(order.id)
-                                    onOrderClick(order)
-                                },
-                                currencySymbol = currencySymbol
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun UnreadOrderItem(
-    order: Order,
-    onClick: () -> Unit,
-    currencySymbol: String = "C$"
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(12.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        )
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // 左侧红点标记未读状态
-            Box(
-                modifier = Modifier
-                    .size(12.dp)
-                    .background(MaterialTheme.colorScheme.error, CircleShape)
-            )
-            
-            Spacer(modifier = Modifier.width(12.dp))
-            
-            // 中间订单信息
-            Column(
-                modifier = Modifier.weight(1f)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = stringResource(id = R.string.order_number, order.number),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    
-                    Spacer(modifier = Modifier.width(8.dp))
-                    
-                    // 状态标签
-                    Box(
-                        modifier = Modifier
-                            .background(
-                                getStatusColor(order.status).copy(alpha = 0.1f),
-                                RoundedCornerShape(4.dp)
-                            )
-                            .padding(horizontal = 8.dp, vertical = 2.dp)
-                    ) {
-                        Text(
-                            text = when(order.status) {
-                                "completed" -> stringResource(R.string.order_status_completed)
-                                "processing" -> stringResource(R.string.order_status_processing)
-                                "pending" -> stringResource(R.string.order_status_pending)
-                                "cancelled" -> stringResource(R.string.order_status_cancelled)
-                                else -> stringResource(R.string.order_status_pending)
-                            },
-                            color = getStatusColor(order.status),
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
-                }
-                
-                Spacer(modifier = Modifier.height(4.dp))
-                
-                // 客户信息
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Person,
-                        contentDescription = null,
-                        modifier = Modifier.size(14.dp),
-                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                    )
-                    
-                    Spacer(modifier = Modifier.width(4.dp))
-                    
-                    Text(
-                        text = order.customerName,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
-                    )
-                    
-                    if (order.contactInfo.isNotEmpty()) {
-                        Spacer(modifier = Modifier.width(8.dp))
-                        
-                        Icon(
-                            imageVector = Icons.Default.Phone,
-                            contentDescription = null,
-                            modifier = Modifier.size(14.dp),
-                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                        )
-                        
-                        Spacer(modifier = Modifier.width(4.dp))
-                        
-                        Text(
-                            text = order.contactInfo,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
-                        )
-                    }
-                }
-                
-                Spacer(modifier = Modifier.height(4.dp))
-                
-                // 时间和价格
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.DateRange,
-                        contentDescription = null,
-                        modifier = Modifier.size(14.dp),
-                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                    )
-                    
-                    Spacer(modifier = Modifier.width(4.dp))
-                    
-                    val dateFormat = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
-                    Text(
-                        text = dateFormat.format(order.dateCreated),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                    )
-                    
-                    Spacer(modifier = Modifier.width(12.dp))
-                    
-                    Icon(
-                        imageVector = Icons.Default.AttachMoney,
-                        contentDescription = null,
-                        modifier = Modifier.size(14.dp),
-                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                    )
-                    
-                    Spacer(modifier = Modifier.width(4.dp))
-                    
-                    Text(
-                        text = "$currencySymbol${order.total}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-                
-                // 备注信息（如果有）
-                if (order.notes.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.TextSnippet,
-                            contentDescription = null,
-                            modifier = Modifier.size(14.dp),
-                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                        )
-                        
-                        Spacer(modifier = Modifier.width(4.dp))
-                        
-                        Text(
-                            text = order.notes,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-            }
-            
-            Spacer(modifier = Modifier.width(8.dp))
-            
-            // 右侧箭头
-            Icon(
-                imageVector = Icons.Default.ChevronRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
-            )
-        }
     }
 } 

@@ -558,30 +558,47 @@ class OrderRepositoryImpl @Inject constructor(
     }
 
     override suspend fun markOrderAsPrinted(orderId: Long): Boolean = withContext(Dispatchers.IO) {
-//        Log.d("OrderRepositoryImpl", "【打印状态操作】开始标记订单为已打印: $orderId")
+        Log.d("OrderRepositoryImpl", "【打印状态操作】开始标记订单为已打印: $orderId")
         
         try {
             // 先获取订单当前状态并记录日志
             val orderBefore = orderDao.getOrderById(orderId)
-//            Log.d("OrderRepositoryImpl", "【打印状态操作】打印前订单状态: ID=$orderId, 已打印=${orderBefore?.isPrinted}, 状态=${orderBefore?.status}, 订单号=${orderBefore?.number}")
+            Log.d("OrderRepositoryImpl", "【打印状态操作】打印前订单状态: ID=$orderId, 已打印=${orderBefore?.isPrinted}, 状态=${orderBefore?.status}, 订单号=${orderBefore?.number}")
             
             // 更新数据库
             orderDao.updateOrderPrintStatus(orderId, true)
             
             // 验证更新是否成功
             val orderAfter = orderDao.getOrderById(orderId)
-//            Log.d("OrderRepositoryImpl", "【打印状态操作】打印后订单状态: ID=$orderId, 已打印=${orderAfter?.isPrinted}, 状态=${orderAfter?.status}")
+            Log.d("OrderRepositoryImpl", "【打印状态操作】打印后订单状态: ID=$orderId, 已打印=${orderAfter?.isPrinted}, 状态=${orderAfter?.status}")
             
             // 检查更新是否成功
             if (orderAfter?.isPrinted != true) {
                 Log.e("OrderRepositoryImpl", "【打印状态操作】打印状态更新失败，数据库中订单状态未变更为已打印")
             }
             
+            // 检查订单是否在缓存中
+            val orderInCache = cachedOrders.find { it.id == orderId }
+            
+            if (orderInCache == null) {
+                Log.w("OrderRepositoryImpl", "【打印状态操作】订单 $orderId 不在缓存中，从数据库加载完整订单信息")
+                
+                // 如果订单不在缓存中，从数据库加载完整订单
+                orderAfter?.let { entity ->
+                    val domainModel = mapToOrderModel(entity)
+                    Log.d("OrderRepositoryImpl", "【打印状态操作】从数据库加载订单: #${domainModel.number}, 打印状态: ${domainModel.isPrinted}")
+                    
+                    // 将新订单添加到缓存中
+                    cachedOrders = cachedOrders + domainModel
+                    Log.d("OrderRepositoryImpl", "【打印状态操作】已将订单添加到缓存，缓存大小: ${cachedOrders.size}")
+                }
+            }
+            
             // 更新缓存和流
             val updatedList = cachedOrders.map { 
                 if (it.id == orderId) {
                     val updated = it.copy(isPrinted = true)
-//                    Log.d("OrderRepositoryImpl", "【打印状态操作】内存缓存中更新订单 #${it.number}: 打印状态从 ${it.isPrinted} 变为 ${updated.isPrinted}")
+                    Log.d("OrderRepositoryImpl", "【打印状态操作】内存缓存中更新订单 #${it.number}: 打印状态从 ${it.isPrinted} 变为 ${updated.isPrinted}")
                     updated
                 } else {
                     it 
@@ -591,7 +608,9 @@ class OrderRepositoryImpl @Inject constructor(
             // 检查缓存中是否找到并更新了订单
             val updatedInCache = updatedList.any { it.id == orderId && it.isPrinted }
             if (!updatedInCache) {
-                Log.w("OrderRepositoryImpl", "【打印状态操作】警告：未在缓存中找到订单 $orderId 或更新失败")
+                Log.e("OrderRepositoryImpl", "【打印状态操作】错误：即使加载后仍未在缓存中找到订单 $orderId 或更新失败")
+            } else {
+                Log.d("OrderRepositoryImpl", "【打印状态操作】成功在缓存中更新订单 $orderId 的打印状态")
             }
             
             cachedOrders = updatedList
@@ -604,12 +623,12 @@ class OrderRepositoryImpl @Inject constructor(
             val orderEntity = orderDao.getOrderById(orderId)
             orderEntity?.let {
                 val domainModel = mapToOrderModel(it)
-//                Log.d("OrderRepositoryImpl", "【打印状态操作】发送订单单独更新事件: ID=${domainModel.id}, 打印状态=${domainModel.isPrinted}")
+                Log.d("OrderRepositoryImpl", "【打印状态操作】发送订单单独更新事件: ID=${domainModel.id}, 打印状态=${domainModel.isPrinted}")
                 // 单独发送更新事件
                 _orderByIdFlow[orderId]?.emit(domainModel)
             }
             
-//            Log.d("OrderRepositoryImpl", "【打印状态操作】完成标记订单为已打印: $orderId")
+            Log.d("OrderRepositoryImpl", "【打印状态操作】完成标记订单为已打印: $orderId")
             return@withContext true
         } catch (e: Exception) {
             Log.e("OrderRepositoryImpl", "【打印状态操作】标记订单为已打印失败", e)

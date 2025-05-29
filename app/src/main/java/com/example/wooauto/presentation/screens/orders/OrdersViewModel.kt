@@ -8,6 +8,7 @@ import android.content.IntentFilter
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.asFlow
 import com.example.wooauto.data.remote.WooCommerceConfig
 import com.example.wooauto.domain.models.Order
 import com.example.wooauto.domain.repositories.DomainOrderRepository
@@ -125,6 +126,17 @@ class OrdersViewModel @Inject constructor(
         
         // 初始化货币符号
         loadCurrencySymbol()
+        
+        // 监听许可证状态变化
+        viewModelScope.launch {
+            licenseManager.eligibilityInfo.asFlow()
+                .collect { eligibilityInfo ->
+                    Log.d(TAG, "许可证资格状态变化: $eligibilityInfo")
+                    // 当许可证状态变化时，重新检查配置
+                    val configResult = checkApiConfiguration()
+                    Log.d(TAG, "许可证状态变化后重新检查配置结果: $configResult")
+                }
+        }
         
         // 应用启动时验证未读订单状态，然后重新加载未读订单
         viewModelScope.launch {
@@ -436,13 +448,23 @@ class OrdersViewModel @Inject constructor(
     /**
      * 检查API配置状态并返回结果
      * 与checkConfiguration不同，此方法立即返回结果而不是异步更新状态
-     * @return 配置是否有效
+     * @return 配置是否有效（包括API配置和许可证状态）
      */
     suspend fun checkApiConfiguration(): Boolean {
         return try {
             Log.d(TAG, "正在直接检查API配置状态")
             
-            // 使用注入的实例
+            // 首先检查许可证状态
+            val isLicensed = licenseManager.hasEligibility
+            Log.d(TAG, "许可证状态检查结果: $isLicensed")
+            
+            if (!isLicensed) {
+                Log.d(TAG, "许可证无效，设置配置状态为false")
+                _isConfigured.value = false
+                return false
+            }
+            
+            // 使用注入的实例检查API配置
             val siteUrl = wooCommerceConfig.siteUrl.first()
             val consumerKey = wooCommerceConfig.consumerKey.first()
             val consumerSecret = wooCommerceConfig.consumerSecret.first()
@@ -454,7 +476,7 @@ class OrdersViewModel @Inject constructor(
                 // 测试API连接
                 val connectionResult = orderRepository.testConnection()
                 if (connectionResult) {
-                    Log.d(TAG, "API配置有效且连接测试成功")
+                    Log.d(TAG, "API配置有效且连接测试成功，许可证也有效")
                     _isConfigured.value = true
                     return true
                 } else {
