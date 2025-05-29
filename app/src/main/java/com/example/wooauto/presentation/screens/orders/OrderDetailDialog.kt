@@ -50,7 +50,8 @@ fun OrderDetailDialog(
     order: Order,
     onDismiss: () -> Unit,
     onStatusChange: (Long, String) -> Unit,
-    onMarkAsPrinted: (Long) -> Unit
+    onMarkAsPrinted: (Long) -> Unit,
+    onMarkAsRead: ((Long) -> Unit)? = null
 ) {
     val viewModel: OrdersViewModel = hiltViewModel()
     remember { viewModel.licenseManager }
@@ -69,6 +70,14 @@ fun OrderDetailDialog(
     // 使用当前的订单信息（如果有更新）或者传入的订单
     val displayOrder = currentOrder ?: order
     
+    // 创建一个包装的onDismiss函数，在关闭对话框时标记为已读
+    val wrappedOnDismiss = {
+        // 如果提供了标记已读的回调，则在关闭时调用
+        onMarkAsRead?.invoke(displayOrder.id)
+        // 然后调用原始的关闭回调
+        onDismiss()
+    }
+    
     // 记录订单信息用于调试
 //    Log.d("OrderDetailDialog", "【打印状态修复】初始化订单详情对话框:")
 //    Log.d("OrderDetailDialog", "【打印状态修复】传入的order: ID=${order.id}, 打印状态=${order.isPrinted}")
@@ -82,7 +91,7 @@ fun OrderDetailDialog(
     Log.d("OrderDetailDialog", "显示订单详情，订单ID: ${displayOrder.id}, 打印状态: ${displayOrder.isPrinted}")
     
     Dialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = wrappedOnDismiss,
         properties = DialogProperties(
             dismissOnBackPress = true,
             dismissOnClickOutside = true,
@@ -108,7 +117,7 @@ fun OrderDetailDialog(
                         )
                     },
                     navigationIcon = {
-                        IconButton(onClick = onDismiss) {
+                        IconButton(onClick = wrappedOnDismiss) {
                             Icon(
                                 imageVector = Icons.Default.Clear,
                                 contentDescription = stringResource(R.string.close)
@@ -747,7 +756,7 @@ fun OrderDetailDialog(
                                     // 激活许可证按钮
                                     Button(
                                         onClick = {
-                                            onDismiss() // 先关闭当前对话框
+                                            wrappedOnDismiss() // 先关闭当前对话框
                                             // 导航到许可证设置页面
                                             viewModel.navigateToLicenseSettings()
                                         },
@@ -767,7 +776,7 @@ fun OrderDetailDialog(
                                     
                                     // 关闭按钮
                                     OutlinedButton(
-                                        onClick = onDismiss,
+                                        onClick = wrappedOnDismiss,
                                         modifier = Modifier.weight(1f)
                                     ) {
                                         Icon(
@@ -822,7 +831,7 @@ fun OrderDetailDialog(
                     }
                     // 关闭按钮
                     OutlinedButton(
-                        onClick = onDismiss,
+                        onClick = wrappedOnDismiss,
                         modifier = Modifier.weight(1f),
                         colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
                             contentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)

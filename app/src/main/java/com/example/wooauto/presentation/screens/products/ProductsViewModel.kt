@@ -3,6 +3,7 @@ package com.example.wooauto.presentation.screens.products
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.asFlow
 import com.example.wooauto.data.local.WooCommerceConfig
 import com.example.wooauto.domain.models.Category
 import com.example.wooauto.domain.models.Product
@@ -92,6 +93,22 @@ class ProductsViewModel @Inject constructor(
     
     init {
         Log.d("ProductsViewModel", "初始化ProductsViewModel")
+        
+        // 监听许可证状态变化
+        viewModelScope.launch {
+            licenseManager.eligibilityInfo.asFlow()
+                .collect { eligibilityInfo ->
+                    Log.d("ProductsViewModel", "许可证资格状态变化: $eligibilityInfo")
+                    // 当许可证状态变化时，重新检查配置
+                    try {
+                        checkConfiguration(showLoadingIndicator = false)
+                        Log.d("ProductsViewModel", "许可证状态变化后重新检查配置完成")
+                    } catch (e: Exception) {
+                        Log.e("ProductsViewModel", "许可证状态变化后重新检查配置失败: ${e.message}")
+                    }
+                }
+        }
+        
         viewModelScope.launch {
             try {
                 // 在初始化时不显示加载状态，避免闪烁
@@ -106,11 +123,23 @@ class ProductsViewModel @Inject constructor(
     // 检查配置状态，可选显示加载指示器
     private suspend fun checkConfiguration(showLoadingIndicator: Boolean = true) {
         try {
-            Log.d("ProductsViewModel", "正在检查API配置")
+            Log.d("ProductsViewModel", "正在检查API配置和许可证状态")
             
             // 只有在需要时显示加载指示器
             if (showLoadingIndicator) {
                 _isLoading.value = true
+            }
+            
+            // 首先检查许可证状态
+            val hasEligibility = licenseManager.hasEligibility
+            Log.d("ProductsViewModel", "许可证状态检查结果: $hasEligibility")
+            
+            if (!hasEligibility) {
+                Log.d("ProductsViewModel", "许可证无效，设置配置状态为false")
+                _isConfigured.value = false
+                _errorMessage.value = "许可证无效或已过期，请检查许可证设置"
+                _isLoading.value = false
+                return
             }
             
             val config = settingsRepository.getWooCommerceConfig()
@@ -124,7 +153,7 @@ class ProductsViewModel @Inject constructor(
                 return
             }
             
-            Log.d("ProductsViewModel", "API配置有效，尝试加载数据")
+            Log.d("ProductsViewModel", "API配置有效且许可证也有效，尝试加载数据")
             _isConfigured.value = true
             
             // 首先加载分类
