@@ -156,16 +156,40 @@ object LicenseValidator {
                 val expirationDate = json.optString("expiration_date", "")
                 
                 val validity = try {
-                    if (expirationDate.isNotEmpty() && creationDate.isNotEmpty()) {
+                    // 首先尝试直接使用API返回的valid字段
+                    val validDays = json.optString("valid", "")
+                    if (validDays.isNotEmpty() && validDays != "0") {
+                        val days = validDays.toIntOrNull()
+                        if (days != null && days > 0) {
+                            Log.d("LicenseValidator", "使用API返回的valid字段: ${days}天")
+                            days
+                        } else {
+                            // 如果valid字段无效，检查是否为永久许可证
+                            if (expirationDate == "0000-00-00" || expirationDate.isEmpty()) {
+                                Log.d("LicenseValidator", "检测到永久许可证(expiration_date=0000-00-00)")
+                                3650 // 永久许可证设为10年
+                            } else {
+                                365 // 默认1年
+                            }
+                        }
+                    } else if (expirationDate == "0000-00-00" || expirationDate.isEmpty()) {
+                        Log.d("LicenseValidator", "检测到永久许可证(无valid字段)")
+                        3650 // 永久许可证设为10年
+                    } else if (expirationDate.isNotEmpty() && creationDate.isNotEmpty()) {
+                        // 作为备选方案，计算expiration_date - creation_date
                         val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
                         val endDate = sdf.parse(expirationDate)
                         val startDate = sdf.parse(creationDate)
                         if (endDate != null && startDate != null) {
                             val diffInMillis = endDate.time - startDate.time
                             val diffInDays = (diffInMillis / (1000 * 60 * 60 * 24)).toInt()
-                            diffInDays
+                            Log.d("LicenseValidator", "计算得到的有效期: ${diffInDays}天")
+                            if (diffInDays > 0) diffInDays else 365
                         } else 365
-                    } else 365
+                    } else {
+                        Log.d("LicenseValidator", "使用默认有效期: 365天")
+                        365 // 默认一年有效期
+                    }
                 } catch (e: Exception) {
                     Log.w("LicenseValidator", "Failed to calculate validity period: ${e.message}")
                     365

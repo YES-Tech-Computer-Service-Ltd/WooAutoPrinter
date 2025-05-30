@@ -169,14 +169,32 @@ object LicenseDataStore {
                 ?: throw IllegalArgumentException("Invalid activation_date")
             val calendar = Calendar.getInstance(TimeZone.getDefault())
             calendar.time = startDate
-            calendar.add(Calendar.DAY_OF_MONTH, validity)
+            
+            // 确保validity是正数
+            val safeValidity = if (validity <= 0) {
+                Log.w("LicenseDataStore", "Invalid validity: $validity, using default 365 days")
+                365
+            } else {
+                validity
+            }
+            
+            calendar.add(Calendar.DAY_OF_MONTH, safeValidity)
             val endDate = calendar.time
             val result = sdf.format(endDate)
-            println("calculateEndDate: activationDate=$activationDate, validity=$validity, endDate=$result")
+            println("calculateEndDate: activationDate=$activationDate, validity=$validity, safeValidity=$safeValidity, endDate=$result")
             return result
         } catch (e: Exception) {
             println("calculateEndDate: Error processing $activationDate, validity=$validity, ${e.message}")
-            return activationDate
+            // 如果出错，返回一个默认的未来日期
+            try {
+                val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+                sdf.timeZone = TimeZone.getDefault()
+                val calendar = Calendar.getInstance(TimeZone.getDefault())
+                calendar.add(Calendar.YEAR, 1) // 默认1年后过期
+                return sdf.format(calendar.time)
+            } catch (e2: Exception) {
+                return activationDate
+            }
         }
     }
 

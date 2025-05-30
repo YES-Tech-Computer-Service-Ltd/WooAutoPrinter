@@ -200,6 +200,47 @@ class LicenseManager @Inject constructor() {
      */
     private suspend fun validateLicenseInBackground(licenseKey: String, deviceId: String, context: Context): Boolean {
         return try {
+            // 首先检查本地许可证数据是否完整
+            val localStartDate = LicenseDataStore.getLicenseStartDate(context).first()
+            val localEndDate = LicenseDataStore.getLicenseEndDate(context).first()
+            val licensedTo = LicenseDataStore.getLicensedTo(context).first()
+            
+            // 如果本地有完整的许可证信息，且licensedTo不为空，说明许可证已经成功激活过
+            if (!localStartDate.isNullOrEmpty() && !localEndDate.isNullOrEmpty() && !licensedTo.isNullOrEmpty()) {
+                Log.d("LicenseManager", "发现本地完整许可证信息，优先使用本地状态")
+                
+                // 对于已激活的许可证，检查endDate是否合理
+                try {
+                    val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+                    val endDate = sdf.parse(localEndDate)
+                    val startDate = sdf.parse(localStartDate)
+                    
+                    if (endDate != null && startDate != null) {
+                        val currentTime = System.currentTimeMillis()
+                        val isValid = endDate.time > currentTime
+                        
+                        if (isValid) {
+                            Log.d("LicenseManager", "本地许可证仍有效，无需远程验证")
+                            updateStatus(
+                                LicenseStatus.VALID,
+                                activationDate = localStartDate,
+                                validity = 3650, // 对于永久许可证使用大值
+                                edition = "Pro",
+                                capabilities = "Full Features",
+                                licensedTo = licensedTo,
+                                message = "本地许可证有效"
+                            )
+                            return true
+                        } else {
+                            Log.w("LicenseManager", "本地许可证已过期: endDate=$localEndDate")
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.w("LicenseManager", "解析本地许可证日期失败: ${e.message}")
+                }
+            }
+            
+            // 如果本地信息不完整或已过期，进行远程验证
             val result = withTimeoutOrNull(5000) {
                 val validationResult = LicenseValidator.validateLicense(licenseKey, deviceId)
                 
@@ -215,11 +256,15 @@ class LicenseManager @Inject constructor() {
                                 val currentStartDate = LicenseDataStore.getLicenseStartDate(context).first()
                                 val currentEndDate = LicenseDataStore.getLicenseEndDate(context).first()
                                 
-                                // 更新用户信息，但保留现有的日期信息
+                                // 重新计算endDate，确保使用修复后的计算逻辑
+                                val activationDate = currentStartDate ?: details.activationDate
+                                val newEndDate = LicenseDataStore.calculateEndDate(activationDate, details.validity)
+                                
+                                // 更新用户信息
                                 LicenseDataStore.saveLicenseInfo(
                                     context,
                                     true,
-                                    currentEndDate ?: LicenseDataStore.calculateEndDate(details.activationDate, details.validity),
+                                    newEndDate,
                                     licenseKey,
                                     details.edition,
                                     details.capabilities,
@@ -227,7 +272,7 @@ class LicenseManager @Inject constructor() {
                                     details.email
                                 )
                                 
-                                Log.d("LicenseManager", "已同步用户信息到DataStore: licensedTo=${details.licensedTo}, email=${details.email}")
+                                Log.d("LicenseManager", "已重新计算并同步许可证信息: endDate=$newEndDate, licensedTo=${details.licensedTo}")
                             } catch (e: Exception) {
                                 Log.e("LicenseManager", "同步用户信息到DataStore失败: ${e.message}")
                             }
@@ -461,6 +506,9 @@ class LicenseManager @Inject constructor() {
             try {
                 Log.d("LicenseManager", "开始强制重新验证和同步所有状态")
                 
+                // 🔧 修复错误的许可证日期问题
+                fixIncorrectLicenseEndDate(context)
+                
                 // 设置为检查状态，但保持可用
                 updateStatus(LicenseStatus.VERIFYING, message = "强制验证中，功能可正常使用")
                 updateEligibilityToChecking()
@@ -567,5 +615,58 @@ class LicenseManager @Inject constructor() {
      */
     private suspend fun checkTrialStatus(context: Context, deviceId: String, appId: String): Boolean {
         return checkTrialStatusSafely(context, deviceId, appId)
+    }
+    
+    /**
+     * 修复错误的许可证结束日期
+     * 检测并修复明显错误的endDate
+     */
+    private suspend fun fixIncorrectLicenseEndDate(context: Context) {
+        try {
+            val licenseKey = LicenseDataStore.getLicenseKey(context).first()
+            val endDate = LicenseDataStore.getLicenseEndDate(context).first()
+            val startDate = LicenseDataStore.getLicenseStartDate(context).first()
+            val licensedTo = LicenseDataStore.getLicensedTo(context).first()
+            
+            // 只在有完整许可证信息时进行检查
+            if (!endDate.isNullOrEmpty() && !startDate.isNullOrEmpty() && 
+                !licenseKey.isNullOrEmpty() && !licensedTo.isNullOrEmpty()) {
+                
+                val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+                val endDateParsed = sdf.parse(endDate)
+                val startDateParsed = sdf.parse(startDate)
+                
+                if (endDateParsed != null && startDateParsed != null) {
+                    // 检查endDate是否明显错误（比如在startDate之前，或者是远古日期）
+                    val year2010 = sdf.parse("2010-01-01")?.time ?: 0
+                    
+                    if (endDateParsed.time < startDateParsed.time || endDateParsed.time < year2010) {
+                        Log.w("LicenseManager", "检测到明显错误的许可证结束日期: $endDate (开始日期: $startDate)")
+                        
+                        // 尝试重新获取正确的validity信息
+                        try {
+                            val details = LicenseValidator.getLicenseDetails(licenseKey)
+                            if (details is LicenseDetailsResult.Success) {
+                                val correctedEndDate = LicenseDataStore.calculateEndDate(startDate, details.validity)
+                                LicenseDataStore.saveLicenseEndDate(context, correctedEndDate)
+                                Log.d("LicenseManager", "已修复许可证结束日期: $endDate -> $correctedEndDate (validity=${details.validity}天)")
+                            } else {
+                                Log.w("LicenseManager", "无法获取许可证详情，使用默认修复策略")
+                                // 使用默认30天作为备用（基于日志显示的valid=30）
+                                val correctedEndDate = LicenseDataStore.calculateEndDate(startDate, 30)
+                                LicenseDataStore.saveLicenseEndDate(context, correctedEndDate)
+                                Log.d("LicenseManager", "已使用默认30天修复许可证结束日期: $endDate -> $correctedEndDate")
+                            }
+                        } catch (e: Exception) {
+                            Log.e("LicenseManager", "修复许可证日期时获取详情失败: ${e.message}")
+                        }
+                    } else {
+                        Log.d("LicenseManager", "许可证日期检查正常: $endDate")
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("LicenseManager", "修复许可证日期时出错: ${e.message}")
+        }
     }
 } 
