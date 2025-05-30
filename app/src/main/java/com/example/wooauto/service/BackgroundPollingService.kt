@@ -172,12 +172,20 @@ class BackgroundPollingService : Service() {
                         when (intent?.action) {
                             "android.intent.action.SCREEN_ON" -> {
                                 // 屏幕点亮，可能在前台
+                                Log.d(TAG, "屏幕点亮，设置前台状态为true")
                                 isAppInForeground = true
                                 adjustPollingInterval()
                             }
                             "android.intent.action.SCREEN_OFF" -> {
                                 // 屏幕关闭，一定在后台
+                                Log.d(TAG, "屏幕关闭，设置前台状态为false，轮询将继续运行")
                                 isAppInForeground = false
+                                adjustPollingInterval()
+                            }
+                            "android.intent.action.USER_PRESENT" -> {
+                                // 用户解锁屏幕，确定在前台
+                                Log.d(TAG, "用户解锁屏幕，确认前台状态为true")
+                                isAppInForeground = true
                                 adjustPollingInterval()
                             }
                         }
@@ -216,8 +224,9 @@ class BackgroundPollingService : Service() {
                     Log.d(TAG, "调整轮询间隔: ${currentPollingInterval}秒 -> ${newInterval}秒 (前台状态: $isAppInForeground)")
                     currentPollingInterval = newInterval
                     
-                    // 使用互斥锁重启轮询以应用新间隔
-                    restartPolling()
+                    // 不再重启轮询任务，只更新间隔值
+                    // 避免在屏幕锁定时中断轮询任务
+                    Log.d(TAG, "轮询间隔已更新，下次轮询周期将使用新间隔")
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "调整轮询间隔失败: ${e.message}", e)
@@ -399,17 +408,23 @@ class BackgroundPollingService : Service() {
                 // 主轮询循环
                 while (isActive && isPollingActive) {
                     try {
-                        // 使用当前有效轮询间隔
+                        // 动态获取当前有效轮询间隔
                         val effectiveInterval = if (useInitialInterval) {
                             INITIAL_POLLING_INTERVAL
                         } else {
-                            currentPollingInterval
+                            // 根据前台状态实时计算间隔
+                            val baseInterval = currentPollingInterval
+                            if (isAppInForeground) {
+                                (baseInterval * FOREGROUND_INTERVAL_FACTOR).toInt().coerceAtLeast(MIN_POLLING_INTERVAL)
+                            } else {
+                                baseInterval
+                            }
                         }
                         
                         // 检查配置有效性
                         val isValid = checkConfigurationValid()
                         if (isValid) {
-                            Log.d(TAG, "开始执行轮询周期，间隔: ${effectiveInterval}秒")
+                            Log.d(TAG, "开始执行轮询周期，间隔: ${effectiveInterval}秒 (前台状态: $isAppInForeground)")
                             
                             // 记录轮询开始时间
                             val pollStartTime = System.currentTimeMillis()
@@ -476,18 +491,13 @@ class BackgroundPollingService : Service() {
         intervalMonitorJob = serviceScope.launch {
             try {
                 wooCommerceConfig.pollingInterval.collect { newInterval ->
-                    // 只有在轮询活动且间隔确实改变且初始轮询完成时才重启
-                    if (newInterval != currentPollingInterval && 
-                        initialPollingComplete && 
-                        isPollingActive &&
-                        !restartMutex.isLocked) {
-                        Log.d(TAG, "检测到轮询间隔变更: ${currentPollingInterval}秒 -> ${newInterval}秒")
+                    // 直接更新间隔值，不重启轮询任务
+                    if (newInterval != currentPollingInterval && initialPollingComplete) {
+                        Log.d(TAG, "检测到轮询间隔变更: ${currentPollingInterval}秒 -> ${newInterval}秒，下次轮询周期生效")
                         currentPollingInterval = newInterval
-                        // 重新启动轮询以立即应用新间隔
-                        restartPolling()
                     } else if (newInterval != currentPollingInterval) {
-                        // 如果不满足重启条件，只更新间隔值
-                        Log.d(TAG, "更新轮询间隔但不重启: ${currentPollingInterval}秒 -> ${newInterval}秒")
+                        // 如果还未完成初始轮询，只更新间隔值
+                        Log.d(TAG, "更新轮询间隔: ${currentPollingInterval}秒 -> ${newInterval}秒")
                         currentPollingInterval = newInterval
                     }
                 }
@@ -593,8 +603,8 @@ class BackgroundPollingService : Service() {
                     // 延迟一点时间再连接，防止与心跳机制冲突
                     delay(1000)
                     
-                    // 尝试连接打印机，添加超时控制
-                    val connected = withTimeoutOrNull(8000) {
+                    // 使用超时机制避免连接挂起
+                    val connected = withTimeoutOrNull(15000) { // 与蓝牙管理器保持一致
                         printerManager.connect(printerConfig)
                     } ?: false
                     
@@ -811,7 +821,7 @@ class BackgroundPollingService : Service() {
                     Log.d(TAG, "【自动打印调试】打印机未连接，尝试连接打印机: ${printerConfig.name}")
                     
                     // 使用超时机制避免连接挂起
-                    val connected = withTimeoutOrNull(10000) { // 10秒超时
+                    val connected = withTimeoutOrNull(15000) { // 与蓝牙管理器保持一致
                         printerManager.connect(printerConfig)
                     } ?: false
                     

@@ -141,12 +141,12 @@ class BluetoothPrinterManager @Inject constructor(
         private const val SCAN_TIMEOUT = 60000L // 增加到60秒
 
         // 连接超时时间 (毫秒)
-        private const val CONNECT_TIMEOUT = 15000L
-        private const val CONNECTION_TIMEOUT = 10000L // 新增连接超时
+        private const val CONNECT_TIMEOUT = 20000L // 增加到20秒
+        private const val CONNECTION_TIMEOUT = 15000L // 增加到15秒
 
         // 最大重试次数
-        private const val MAX_RETRY_COUNT = 5
-        private const val MAX_RECONNECT_ATTEMPTS = 3
+        private const val MAX_RETRY_COUNT = 3 // 减少重试次数，避免过度重试
+        private const val MAX_RECONNECT_ATTEMPTS = 2 // 减少重连次数
 
         // 心跳间隔 (毫秒) - 每15秒发送一次心跳，避免蓝牙断连
         private const val HEARTBEAT_INTERVAL = 15000L
@@ -313,6 +313,24 @@ class BluetoothPrinterManager @Inject constructor(
             isConnecting = true
             Log.d(TAG, "【打印机连接】开始连接打印机: ${config.name} (${config.address})")
 
+            // 检查蓝牙适配器状态
+            val adapter = getBluetoothAdapter()
+            if (adapter == null || !adapter.isEnabled) {
+                Log.e(TAG, "蓝牙未开启或不可用")
+                updatePrinterStatus(config, PrinterStatus.ERROR)
+                return false
+            }
+
+            // 停止任何正在进行的设备发现，提高连接成功率
+            try {
+                if (adapter.isDiscovering) {
+                    adapter.cancelDiscovery()
+                    delay(500) // 等待发现完全停止
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "停止设备发现失败: ${e.message}")
+            }
+
             // 获取蓝牙设备
             val device = getBluetoothDevice(config.address)
             if (device == null) {
@@ -321,38 +339,91 @@ class BluetoothPrinterManager @Inject constructor(
                 return false
             }
 
+            // 检查设备配对状态
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    if (ActivityCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED) {
+                        if (device.bondState != BluetoothDevice.BOND_BONDED) {
+                            Log.w(TAG, "设备未配对: ${config.name}")
+                        }
+                    }
+                } else {
+                    if (device.bondState != BluetoothDevice.BOND_BONDED) {
+                        Log.w(TAG, "设备未配对: ${config.name}")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "检查配对状态失败: ${e.message}")
+            }
+
             // 如果不是当前配置的打印机，则断开原连接
             if (currentPrinterConfig != null && currentPrinterConfig?.id != config.id) {
                 disconnect(currentPrinterConfig!!)
+                delay(1000) // 等待断开完成
             }
 
-            // 如果已经连接，直接返回
+            // 如果已经连接，先测试连接是否有效
             if (getPrinterStatus(config) == PrinterStatus.CONNECTED) {
-                return true
-            }
-
-            // 检查连接是否有效
-            if (currentConnection?.isConnected == true && currentPrinterConfig?.id == config.id) {
-                updatePrinterStatus(config, PrinterStatus.CONNECTED)
-                return true
+                val testResult = testConnection(config)
+                if (testResult) {
+                    return true
+                } else {
+                    Log.w(TAG, "现有连接测试失败，重新建立连接")
+                    // 清理现有连接
+                    try {
+                        currentConnection?.disconnect()
+                        currentConnection = null
+                        currentPrinter = null
+                    } catch (e: Exception) {
+                        Log.w(TAG, "清理连接失败: ${e.message}")
+                    }
+                }
             }
 
             // 创建蓝牙连接，添加超时控制
+            Log.d(TAG, "创建蓝牙连接...")
             val connection = BluetoothConnection(device)
             updatePrinterStatus(config, PrinterStatus.CONNECTING)
 
-            // 使用withTimeout添加超时控制
-            val connected = withTimeoutOrNull(CONNECTION_TIMEOUT) {
+            // 使用withTimeout添加超时控制，增加重试机制
+            var connected = false
+            var lastException: Exception? = null
+            
+            for (attempt in 1..MAX_RETRY_COUNT) {
                 try {
-                    connection.connect()
-                    true
+                    Log.d(TAG, "连接尝试 $attempt/$MAX_RETRY_COUNT")
+                    
+                    connected = withTimeoutOrNull(CONNECTION_TIMEOUT) {
+                        try {
+                            connection.connect()
+                            true
+                        } catch (e: Exception) {
+                            Log.e(TAG, "连接尝试失败: ${e.message}")
+                            lastException = e
+                            false
+                        }
+                    } ?: false
+
+                    if (connected) {
+                        Log.d(TAG, "连接成功")
+                        break
+                    } else {
+                        Log.w(TAG, "连接尝试 $attempt 失败")
+                        if (attempt < MAX_RETRY_COUNT) {
+                            delay(2000) // 等待2秒再重试
+                        }
+                    }
                 } catch (e: Exception) {
-                    Log.e(TAG, "连接失败: ${e.message}", e)
-                    false
+                    Log.e(TAG, "连接尝试 $attempt 异常: ${e.message}")
+                    lastException = e
+                    if (attempt < MAX_RETRY_COUNT) {
+                        delay(2000)
+                    }
                 }
-            } ?: false
+            }
 
             if (!connected) {
+                Log.e(TAG, "所有连接尝试失败，最后一个异常: ${lastException?.message}")
                 updatePrinterStatus(config, PrinterStatus.ERROR)
                 return false
             }
@@ -392,7 +463,7 @@ class BluetoothPrinterManager @Inject constructor(
                 return false
             }
         } catch (e: Exception) {
-            Log.e(TAG, "连接打印机异常: ${e.message}", e)
+            Log.e(TAG, "连接过程中发生异常: ${e.message}", e)
             updatePrinterStatus(config, PrinterStatus.ERROR)
             return false
         } finally {
