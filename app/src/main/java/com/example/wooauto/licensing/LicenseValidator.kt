@@ -25,7 +25,8 @@ sealed class LicenseDetailsResult {
         val validity: Int,
         val edition: String = "Spire",
         val capabilities: String = "cap1, cap2",
-        val licensedTo: String = "MockCustomer"
+        val licensedTo: String = "MockCustomer",
+        val email: String = "user@example.com"
     ) : LicenseDetailsResult()
     data class Error(val message: String) : LicenseDetailsResult()
 }
@@ -140,22 +141,63 @@ object LicenseValidator {
             }
 
             val json = JSONObject(response)
+            
             if (!json.has("license_status")) {
                 Log.e("LicenseValidator", "Response missing 'license_status' field: $response")
                 return@withContext LicenseDetailsResult.Error("Invalid response: missing 'license_status' field")
             }
 
             val status = json.getString("license_status")
-            if (status.equals("Active", ignoreCase = true)) {
+            Log.d("LicenseValidator", "License status: $status")
+            
+            if (status.equals("sold", ignoreCase = true) || status.equals("active", ignoreCase = true)) {
                 val activationDate = json.optString("activation_date", "")
-                val validityStr = json.optString("valid", "3")
-                val validity = validityStr.toIntOrNull() ?: 3
-                val edition = json.optString("license_edition", "Spire")
-                val capabilities = json.optString("capabilities", "cap1, cap2")
-                val licensedTo = json.optString("licensed_to", "MockCustomer")
-                LicenseDetailsResult.Success(activationDate, validity, edition, capabilities, licensedTo)
+                val creationDate = json.optString("creation_date", "")
+                val expirationDate = json.optString("expiration_date", "")
+                
+                val validity = try {
+                    if (expirationDate.isNotEmpty() && creationDate.isNotEmpty()) {
+                        val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+                        val endDate = sdf.parse(expirationDate)
+                        val startDate = sdf.parse(creationDate)
+                        if (endDate != null && startDate != null) {
+                            val diffInMillis = endDate.time - startDate.time
+                            val diffInDays = (diffInMillis / (1000 * 60 * 60 * 24)).toInt()
+                            diffInDays
+                        } else 365
+                    } else 365
+                } catch (e: Exception) {
+                    Log.w("LicenseValidator", "Failed to calculate validity period: ${e.message}")
+                    365
+                }
+                
+                val firstName = json.optString("owner_first_name", "")
+                val lastName = json.optString("owner_last_name", "")
+                val ownerEmail = json.optString("owner_email_address", "user@example.com")
+                
+                val licensedTo = when {
+                    firstName.isNotEmpty() && lastName.isNotEmpty() -> "$firstName $lastName"
+                    firstName.isNotEmpty() -> firstName
+                    lastName.isNotEmpty() -> lastName
+                    else -> "Licensed User"
+                }
+                
+                val edition = "Pro"
+                val capabilities = "Full Features"
+                
+                Log.d("LicenseValidator", "Parsed license details: licensedTo=$licensedTo, email=$ownerEmail, validity=$validity days")
+                
+                LicenseDetailsResult.Success(
+                    activationDate = activationDate.ifEmpty { creationDate },
+                    validity = validity,
+                    edition = edition,
+                    capabilities = capabilities,
+                    licensedTo = licensedTo,
+                    email = ownerEmail
+                )
             } else {
-                val message = "License status: $status"
+                val message = "License status: $status (Expected: sold or active)"
+                Log.w("LicenseValidator", message)
                 LicenseDetailsResult.Error(message)
             }
         } catch (e: Exception) {
