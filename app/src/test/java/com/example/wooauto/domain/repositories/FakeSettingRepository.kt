@@ -46,6 +46,15 @@ class FakeSettingRepository : DomainSettingRepository {
     // 默认模板类型
     private var defaultTemplateType: TemplateType? = null
     
+    // 临时手动打印标志
+    private var temporaryManualPrintFlag = false
+    
+    // 模板和打印设置
+    private var defaultPrintTemplate: TemplateType = TemplateType.FULL_DETAILS
+    private var customTemplateId: String? = null
+    private var defaultAutoPrintTemplateId: String? = null
+    private var autoPrintEnabled = false
+    
     // 声音设置
     private val _notificationVolume = MutableStateFlow(70)
     private val _soundType = MutableStateFlow("default")
@@ -203,14 +212,41 @@ class FakeSettingRepository : DomainSettingRepository {
     override fun getStorePhoneFlow(): Flow<String> = _storePhone.asStateFlow()
     
     override fun getCurrencySymbolFlow(): Flow<String> = _currencySymbol.asStateFlow()
+    override suspend fun getDefaultPrintTemplate(): TemplateType {
+        return defaultPrintTemplate
+    }
+
+    override suspend fun setDefaultPrintTemplate(templateType: TemplateType) {
+        defaultPrintTemplate = templateType
+    }
 
     // 模板设置实现
-    override suspend fun getDefaultTemplateType(): TemplateType? = defaultTemplateType
+    override suspend fun getDefaultTemplateType(): TemplateType = defaultTemplateType ?: TemplateType.FULL_DETAILS
     
     override suspend fun saveDefaultTemplateType(templateType: TemplateType) {
         defaultTemplateType = templateType
     }
-    
+
+    override suspend fun getCurrentCustomTemplateId(): String? {
+        return customTemplateId
+    }
+
+    override suspend fun saveCustomTemplateId(templateId: String) {
+        customTemplateId = templateId
+    }
+
+    override suspend fun getDefaultAutoPrintTemplateId(): String? {
+        return defaultAutoPrintTemplateId
+    }
+
+    override suspend fun saveDefaultAutoPrintTemplateId(templateId: String) {
+        defaultAutoPrintTemplateId = templateId
+    }
+
+    override suspend fun setTemporaryManualPrintFlag(isManualPrint: Boolean) {
+        temporaryManualPrintFlag = isManualPrint
+    }
+
     // 声音设置实现
     override suspend fun getSoundSettings(): SoundSettings {
         return SoundSettings(
@@ -277,5 +313,20 @@ class FakeSettingRepository : DomainSettingRepository {
     
     override suspend fun setLastUpdateCheckTime(timestamp: Long) {
         _lastUpdateCheckTime = timestamp
+    }
+
+    // 临时手动打印标志
+    override suspend fun getAndClearTemporaryManualPrintFlag(): Boolean {
+        val result = temporaryManualPrintFlag
+        temporaryManualPrintFlag = false
+        return result
+    }
+
+    override suspend fun getAutoPrintEnabled(): Boolean {
+        return autoPrintEnabled
+    }
+
+    override suspend fun setAutoPrintEnabled(enabled: Boolean) {
+        autoPrintEnabled = enabled
     }
 } 
