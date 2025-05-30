@@ -26,6 +26,7 @@ object LicenseDataStore {
     private val LICENSE_EDITION = stringPreferencesKey("license_edition")
     private val CAPABILITIES = stringPreferencesKey("capabilities")
     private val LICENSED_TO = stringPreferencesKey("licensed_to")
+    private val USER_EMAIL = stringPreferencesKey("user_email")
 
     fun isLicensed(context: Context): Flow<Boolean> {
         return context.dataStore.data.map { preferences ->
@@ -100,7 +101,13 @@ object LicenseDataStore {
 
     fun getLicensedTo(context: Context): Flow<String> {
         return context.dataStore.data.map { prefs ->
-            prefs[LICENSED_TO] ?: "MockCustomer"
+            prefs[LICENSED_TO] ?: ""
+        }
+    }
+
+    fun getUserEmail(context: Context): Flow<String> {
+        return context.dataStore.data.map { prefs ->
+            prefs[USER_EMAIL] ?: ""
         }
     }
 
@@ -125,16 +132,18 @@ object LicenseDataStore {
         licenseKey: String,
         edition: String = "Spire",
         capabilities: String = "cap1, cap2",
-        licensedTo: String = "MockCustomer"
+        licensedTo: String = "MockCustomer",
+        email: String = "user@example.com"
     ) {
         context.dataStore.edit { preferences ->
-            println("Saving licenseInfo: isLicensed=$isLicensed, endDate=$endDate, edition=$edition, capabilities=$capabilities, licensedTo=$licensedTo")
+            println("Saving licenseInfo: isLicensed=$isLicensed, endDate=$endDate, edition=$edition, capabilities=$capabilities, licensedTo=$licensedTo, email=$email")
             preferences[IS_LICENSED] = isLicensed
             preferences[LICENSE_END_DATE] = endDate
             preferences[LICENSE_KEY] = licenseKey
             preferences[LICENSE_EDITION] = edition
             preferences[CAPABILITIES] = capabilities
             preferences[LICENSED_TO] = licensedTo
+            preferences[USER_EMAIL] = email
         }
     }
 
@@ -148,6 +157,7 @@ object LicenseDataStore {
             preferences.remove(LICENSE_EDITION)
             preferences.remove(CAPABILITIES)
             preferences.remove(LICENSED_TO)
+            preferences.remove(USER_EMAIL)
         }
     }
 
