@@ -1214,7 +1214,6 @@ class SettingsViewModel @Inject constructor(
                 // 使用更新器检查更新
                 updater.checkForUpdates().collect { updateInfo ->
                     _updateInfo.value = updateInfo
-                    _hasUpdate.value = updateInfo.needsUpdate()
                     _isCheckingUpdate.value = false
                     
                     if (updateInfo.needsUpdate()) {
@@ -1280,8 +1279,9 @@ class SettingsViewModel @Inject constructor(
      * 下载更新
      */
     fun downloadUpdate() {
-        if (_updateInfo.value == null || !_hasUpdate.value) {
-            Log.d(TAG, "无更新可下载")
+        val updateInfo = _updateInfo.value
+        if (updateInfo == null || !updateInfo.needsUpdate()) {
+            Log.d(TAG, "无更新可下载或版本已是最新")
             return
         }
         
@@ -1290,7 +1290,7 @@ class SettingsViewModel @Inject constructor(
                 _isDownloading.value = true
                 _downloadProgress.value = 0
                 
-                updater.downloadAndInstall(_updateInfo.value!!).collect { progress ->
+                updater.downloadAndInstall(updateInfo).collect { progress ->
                     if (progress < 0) {
                         // 下载出错
                         _statusMessage.value = "下载更新失败，请重试"

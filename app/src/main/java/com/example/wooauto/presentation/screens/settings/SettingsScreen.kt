@@ -344,15 +344,15 @@ fun SettingsScreen(
                             title = stringResource(R.string.about),
                             subTitle = run {
                                 val currentVersion = viewModel.updateInfo.collectAsState().value?.currentVersion?.toVersionString() ?: ""
-                                val hasUpdate = viewModel.hasUpdate.collectAsState().value
-                                val latestVersion = viewModel.updateInfo.collectAsState().value?.latestVersion?.toVersionString() ?: ""
+                                val updateInfo = viewModel.updateInfo.collectAsState().value
                                 val isCheckingUpdate = viewModel.isCheckingUpdate.collectAsState().value
                                 
                                 if (isCheckingUpdate) {
                                     // 显示正在获取版本信息
                                     stringResource(R.string.fetching_version_info)
                                 } else if (currentVersion.isNotEmpty()) {
-                                    if (hasUpdate && latestVersion.isNotEmpty()) {
+                                    if (updateInfo?.needsUpdate() == true) {
+                                        val latestVersion = updateInfo.latestVersion.toVersionString()
                                         stringResource(R.string.about_version_info, currentVersion, 
                                             stringResource(R.string.version_needs_update, latestVersion))
                                     } else {
@@ -372,8 +372,9 @@ fun SettingsScreen(
                             }
                         )
                         
-                        // 如果有更新可用，显示下载更新按钮
-                        if (viewModel.hasUpdate.collectAsState().value) {
+                        // 只在真正需要更新时显示下载更新按钮
+                        val updateInfo = viewModel.updateInfo.collectAsState().value
+                        if (updateInfo?.needsUpdate() == true) {
                             Spacer(modifier = Modifier.height(8.dp))
                             HorizontalDivider()
                             Spacer(modifier = Modifier.height(8.dp))
