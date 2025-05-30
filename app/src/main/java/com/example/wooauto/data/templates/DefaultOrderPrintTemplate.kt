@@ -304,7 +304,7 @@ class DefaultOrderPrintTemplate @Inject constructor(
      */
     private fun generateDeliveryInfo(order: Order, config: PrinterConfig, templateConfig: TemplateConfig,
                                     paperWidth: Int, showOnlyOrderType: Boolean = false): String {
-        if (!templateConfig.showDeliveryInfo || order.woofoodInfo == null) return ""
+        if (!templateConfig.showDeliveryInfo) return ""
         
         val sb = StringBuilder()
         
@@ -314,19 +314,24 @@ class DefaultOrderPrintTemplate @Inject constructor(
         }
         
         // 订单类型 (配送或取餐)
+        val isDelivery = order.woofoodInfo?.isDelivery ?: false
         sb.append(ThermalPrinterFormatter.formatLabelValue("Order Type", 
-            if (order.woofoodInfo.isDelivery) "Delivery" else "Takeaway", paperWidth))
+            if (isDelivery) "Delivery" else "Takeaway", paperWidth))
         
-        if (!showOnlyOrderType && order.woofoodInfo.isDelivery) {
-            order.woofoodInfo.deliveryAddress?.let {
-                sb.append(ThermalPrinterFormatter.formatLabelValue("Delivery Address", it, paperWidth))
+        if (!showOnlyOrderType && isDelivery) {
+            // 优先使用WooFood插件的配送地址，如果为空则使用billing地址作为备选
+            val deliveryAddress = order.woofoodInfo?.deliveryAddress?.takeIf { it.isNotBlank() } 
+                                 ?: order.billingInfo.takeIf { it.isNotBlank() }
+            
+            deliveryAddress?.let { address ->
+                sb.append(ThermalPrinterFormatter.formatLabelValue("Delivery Address", address, paperWidth))
             }
             
-            order.woofoodInfo.deliveryFee?.let {
+            order.woofoodInfo?.deliveryFee?.let {
                 sb.append(ThermalPrinterFormatter.formatLabelValue("Delivery Fee", it, paperWidth))
             }
             
-            order.woofoodInfo.tip?.let {
+            order.woofoodInfo?.tip?.let {
                 sb.append(ThermalPrinterFormatter.formatLabelValue("Tip", it, paperWidth))
             }
         }
