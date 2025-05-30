@@ -98,6 +98,7 @@ fun SettingsScreen(
     var showPrintTemplatesDialog by remember { mutableStateOf(false) }
     var showPrinterSettingsDialog by remember { mutableStateOf(false) }
     var showStoreSettingsDialog by remember { mutableStateOf(false) }
+    var showLicenseSettingsDialog by remember { mutableStateOf(false) }
     
     Scaffold(
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
@@ -329,7 +330,7 @@ fun SettingsScreen(
                             subtitle = viewModel.licenseStatusText.collectAsState().value,
                             onClick = {
                                 Log.d("设置", "点击了许可设置")
-                                navController.navigate(Screen.LicenseSettings.route)
+                                showLicenseSettingsDialog = true
                             }
                         )
                         
@@ -562,6 +563,29 @@ fun SettingsScreen(
                 StoreSettingsDialogContent(
                     viewModel = viewModel,
                     onClose = { showStoreSettingsDialog = false }
+                )
+            }
+        }
+
+        // License Settings Dialog
+        if (showLicenseSettingsDialog) {
+            Dialog(
+                onDismissRequest = { showLicenseSettingsDialog = false },
+                properties = DialogProperties(
+                    usePlatformDefaultWidth = false,
+                    dismissOnBackPress = true,
+                    dismissOnClickOutside = true
+                )
+            ) {
+                LicenseSettingsDialogContent(
+                    onClose = { showLicenseSettingsDialog = false },
+                    onLicenseActivated = {
+                        // 许可证激活成功后的回调
+                        coroutineScope.launch {
+                            snackbarHostState.showSnackbar("许可证已激活")
+                            viewModel.revalidateLicenseStatus() // 刷新许可证状态
+                        }
+                    }
                 )
             }
         }

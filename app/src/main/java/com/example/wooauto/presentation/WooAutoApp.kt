@@ -291,13 +291,6 @@ fun AppContent() {
                                 Log.e("AppContent", "Failed to update states after activation: ${e.message}", e)
                             }
                         }
-                    },
-                    onGoToAppClicked = {
-                        Log.d("AppContent", "Go to App clicked, navigating to OrdersScreen")
-                        navController.navigate(NavigationItem.Orders.route) {
-                            popUpTo(0) { inclusive = true }
-                            launchSingleTop = true
-                        }
                     }
                 )
             }

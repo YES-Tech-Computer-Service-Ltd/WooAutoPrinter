@@ -462,6 +462,17 @@
     <string name="license_required">License Required</string>
     <string name="license_required_message">Please activate your license to access this feature</string>
     <string name="activate_license">Activate License</string>
+    
+    <!-- License Info Labels -->
+    <string name="license_start_date">Start Date</string>
+    <string name="license_end_date">End Date</string>
+    <string name="license_type">License Type</string>
+    <string name="license_registered_user">Registered User</string>
+    <string name="license_user_email">User Email</string>
+    <string name="license_device_id">Device ID</string>
+    <string name="license_not_set">Not Set</string>
+    <string name="license_trial_start">Trial Start</string>
+    <string name="license_trial_end">Trial End</string>
 
     <string name="api_info_updated_from_qr">API info updated from QR code</string>
     <string name="scan_cancelled">Scan cancelled</string>
@@ -566,5 +577,18 @@
     <string name="items_count_value">%d items</string>
     <string name="order_status_label">Order Status:</string>
     <string name="view_details">View Details</string>
+
+    <!-- License Input Section -->
+    <string name="license_input_title">Enter License Key</string>
+    <string name="license_input_description">Please enter four groups of digits or letters, 4 characters each</string>
+    <string name="license_key_label">License Key</string>
+    <string name="license_format_hint">Format: XXXX-XXXX-XXXX-XXXX</string>
+    <string name="license_clipboard_detected">License key detected in clipboard</string>
+    <string name="license_activated_key">Activated License Key</string>
+    
+    <!-- Trial Expiry Messages -->
+    <string name="trial_thank_you_title">Thank you for trying WooAuto!</string>
+    <string name="trial_expired_message">Your trial period has ended. Upgrade to Pro to continue enjoying full features, including automatic printing, unlimited order processing, and priority technical support.</string>
+    <string name="pro_version_benefits">💡 Pro Version Benefits: Unrestricted access to all features</string>
 
 </resources>
