@@ -315,20 +315,13 @@ class LicenseManager @Inject constructor() {
         
         return when (licenseInfo.status) {
             LicenseStatus.VALID -> {
-                // 检查是否有有效的激活日期和有效期，避免计算出错误的日期
-                val endDate = if (licenseInfo.activationDate.isNotEmpty() && licenseInfo.validity > 0) {
-                    LicenseDataStore.calculateEndDate(licenseInfo.activationDate, licenseInfo.validity)
-                } else {
-                    // 如果没有有效的激活信息，使用空字符串，让UI从DataStore直接获取
-                    ""
-                }
-                
+                val endDate = LicenseDataStore.calculateEndDate(licenseInfo.activationDate, licenseInfo.validity)
                 EligibilityInfo(
                     status = EligibilityStatus.ELIGIBLE,
                     isLicensed = true,
                     isTrialActive = false,
                     licenseEndDate = endDate,
-                    displayMessage = if (endDate.isNotEmpty()) "许可证有效 (到期: $endDate)" else "许可证有效",
+                    displayMessage = "许可证有效 (到期: $endDate)",
                     source = EligibilitySource.LICENSE
                 )
             }

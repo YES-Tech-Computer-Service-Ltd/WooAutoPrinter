@@ -1414,6 +1414,53 @@ class SettingsViewModel @Inject constructor(
     }
     
     /**
+     * 根据许可证状态更新显示文本
+     */
+    private fun updateLicenseStatusText(info: LicenseInfo?) {
+        viewModelScope.launch {
+            try {
+                if (info == null) {
+                    _licenseStatusText.value = context.getString(R.string.license_status_unverified)
+                    return@launch
+                }
+                
+                // 如果是试用期状态，同时更新试用期剩余天数
+                if (info.status == LicenseStatus.TRIAL) {
+                    val deviceId = android.provider.Settings.Secure.getString(
+                        context.contentResolver,
+                        android.provider.Settings.Secure.ANDROID_ID
+                    )
+                    val appId = context.packageName
+                    _trialDaysRemaining.value = TrialTokenManager.getRemainingDays(context, deviceId, appId)
+                }
+                
+                _licenseStatusText.value = when (info.status) {
+                    LicenseStatus.VALID -> {
+                        // 格式化有效期信息
+                        val endDate = LicenseDataStore.calculateEndDate(info.activationDate, info.validity)
+                        context.getString(R.string.license_status_valid, endDate)
+                    }
+                    LicenseStatus.TRIAL -> {
+                        val days = _trialDaysRemaining.value ?: 0
+                        context.getString(R.string.license_status_trial, days)
+                    }
+                    LicenseStatus.INVALID, LicenseStatus.TIMEOUT -> {
+                        context.getString(R.string.license_status_expired)
+                    }
+                    else -> {
+                        context.getString(R.string.license_status_unverified)
+                    }
+                }
+                
+                Log.d(TAG, "许可证状态文本已更新: ${_licenseStatusText.value}, 试用期剩余: ${_trialDaysRemaining.value}")
+            } catch (e: Exception) {
+                Log.e(TAG, "更新许可证状态文本失败", e)
+                _licenseStatusText.value = context.getString(R.string.license_status_unverified)
+            }
+        }
+    }
+    
+    /**
      * 基于统一资格状态更新显示文本 - 改进版
      * 优先使用结构化数据构建显示文本，确保格式一致性
      */
@@ -1435,22 +1482,22 @@ class SettingsViewModel @Inject constructor(
                     EligibilityStatus.ELIGIBLE -> {
                         if (eligibilityInfo.isLicensed) {
                             // 许可证用户：显示过期日期
-                            // 优先使用eligibilityInfo中的日期，如果为空则从DataStore获取
-                            val endDate = if (eligibilityInfo.licenseEndDate.isNotEmpty()) {
-                                eligibilityInfo.licenseEndDate
-                            } else {
-                                try {
-                                    LicenseDataStore.getLicenseEndDate(context).first() ?: ""
-                                } catch (e: Exception) {
-                                    Log.e(TAG, "获取许可证结束日期失败: ${e.message}")
-                                    ""
-                                }
-                            }
-                            
-                            if (endDate.isNotEmpty()) {
+                            val endDate = eligibilityInfo.licenseEndDate
+                            if (!endDate.isNullOrEmpty()) {
                                 context.getString(R.string.license_status_valid, endDate)
                             } else {
-                                "许可证有效"
+                                // 如果没有结束日期，尝试从DataStore获取
+                                try {
+                                    val storedEndDate = LicenseDataStore.getLicenseEndDate(context).first()
+                                    if (!storedEndDate.isNullOrEmpty()) {
+                                        context.getString(R.string.license_status_valid, storedEndDate)
+                                    } else {
+                                        "许可证有效"
+                                    }
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "获取许可证结束日期失败: ${e.message}")
+                                    "许可证有效"
+                                }
                             }
                         } else {
                             // 试用期用户：显示剩余天数

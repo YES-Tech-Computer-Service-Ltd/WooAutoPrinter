@@ -1435,22 +1435,22 @@ class SettingsViewModel @Inject constructor(
                     EligibilityStatus.ELIGIBLE -> {
                         if (eligibilityInfo.isLicensed) {
                             // 许可证用户：显示过期日期
-                            // 优先使用eligibilityInfo中的日期，如果为空则从DataStore获取
-                            val endDate = if (eligibilityInfo.licenseEndDate.isNotEmpty()) {
-                                eligibilityInfo.licenseEndDate
-                            } else {
-                                try {
-                                    LicenseDataStore.getLicenseEndDate(context).first() ?: ""
-                                } catch (e: Exception) {
-                                    Log.e(TAG, "获取许可证结束日期失败: ${e.message}")
-                                    ""
-                                }
-                            }
-                            
-                            if (endDate.isNotEmpty()) {
+                            val endDate = eligibilityInfo.licenseEndDate
+                            if (!endDate.isNullOrEmpty()) {
                                 context.getString(R.string.license_status_valid, endDate)
                             } else {
-                                "许可证有效"
+                                // 如果没有结束日期，尝试从DataStore获取
+                                try {
+                                    val storedEndDate = LicenseDataStore.getLicenseEndDate(context).first()
+                                    if (!storedEndDate.isNullOrEmpty()) {
+                                        context.getString(R.string.license_status_valid, storedEndDate)
+                                    } else {
+                                        "许可证有效"
+                                    }
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "获取许可证结束日期失败: ${e.message}")
+                                    "许可证有效"
+                                }
                             }
                         } else {
                             // 试用期用户：显示剩余天数

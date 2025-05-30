@@ -101,13 +101,7 @@ object LicenseDataStore {
 
     fun getLicensedTo(context: Context): Flow<String> {
         return context.dataStore.data.map { prefs ->
-            prefs[LICENSED_TO] ?: ""
-        }
-    }
-
-    fun getUserEmail(context: Context): Flow<String> {
-        return context.dataStore.data.map { prefs ->
-            prefs[USER_EMAIL] ?: ""
+            prefs[LICENSED_TO] ?: "MockCustomer"
         }
     }
 
@@ -132,18 +126,16 @@ object LicenseDataStore {
         licenseKey: String,
         edition: String = "Spire",
         capabilities: String = "cap1, cap2",
-        licensedTo: String = "MockCustomer",
-        email: String = "user@example.com"
+        licensedTo: String = "MockCustomer"
     ) {
         context.dataStore.edit { preferences ->
-            println("Saving licenseInfo: isLicensed=$isLicensed, endDate=$endDate, edition=$edition, capabilities=$capabilities, licensedTo=$licensedTo, email=$email")
+            println("Saving licenseInfo: isLicensed=$isLicensed, endDate=$endDate, edition=$edition, capabilities=$capabilities, licensedTo=$licensedTo")
             preferences[IS_LICENSED] = isLicensed
             preferences[LICENSE_END_DATE] = endDate
             preferences[LICENSE_KEY] = licenseKey
             preferences[LICENSE_EDITION] = edition
             preferences[CAPABILITIES] = capabilities
             preferences[LICENSED_TO] = licensedTo
-            preferences[USER_EMAIL] = email
         }
     }
 
@@ -157,7 +149,6 @@ object LicenseDataStore {
             preferences.remove(LICENSE_EDITION)
             preferences.remove(CAPABILITIES)
             preferences.remove(LICENSED_TO)
-            preferences.remove(USER_EMAIL)
         }
     }
 

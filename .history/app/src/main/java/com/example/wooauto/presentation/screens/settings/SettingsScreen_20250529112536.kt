@@ -578,14 +578,8 @@ fun SettingsScreen(
                 )
             ) {
                 LicenseSettingsDialogContent(
-                    onClose = { showLicenseSettingsDialog = false },
-                    onLicenseActivated = {
-                        // 许可证激活成功后的回调
-                        coroutineScope.launch {
-                            snackbarHostState.showSnackbar("许可证已激活")
-                            viewModel.revalidateLicenseStatus() // 刷新许可证状态
-                        }
-                    }
+                    viewModel = viewModel,
+                    onClose = { showLicenseSettingsDialog = false }
                 )
             }
         }

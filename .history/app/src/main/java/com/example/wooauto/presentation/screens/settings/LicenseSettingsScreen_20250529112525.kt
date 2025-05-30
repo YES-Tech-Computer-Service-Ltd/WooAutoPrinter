@@ -14,8 +14,6 @@ import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material3.*
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.*
@@ -130,201 +128,63 @@ fun LicenseInputSection(
         }
     }
 
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // 添加标题和说明
-        if (isEditable) {
-            Text(
-                text = stringResource(R.string.license_input_title),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
-            
-            Text(
-                text = stringResource(R.string.license_input_description),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(bottom = 16.dp)
-            )
-        } else {
-            Text(
-                text = stringResource(R.string.license_key_label),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
-        }
-        
-        // 输入框容器
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .wrapContentHeight(), // 改为自适应高度
-            shape = RoundedCornerShape(12.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = if (isEditable) 
-                    MaterialTheme.colorScheme.surface 
-                else 
-                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-            ),
-            elevation = CardDefaults.cardElevation(
-                defaultElevation = if (isEditable) 4.dp else 1.dp
-            )
-        ) {
-            Column(
-                modifier = Modifier
-                    .padding(20.dp) // 增加padding
-                    .fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp), // 减小间距以适应更多内容
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    for (i in 0 until 4) {
-                        // 输入框
-                        OutlinedTextField(
-                            value = inputs[i].trim(),
-                            onValueChange = { value ->
-                                if (!isEditable) return@OutlinedTextField
+        for (i in 0 until 4) {
+            OutlinedTextField(
+                value = inputs[i].trim(),
+                onValueChange = { value ->
+                    if (!isEditable) return@OutlinedTextField
 
-                                val filtered = value.filter { it.isLetterOrDigit() }.uppercase()
+                    val filtered = value.filter { it.isLetterOrDigit() }.uppercase()
 
-                                if (filtered.length == 16 && i == 0) {
-                                    val parts = filtered.chunked(4)
-                                    if (parts.size == 4) {
-                                        inputs.forEachIndexed { index, _ ->
-                                            inputs[index] = parts[index].trim()
-                                        }
-                                        val license = parts.joinToString("-")
-                                        onLicenseComplete(license)
-                                        focusRequesters[3].freeFocus()
-                                        return@OutlinedTextField
-                                    }
-                                }
-
-                                if (filtered.length <= 4) {
-                                    inputs[i] = filtered
-                                    if (filtered.length == 4 && i < 3) {
-                                        focusRequesters[i + 1].requestFocus()
-                                    }
-                                }
-
-                                if (inputs.all { it.length == 4 }) {
-                                    val license = inputs.joinToString("-")
-                                    onLicenseComplete(license)
-                                }
-                            },
-                            enabled = isEditable,
-                            modifier = Modifier
-                                .weight(1f) // 使用weight而不是固定宽度
-                                .height(56.dp) // 标准高度
-                                .focusRequester(focusRequesters[i]),
-                            singleLine = true,
-                            visualTransformation = VisualTransformation.None,
-                            textStyle = LocalTextStyle.current.copy(
-                                textAlign = TextAlign.Center,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp, // 稍微减小字体
-                                letterSpacing = 1.sp
-                            ),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                disabledTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
-                                disabledBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
-                                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
-                                cursorColor = MaterialTheme.colorScheme.primary
-                            ),
-                            shape = RoundedCornerShape(8.dp),
-                            placeholder = {
-                                if (isEditable) {
-                                    Text(
-                                        text = "••••",
-                                        textAlign = TextAlign.Center,
-                                        style = LocalTextStyle.current.copy(
-                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
-                                            fontSize = 12.sp
-                                        ),
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                }
+                    if (filtered.length == 16 && i == 0) {
+                        val parts = filtered.chunked(4)
+                        if (parts.size == 4) {
+                            inputs.forEachIndexed { index, _ ->
+                                inputs[index] = parts[index].trim()
                             }
-                        )
-                        
-                        // 添加连接线（除了最后一个）
-                        if (i < 3) {
-                            Text(
-                                text = "—",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 2.dp)
-                            )
+                            val license = parts.joinToString("-")
+                            onLicenseComplete(license)
+                            focusRequesters[3].freeFocus()
+                            return@OutlinedTextField
                         }
                     }
-                }
-                
-                // 底部提示信息
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                if (isEditable) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Lock,
-                            contentDescription = null,
-                            modifier = Modifier.size(14.dp),
-                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = stringResource(R.string.license_format_hint),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
-                        )
-                    }
-                    
-                    // 剪贴板提示（如果检测到有效的许可证）
-                    if (clipboardContainsValidLicense()) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.CheckCircle,
-                                contentDescription = null,
-                                modifier = Modifier.size(12.dp),
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = stringResource(R.string.license_clipboard_detected),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.Medium
-                            )
+
+                    if (filtered.length <= 4) {
+                        inputs[i] = filtered
+                        if (filtered.length == 4 && i < 3) {
+                            focusRequesters[i + 1].requestFocus()
                         }
                     }
-                } else {
-                    // 非编辑模式下的状态提示
-                    Text(
-                        text = stringResource(R.string.license_activated_key),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                        textAlign = TextAlign.Center
-                    )
-                }
-            }
+
+                    if (inputs.all { it.length == 4 }) {
+                        val license = inputs.joinToString("-")
+                        onLicenseComplete(license)
+                    }
+                },
+                enabled = isEditable,
+                modifier = Modifier
+                    .width(90.dp)
+                    .height(56.dp)
+                    .focusRequester(focusRequesters[i]),
+                singleLine = true,
+                visualTransformation = VisualTransformation.None,
+                textStyle = LocalTextStyle.current.copy(
+                    textAlign = TextAlign.Center,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    letterSpacing = 0.sp
+                ),
+                colors = OutlinedTextFieldDefaults.colors(
+                    disabledTextColor = Color.Gray,
+                    disabledBorderColor = Color.Gray,
+                    disabledLabelColor = Color.Gray,
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.onSurface
+                )
+            )
         }
     }
 }
@@ -364,7 +224,8 @@ fun LicenseInfoRow(icon: ImageVector, label: String, value: String) {
 @Composable
 fun LicenseSettingsDialogContent(
     onClose: () -> Unit,
-    onLicenseActivated: () -> Unit = {}
+    onLicenseActivated: () -> Unit = {},
+    onGoToAppClicked: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -383,8 +244,7 @@ fun LicenseSettingsDialogContent(
     val savedEndDate by LicenseDataStore.getLicenseEndDate(context).collectAsState(initial = null)
     val licenseEdition by LicenseDataStore.getLicenseEdition(context).collectAsState(initial = "Spire")
     val capabilities by LicenseDataStore.getCapabilities(context).collectAsState(initial = "cap1, cap2")
-    val licensedTo by LicenseDataStore.getLicensedTo(context).collectAsState(initial = "")
-    val userEmail by LicenseDataStore.getUserEmail(context).collectAsState(initial = "")
+    val licensedTo by LicenseDataStore.getLicensedTo(context).collectAsState(initial = "MockCustomer")
     val licenseKey by LicenseDataStore.getLicenseKey(context).collectAsState(initial = "")
     
     var licenseCode by remember { mutableStateOf(licenseKey) }
@@ -672,7 +532,7 @@ fun LicenseSettingsDialogContent(
                 if (isSmallScreen) {
                     Column(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally
+                        horizontalAlignment = Alignment.Start
                     ) {
                         LicenseInputSection(
                             onLicenseComplete = { finalKey ->
@@ -681,7 +541,7 @@ fun LicenseSettingsDialogContent(
                             isEditable = !isLicenseActivated,
                             savedLicenseKey = licenseCode
                         )
-                        Spacer(modifier = Modifier.height(20.dp)) // 增加间距
+                        Spacer(modifier = Modifier.height(16.dp))
                         Button(
                             onClick = {
                                 coroutineScope.launch {
@@ -723,8 +583,7 @@ fun LicenseSettingsDialogContent(
                                                         clean,
                                                         details.edition,
                                                         details.capabilities,
-                                                        details.licensedTo,
-                                                        details.email
+                                                        details.licensedTo
                                                     )
                                                     LicenseDataStore.setLicensed(context, true)
                                                     
@@ -736,8 +595,6 @@ fun LicenseSettingsDialogContent(
                                                     val isValid = licenseManager.forceRevalidateAndSync(context)
                                                     Log.d("LicenseSettingsDialog", "许可证激活后统一验证结果: $isValid")
                                                     if (isValid) {
-                                                        // 等待一小段时间确保DataStore数据已更新
-                                                        kotlinx.coroutines.delay(200)
                                                         snackbarHostState.showSnackbar(
                                                             context.getString(R.string.license_success, calcEnd)
                                                         )
@@ -759,7 +616,7 @@ fun LicenseSettingsDialogContent(
                                 }
                             },
                             modifier = Modifier
-                                .fillMaxWidth()
+                                .width(120.dp)
                                 .height(48.dp),
                             enabled = !isLicenseActivated,
                             colors = ButtonDefaults.buttonColors(
@@ -771,8 +628,9 @@ fun LicenseSettingsDialogContent(
                         }
                     }
                 } else {
-                    Column(
-                        modifier = Modifier.fillMaxWidth()
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         LicenseInputSection(
                             onLicenseComplete = { finalKey ->
@@ -781,257 +639,151 @@ fun LicenseSettingsDialogContent(
                             isEditable = !isLicenseActivated,
                             savedLicenseKey = licenseCode
                         )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        
-                        // 按钮居中放置
-                        Box(
-                            modifier = Modifier.fillMaxWidth(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Button(
-                                onClick = {
-                                    coroutineScope.launch {
-                                        // 重复的激活许可证逻辑（与上面相同）
-                                        try {
-                                            val deviceId = Settings.Secure.getString(
-                                                context.contentResolver,
-                                                Settings.Secure.ANDROID_ID
-                                            )
-                                            val clean = licenseCode.filter { it.isLetterOrDigit() || it == '-' }
-                                            Log.d("LicenseDebug", "Activating license: $clean")
-                                            val result = LicenseValidator.activateLicense(clean, deviceId)
-                                            Log.d(
-                                                "LicenseDebug",
-                                                "Activation result: success=${result.success}, message=${result.message}"
-                                            )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Button(
+                            onClick = {
+                                coroutineScope.launch {
+                                    // 重复的激活许可证逻辑（与上面相同）
+                                    try {
+                                        val deviceId = Settings.Secure.getString(
+                                            context.contentResolver,
+                                            Settings.Secure.ANDROID_ID
+                                        )
+                                        val clean = licenseCode.filter { it.isLetterOrDigit() || it == '-' }
+                                        Log.d("LicenseDebug", "Activating license: $clean")
+                                        val result = LicenseValidator.activateLicense(clean, deviceId)
+                                        Log.d(
+                                            "LicenseDebug",
+                                            "Activation result: success=${result.success}, message=${result.message}"
+                                        )
 
-                                            if (result.success) {
-                                                when (val details = LicenseValidator.getLicenseDetails(clean)) {
-                                                    is LicenseDetailsResult.Success -> {
-                                                        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-                                                        sdf.timeZone = TimeZone.getDefault()
-                                                        val localStartDate = sdf.format(Calendar.getInstance().time)
+                                        if (result.success) {
+                                            when (val details = LicenseValidator.getLicenseDetails(clean)) {
+                                                is LicenseDetailsResult.Success -> {
+                                                    val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+                                                    sdf.timeZone = TimeZone.getDefault()
+                                                    val localStartDate = sdf.format(Calendar.getInstance().time)
 
-                                                        val calcEnd = LicenseDataStore.calculateEndDate(
-                                                            localStartDate,
-                                                            details.validity
+                                                    val calcEnd = LicenseDataStore.calculateEndDate(
+                                                        localStartDate,
+                                                        details.validity
+                                                    )
+                                                    Log.d("LicenseDebug", "Activation: calcEnd=$calcEnd")
+                                                    
+                                                    // 清除并保存新的许可证信息
+                                                    LicenseDataStore.clearLicenseInfo(context)
+                                                    LicenseDataStore.saveLicenseStartDate(context, localStartDate)
+                                                    LicenseDataStore.saveLicenseEndDate(context, calcEnd)
+                                                    LicenseDataStore.saveLicenseInfo(
+                                                        context,
+                                                        true,
+                                                        calcEnd,
+                                                        clean,
+                                                        details.edition,
+                                                        details.capabilities,
+                                                        details.licensedTo
+                                                    )
+                                                    LicenseDataStore.setLicensed(context, true)
+                                                    
+                                                    // 强制结束试用期
+                                                    TrialTokenManager.forceExpireTrial(context)
+                                                    Log.d("LicenseSettingsDialog", "试用期已结束")
+                                                    
+                                                    // 重新验证许可证状态，更新LicenseManager的状态
+                                                    val isValid = licenseManager.forceRevalidateAndSync(context)
+                                                    Log.d("LicenseSettingsDialog", "许可证激活后统一验证结果: $isValid")
+                                                    if (isValid) {
+                                                        snackbarHostState.showSnackbar(
+                                                            context.getString(R.string.license_success, calcEnd)
                                                         )
-                                                        Log.d("LicenseDebug", "Activation: calcEnd=$calcEnd")
-                                                        
-                                                        // 清除并保存新的许可证信息
-                                                        LicenseDataStore.clearLicenseInfo(context)
-                                                        LicenseDataStore.saveLicenseStartDate(context, localStartDate)
-                                                        LicenseDataStore.saveLicenseEndDate(context, calcEnd)
-                                                        LicenseDataStore.saveLicenseInfo(
-                                                            context,
-                                                            true,
-                                                            calcEnd,
-                                                            clean,
-                                                            details.edition,
-                                                            details.capabilities,
-                                                            details.licensedTo,
-                                                            details.email
-                                                        )
-                                                        LicenseDataStore.setLicensed(context, true)
-                                                        
-                                                        // 强制结束试用期
-                                                        TrialTokenManager.forceExpireTrial(context)
-                                                        Log.d("LicenseSettingsDialog", "试用期已结束")
-                                                        
-                                                        // 重新验证许可证状态，更新LicenseManager的状态
-                                                        val isValid = licenseManager.forceRevalidateAndSync(context)
-                                                        Log.d("LicenseSettingsDialog", "许可证激活后统一验证结果: $isValid")
-                                                        if (isValid) {
-                                                            // 等待一小段时间确保DataStore数据已更新
-                                                            kotlinx.coroutines.delay(200)
-                                                            snackbarHostState.showSnackbar(
-                                                                context.getString(R.string.license_success, calcEnd)
-                                                            )
-                                                            onLicenseActivated()
-                                                        }
-                                                    }
-                                                    is LicenseDetailsResult.Error -> {
-                                                        Log.e("LicenseDebug", "Activation error: ${details.message}")
-                                                        snackbarHostState.showSnackbar("Failed to get license details: ${details.message}")
+                                                        onLicenseActivated()
                                                     }
                                                 }
-                                            } else {
-                                                snackbarHostState.showSnackbar("Failed to activate license: ${result.message}")
+                                                is LicenseDetailsResult.Error -> {
+                                                    Log.e("LicenseDebug", "Activation error: ${details.message}")
+                                                    snackbarHostState.showSnackbar("Failed to get license details: ${details.message}")
+                                                }
                                             }
-                                        } catch (e: Exception) {
-                                            Log.e("LicenseSettingsDialog", "Error during activation: ${e.message}", e)
-                                            snackbarHostState.showSnackbar("Error: ${e.message}")
+                                        } else {
+                                            snackbarHostState.showSnackbar("Failed to activate license: ${result.message}")
                                         }
+                                    } catch (e: Exception) {
+                                        Log.e("LicenseSettingsDialog", "Error during activation: ${e.message}", e)
+                                        snackbarHostState.showSnackbar("Error: ${e.message}")
                                     }
-                                },
-                                modifier = Modifier
-                                    .width(120.dp)
-                                    .height(48.dp),
-                                enabled = !isLicenseActivated,
-                                colors = ButtonDefaults.buttonColors(
-                                    disabledContainerColor = Color.Gray.copy(alpha = 0.3f),
-                                    disabledContentColor = Color.White.copy(alpha = 0.5f)
-                                )
-                            ) {
-                                Text(stringResource(R.string.activate))
-                            }
+                                }
+                            },
+                            modifier = Modifier
+                                .width(120.dp)
+                                .height(48.dp),
+                            enabled = !isLicenseActivated,
+                            colors = ButtonDefaults.buttonColors(
+                                disabledContainerColor = Color.Gray.copy(alpha = 0.3f),
+                                disabledContentColor = Color.White.copy(alpha = 0.5f)
+                            )
+                        ) {
+                            Text(stringResource(R.string.activate))
                         }
                     }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // 许可信息框 - 根据用户状态显示不同内容
-                val isExpired = when {
-                    safeEligibilityInfo.status == EligibilityStatus.INELIGIBLE -> true // 试用期过期或许可证过期
-                    safeEligibilityInfo.isLicensed && isLicenseExpired -> true // 许可证已过期
-                    else -> false
-                }
-                
-                // 添加调试日志
-                Log.d("LicenseDisplay", "显示条件判断: " +
-                    "isExpired=$isExpired, " +
-                    "isLicensed=${safeEligibilityInfo.isLicensed}, " +
-                    "isTrialActive=${safeEligibilityInfo.isTrialActive}, " +
-                    "status=${safeEligibilityInfo.status}, " +
-                    "licensedTo='$licensedTo', " +
-                    "userEmail='$userEmail'"
+                // 许可信息框
+                LicenseInfoRow(
+                    icon = Icons.Default.Timer,
+                    label = "Expiration Date",
+                    value = LicenseDataStore.formatDate(savedEndDate) ?: "Not set"
                 )
-                
-                if (isExpired) {
-                    // 过期状态：显示友好的购买提示和设备ID
-                    
-                    // 大的购买提示框
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 8.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.1f),
-                        shape = MaterialTheme.shapes.large
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(20.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.ThumbUp,
-                                contentDescription = null,
-                                modifier = Modifier.size(48.dp),
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                            
-                            Spacer(modifier = Modifier.height(12.dp))
-                            
-                            Text(
-                                text = stringResource(R.string.trial_thank_you_title),
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold,
-                                textAlign = TextAlign.Center,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                            
-                            Spacer(modifier = Modifier.height(8.dp))
-                            
-                            Text(
-                                text = stringResource(R.string.trial_expired_message),
-                                style = MaterialTheme.typography.bodyLarge,
-                                textAlign = TextAlign.Center,
-                                lineHeight = 20.sp
-                            )
-                            
-                            Spacer(modifier = Modifier.height(12.dp))
-                            
-                            Text(
-                                text = stringResource(R.string.pro_version_benefits),
-                                style = MaterialTheme.typography.bodyMedium,
-                                textAlign = TextAlign.Center,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
+                LicenseInfoRow(
+                    icon = Icons.Default.ThumbUp,
+                    label = "Valid For Version",
+                    value = "All"
+                )
+                LicenseInfoRow(
+                    icon = Icons.Default.Lock,
+                    label = "License Edition",
+                    value = licenseEdition
+                )
+                LicenseInfoRow(
+                    icon = Icons.Default.Science,
+                    label = "Capabilities",
+                    value = capabilities
+                )
+                LicenseInfoRow(
+                    icon = Icons.Default.Science,
+                    label = "Trial",
+                    value = if (safeEligibilityInfo.isTrialActive) "Yes" else "No"
+                )
+                LicenseInfoRow(
+                    icon = Icons.Default.VerifiedUser,
+                    label = "Licensed To",
+                    value = licensedTo
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // 底部按钮
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(onClick = { /* 空链接，未来填充 */ }) {
+                        Text(
+                            text = "End User License Agreement",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
                     }
-                    
-                    Spacer(modifier = Modifier.height(16.dp))
-                    
-                    // 设备ID信息
-                    LicenseInfoRow(
-                        icon = Icons.Default.Devices,
-                        label = stringResource(R.string.license_device_id),
-                        value = deviceId.take(8) + "..." // 显示设备ID的前8位
-                    )
-                } else if (safeEligibilityInfo.isTrialActive && !safeEligibilityInfo.isLicensed) {
-                    // 试用期用户：显示试用期信息和设备ID（不显示注册用户和邮箱）
-                    LicenseInfoRow(
-                        icon = Icons.Default.Timer,
-                        label = stringResource(R.string.license_trial_start),
-                        value = remember {
-                            val calendar = Calendar.getInstance()
-                            // 基于剩余天数计算试用期开始时间
-                            val totalTrialDays = 10 // 默认试用期天数
-                            val usedDays = totalTrialDays - safeEligibilityInfo.trialDaysRemaining
-                            calendar.add(Calendar.DAY_OF_MONTH, -usedDays)
-                            val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-                            sdf.format(calendar.time)
-                        }
-                    )
-                    LicenseInfoRow(
-                        icon = Icons.Default.Timer,
-                        label = stringResource(R.string.license_trial_end),
-                        value = remember {
-                            val calendar = Calendar.getInstance()
-                            calendar.add(Calendar.DAY_OF_MONTH, safeEligibilityInfo.trialDaysRemaining)
-                            val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-                            sdf.format(calendar.time)
-                        }
-                    )
-                    LicenseInfoRow(
-                        icon = Icons.Default.Lock,
-                        label = stringResource(R.string.license_type),
-                        value = "Trial"
-                    )
-                    LicenseInfoRow(
-                        icon = Icons.Default.Devices,
-                        label = stringResource(R.string.license_device_id),
-                        value = deviceId.take(8) + "..." // 显示设备ID的前8位
-                    )
-                } else {
-                    // 正式许可用户：显示完整的许可证信息
-                    LicenseInfoRow(
-                        icon = Icons.Default.Timer,
-                        label = stringResource(R.string.license_start_date),
-                        value = LicenseDataStore.formatDate(savedStartDate) ?: stringResource(R.string.license_not_set)
-                    )
-                    LicenseInfoRow(
-                        icon = Icons.Default.Timer,
-                        label = stringResource(R.string.license_end_date),
-                        value = LicenseDataStore.formatDate(savedEndDate) ?: stringResource(R.string.license_not_set)
-                    )
-                    LicenseInfoRow(
-                        icon = Icons.Default.Lock,
-                        label = stringResource(R.string.license_type),
-                        value = "Pro" // 正式版统一显示为Pro
-                    )
-                    LicenseInfoRow(
-                        icon = Icons.Default.VerifiedUser,
-                        label = stringResource(R.string.license_registered_user),
-                        value = when {
-                            licensedTo.isEmpty() || licensedTo == "MockCustomer" -> "正在加载用户信息..."
-                            else -> licensedTo
-                        }
-                    )
-                    LicenseInfoRow(
-                        icon = Icons.Default.Email,
-                        label = stringResource(R.string.license_user_email),
-                        value = when {
-                            userEmail.isEmpty() || userEmail == "user@example.com" -> "正在加载邮箱信息..."
-                            else -> userEmail
-                        }
-                    )
-                    LicenseInfoRow(
-                        icon = Icons.Default.Devices,
-                        label = stringResource(R.string.license_device_id),
-                        value = deviceId.take(8) + "..." // 显示设备ID的前8位
-                    )
+                    Button(
+                        onClick = onGoToAppClicked,
+                        modifier = Modifier
+                            .width(120.dp)
+                            .height(48.dp)
+                    ) {
+                        Text("Go to App")
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -1044,11 +796,13 @@ fun LicenseSettingsDialogContent(
 @Composable
 fun LicenseSettingsScreen(
     navController: NavController,
-    onLicenseActivated: () -> Unit = {}
+    onLicenseActivated: () -> Unit = {},
+    onGoToAppClicked: () -> Unit = {}
 ) {
     // 保留原始屏幕版本以支持直接导航（如果需要的话）
     LicenseSettingsDialogContent(
         onClose = { navController.popBackStack() },
-        onLicenseActivated = onLicenseActivated
+        onLicenseActivated = onLicenseActivated,
+        onGoToAppClicked = onGoToAppClicked
     )
 }

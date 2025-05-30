@@ -286,7 +286,7 @@ fun LicenseInputSection(
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = stringResource(R.string.license_format_hint),
+                            text = "格式：XXXX-XXXX-XXXX-XXXX",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                             fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
@@ -308,7 +308,7 @@ fun LicenseInputSection(
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                text = stringResource(R.string.license_clipboard_detected),
+                                text = "检测到剪贴板中的许可证密钥",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.primary,
                                 fontWeight = FontWeight.Medium
@@ -318,7 +318,7 @@ fun LicenseInputSection(
                 } else {
                     // 非编辑模式下的状态提示
                     Text(
-                        text = stringResource(R.string.license_activated_key),
+                        text = "已激活的许可证密钥",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                         textAlign = TextAlign.Center
@@ -923,7 +923,7 @@ fun LicenseSettingsDialogContent(
                             Spacer(modifier = Modifier.height(12.dp))
                             
                             Text(
-                                text = stringResource(R.string.trial_thank_you_title),
+                                text = "感谢您试用 WooAuto！",
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold,
                                 textAlign = TextAlign.Center,
@@ -933,7 +933,7 @@ fun LicenseSettingsDialogContent(
                             Spacer(modifier = Modifier.height(8.dp))
                             
                             Text(
-                                text = stringResource(R.string.trial_expired_message),
+                                text = "您的试用期已结束。升级到专业版以继续享受完整功能，包括自动打印、无限订单处理和优先技术支持。",
                                 style = MaterialTheme.typography.bodyLarge,
                                 textAlign = TextAlign.Center,
                                 lineHeight = 20.sp
@@ -942,7 +942,7 @@ fun LicenseSettingsDialogContent(
                             Spacer(modifier = Modifier.height(12.dp))
                             
                             Text(
-                                text = stringResource(R.string.pro_version_benefits),
+                                text = "💡 专业版特权：无限制使用所有功能",
                                 style = MaterialTheme.typography.bodyMedium,
                                 textAlign = TextAlign.Center,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),

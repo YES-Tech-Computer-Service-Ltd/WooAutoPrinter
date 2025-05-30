@@ -923,7 +923,7 @@ fun LicenseSettingsDialogContent(
                             Spacer(modifier = Modifier.height(12.dp))
                             
                             Text(
-                                text = stringResource(R.string.trial_thank_you_title),
+                                text = "感谢您试用 WooAuto！",
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold,
                                 textAlign = TextAlign.Center,
@@ -933,7 +933,7 @@ fun LicenseSettingsDialogContent(
                             Spacer(modifier = Modifier.height(8.dp))
                             
                             Text(
-                                text = stringResource(R.string.trial_expired_message),
+                                text = "您的试用期已结束。升级到专业版以继续享受完整功能，包括自动打印、无限订单处理和优先技术支持。",
                                 style = MaterialTheme.typography.bodyLarge,
                                 textAlign = TextAlign.Center,
                                 lineHeight = 20.sp
@@ -942,7 +942,7 @@ fun LicenseSettingsDialogContent(
                             Spacer(modifier = Modifier.height(12.dp))
                             
                             Text(
-                                text = stringResource(R.string.pro_version_benefits),
+                                text = "💡 专业版特权：无限制使用所有功能",
                                 style = MaterialTheme.typography.bodyMedium,
                                 textAlign = TextAlign.Center,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),

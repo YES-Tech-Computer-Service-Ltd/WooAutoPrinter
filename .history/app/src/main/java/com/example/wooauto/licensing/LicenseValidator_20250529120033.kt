@@ -150,53 +150,85 @@ object LicenseValidator {
             val status = json.getString("license_status")
             Log.d("LicenseValidator", "License status: $status")
             
-            if (status.equals("sold", ignoreCase = true) || status.equals("active", ignoreCase = true)) {
-                val activationDate = json.optString("activation_date", "")
-                val creationDate = json.optString("creation_date", "")
+            // 检查许可证是否为有效状态
+            // "sold" = 已销售但可能未激活
+            // "activated" = 已激活 (如果API支持此状态)
+            val isValidStatus = status.equals("sold", ignoreCase = true) || 
+                              status.equals("activated", ignoreCase = true) ||
+                              status.equals("active", ignoreCase = true)
+            
+            if (isValidStatus) {
+                // 额外检查许可证是否过期
                 val expirationDate = json.optString("expiration_date", "")
-                
-                val validity = try {
-                    if (expirationDate.isNotEmpty() && creationDate.isNotEmpty()) {
+                val isExpired = if (expirationDate.isNotEmpty()) {
+                    try {
                         val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
-                        val endDate = sdf.parse(expirationDate)
-                        val startDate = sdf.parse(creationDate)
-                        if (endDate != null && startDate != null) {
-                            val diffInMillis = endDate.time - startDate.time
-                            val diffInDays = (diffInMillis / (1000 * 60 * 60 * 24)).toInt()
-                            diffInDays
-                        } else 365
-                    } else 365
-                } catch (e: Exception) {
-                    Log.w("LicenseValidator", "Failed to calculate validity period: ${e.message}")
-                    365
+                        val expDate = sdf.parse(expirationDate)
+                        val currentDate = java.util.Date()
+                        expDate != null && expDate.before(currentDate)
+                    } catch (e: Exception) {
+                        Log.w("LicenseValidator", "Failed to parse expiration date: $expirationDate")
+                        false // 如果解析失败，假设未过期
+                    }
+                } else {
+                    false // 没有过期日期，假设未过期
                 }
                 
-                val firstName = json.optString("owner_first_name", "")
-                val lastName = json.optString("owner_last_name", "")
-                val ownerEmail = json.optString("owner_email_address", "user@example.com")
-                
-                val licensedTo = when {
-                    firstName.isNotEmpty() && lastName.isNotEmpty() -> "$firstName $lastName"
-                    firstName.isNotEmpty() -> firstName
-                    lastName.isNotEmpty() -> lastName
-                    else -> "Licensed User"
+                if (isExpired) {
+                    val message = "License has expired on: $expirationDate"
+                    Log.w("LicenseValidator", message)
+                    LicenseDetailsResult.Error(message)
+                } else {
+                    val activationDate = json.optString("activation_date", "")
+                    val creationDate = json.optString("creation_date", "")
+                    
+                    // 计算有效期天数
+                    val validity = try {
+                        if (expirationDate.isNotEmpty() && creationDate.isNotEmpty()) {
+                            val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+                            val endDate = sdf.parse(expirationDate)
+                            val startDate = sdf.parse(creationDate)
+                            if (endDate != null && startDate != null) {
+                                val diffInMillis = endDate.time - startDate.time
+                                val diffInDays = (diffInMillis / (1000 * 60 * 60 * 24)).toInt()
+                                diffInDays
+                            } else 365 // 默认一年
+                        } else 365 // 默认一年
+                    } catch (e: Exception) {
+                        Log.w("LicenseValidator", "Failed to calculate validity period: ${e.message}")
+                        365 // 默认一年
+                    }
+                    
+                    // 从API响应中提取用户信息
+                    val firstName = json.optString("owner_first_name", "")
+                    val lastName = json.optString("owner_last_name", "")
+                    val ownerEmail = json.optString("owner_email_address", "user@example.com")
+                    
+                    // 组合姓名
+                    val licensedTo = when {
+                        firstName.isNotEmpty() && lastName.isNotEmpty() -> "$firstName $lastName"
+                        firstName.isNotEmpty() -> firstName
+                        lastName.isNotEmpty() -> lastName
+                        else -> "Licensed User"
+                    }
+                    
+                    // 其他许可证信息
+                    val edition = "Pro" // 根据用户要求，正式版统一显示为Pro
+                    val capabilities = "Full Features" // 专业版功能
+                    
+                    Log.d("LicenseValidator", "Parsed license details: licensedTo=$licensedTo, email=$ownerEmail, validity=$validity days, status=$status, expired=$isExpired")
+                    
+                    LicenseDetailsResult.Success(
+                        activationDate = activationDate.ifEmpty { creationDate },
+                        validity = validity,
+                        edition = edition,
+                        capabilities = capabilities,
+                        licensedTo = licensedTo,
+                        email = ownerEmail
+                    )
                 }
-                
-                val edition = "Pro"
-                val capabilities = "Full Features"
-                
-                Log.d("LicenseValidator", "Parsed license details: licensedTo=$licensedTo, email=$ownerEmail, validity=$validity days")
-                
-                LicenseDetailsResult.Success(
-                    activationDate = activationDate.ifEmpty { creationDate },
-                    validity = validity,
-                    edition = edition,
-                    capabilities = capabilities,
-                    licensedTo = licensedTo,
-                    email = ownerEmail
-                )
             } else {
-                val message = "License status: $status (Expected: sold or active)"
+                val message = "Invalid license status: $status (Expected: sold, activated, or active)"
                 Log.w("LicenseValidator", message)
                 LicenseDetailsResult.Error(message)
             }

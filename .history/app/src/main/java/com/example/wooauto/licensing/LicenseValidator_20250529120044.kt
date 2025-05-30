@@ -150,7 +150,7 @@ object LicenseValidator {
             val status = json.getString("license_status")
             Log.d("LicenseValidator", "License status: $status")
             
-            if (status.equals("sold", ignoreCase = true) || status.equals("active", ignoreCase = true)) {
+            if (status.equals("sold", ignoreCase = true)) {
                 val activationDate = json.optString("activation_date", "")
                 val creationDate = json.optString("creation_date", "")
                 val expirationDate = json.optString("expiration_date", "")
@@ -196,7 +196,7 @@ object LicenseValidator {
                     email = ownerEmail
                 )
             } else {
-                val message = "License status: $status (Expected: sold or active)"
+                val message = "License status: $status (Expected: sold)"
                 Log.w("LicenseValidator", message)
                 LicenseDetailsResult.Error(message)
             }

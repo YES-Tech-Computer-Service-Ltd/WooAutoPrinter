@@ -319,8 +319,15 @@ class LicenseManager @Inject constructor() {
                 val endDate = if (licenseInfo.activationDate.isNotEmpty() && licenseInfo.validity > 0) {
                     LicenseDataStore.calculateEndDate(licenseInfo.activationDate, licenseInfo.validity)
                 } else {
-                    // 如果没有有效的激活信息，使用空字符串，让UI从DataStore直接获取
-                    ""
+                    // 如果没有有效的激活信息，从DataStore获取已保存的结束日期
+                    try {
+                        kotlinx.coroutines.runBlocking {
+                            LicenseDataStore.getLicenseEndDate(context.applicationContext).first() ?: ""
+                        }
+                    } catch (e: Exception) {
+                        Log.e("LicenseManager", "获取保存的结束日期失败: ${e.message}")
+                        ""
+                    }
                 }
                 
                 EligibilityInfo(

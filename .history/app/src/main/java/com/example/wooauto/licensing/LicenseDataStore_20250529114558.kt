@@ -101,13 +101,13 @@ object LicenseDataStore {
 
     fun getLicensedTo(context: Context): Flow<String> {
         return context.dataStore.data.map { prefs ->
-            prefs[LICENSED_TO] ?: ""
+            prefs[LICENSED_TO] ?: "MockCustomer"
         }
     }
 
     fun getUserEmail(context: Context): Flow<String> {
         return context.dataStore.data.map { prefs ->
-            prefs[USER_EMAIL] ?: ""
+            prefs[USER_EMAIL] ?: "user@example.com"
         }
     }
 

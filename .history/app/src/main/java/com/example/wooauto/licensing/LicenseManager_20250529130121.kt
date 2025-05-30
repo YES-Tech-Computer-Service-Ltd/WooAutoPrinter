@@ -122,7 +122,7 @@ class LicenseManager @Inject constructor() {
                 
                 if (isLicensedLocally && licenseKey.isNotEmpty()) {
                     // 有许可证，验证许可证
-                    val validationResult = validateLicenseInBackground(licenseKey, deviceId, context)
+                    val validationResult = validateLicenseInBackground(licenseKey, deviceId)
                     if (validationResult) {
                         // 许可证验证成功
                         withContext(Dispatchers.Main) {
@@ -196,9 +196,10 @@ class LicenseManager @Inject constructor() {
     }
     
     /**
-     * 在后台验证许可证，不阻塞用户使用
+     * 后台验证许可证
+     * 新策略：只有明确验证失败才返回false，默认允许使用
      */
-    private suspend fun validateLicenseInBackground(licenseKey: String, deviceId: String, context: Context): Boolean {
+    private suspend fun validateLicenseInBackground(licenseKey: String, deviceId: String): Boolean {
         return try {
             val result = withTimeoutOrNull(5000) {
                 val validationResult = LicenseValidator.validateLicense(licenseKey, deviceId)
@@ -208,31 +209,7 @@ class LicenseManager @Inject constructor() {
                     val details = LicenseValidator.getLicenseDetails(licenseKey)
                     
                     if (details is LicenseDetailsResult.Success) {
-                        // 同步保存用户信息到DataStore
-                        withContext(Dispatchers.IO) {
-                            try {
-                                // 获取当前保存的信息
-                                val currentStartDate = LicenseDataStore.getLicenseStartDate(context).first()
-                                val currentEndDate = LicenseDataStore.getLicenseEndDate(context).first()
-                                
-                                // 更新用户信息，但保留现有的日期信息
-                                LicenseDataStore.saveLicenseInfo(
-                                    context,
-                                    true,
-                                    currentEndDate ?: LicenseDataStore.calculateEndDate(details.activationDate, details.validity),
-                                    licenseKey,
-                                    details.edition,
-                                    details.capabilities,
-                                    details.licensedTo,
-                                    details.email
-                                )
-                                
-                                Log.d("LicenseManager", "已同步用户信息到DataStore: licensedTo=${details.licensedTo}, email=${details.email}")
-                            } catch (e: Exception) {
-                                Log.e("LicenseManager", "同步用户信息到DataStore失败: ${e.message}")
-                            }
-                        }
-                        
+                        // 成功获取详情，更新完整状态
                         updateStatus(
                             LicenseStatus.VALID,
                             activationDate = details.activationDate,
@@ -242,10 +219,39 @@ class LicenseManager @Inject constructor() {
                             licensedTo = details.licensedTo,
                             message = "许可证有效"
                         )
+                        
+                        // 同时更新为已许可状态
+                        val licenseEligibility = EligibilityInfo(
+                            status = EligibilityStatus.ELIGIBLE,
+                            isLicensed = true,
+                            isTrialActive = false,
+                            licenseEndDate = LicenseDataStore.calculateEndDate(details.activationDate, details.validity),
+                            displayMessage = "许可证有效",
+                            source = EligibilitySource.LICENSE
+                        )
+                        _eligibilityInfo.postValue(licenseEligibility)
+                        
+                        Log.d("LicenseManager", "许可证验证成功并获取详情: 用户=${details.licensedTo}, 邮箱=${details.email}")
                         true
                     } else {
-                        Log.w("LicenseManager", "无法获取许可证详情")
-                        false
+                        Log.w("LicenseManager", "许可证验证成功但无法获取详情: ${(details as? LicenseDetailsResult.Error)?.message}")
+                        // 验证成功但获取详情失败，仍然认为许可证有效
+                        updateStatus(
+                            LicenseStatus.VALID,
+                            message = "许可证验证成功（详情获取失败）"
+                        )
+                        
+                        // 设置基本的已许可状态
+                        val basicEligibility = EligibilityInfo(
+                            status = EligibilityStatus.ELIGIBLE,
+                            isLicensed = true,
+                            isTrialActive = false,
+                            displayMessage = "许可证有效（基本模式）",
+                            source = EligibilitySource.LICENSE
+                        )
+                        _eligibilityInfo.postValue(basicEligibility)
+                        
+                        true // 依然返回true
                     }
                 } else {
                     Log.w("LicenseManager", "许可证验证失败: ${validationResult.message}")
@@ -256,12 +262,12 @@ class LicenseManager @Inject constructor() {
             if (result != null) {
                 result
             } else {
-                Log.w("LicenseManager", "许可证验证超时")
-                false // 超时返回false
+                Log.w("LicenseManager", "许可证验证超时，默认允许使用")
+                true // 超时也返回true，默认允许使用
             }
         } catch (e: Exception) {
-            Log.e("LicenseManager", "许可证验证异常 - ${e.message}")
-            false
+            Log.e("LicenseManager", "许可证验证异常，默认允许使用 - ${e.message}")
+            true // 异常也返回true，默认允许使用
         }
     }
     
@@ -315,20 +321,13 @@ class LicenseManager @Inject constructor() {
         
         return when (licenseInfo.status) {
             LicenseStatus.VALID -> {
-                // 检查是否有有效的激活日期和有效期，避免计算出错误的日期
-                val endDate = if (licenseInfo.activationDate.isNotEmpty() && licenseInfo.validity > 0) {
-                    LicenseDataStore.calculateEndDate(licenseInfo.activationDate, licenseInfo.validity)
-                } else {
-                    // 如果没有有效的激活信息，使用空字符串，让UI从DataStore直接获取
-                    ""
-                }
-                
+                val endDate = LicenseDataStore.calculateEndDate(licenseInfo.activationDate, licenseInfo.validity)
                 EligibilityInfo(
                     status = EligibilityStatus.ELIGIBLE,
                     isLicensed = true,
                     isTrialActive = false,
                     licenseEndDate = endDate,
-                    displayMessage = if (endDate.isNotEmpty()) "许可证有效 (到期: $endDate)" else "许可证有效",
+                    displayMessage = "许可证有效 (到期: $endDate)",
                     source = EligibilitySource.LICENSE
                 )
             }
@@ -479,7 +478,7 @@ class LicenseManager @Inject constructor() {
                 
                 // 2. 如果有许可证，验证许可证
                 if (isLicensedLocally && licenseKey.isNotEmpty()) {
-                    val licenseValid = validateLicenseInBackground(licenseKey, deviceId, context)
+                    val licenseValid = validateLicenseInBackground(licenseKey, deviceId)
                     
                     if (licenseValid) {
                         Log.d("LicenseManager", "许可证验证成功")
