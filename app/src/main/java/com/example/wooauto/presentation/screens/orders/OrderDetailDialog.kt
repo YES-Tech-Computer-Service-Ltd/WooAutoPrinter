@@ -815,19 +815,32 @@ fun OrderDetailDialog(
                         Spacer(Modifier.width(6.dp))
                         Text(if (displayOrder.isPrinted) stringResource(R.string.reprint) else stringResource(R.string.print_order))
                     }
-                    // 次操作：更改订单状态
+                    // 次操作：更改订单状态或直接完成订单
                     OutlinedButton(
-                        onClick = { showStatusOptions = true },
+                        onClick = { 
+                            if (displayOrder.status == "processing") {
+                                // 对于processing状态的订单，直接标记为完成
+                                onStatusChange(displayOrder.id, "completed")
+                            } else {
+                                // 其他状态显示状态选择对话框
+                                showStatusOptions = true
+                            }
+                        },
                         modifier = Modifier.weight(1f),
                         enabled = hasEligibility
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Edit,
+                            imageVector = if (displayOrder.status == "processing") Icons.Default.CheckCircle else Icons.Default.Edit,
                             contentDescription = null,
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(Modifier.width(6.dp))
-                        Text(stringResource(R.string.change_order_status))
+                        Text(
+                            if (displayOrder.status == "processing") 
+                                stringResource(R.string.mark_as_completed) 
+                            else 
+                                stringResource(R.string.change_order_status)
+                        )
                     }
                     // 关闭按钮
                     OutlinedButton(
