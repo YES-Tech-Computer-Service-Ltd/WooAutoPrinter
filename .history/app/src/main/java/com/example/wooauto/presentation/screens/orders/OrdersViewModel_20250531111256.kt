@@ -209,9 +209,9 @@ class OrdersViewModel @Inject constructor(
     }
 
     private fun checkConfiguration() {
-        // 减少防重复检查的限制，缩短间隔时间
+        // 防重复检查
         val currentTime = System.currentTimeMillis()
-        if (isCheckingConfig || (currentTime - lastConfigCheckTime < 1000L)) { // 改为1秒间隔
+        if (isCheckingConfig || (currentTime - lastConfigCheckTime < minConfigCheckInterval)) {
             Log.d(TAG, "配置检查请求过于频繁或正在进行中，忽略本次调用")
             return
         }
@@ -239,31 +239,98 @@ class OrdersViewModel @Inject constructor(
                     _isLoading.value = false
                 }
                 
-                // 直接调用改进后的checkApiConfiguration方法
-                val apiConfigurationValid = checkApiConfiguration()
-                Log.d(TAG, "API配置检查结果: $apiConfigurationValid")
+                // 设置API调用超时
+                var apiCallCompleted = false
+                var apiCallSuccess = false
                 
-                // 如果API配置有效，尝试刷新订单数据
-                if (apiConfigurationValid) {
-                    Log.d(TAG, "API配置有效，尝试刷新订单数据")
+                // 启动API调用
+                val apiCallJob = viewModelScope.launch {
                     try {
+                        // 执行API调用，尝试获取订单
                         val result = orderRepository.refreshOrders()
+                        
+                        // 处理API请求结果
                         if (result.isSuccess) {
                             val orders = result.getOrNull() ?: emptyList()
-                            Log.d(TAG, "成功刷新订单数据，获取到 ${orders.size} 个订单")
-                            _orders.value = orders
+                            // 如果成功获取了订单，强制设置配置状态为true
+                            if (orders.isNotEmpty()) {
+                                Log.d(TAG, "API调用成功返回了 ${orders.size} 个订单，更新API配置状态为true")
+                                _isConfigured.value = true
+                                // 同时更新全局状态
+                                WooCommerceConfig.updateConfigurationStatus(true)
+                                com.example.wooauto.data.remote.WooCommerceConfig.updateConfigurationStatus(true)
+                                apiCallSuccess = true
+                            } else {
+                                Log.d(TAG, "API调用成功但未返回订单，保持当前配置状态: $configuredFromStatus")
+                                _isConfigured.value = configuredFromStatus
+                                apiCallSuccess = configuredFromStatus
+                            }
                         } else {
-                            Log.w(TAG, "刷新订单数据失败: ${result.exceptionOrNull()?.message}")
-                            // 即使刷新失败，如果配置有效，也应该保持配置状态
+                            Log.d(TAG, "API调用失败")
+                            // 如果存在缓存数据，不要将isConfigured设为false
+                            if (cachedOrders.isEmpty()) {
+                                _isConfigured.value = false
+                            } else {
+                                // 有缓存数据时，保持当前状态或设为true以允许用户正常使用
+                                _isConfigured.value = true
+                                Log.d(TAG, "虽然API调用失败，但有缓存数据，设置为已配置状态以允许用户查看")
+                            }
+                            apiCallSuccess = false
                         }
                     } catch (e: Exception) {
-                        Log.e(TAG, "刷新订单数据异常: ${e.message}")
-                        // 即使刷新异常，如果配置有效，也应该保持配置状态
+                        Log.e(TAG, "API调用过程中发生异常: ${e.message}", e)
+                        // 如果存在缓存数据，不要将isConfigured设为false
+                        if (cachedOrders.isEmpty()) {
+                            _isConfigured.value = false
+                        } else {
+                            // 有缓存数据时，保持当前状态或设为true以允许用户正常使用
+                            _isConfigured.value = true
+                            Log.d(TAG, "虽然API调用异常，但有缓存数据，设置为已配置状态以允许用户查看")
+                        }
+                        apiCallSuccess = false
+                        
+                        // 设置用户友好的错误消息，但只在没有缓存数据时提示
+                        if (cachedOrders.isEmpty()) {
+                            val errorMsg = when {
+                                e.message?.contains("timeout") == true -> "API请求超时，请检查网络连接"
+                                e.message?.contains("401") == true -> "API认证失败，请检查设置中的API密钥"
+                                e.message?.contains("404") == true -> "API端点未找到，请检查站点URL"
+                                e.message?.contains("网络") == true || e.message?.contains("连接") == true -> "网络连接失败，请检查网络设置"
+                                else -> "API调用失败: ${e.message}"
+                            }
+                            _errorMessage.value = errorMsg
+                        }
+                    } finally {
+                        apiCallCompleted = true
                     }
+                }
+                
+                // 等待API调用完成或超时(5秒)
+                kotlinx.coroutines.withTimeoutOrNull(5000) {
+                    while (!apiCallCompleted) {
+                        kotlinx.coroutines.delay(100)
+                    }
+                }
+                
+                // 如果API调用已完成，使用其结果
+                if (apiCallCompleted) {
+                    Log.d(TAG, "API配置检查完成，配置状态: ${_isConfigured.value}")
                 } else {
-                    Log.d(TAG, "API配置无效")
+                    // API调用超时，取消并使用默认设置
+                    apiCallJob.cancel()
+                    Log.d(TAG, "API调用超时，使用默认设置")
+                    // 如果有缓存数据，假设API配置是正常的，减少用户干扰
+                    if (cachedOrders.isNotEmpty()) {
+                        Log.d(TAG, "有缓存数据，假设API配置正常")
+                        _isConfigured.value = true
+                    } else {
+                        _isConfigured.value = configuredFromStatus
+                    }
                 }
 
+                // 请求完成后，无论结果如何，都标记为非加载状态
+                _isLoading.value = false
+                
                 // 监听配置变化
                 viewModelScope.launch {
                     WooCommerceConfig.isConfigured.collectLatest { configured ->
@@ -272,28 +339,15 @@ class OrdersViewModel @Inject constructor(
                         
                         // 如果配置状态变为已配置，尝试刷新订单
                         if (configured) {
-                            Log.d(TAG, "配置状态变为已配置，尝试刷新订单")
                             refreshOrders()
                         }
                     }
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "检查配置时出错: ${e.message}", e)
-                // 检查是否有缓存数据来决定配置状态
-                val cachedOrders = try {
-                    orderRepository.getCachedOrders()
-                } catch (ex: Exception) {
-                    emptyList()
-                }
-                
-                if (cachedOrders.isNotEmpty()) {
-                    Log.d(TAG, "虽然配置检查出错，但有缓存数据，设置为已配置状态")
-                    _isConfigured.value = true
-                } else {
-                    _isConfigured.value = false
-                    _errorMessage.value = "无法检查API配置: ${e.message}"
-                }
+                _isConfigured.value = false
                 _isLoading.value = false
+                _errorMessage.value = "无法检查API配置: ${e.message}"
             } finally {
                 isCheckingConfig = false
             }
@@ -327,9 +381,9 @@ class OrdersViewModel @Inject constructor(
     }
     
     fun refreshOrders() {
-        // 减少防重复调用检查的限制，缩短间隔时间
+        // 防重复调用检查
         val currentTime = System.currentTimeMillis()
-        if (isRefreshing || (currentTime - lastRefreshTime < 1000L)) { // 改为1秒间隔
+        if (isRefreshing || (currentTime - lastRefreshTime < minRefreshInterval)) {
             Log.d(TAG, "刷新请求过于频繁或正在进行中，忽略本次调用（间隔: ${currentTime - lastRefreshTime}ms）")
             return
         }
@@ -338,16 +392,10 @@ class OrdersViewModel @Inject constructor(
         lastRefreshTime = currentTime
         
         viewModelScope.launch {
+            _refreshing.value = true
+            _isLoading.value = true
+            
             try {
-                // 立即设置刷新状态，确保UI能看到转圈效果
-                _refreshing.value = true
-                _isLoading.value = true
-                
-                Log.d(TAG, "开始刷新订单数据...")
-                
-                // 添加最小刷新时间，确保用户能看到刷新动画（至少显示800毫秒）
-                val startTime = System.currentTimeMillis()
-                
                 // 获取当前订单的打印状态映射，用于后续验证
                 val currentPrintedMap = _orders.value.associateBy({ it.id }, { it.isPrinted })
                 
@@ -356,7 +404,6 @@ class OrdersViewModel @Inject constructor(
                     val result = orderRepository.refreshOrders()
                     if (result.isSuccess) {
                         val refreshedOrders = result.getOrDefault(emptyList())
-                        Log.d(TAG, "成功刷新订单数据，获取到 ${refreshedOrders.size} 个订单")
                         
                         // 验证打印状态
                         val refreshedPrintedMap = refreshedOrders.associateBy({ it.id }, { it.isPrinted })
@@ -385,24 +432,8 @@ class OrdersViewModel @Inject constructor(
                         // 确保所有订单已正确持久化到数据库后再加载未读订单
                         delay(300) // 添加短暂延迟确保数据库操作完成
                         loadUnreadOrders() // 从数据库加载未读订单
-                    } else {
-                        Log.w(TAG, "刷新订单数据失败: ${result.exceptionOrNull()?.message}")
-                        _errorMessage.value = result.exceptionOrNull()?.message ?: "刷新失败"
                     }
-                } else {
-                    Log.w(TAG, "API配置无效，无法刷新订单")
-                    _errorMessage.value = "API配置无效，无法刷新订单"
                 }
-                
-                // 确保刷新指示器至少显示800毫秒，让用户能看到刷新效果
-                val elapsedTime = System.currentTimeMillis() - startTime
-                val minRefreshTime = 800L
-                if (elapsedTime < minRefreshTime) {
-                    Log.d(TAG, "刷新完成太快，延迟 ${minRefreshTime - elapsedTime}ms 以显示刷新动画")
-                    delay(minRefreshTime - elapsedTime)
-                }
-                
-                Log.d(TAG, "订单刷新完成")
             } catch (e: Exception) {
                 Log.e("OrdersViewModel", "刷新订单时发生错误", e)
                 _errorMessage.value = e.localizedMessage ?: "刷新订单失败"
