@@ -236,6 +236,37 @@ class TemplateConfigViewModel @Inject constructor(
     }
     
     /**
+     * Delete custom template
+     * @param templateId Custom template ID (must start with "custom_")
+     */
+    fun deleteCustomTemplate(templateId: String) {
+        if (!templateId.startsWith("custom_")) {
+            _errorMessage.value = "只能删除自定义模板"
+            return
+        }
+        
+        viewModelScope.launch {
+            _isSaving.value = true
+            try {
+                templateConfigRepository.deleteConfig(templateId)
+                _successMessage.value = "自定义模板已删除"
+                _isSaving.value = false
+                
+                // If deleting the current configuration, clear current configuration
+                if (_currentConfig.value?.templateId == templateId) {
+                    _currentConfig.value = null
+                }
+                
+                // Reload all configurations
+                loadAllConfigs()
+            } catch (e: Exception) {
+                _errorMessage.value = "删除自定义模板失败: ${e.message}"
+                _isSaving.value = false
+            }
+        }
+    }
+    
+    /**
      * Copy configuration
      * @param sourceTemplateId Source template ID
      * @param newTemplateId New template ID
