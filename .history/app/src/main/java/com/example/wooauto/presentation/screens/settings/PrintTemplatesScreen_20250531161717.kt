@@ -170,6 +170,9 @@ fun PrintTemplatesDialogContent(
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
     var templateToDelete by remember { mutableStateOf<PrintTemplate?>(null) }
     
+    // 重置模板确认对话框相关状态
+    var showResetConfirmDialog by remember { mutableStateOf(false) }
+    
     // 创建新模板对话框
     if (showCreateTemplateDialog) {
         AlertDialog(

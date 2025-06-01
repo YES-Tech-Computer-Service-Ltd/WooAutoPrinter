@@ -1408,11 +1408,11 @@ fun TemplatePreviewDialogContent(
     
     // 获取模板名称
     val templateName = currentConfig?.templateName ?: customTemplateName ?: when (templateId) {
-        "full_details" -> stringResource(R.string.template_full_order_details)
-        "delivery" -> stringResource(R.string.template_delivery_receipt)
-        "kitchen" -> stringResource(R.string.template_kitchen_order)
-        "new" -> stringResource(R.string.template_new_custom)
-        else -> if (templateId.startsWith("custom_")) stringResource(R.string.template_custom) else stringResource(R.string.template_unknown)
+        "full_details" -> "Full Order Details"
+        "delivery" -> "Delivery Receipt"
+        "kitchen" -> "Kitchen Order"
+        "new" -> "New Custom Template"
+        else -> if (templateId.startsWith("custom_")) "Custom Template" else "Unknown Template"
     }
     
     Card(

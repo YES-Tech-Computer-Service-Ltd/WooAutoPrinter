@@ -67,25 +67,6 @@
     <string name="template_full_details">Full Details order</string>
     <string name="template_delivery">Delivery Slip order</string>
     <string name="template_kitchen">Kitchen Order</string>
-    
-    <!-- Print Templates Screen -->
-    <string name="create_new_template">Create New Template</string>
-    <string name="template_name_prompt">Please name your custom template:</string>
-    <string name="template_name_label">Template Name</string>
-    <string name="template_name_placeholder">e.g., My Custom Template</string>
-    <string name="create">Create</string>
-    <string name="cancel">Cancel</string>
-    <string name="delete_template_title">Delete Template</string>
-    <string name="delete_template_message">Are you sure you want to delete template \"%1$s\"?\n\nThis action cannot be undone.</string>
-    <string name="template_full_details_name">Full Order Details</string>
-    <string name="template_full_details_desc">Complete order information including all customer and item details</string>
-    <string name="template_delivery_name">Delivery Receipt</string>
-    <string name="template_delivery_desc">Delivery information with customer address and order items</string>
-    <string name="template_kitchen_name">Kitchen Order</string>
-    <string name="template_kitchen_desc">Simplified receipt for kitchen staff showing only items and time</string>
-    <string name="custom_template_desc">Custom template - %1$d enabled fields</string>
-    <string name="edit_template">Edit Template</string>
-    <string name="delete_custom_template">Delete Custom Template</string>
 
     <!-- Products -->
     <string name="product_details">Product Details</string>
@@ -548,6 +529,7 @@
     <string name="no_printers_configured_prompt">No printers configured</string>
     <string name="tap_here_to_add_new_printer">Tap here to add a new printer</string>
     <string name="confirm">confirm</string>
+    <string name="cancel">cancel</string>
 
     <!-- 打印机操作按钮文字 -->
     <string name="printer_settings_button">pinrter settings</string>

@@ -232,19 +232,10 @@ fun PrintTemplatesDialogContent(
                 showDeleteConfirmDialog = false
                 templateToDelete = null
             },
-            title = { Text(stringResource(R.string.delete_template_title)) },
+            title = { Text("删除模板") },
             text = {
                 Text(
-                    text = stringResource(R.string.delete_template_message, templateToDelete?.let { 
-                        if (it.name.startsWith("template_")) stringResource(
-                            when(it.name) {
-                                "template_full_details_name" -> R.string.template_full_details_name
-                                "template_delivery_name" -> R.string.template_delivery_name
-                                "template_kitchen_name" -> R.string.template_kitchen_name
-                                else -> R.string.template_full_details_name
-                            }
-                        ) else it.name 
-                    } ?: ""),
+                    text = "确定要删除模板 \"${templateToDelete?.name}\" 吗？\n\n此操作无法撤销。",
                     style = MaterialTheme.typography.bodyMedium
                 )
             },
@@ -266,7 +257,7 @@ fun PrintTemplatesDialogContent(
                         containerColor = MaterialTheme.colorScheme.error
                     )
                 ) {
-                    Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.onError)
+                    Text("删除", color = MaterialTheme.colorScheme.onError)
                 }
             },
             dismissButton = {
@@ -276,7 +267,7 @@ fun PrintTemplatesDialogContent(
                         templateToDelete = null
                     }
                 ) {
-                    Text(stringResource(R.string.cancel))
+                    Text("取消")
                 }
             }
         )
@@ -407,7 +398,7 @@ fun AddTemplateButton(
             Spacer(modifier = Modifier.width(12.dp))
             
             Text(
-                text = stringResource(R.string.create_new_template),
+                text = "创建新模板",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.primary
@@ -452,20 +443,7 @@ fun TemplateItem(
                 modifier = Modifier.weight(1f)
             ) {
                 Text(
-                    text = if (template.name.startsWith("template_")) {
-                        // 使用字符串资源
-                        stringResource(
-                            when(template.name) {
-                                "template_full_details_name" -> R.string.template_full_details_name
-                                "template_delivery_name" -> R.string.template_delivery_name
-                                "template_kitchen_name" -> R.string.template_kitchen_name
-                                else -> R.string.template_full_details_name
-                            }
-                        )
-                    } else {
-                        // 自定义模板直接显示名称
-                        template.name
-                    },
+                    text = template.name,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
@@ -473,23 +451,7 @@ fun TemplateItem(
                 Spacer(modifier = Modifier.height(4.dp))
                 
                 Text(
-                    text = if (template.description.startsWith("template_")) {
-                        // 使用字符串资源
-                        stringResource(
-                            when(template.description) {
-                                "template_full_details_desc" -> R.string.template_full_details_desc
-                                "template_delivery_desc" -> R.string.template_delivery_desc
-                                "template_kitchen_desc" -> R.string.template_kitchen_desc
-                                else -> R.string.template_full_details_desc
-                            }
-                        )
-                    } else if (template.description == "custom_template_desc") {
-                        // 自定义模板描述需要格式化
-                        stringResource(R.string.custom_template_desc, template.enabledFieldCount)
-                    } else {
-                        // 其他情况直接显示
-                        template.description
-                    },
+                    text = template.description,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -513,7 +475,7 @@ fun TemplateItem(
             ) {
                 Icon(
                     imageVector = Icons.Default.Edit,
-                    contentDescription = stringResource(R.string.edit_template),
+                    contentDescription = "Edit Template",
                     tint = MaterialTheme.colorScheme.primary
                 )
             }
@@ -528,7 +490,7 @@ fun TemplateItem(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Close,
-                        contentDescription = stringResource(R.string.delete_custom_template),
+                        contentDescription = "Delete Custom Template",
                         tint = MaterialTheme.colorScheme.error
                     )
                 }

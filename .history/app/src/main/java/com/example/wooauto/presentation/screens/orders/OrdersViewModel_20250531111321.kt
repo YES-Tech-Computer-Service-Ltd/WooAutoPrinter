@@ -327,9 +327,9 @@ class OrdersViewModel @Inject constructor(
     }
     
     fun refreshOrders() {
-        // 减少防重复调用检查的限制，缩短间隔时间
+        // 防重复调用检查
         val currentTime = System.currentTimeMillis()
-        if (isRefreshing || (currentTime - lastRefreshTime < 1000L)) { // 改为1秒间隔
+        if (isRefreshing || (currentTime - lastRefreshTime < minRefreshInterval)) {
             Log.d(TAG, "刷新请求过于频繁或正在进行中，忽略本次调用（间隔: ${currentTime - lastRefreshTime}ms）")
             return
         }
@@ -338,16 +338,10 @@ class OrdersViewModel @Inject constructor(
         lastRefreshTime = currentTime
         
         viewModelScope.launch {
+            _refreshing.value = true
+            _isLoading.value = true
+            
             try {
-                // 立即设置刷新状态，确保UI能看到转圈效果
-                _refreshing.value = true
-                _isLoading.value = true
-                
-                Log.d(TAG, "开始刷新订单数据...")
-                
-                // 添加最小刷新时间，确保用户能看到刷新动画（至少显示800毫秒）
-                val startTime = System.currentTimeMillis()
-                
                 // 获取当前订单的打印状态映射，用于后续验证
                 val currentPrintedMap = _orders.value.associateBy({ it.id }, { it.isPrinted })
                 
@@ -356,7 +350,6 @@ class OrdersViewModel @Inject constructor(
                     val result = orderRepository.refreshOrders()
                     if (result.isSuccess) {
                         val refreshedOrders = result.getOrDefault(emptyList())
-                        Log.d(TAG, "成功刷新订单数据，获取到 ${refreshedOrders.size} 个订单")
                         
                         // 验证打印状态
                         val refreshedPrintedMap = refreshedOrders.associateBy({ it.id }, { it.isPrinted })
@@ -385,24 +378,8 @@ class OrdersViewModel @Inject constructor(
                         // 确保所有订单已正确持久化到数据库后再加载未读订单
                         delay(300) // 添加短暂延迟确保数据库操作完成
                         loadUnreadOrders() // 从数据库加载未读订单
-                    } else {
-                        Log.w(TAG, "刷新订单数据失败: ${result.exceptionOrNull()?.message}")
-                        _errorMessage.value = result.exceptionOrNull()?.message ?: "刷新失败"
                     }
-                } else {
-                    Log.w(TAG, "API配置无效，无法刷新订单")
-                    _errorMessage.value = "API配置无效，无法刷新订单"
                 }
-                
-                // 确保刷新指示器至少显示800毫秒，让用户能看到刷新效果
-                val elapsedTime = System.currentTimeMillis() - startTime
-                val minRefreshTime = 800L
-                if (elapsedTime < minRefreshTime) {
-                    Log.d(TAG, "刷新完成太快，延迟 ${minRefreshTime - elapsedTime}ms 以显示刷新动画")
-                    delay(minRefreshTime - elapsedTime)
-                }
-                
-                Log.d(TAG, "订单刷新完成")
             } catch (e: Exception) {
                 Log.e("OrdersViewModel", "刷新订单时发生错误", e)
                 _errorMessage.value = e.localizedMessage ?: "刷新订单失败"

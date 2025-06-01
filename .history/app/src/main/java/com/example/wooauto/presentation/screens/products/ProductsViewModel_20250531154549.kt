@@ -269,9 +269,6 @@ class ProductsViewModel @Inject constructor(
                         
                         Log.d("ProductsViewModel", "成功更新所有产品: ${updatedProducts.size} 个")
                         
-                        // 通知UI重置滚动位置
-                        _shouldResetScroll.value = true
-                        
                         _isLoading.value = false
                         _refreshing.value = false
                     }
@@ -425,9 +422,6 @@ class ProductsViewModel @Inject constructor(
                                     // 更新缓存
                                     categoryProductsCache[cacheKey] = Pair(productsForCategory, currentTime)
                                     
-                                    // 通知UI重置滚动位置
-                                    _shouldResetScroll.value = true
-                                    
                                     _isLoading.value = false
                                     return@launch  // 已获取数据，不需要继续
                                 }
@@ -530,8 +524,6 @@ class ProductsViewModel @Inject constructor(
                             productRepository.searchProductsFlow(query).collectLatest { searchResults ->
                                 Log.d("ProductsViewModel", "搜索结果: 找到 ${searchResults.size} 个匹配产品")
                                 _products.value = searchResults
-                                // 通知UI重置滚动位置到顶部
-                                _shouldResetScroll.value = true
                                 _isLoading.value = false
                             }
                         } catch (e: Exception) {
@@ -755,9 +747,5 @@ class ProductsViewModel @Inject constructor(
     
     fun clearLicenseSettingsNavigation() {
         _navigateToLicenseSettings.value = false
-    }
-    
-    fun clearScrollResetFlag() {
-        _shouldResetScroll.value = false
     }
 } 

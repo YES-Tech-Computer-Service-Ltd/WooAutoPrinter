@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.Fastfood
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -36,16 +37,20 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -62,6 +67,7 @@ import com.example.wooauto.presentation.screens.templatePreview.TemplatePreviewD
 import com.example.wooauto.presentation.screens.templatePreview.TemplateConfigViewModel
 import com.example.wooauto.domain.templates.TemplateType
 import androidx.hilt.navigation.compose.hiltViewModel
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -100,6 +106,21 @@ fun PrintTemplatesDialogContent(
     // 从ViewModel获取所有模板配置
     val allConfigs by viewModel.allConfigs.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+    val successMessage by viewModel.successMessage.collectAsState()
+    
+    // 显示成功消息
+    val snackbarHostState = remember { SnackbarHostState() }
+    val snackbarScope = rememberCoroutineScope()
+    
+    // 监听成功消息
+    LaunchedEffect(successMessage) {
+        successMessage?.let { message ->
+            snackbarScope.launch {
+                snackbarHostState.showSnackbar(message)
+                viewModel.clearSuccessMessage()
+            }
+        }
+    }
     
     // 将TemplateConfig转换为PrintTemplate用于显示
     val templates = remember(allConfigs) {
@@ -169,6 +190,9 @@ fun PrintTemplatesDialogContent(
     // 删除确认对话框相关状态
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
     var templateToDelete by remember { mutableStateOf<PrintTemplate?>(null) }
+    
+    // 重置模板确认对话框相关状态
+    var showResetConfirmDialog by remember { mutableStateOf(false) }
     
     // 创建新模板对话框
     if (showCreateTemplateDialog) {
@@ -282,6 +306,47 @@ fun PrintTemplatesDialogContent(
         )
     }
     
+    // 重置模板确认对话框
+    if (showResetConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { 
+                showResetConfirmDialog = false
+            },
+            title = { Text(stringResource(R.string.reset_templates_title)) },
+            text = {
+                Text(
+                    text = stringResource(R.string.reset_templates_message),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        // 执行重置操作
+                        viewModel.resetAllTemplates()
+                        showResetConfirmDialog = false
+                        // 重置选中状态
+                        selectedTemplate.value = templates.first()
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Text(stringResource(R.string.reset_templates), color = MaterialTheme.colorScheme.onError)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { 
+                        showResetConfirmDialog = false
+                    }
+                ) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
+    
     if (showTemplatePreviewDialog) {
         Dialog(
             onDismissRequest = { showTemplatePreviewDialog = false },
@@ -312,6 +377,7 @@ fun PrintTemplatesDialogContent(
         elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
     ) {
         Scaffold(
+            snackbarHost = { SnackbarHost(snackbarHostState) },
             topBar = {
                 TopAppBar(
                     title = { Text(stringResource(R.string.printer_templates)) },
@@ -320,6 +386,20 @@ fun PrintTemplatesDialogContent(
                             Icon(
                                 imageVector = Icons.Default.Close,
                                 contentDescription = stringResource(R.string.close)
+                            )
+                        }
+                    },
+                    actions = {
+                        // 重置模板按钮
+                        IconButton(
+                            onClick = { 
+                                showResetConfirmDialog = true 
+                            }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = stringResource(R.string.reset_templates),
+                                tint = MaterialTheme.colorScheme.onSurface
                             )
                         }
                     },

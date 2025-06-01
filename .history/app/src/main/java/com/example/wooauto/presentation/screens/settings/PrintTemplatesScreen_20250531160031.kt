@@ -106,24 +106,24 @@ fun PrintTemplatesDialogContent(
         val defaultTemplates = listOf(
             PrintTemplate(
                 id = "full_details", 
-                name = "template_full_details_name",
-                description = "template_full_details_desc",
+                name = "Full Order Details", 
+                description = "Complete order information including all customer and item details", 
                 icon = Icons.AutoMirrored.Filled.ReceiptLong,
                 isDefault = true,
                 templateType = TemplateType.FULL_DETAILS
             ),
             PrintTemplate(
                 id = "delivery", 
-                name = "template_delivery_name",
-                description = "template_delivery_desc",
+                name = "Delivery Receipt", 
+                description = "Delivery information with customer address and order items", 
                 icon = Icons.Default.Fastfood,
                 isDefault = false,
                 templateType = TemplateType.DELIVERY
             ),
             PrintTemplate(
                 id = "kitchen", 
-                name = "template_kitchen_name",
-                description = "template_kitchen_desc",
+                name = "Kitchen Order", 
+                description = "Simplified receipt for kitchen staff showing only items and time", 
                 icon = Icons.Default.Restaurant,
                 isDefault = false,
                 templateType = TemplateType.KITCHEN
@@ -137,11 +137,10 @@ fun PrintTemplatesDialogContent(
                 PrintTemplate(
                     id = config.templateId,
                     name = config.templateName,
-                    description = "custom_template_desc",
+                    description = "自定义模板 - ${config.getEnabledFieldCount()} 个已启用字段",
                     icon = Icons.Default.Description,
                     isDefault = false,
-                    templateType = config.templateType,
-                    enabledFieldCount = config.getEnabledFieldCount()
+                    templateType = config.templateType
                 )
             }
         
@@ -177,19 +176,19 @@ fun PrintTemplatesDialogContent(
                 showCreateTemplateDialog = false
                 newTemplateName = ""
             },
-            title = { Text(stringResource(R.string.create_new_template)) },
+            title = { Text("创建新模板") },
             text = {
                 Column {
                     Text(
-                        text = stringResource(R.string.template_name_prompt),
+                        text = "请为您的自定义模板命名：",
                         style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.padding(bottom = 8.dp)
                     )
                     OutlinedTextField(
                         value = newTemplateName,
                         onValueChange = { newTemplateName = it },
-                        label = { Text(stringResource(R.string.template_name_label)) },
-                        placeholder = { Text(stringResource(R.string.template_name_placeholder)) },
+                        label = { Text("模板名称") },
+                        placeholder = { Text("例如：我的自定义模板") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -209,17 +208,17 @@ fun PrintTemplatesDialogContent(
                     },
                     enabled = newTemplateName.isNotBlank()
                 ) {
-                    Text(stringResource(R.string.create))
+                    Text("创建")
                 }
             },
-            dismissButton = {
+                            dismissButton = {
                 TextButton(
                     onClick = { 
                         showCreateTemplateDialog = false
                         newTemplateName = ""
                     }
                 ) {
-                    Text(stringResource(R.string.cancel))
+                    Text("取消")
                 }
             }
         )
@@ -232,19 +231,10 @@ fun PrintTemplatesDialogContent(
                 showDeleteConfirmDialog = false
                 templateToDelete = null
             },
-            title = { Text(stringResource(R.string.delete_template_title)) },
+            title = { Text("删除模板") },
             text = {
                 Text(
-                    text = stringResource(R.string.delete_template_message, templateToDelete?.let { 
-                        if (it.name.startsWith("template_")) stringResource(
-                            when(it.name) {
-                                "template_full_details_name" -> R.string.template_full_details_name
-                                "template_delivery_name" -> R.string.template_delivery_name
-                                "template_kitchen_name" -> R.string.template_kitchen_name
-                                else -> R.string.template_full_details_name
-                            }
-                        ) else it.name 
-                    } ?: ""),
+                    text = "确定要删除模板 \"${templateToDelete?.name}\" 吗？\n\n此操作无法撤销。",
                     style = MaterialTheme.typography.bodyMedium
                 )
             },
@@ -262,11 +252,11 @@ fun PrintTemplatesDialogContent(
                         showDeleteConfirmDialog = false
                         templateToDelete = null
                     },
-                    colors = ButtonDefaults.buttonColors(
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.error
                     )
                 ) {
-                    Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.onError)
+                    Text("删除", color = MaterialTheme.colorScheme.onError)
                 }
             },
             dismissButton = {
@@ -276,7 +266,7 @@ fun PrintTemplatesDialogContent(
                         templateToDelete = null
                     }
                 ) {
-                    Text(stringResource(R.string.cancel))
+                    Text("取消")
                 }
             }
         )
@@ -407,7 +397,7 @@ fun AddTemplateButton(
             Spacer(modifier = Modifier.width(12.dp))
             
             Text(
-                text = stringResource(R.string.create_new_template),
+                text = "创建新模板",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.primary
@@ -452,20 +442,7 @@ fun TemplateItem(
                 modifier = Modifier.weight(1f)
             ) {
                 Text(
-                    text = if (template.name.startsWith("template_")) {
-                        // 使用字符串资源
-                        stringResource(
-                            when(template.name) {
-                                "template_full_details_name" -> R.string.template_full_details_name
-                                "template_delivery_name" -> R.string.template_delivery_name
-                                "template_kitchen_name" -> R.string.template_kitchen_name
-                                else -> R.string.template_full_details_name
-                            }
-                        )
-                    } else {
-                        // 自定义模板直接显示名称
-                        template.name
-                    },
+                    text = template.name,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
@@ -473,23 +450,7 @@ fun TemplateItem(
                 Spacer(modifier = Modifier.height(4.dp))
                 
                 Text(
-                    text = if (template.description.startsWith("template_")) {
-                        // 使用字符串资源
-                        stringResource(
-                            when(template.description) {
-                                "template_full_details_desc" -> R.string.template_full_details_desc
-                                "template_delivery_desc" -> R.string.template_delivery_desc
-                                "template_kitchen_desc" -> R.string.template_kitchen_desc
-                                else -> R.string.template_full_details_desc
-                            }
-                        )
-                    } else if (template.description == "custom_template_desc") {
-                        // 自定义模板描述需要格式化
-                        stringResource(R.string.custom_template_desc, template.enabledFieldCount)
-                    } else {
-                        // 其他情况直接显示
-                        template.description
-                    },
+                    text = template.description,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -513,7 +474,7 @@ fun TemplateItem(
             ) {
                 Icon(
                     imageVector = Icons.Default.Edit,
-                    contentDescription = stringResource(R.string.edit_template),
+                    contentDescription = "Edit Template",
                     tint = MaterialTheme.colorScheme.primary
                 )
             }
@@ -528,7 +489,7 @@ fun TemplateItem(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Close,
-                        contentDescription = stringResource(R.string.delete_custom_template),
+                        contentDescription = "Delete Custom Template",
                         tint = MaterialTheme.colorScheme.error
                     )
                 }
@@ -544,6 +505,5 @@ data class PrintTemplate(
     val description: String,
     val icon: ImageVector = Icons.Default.Description,
     val isDefault: Boolean = false,
-    val templateType: TemplateType = TemplateType.FULL_DETAILS,
-    val enabledFieldCount: Int = 0
+    val templateType: TemplateType = TemplateType.FULL_DETAILS
 ) 

@@ -267,6 +267,43 @@ class TemplateConfigViewModel @Inject constructor(
     }
     
     /**
+     * Reset all templates to default settings
+     * This will delete all custom templates and reset default templates
+     */
+    fun resetAllTemplates() {
+        viewModelScope.launch {
+            _isSaving.value = true
+            try {
+                // Delete all custom templates
+                val customTemplates = _allConfigs.value.filter { it.templateId.startsWith("custom_") }
+                for (template in customTemplates) {
+                    templateConfigRepository.deleteConfig(template.templateId)
+                }
+                
+                // Reset default templates to their original settings
+                templateConfigRepository.resetToDefault("full_details", TemplateType.FULL_DETAILS)
+                templateConfigRepository.resetToDefault("delivery", TemplateType.DELIVERY)
+                templateConfigRepository.resetToDefault("kitchen", TemplateType.KITCHEN)
+                
+                _successMessage.value = "所有模板已重置为默认设置"
+                _isSaving.value = false
+                
+                // Clear current configuration if it was a custom template
+                val currentConfig = _currentConfig.value
+                if (currentConfig?.templateId?.startsWith("custom_") == true) {
+                    _currentConfig.value = null
+                }
+                
+                // Reload all configurations
+                loadAllConfigs()
+            } catch (e: Exception) {
+                _errorMessage.value = "重置模板失败: ${e.message}"
+                _isSaving.value = false
+            }
+        }
+    }
+    
+    /**
      * Copy configuration
      * @param sourceTemplateId Source template ID
      * @param newTemplateId New template ID

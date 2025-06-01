@@ -91,10 +91,7 @@ fun TemplatePreviewScreen(
     
     // 创建一个state来跟踪当前选中的选项卡 (预览/设置)
     var selectedTabIndex by remember { mutableStateOf(0) }
-    val tabs = listOf(
-        stringResource(R.string.template_tab_preview), 
-        stringResource(R.string.template_tab_settings)
-    )
+    val tabs = listOf("Preview", "Settings")
     
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
@@ -1408,11 +1405,11 @@ fun TemplatePreviewDialogContent(
     
     // 获取模板名称
     val templateName = currentConfig?.templateName ?: customTemplateName ?: when (templateId) {
-        "full_details" -> stringResource(R.string.template_full_order_details)
-        "delivery" -> stringResource(R.string.template_delivery_receipt)
-        "kitchen" -> stringResource(R.string.template_kitchen_order)
-        "new" -> stringResource(R.string.template_new_custom)
-        else -> if (templateId.startsWith("custom_")) stringResource(R.string.template_custom) else stringResource(R.string.template_unknown)
+        "full_details" -> "Full Order Details"
+        "delivery" -> "Delivery Receipt"
+        "kitchen" -> "Kitchen Order"
+        "new" -> "New Custom Template"
+        else -> if (templateId.startsWith("custom_")) "Custom Template" else "Unknown Template"
     }
     
     Card(
@@ -1430,7 +1427,7 @@ fun TemplatePreviewDialogContent(
                         IconButton(onClick = { onClose() }) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = stringResource(R.string.template_back)
+                                contentDescription = "Back to templates"
                             )
                         }
                     },
@@ -1439,74 +1436,7 @@ fun TemplatePreviewDialogContent(
                     )
                 )
             },
-            snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
-            bottomBar = {
-                // 底部操作按钮
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        // 重置按钮
-                        Button(
-                            onClick = {
-                                viewModel.resetToDefault(templateId, templateType)
-                            },
-                            enabled = !isLoading && !isSaving,
-                            modifier = Modifier.weight(1f),
-                            colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.secondary
-                            )
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Refresh,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = stringResource(R.string.template_reset_default),
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                        }
-                        
-                        // 保存按钮
-                        Button(
-                            onClick = {
-                                viewModel.saveCurrentConfig()
-                            },
-                            enabled = !isLoading && !isSaving && currentConfig != null,
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            if (isSaving) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(18.dp),
-                                    strokeWidth = 2.dp,
-                                    color = MaterialTheme.colorScheme.onPrimary
-                                )
-                            } else {
-                                Icon(
-                                    imageVector = Icons.Default.Save,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = stringResource(R.string.template_save),
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                        }
-                    }
-                }
-            }
+            snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
         ) { paddingValues ->
             Column(
                 modifier = Modifier
@@ -1600,7 +1530,7 @@ fun FooterTextEditor(
             .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp)
     ) {
         Text(
-            text = stringResource(R.string.template_footer_custom),
+            text = "Custom Footer Text",
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(bottom = 4.dp)
@@ -1611,7 +1541,7 @@ fun FooterTextEditor(
             onValueChange = onFooterTextChange,
             modifier = Modifier.fillMaxWidth(),
             placeholder = { 
-                Text(stringResource(R.string.template_footer_placeholder))
+                Text("Enter custom footer text (supports multiple lines)")
             },
             minLines = 2,
             maxLines = 4,
@@ -1619,7 +1549,7 @@ fun FooterTextEditor(
         )
         
         Text(
-            text = stringResource(R.string.template_footer_tip),
+            text = "Tip: Use line breaks to create multiple lines. Leave blank to hide footer.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
             modifier = Modifier.padding(top = 4.dp)

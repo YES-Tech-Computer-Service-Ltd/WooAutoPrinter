@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.Fastfood
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -170,6 +171,9 @@ fun PrintTemplatesDialogContent(
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
     var templateToDelete by remember { mutableStateOf<PrintTemplate?>(null) }
     
+    // 重置模板确认对话框相关状态
+    var showResetConfirmDialog by remember { mutableStateOf(false) }
+    
     // 创建新模板对话框
     if (showCreateTemplateDialog) {
         AlertDialog(
@@ -282,6 +286,47 @@ fun PrintTemplatesDialogContent(
         )
     }
     
+    // 重置模板确认对话框
+    if (showResetConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { 
+                showResetConfirmDialog = false
+            },
+            title = { Text(stringResource(R.string.reset_templates_title)) },
+            text = {
+                Text(
+                    text = stringResource(R.string.reset_templates_message),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        // 执行重置操作
+                        viewModel.resetAllTemplates()
+                        showResetConfirmDialog = false
+                        // 重置选中状态
+                        selectedTemplate.value = templates.first()
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Text(stringResource(R.string.reset_templates), color = MaterialTheme.colorScheme.onError)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { 
+                        showResetConfirmDialog = false
+                    }
+                ) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
+    
     if (showTemplatePreviewDialog) {
         Dialog(
             onDismissRequest = { showTemplatePreviewDialog = false },
@@ -320,6 +365,20 @@ fun PrintTemplatesDialogContent(
                             Icon(
                                 imageVector = Icons.Default.Close,
                                 contentDescription = stringResource(R.string.close)
+                            )
+                        }
+                    },
+                    actions = {
+                        // 重置模板按钮
+                        IconButton(
+                            onClick = { 
+                                showResetConfirmDialog = true 
+                            }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = stringResource(R.string.reset_templates),
+                                tint = MaterialTheme.colorScheme.onSurface
                             )
                         }
                     },

@@ -181,7 +181,6 @@ private fun ProductsScreenContent(
     val errorMessage by viewModel.errorMessage.collectAsState()
     val selectedProduct by viewModel.selectedProduct.collectAsState()
     val isRefreshing by viewModel.refreshing.collectAsState()
-    val shouldResetScroll by viewModel.shouldResetScroll.collectAsState()
 
     
     val snackbarHostState = remember { SnackbarHostState() }
@@ -442,7 +441,6 @@ private fun ProductsScreenContent(
                                 fadeTransition = fadeTransition,
                                 selectedCategoryId = selectedCategoryId,
                                 categoryOptions = categoryOptions,
-                                shouldResetScroll = shouldResetScroll,
                                 onCategorySelect = { id, name ->
                                     // 如果选择了不同的分类，设置切换状态标志
                                     if (selectedCategoryId != id) {
@@ -460,9 +458,6 @@ private fun ProductsScreenContent(
                                 onProductClick = { productId ->
                                     viewModel.getProductDetails(productId)
                                     showProductDetail = true
-                                },
-                                onScrollResetHandled = {
-                                    viewModel.clearScrollResetFlag()
                                 }
                             )
                         }
@@ -659,10 +654,8 @@ fun ProductsContent(
     fadeTransition: Float,
     selectedCategoryId: Long?,
     categoryOptions: List<Pair<Long?, String>>,
-    shouldResetScroll: Boolean,
     onCategorySelect: (Long?, String) -> Unit,
-    onProductClick: (Long) -> Unit,
-    onScrollResetHandled: () -> Unit
+    onProductClick: (Long) -> Unit
 ) {
     // 使用列表状态，支持滚动到指定位置
     val categoryListState = rememberLazyListState()
@@ -687,23 +680,6 @@ fun ProductsContent(
                 } catch (ex: Exception) {
                     Log.e("ProductsScreen", "滚动到顶部失败: ${ex.message}")
                 }
-            }
-        }
-    }
-    
-    // 响应ViewModel的滚动重置请求
-    LaunchedEffect(shouldResetScroll) {
-        if (shouldResetScroll) {
-            try {
-                Log.d("ProductsScreen", "响应ViewModel滚动重置请求")
-                // 立即滚动到顶部（不使用动画，更快响应）
-                gridState.scrollToItem(0)
-                // 通知ViewModel已处理滚动重置
-                onScrollResetHandled()
-            } catch (e: Exception) {
-                Log.e("ProductsScreen", "响应滚动重置请求失败: ${e.message}")
-                // 即使失败也要清除标记，避免无限循环
-                onScrollResetHandled()
             }
         }
     }
@@ -802,73 +778,35 @@ fun ProductsContent(
             
             // 加载指示器更美观且不遮挡内容
             if (isLoading || isSwitchingCategory) {
-                // 区分两种不同的加载状态
-                if (isLoading && !isSwitchingCategory && displayProducts.isNotEmpty()) {
-                    // 数据刷新时，使用和订单页面一样的上方提示卡片
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        contentAlignment = Alignment.TopCenter
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .alpha(0.5f), // 降低透明度，使背景内容更可见
+                    contentAlignment = Alignment.Center
+                ) {
+                    Card(
+                        modifier = Modifier.padding(16.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)
+                        ),
+                        shape = RoundedCornerShape(8.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
                     ) {
-                        Card(
-                            modifier = Modifier,
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.95f)
-                            ),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                            shape = RoundedCornerShape(20.dp)
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(16.dp)
                         ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(20.dp),
-                                    strokeWidth = 2.dp,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Text(
-                                    text = if (LocalAppLocale.current.language == "zh") "正在刷新产品..." else "Refreshing products...",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                            }
-                        }
-                    }
-                } else if (isSwitchingCategory || (isLoading && displayProducts.isEmpty())) {
-                    // 切换分类或初始加载时，使用中央加载指示器
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .alpha(0.5f), // 降低透明度，使背景内容更可见
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Card(
-                            modifier = Modifier.padding(16.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)
-                            ),
-                            shape = RoundedCornerShape(8.dp),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-                        ) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                modifier = Modifier.padding(16.dp)
-                            ) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(36.dp)
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    text = if (isSwitchingCategory) 
-                                        stringResource(id = R.string.switching_category) 
-                                    else 
-                                        stringResource(id = R.string.loading_products),
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                            }
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(36.dp)
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = if (isSwitchingCategory) 
+                                    stringResource(id = R.string.switching_category) 
+                                else 
+                                    stringResource(id = R.string.loading_products),
+                                style = MaterialTheme.typography.bodyMedium
+                            )
                         }
                     }
                 }

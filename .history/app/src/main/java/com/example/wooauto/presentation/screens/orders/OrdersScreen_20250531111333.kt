@@ -445,60 +445,22 @@ fun OrdersScreen(
                 }
             } else {
                 // 有订单数据，显示订单列表
-                Box(modifier = Modifier.fillMaxSize()) {
-                    OrdersList(
-                        orders = orders,
-                        selectedStatus = statusFilter,
-                        searchQuery = searchQuery,
-                        onSelectOrder = { order ->
-                            viewModel.getOrderDetails(order.id)
-                            showOrderDetail = true
-                            // 不要在这里自动标记为已读，让用户手动控制
-                            // viewModel.markOrderAsRead(order.id)
-                        },
-                        onStatusSelected = { status ->
-                            statusFilter = status
-                            viewModel.filterOrdersByStatus(status)
-                        },
-                        currencySymbol = currencySymbol
-                    )
-                    
-                    // 当正在刷新时，在列表上方显示一个半透明的刷新提示
-                    if (isRefreshing && orders.isNotEmpty()) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            contentAlignment = Alignment.TopCenter
-                        ) {
-                            Card(
-                                modifier = Modifier,
-                                colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.95f)
-                                ),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                                shape = RoundedCornerShape(20.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(20.dp),
-                                        strokeWidth = 2.dp,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                                    )
-                                    Spacer(modifier = Modifier.width(12.dp))
-                                    Text(
-                                        text = if (locale.language == "zh") "正在刷新订单..." else "Refreshing orders...",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
+                OrdersList(
+                    orders = orders,
+                    selectedStatus = statusFilter,
+                    searchQuery = searchQuery,
+                    onSelectOrder = { order ->
+                        viewModel.getOrderDetails(order.id)
+                        showOrderDetail = true
+                        // 不要在这里自动标记为已读，让用户手动控制
+                        // viewModel.markOrderAsRead(order.id)
+                    },
+                    onStatusSelected = { status ->
+                        statusFilter = status
+                        viewModel.filterOrdersByStatus(status)
+                    },
+                    currencySymbol = currencySymbol
+                )
             }
             
             // 订单详情对话框
