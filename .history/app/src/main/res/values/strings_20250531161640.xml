@@ -86,6 +86,10 @@
     <string name="custom_template_desc">Custom template - %1$d enabled fields</string>
     <string name="edit_template">Edit Template</string>
     <string name="delete_custom_template">Delete Custom Template</string>
+    <string name="reset_templates">Reset Templates</string>
+    <string name="reset_templates_title">Reset All Templates</string>
+    <string name="reset_templates_message">Are you sure you want to reset all templates to default settings?\n\nThis will:\n• Delete all custom templates\n• Reset default templates to original settings\n\nThis action cannot be undone.</string>
+    <string name="reset_templates_success">All templates have been reset to default settings</string>
 
     <!-- Products -->
     <string name="product_details">Product Details</string>

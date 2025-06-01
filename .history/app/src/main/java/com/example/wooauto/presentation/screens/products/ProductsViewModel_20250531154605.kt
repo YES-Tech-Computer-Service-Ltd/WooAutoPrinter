@@ -530,8 +530,6 @@ class ProductsViewModel @Inject constructor(
                             productRepository.searchProductsFlow(query).collectLatest { searchResults ->
                                 Log.d("ProductsViewModel", "搜索结果: 找到 ${searchResults.size} 个匹配产品")
                                 _products.value = searchResults
-                                // 通知UI重置滚动位置到顶部
-                                _shouldResetScroll.value = true
                                 _isLoading.value = false
                             }
                         } catch (e: Exception) {
@@ -755,9 +753,5 @@ class ProductsViewModel @Inject constructor(
     
     fun clearLicenseSettingsNavigation() {
         _navigateToLicenseSettings.value = false
-    }
-    
-    fun clearScrollResetFlag() {
-        _shouldResetScroll.value = false
     }
 } 

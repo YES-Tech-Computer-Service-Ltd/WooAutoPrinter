@@ -75,6 +75,7 @@
     <string name="template_name_label">模板名称</string>
     <string name="template_name_placeholder">例如：我的自定义模板</string>
     <string name="create">创建</string>
+    <string name="cancel">取消</string>
     <string name="delete_template_title">删除模板</string>
     <string name="delete_template_message">确定要删除模板 \"%1$s\" 吗？\n\n此操作无法撤销。</string>
     <string name="template_full_details_name">完整订单详情</string>
@@ -106,21 +107,6 @@
     <string name="loading_products">正在加载产品…</string>
     <string name="switching_category">正在切换分类…</string>
     <string name="loading_message">稍等片刻，正在从您的WooCommerce商店获取最新数据</string>
-
-    <!-- Preview Content -->
-    <string name="preview_store_name">店铺名称</string>
-    <string name="preview_store_address">店铺地址</string>
-    <string name="preview_store_phone">店铺电话</string>
-    <string name="preview_order_number">订单号码</string>
-    <string name="preview_order_date">订单日期</string>
-    <string name="preview_customer_name">顾客名字</string>
-    <string name="preview_customer_phone">顾客电话</string>
-    <string name="preview_delivery_address">配送地址</string>
-    <string name="preview_subtotal">小计</string>
-    <string name="preview_tax">税</string>
-    <string name="preview_total">总计</string>
-    <string name="preview_payment_method">付款方式</string>
-    <string name="preview_order_notes">订单备注</string>
 
     <!-- Settings -->
     <string name="website_setup">网站设置</string>

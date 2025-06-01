@@ -56,6 +56,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -667,35 +668,38 @@ fun ProductsContent(
     // 使用列表状态，支持滚动到指定位置
     val categoryListState = rememberLazyListState()
     
-    // 添加LazyVerticalGrid的滚动状态管理
-    val gridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
+    // 添加LazyVerticalGrid的滚动状态管理，初始化时就设置在顶部
+    val gridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState(
+        initialFirstVisibleItemIndex = 0,  // 明确设置初始位置为顶部
+        initialFirstVisibleItemScrollOffset = 0  // 初始滚动偏移也为0
+    )
     
     // 添加协程作用域用于滚动控制
     val coroutineScope = rememberCoroutineScope()
     
-    // 当产品数据更新时，滚动到顶部
+    // 当产品数据更新时，更智能的滚动控制
     LaunchedEffect(products.size, selectedCategoryId) {
-        if (products.isNotEmpty()) {
+        // 只有当数据真正有变化且不为空时才滚动
+        if (products.isNotEmpty() && !isSwitchingCategory) {
             try {
-                // 平滑滚动到顶部
-                gridState.animateScrollToItem(0)
-                Log.d("ProductsScreen", "产品数据更新，滚动到顶部")
-            } catch (e: Exception) {
-                // 如果动画滚动失败，尝试直接滚动
-                try {
+                // 检查是否真的需要滚动（避免不必要的滚动）
+                val currentFirstVisibleIndex = gridState.firstVisibleItemIndex
+                if (currentFirstVisibleIndex > 0) {
+                    Log.d("ProductsScreen", "产品数据更新且位置不在顶部，滚动到顶部")
+                    // 优先使用快速滚动，避免动画延迟
                     gridState.scrollToItem(0)
-                } catch (ex: Exception) {
-                    Log.e("ProductsScreen", "滚动到顶部失败: ${ex.message}")
                 }
+            } catch (e: Exception) {
+                Log.e("ProductsScreen", "滚动到顶部失败: ${e.message}")
             }
         }
     }
     
-    // 响应ViewModel的滚动重置请求
+    // 响应ViewModel的滚动重置请求 - 立即执行，无延迟
     LaunchedEffect(shouldResetScroll) {
         if (shouldResetScroll) {
             try {
-                Log.d("ProductsScreen", "响应ViewModel滚动重置请求")
+                Log.d("ProductsScreen", "响应ViewModel滚动重置请求，立即执行")
                 // 立即滚动到顶部（不使用动画，更快响应）
                 gridState.scrollToItem(0)
                 // 通知ViewModel已处理滚动重置
@@ -784,6 +788,7 @@ fun ProductsContent(
                     modifier = Modifier
                         .fillMaxSize()
                         .alpha(fadeTransition)
+                        .clipToBounds() // 裁剪边界，避免显示超出范围的内容
                 ) {
                     items(
                         items = displayProducts,
@@ -802,73 +807,35 @@ fun ProductsContent(
             
             // 加载指示器更美观且不遮挡内容
             if (isLoading || isSwitchingCategory) {
-                // 区分两种不同的加载状态
-                if (isLoading && !isSwitchingCategory && displayProducts.isNotEmpty()) {
-                    // 数据刷新时，使用和订单页面一样的上方提示卡片
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        contentAlignment = Alignment.TopCenter
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .alpha(0.5f), // 降低透明度，使背景内容更可见
+                    contentAlignment = Alignment.Center
+                ) {
+                    Card(
+                        modifier = Modifier.padding(16.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)
+                        ),
+                        shape = RoundedCornerShape(8.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
                     ) {
-                        Card(
-                            modifier = Modifier,
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.95f)
-                            ),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                            shape = RoundedCornerShape(20.dp)
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(16.dp)
                         ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(20.dp),
-                                    strokeWidth = 2.dp,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Text(
-                                    text = if (LocalAppLocale.current.language == "zh") "正在刷新产品..." else "Refreshing products...",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                            }
-                        }
-                    }
-                } else if (isSwitchingCategory || (isLoading && displayProducts.isEmpty())) {
-                    // 切换分类或初始加载时，使用中央加载指示器
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .alpha(0.5f), // 降低透明度，使背景内容更可见
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Card(
-                            modifier = Modifier.padding(16.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)
-                            ),
-                            shape = RoundedCornerShape(8.dp),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-                        ) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                modifier = Modifier.padding(16.dp)
-                            ) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(36.dp)
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    text = if (isSwitchingCategory) 
-                                        stringResource(id = R.string.switching_category) 
-                                    else 
-                                        stringResource(id = R.string.loading_products),
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                            }
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(36.dp)
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = if (isSwitchingCategory) 
+                                    stringResource(id = R.string.switching_category) 
+                                else 
+                                    stringResource(id = R.string.loading_products),
+                                style = MaterialTheme.typography.bodyMedium
+                            )
                         }
                     }
                 }

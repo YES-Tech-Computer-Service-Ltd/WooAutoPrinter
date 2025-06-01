@@ -802,73 +802,35 @@ fun ProductsContent(
             
             // 加载指示器更美观且不遮挡内容
             if (isLoading || isSwitchingCategory) {
-                // 区分两种不同的加载状态
-                if (isLoading && !isSwitchingCategory && displayProducts.isNotEmpty()) {
-                    // 数据刷新时，使用和订单页面一样的上方提示卡片
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        contentAlignment = Alignment.TopCenter
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .alpha(0.5f), // 降低透明度，使背景内容更可见
+                    contentAlignment = Alignment.Center
+                ) {
+                    Card(
+                        modifier = Modifier.padding(16.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)
+                        ),
+                        shape = RoundedCornerShape(8.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
                     ) {
-                        Card(
-                            modifier = Modifier,
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.95f)
-                            ),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                            shape = RoundedCornerShape(20.dp)
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(16.dp)
                         ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(20.dp),
-                                    strokeWidth = 2.dp,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Text(
-                                    text = if (LocalAppLocale.current.language == "zh") "正在刷新产品..." else "Refreshing products...",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                            }
-                        }
-                    }
-                } else if (isSwitchingCategory || (isLoading && displayProducts.isEmpty())) {
-                    // 切换分类或初始加载时，使用中央加载指示器
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .alpha(0.5f), // 降低透明度，使背景内容更可见
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Card(
-                            modifier = Modifier.padding(16.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)
-                            ),
-                            shape = RoundedCornerShape(8.dp),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-                        ) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                modifier = Modifier.padding(16.dp)
-                            ) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(36.dp)
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    text = if (isSwitchingCategory) 
-                                        stringResource(id = R.string.switching_category) 
-                                    else 
-                                        stringResource(id = R.string.loading_products),
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                            }
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(36.dp)
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = if (isSwitchingCategory) 
+                                    stringResource(id = R.string.switching_category) 
+                                else 
+                                    stringResource(id = R.string.loading_products),
+                                style = MaterialTheme.typography.bodyMedium
+                            )
                         }
                     }
                 }

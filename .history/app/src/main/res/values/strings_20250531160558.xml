@@ -548,6 +548,7 @@
     <string name="no_printers_configured_prompt">No printers configured</string>
     <string name="tap_here_to_add_new_printer">Tap here to add a new printer</string>
     <string name="confirm">confirm</string>
+    <string name="cancel">cancel</string>
 
     <!-- 打印机操作按钮文字 -->
     <string name="printer_settings_button">pinrter settings</string>
