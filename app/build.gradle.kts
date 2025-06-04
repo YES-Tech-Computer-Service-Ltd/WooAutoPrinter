@@ -84,7 +84,7 @@ tasks.register("createNewVersion") {
         versionProps.setProperty("minor", newMinor.toString())
         versionProps.setProperty("patch", newPatch.toString())
         versionProps.setProperty("versionName", newVersionName)
-        versionProps.setProperty("build", "1") // 重置构建号
+        versionProps.setProperty("build", (build + 1).toString()) // 构建号递增，不重置
         versionProps.setProperty("versionCode", (versionCode + 1).toString())
         
         versionProps.store(

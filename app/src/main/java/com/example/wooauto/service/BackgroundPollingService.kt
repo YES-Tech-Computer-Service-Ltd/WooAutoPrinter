@@ -38,6 +38,10 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
+import android.net.wifi.WifiManager
+import android.os.PowerManager
+import android.provider.Settings
+import com.example.wooauto.utils.PowerManagementUtils
 
 @AndroidEntryPoint
 class BackgroundPollingService : Service() {
@@ -107,6 +111,12 @@ class BackgroundPollingService : Service() {
     private val WATCHDOG_CHECK_INTERVAL = 60 * 1000L // 每分钟检查一次
     private val POLLING_TIMEOUT_THRESHOLD = 3 * 60 * 1000L // 3分钟无活动则认为轮询可能停止
 
+    // 添加电源管理和WiFi锁定相关组件
+    private var wakeLock: PowerManager.WakeLock? = null
+    private var wifiLock: WifiManager.WifiLock? = null
+    private var powerManager: PowerManager? = null
+    private var wifiManager: WifiManager? = null
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
@@ -116,6 +126,9 @@ class BackgroundPollingService : Service() {
         // 创建通知渠道并启动前台服务
         createNotificationChannel()
         startForeground()
+        
+        // 初始化电源管理和WiFi锁定
+        initPowerManagement()
         
         // 初始化网络监听器
         initNetworkListener()
@@ -282,6 +295,10 @@ class BackgroundPollingService : Service() {
             }
         }
         
+        // 释放电源锁
+        releaseWakeLock()
+        releaseWifiLock()
+        
         Log.d(TAG, "【服务销毁】资源清理完成")
         super.onDestroy()
     }
@@ -440,6 +457,13 @@ class BackgroundPollingService : Service() {
             
             // 启动独立的间隔监听任务（避免重复创建）
             startIntervalMonitor()
+            
+            // 在开始轮询时获取锁
+            acquireWakeLock()
+            acquireWifiLock()
+            
+            // 检查电池优化状态
+            checkBatteryOptimization()
             
             pollingJob = serviceScope.launch {
                 try {
@@ -1151,5 +1175,207 @@ class BackgroundPollingService : Service() {
      */
     private fun updatePollingActivity() {
         lastPollingActivity = System.currentTimeMillis()
+    }
+
+    /**
+     * 初始化电源管理和WiFi锁定机制
+     * 防止息屏时断网和蓝牙断连
+     */
+    private fun initPowerManagement() {
+        try {
+            // 初始化电源管理器
+            powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+            
+            // 创建部分唤醒锁，防止CPU休眠
+            wakeLock = powerManager?.newWakeLock(
+                PowerManager.PARTIAL_WAKE_LOCK,
+                "WooAuto:PollingWakeLock"
+            )?.apply {
+                setReferenceCounted(false)
+            }
+            
+            // 初始化WiFi管理器
+            wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+            
+            // 创建WiFi锁，防止WiFi在息屏时断开
+            wifiLock = wifiManager?.createWifiLock(
+                WifiManager.WIFI_MODE_FULL_HIGH_PERF,
+                "WooAuto:PollingWiFiLock"
+            )?.apply {
+                setReferenceCounted(false)
+            }
+            
+            Log.d(TAG, "【电源管理】电源管理和WiFi锁定初始化完成")
+        } catch (e: Exception) {
+            Log.e(TAG, "【电源管理】初始化失败: ${e.message}", e)
+        }
+    }
+
+    /**
+     * 获取WakeLock，防止CPU休眠
+     */
+    private fun acquireWakeLock() {
+        try {
+            if (wakeLock?.isHeld != true) {
+                wakeLock?.acquire(60 * 60 * 1000L) // 1小时超时，防止永久持有
+                Log.d(TAG, "【电源管理】已获取WakeLock，防止CPU休眠")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "【电源管理】获取WakeLock失败: ${e.message}", e)
+        }
+    }
+
+    /**
+     * 释放WakeLock
+     */
+    private fun releaseWakeLock() {
+        try {
+            if (wakeLock?.isHeld == true) {
+                wakeLock?.release()
+                Log.d(TAG, "【电源管理】已释放WakeLock")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "【电源管理】释放WakeLock失败: ${e.message}", e)
+        }
+    }
+
+    /**
+     * 获取WiFi锁，防止WiFi断开
+     */
+    private fun acquireWifiLock() {
+        try {
+            if (wifiLock?.isHeld != true) {
+                wifiLock?.acquire()
+                Log.d(TAG, "【电源管理】已获取WiFi锁，防止WiFi断开")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "【电源管理】获取WiFi锁失败: ${e.message}", e)
+        }
+    }
+
+    /**
+     * 释放WiFi锁
+     */
+    private fun releaseWifiLock() {
+        try {
+            if (wifiLock?.isHeld == true) {
+                wifiLock?.release()
+                Log.d(TAG, "【电源管理】已释放WiFi锁")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "【电源管理】释放WiFi锁失败: ${e.message}", e)
+        }
+    }
+
+    /**
+     * 检查是否需要忽略电池优化
+     */
+    private fun checkBatteryOptimization() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+                val packageName = packageName
+                
+                if (!pm.isIgnoringBatteryOptimizations(packageName)) {
+                    Log.w(TAG, "【电源管理】应用未被加入电池优化白名单，可能影响后台运行")
+                    
+                    // 检查是否为激进省电策略设备
+                    if (PowerManagementUtils.isAggressivePowerManagementDevice()) {
+                        Log.w(TAG, "【电源管理】检测到激进省电策略设备: ${Build.MANUFACTURER}")
+                        showAdvancedPowerManagementNotification()
+                    } else {
+                        showBatteryOptimizationNotification()
+                    }
+                } else {
+                    Log.d(TAG, "【电源管理】应用已被加入电池优化白名单")
+                }
+                
+                // 检查其他省电设置
+                checkAdditionalPowerSavingSettings()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "【电源管理】检查电池优化状态失败: ${e.message}", e)
+        }
+    }
+
+    /**
+     * 检查其他省电相关设置
+     */
+    private fun checkAdditionalPowerSavingSettings() {
+        try {
+            // 检查省电模式
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                if (PowerManagementUtils.isPowerSaveMode(this)) {
+                    Log.w(TAG, "【电源管理】设备处于省电模式，可能影响后台运行")
+                }
+            }
+            
+            // 检查数据保护模式
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                if (PowerManagementUtils.isDataSaverMode(this)) {
+                    Log.w(TAG, "【电源管理】数据保护模式已开启，可能影响网络同步")
+                }
+            }
+            
+            // 获取并记录建议
+            val recommendations = PowerManagementUtils.getPowerSavingRecommendations(this)
+            if (recommendations.isNotEmpty()) {
+                Log.i(TAG, "【电源管理】省电优化建议:")
+                recommendations.forEachIndexed { index, recommendation ->
+                    Log.i(TAG, "【电源管理】${index + 1}. $recommendation")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "【电源管理】检查省电设置失败: ${e.message}", e)
+        }
+    }
+
+    /**
+     * 显示电池优化提醒通知
+     */
+    private fun showBatteryOptimizationNotification() {
+        try {
+            val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+                .setContentTitle("建议关闭电池优化")
+                .setContentText("为确保订单同步正常运行，建议将WooAuto加入电池优化白名单")
+                .setSmallIcon(R.drawable.ic_launcher_foreground)
+                .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+                .setAutoCancel(true)
+                .build()
+
+            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            notificationManager.notify(1002, notification)
+            
+            Log.d(TAG, "【电源管理】已显示电池优化提醒通知")
+        } catch (e: Exception) {
+            Log.e(TAG, "【电源管理】显示电池优化通知失败: ${e.message}", e)
+        }
+    }
+
+    /**
+     * 显示高级电源管理提醒通知（针对激进省电策略设备）
+     */
+    private fun showAdvancedPowerManagementNotification() {
+        try {
+            val guidance = PowerManagementUtils.getManufacturerSpecificGuidance()
+            
+            val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+                .setContentTitle("检测到${Build.MANUFACTURER}设备")
+                .setContentText("该设备可能有激进的省电策略，点击查看优化建议")
+                .setSmallIcon(R.drawable.ic_launcher_foreground)
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setAutoCancel(true)
+                .setStyle(NotificationCompat.BigTextStyle().bigText(
+                    "为确保WooAuto正常运行，建议进行以下设置：\n\n$guidance"
+                ))
+                .build()
+
+            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            notificationManager.notify(1003, notification)
+            
+            Log.d(TAG, "【电源管理】已显示高级电源管理提醒通知")
+        } catch (e: Exception) {
+            Log.e(TAG, "【电源管理】显示高级电源管理通知失败: ${e.message}", e)
+        }
     }
 } 

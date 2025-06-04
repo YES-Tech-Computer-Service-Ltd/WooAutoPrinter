@@ -1602,9 +1602,12 @@ class BluetoothPrinterManager @Inject constructor(
                 Log.d(TAG, "启动打印机心跳机制，间隔: ${HEARTBEAT_INTERVAL / 1000}秒")
                 var reconnectAttempts = 0
                 var lastReconnectTime = 0L
+                var lastSuccessfulHeartbeat = System.currentTimeMillis()
 
                 while (isActive && heartbeatEnabled) {
                     try {
+                        val currentTime = System.currentTimeMillis()
+                        
                         // 1. 检查打印机连接状态
                         val status = getPrinterStatus(config)
 
@@ -1612,6 +1615,8 @@ class BluetoothPrinterManager @Inject constructor(
                             // 2a. 如果已连接，发送心跳命令
                             try {
                                 sendHeartbeatCommand()
+                                lastSuccessfulHeartbeat = currentTime
+                                
                                 // 心跳成功，重置重连尝试次数
                                 if (reconnectAttempts > 0) {
                                     Log.d(TAG, "心跳成功，连接恢复稳定")
@@ -1620,26 +1625,32 @@ class BluetoothPrinterManager @Inject constructor(
                             } catch (e: Exception) {
                                 // 心跳发送失败，可能连接已断开
                                 Log.e(TAG, "心跳命令发送失败: ${e.message}")
-                                updatePrinterStatus(config, PrinterStatus.ERROR)
+                                
+                                // 检查是否连续心跳失败时间过长
+                                val timeSinceLastSuccess = currentTime - lastSuccessfulHeartbeat
+                                if (timeSinceLastSuccess > HEARTBEAT_INTERVAL * 3) {
+                                    Log.w(TAG, "连续心跳失败超过${timeSinceLastSuccess}ms，标记连接为错误状态")
+                                    updatePrinterStatus(config, PrinterStatus.ERROR)
+                                }
                                 throw e // 向上抛出异常以触发重连逻辑
                             }
                         } else if (status != PrinterStatus.CONNECTED) {
                             // 2b. 如果未连接，检查是否应该重连
-                            val currentTime = System.currentTimeMillis()
                             val timeSinceLastReconnect = currentTime - lastReconnectTime
                             
-                            // 避免频繁重连，至少间隔30秒
-                            if (timeSinceLastReconnect > 30000 && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+                            // 避免频繁重连，至少间隔30秒，并增加更强的重试机制
+                            if (timeSinceLastReconnect > 30000 && reconnectAttempts < MAX_RECONNECT_ATTEMPTS * 2) {
                                 Log.d(TAG, "打印机未连接，尝试重新连接: ${config.name} (尝试次数: ${reconnectAttempts + 1})")
 
                                 // 增加指数退避重试，避免频繁重连
                                 val backoffDelay = if (reconnectAttempts > 0) {
-                                    minOf(RECONNECT_DELAY * (1 shl reconnectAttempts), 60000L)
+                                    minOf(RECONNECT_DELAY * (1 shl (reconnectAttempts / 2)), 60000L)
                                 } else {
                                     0L
                                 }
 
                                 if (backoffDelay > 0) {
+                                    Log.d(TAG, "等待${backoffDelay}ms后重连")
                                     delay(backoffDelay)
                                 }
 
@@ -1649,17 +1660,18 @@ class BluetoothPrinterManager @Inject constructor(
 
                                 if (reconnected) {
                                     reconnectAttempts = 0
+                                    lastSuccessfulHeartbeat = System.currentTimeMillis()
                                     Log.d(TAG, "重连成功，重置重试计数")
                                 } else {
                                     reconnectAttempts++
                                     Log.d(TAG, "重连失败，增加重试计数: $reconnectAttempts")
                                 }
-                            } else if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+                            } else if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS * 2) {
                                 Log.w(TAG, "已达到最大重连次数，暂停重连尝试")
-                                // 暂停一段时间后重置重连计数
-                                if (timeSinceLastReconnect > 300000) { // 5分钟后重置
+                                // 暂停更长时间后重置重连计数
+                                if (timeSinceLastReconnect > 600000) { // 10分钟后重置
                                     reconnectAttempts = 0
-                                    Log.d(TAG, "重置重连计数")
+                                    Log.d(TAG, "长时间暂停后重置重连计数")
                                 }
                             }
                         }
@@ -1668,9 +1680,11 @@ class BluetoothPrinterManager @Inject constructor(
                         
                         // 处理连接断开异常
                         if (e.message?.contains("Broken pipe") == true || 
+                            e.message?.contains("Connection reset") == true ||
                             e is EscPosConnectionException) {
                             updatePrinterStatus(config, PrinterStatus.DISCONNECTED)
                             reconnectAttempts++
+                            Log.d(TAG, "检测到连接断开，增加重连计数: $reconnectAttempts")
                         }
                     }
 
