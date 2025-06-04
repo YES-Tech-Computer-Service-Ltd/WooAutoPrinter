@@ -65,8 +65,21 @@ class FakeSettingRepository : DomainSettingRepository {
     private val _autoUpdate = MutableStateFlow(true)
     private var _lastUpdateCheckTime: Long = 0
 
+    // 自定义模板相关设置
+    private val _defaultAutoPrintTemplateId = MutableStateFlow<String?>(null)
+    private val _temporaryManualPrintFlag = MutableStateFlow(false)
+    
+    // 屏幕常亮设置
+    private val _keepScreenOn = MutableStateFlow(false)
+
     override suspend fun getWooCommerceConfig(): WooCommerceConfig {
-        return WooCommerceConfig(_apiUrl.value, _consumerKey.value, _consumerSecret.value)
+        return WooCommerceConfig(
+            siteUrl = _apiUrl.value,
+            consumerKey = _consumerKey.value,
+            consumerSecret = _consumerSecret.value,
+            pollingInterval = 30,
+            useWooCommerceFood = false
+        )
     }
 
     override suspend fun saveWooCommerceConfig(config: WooCommerceConfig) {
@@ -328,5 +341,14 @@ class FakeSettingRepository : DomainSettingRepository {
 
     override suspend fun setAutoPrintEnabled(enabled: Boolean) {
         autoPrintEnabled = enabled
+    }
+
+    // 屏幕常亮设置
+    override fun getKeepScreenOn(): Flow<Boolean> {
+        return _keepScreenOn.asStateFlow()
+    }
+    
+    override suspend fun setKeepScreenOn(keepOn: Boolean) {
+        _keepScreenOn.value = keepOn
     }
 } 

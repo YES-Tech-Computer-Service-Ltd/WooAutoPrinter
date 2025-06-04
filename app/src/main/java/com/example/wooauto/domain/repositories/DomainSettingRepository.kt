@@ -424,4 +424,16 @@ interface DomainSettingRepository {
      * @param timestamp 检查更新的时间戳
      */
     suspend fun setLastUpdateCheckTime(timestamp: Long)
+    
+    /**
+     * 获取屏幕常亮设置
+     * @return 屏幕常亮设置的数据流
+     */
+    fun getKeepScreenOn(): Flow<Boolean>
+    
+    /**
+     * 设置屏幕常亮
+     * @param keepOn 是否保持屏幕常亮
+     */
+    suspend fun setKeepScreenOn(keepOn: Boolean)
 } 

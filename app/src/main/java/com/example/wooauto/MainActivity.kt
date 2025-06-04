@@ -9,6 +9,7 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.util.Log
+import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -45,6 +46,7 @@ import androidx.lifecycle.lifecycleScope
 import com.example.wooauto.R
 import com.example.wooauto.domain.models.Order
 import com.example.wooauto.domain.repositories.DomainOrderRepository
+import com.example.wooauto.domain.repositories.DomainSettingRepository
 import com.example.wooauto.presentation.WooAutoApp
 import com.example.wooauto.presentation.theme.WooAutoTheme
 import com.example.wooauto.utils.LocaleHelper
@@ -73,9 +75,15 @@ class MainActivity : ComponentActivity(), OrderNotificationManager.NotificationC
     @Inject
     lateinit var orderNotificationManager: OrderNotificationManager
     
+    @Inject
+    lateinit var settingsRepository: DomainSettingRepository
+    
     // 用于存储新订单的状态
     private var showNewOrderDialog by mutableStateOf(false)
     private var currentNewOrder by mutableStateOf<Order?>(null)
+    
+    // 屏幕常亮状态
+    private var isKeepScreenOnEnabled by mutableStateOf(false)
     
     // 初始化标志和任务
     private val isInitialized = AtomicBoolean(false)
@@ -181,6 +189,9 @@ class MainActivity : ComponentActivity(), OrderNotificationManager.NotificationC
         
         // 注册通知回调
         orderNotificationManager.registerCallback(this)
+        
+        // 初始化屏幕常亮功能
+        initializeKeepScreenOn()
         
         setContent {
             MainAppContent()
@@ -411,6 +422,60 @@ class MainActivity : ComponentActivity(), OrderNotificationManager.NotificationC
     fun requestAllPermissions() {
         Log.d(TAG, "外部组件请求权限")
         requestRequiredPermissions()
+    }
+    
+    /**
+     * 初始化屏幕常亮功能
+     */
+    private fun initializeKeepScreenOn() {
+        lifecycleScope.launch {
+            try {
+                // 监听屏幕常亮设置的变化
+                settingsRepository.getKeepScreenOn().collect { keepOn ->
+                    Log.d(TAG, "屏幕常亮设置变更: $keepOn")
+                    isKeepScreenOnEnabled = keepOn
+                    updateScreenOnState(keepOn)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "初始化屏幕常亮功能失败", e)
+            }
+        }
+    }
+    
+    /**
+     * 更新屏幕常亮状态
+     */
+    private fun updateScreenOnState(keepOn: Boolean) {
+        try {
+            if (keepOn) {
+                // 保持屏幕常亮
+                window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                Log.d(TAG, "已启用屏幕常亮")
+            } else {
+                // 取消屏幕常亮
+                window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                Log.d(TAG, "已禁用屏幕常亮")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "更新屏幕常亮状态失败", e)
+        }
+    }
+    
+    override fun onResume() {
+        super.onResume()
+        // 当Activity恢复时，确保屏幕常亮状态正确
+        if (isKeepScreenOnEnabled) {
+            updateScreenOnState(true)
+        }
+    }
+    
+    override fun onPause() {
+        super.onPause()
+        // 当Activity暂停时，根据设置决定是否保持屏幕常亮
+        // 如果用户启用了屏幕常亮，则保持；否则清除标志
+        if (!isKeepScreenOnEnabled) {
+            updateScreenOnState(false)
+        }
     }
 }
 

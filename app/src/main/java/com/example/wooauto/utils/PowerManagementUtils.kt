@@ -3,6 +3,7 @@ package com.example.wooauto.utils
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
@@ -198,5 +199,85 @@ object PowerManagementUtils {
                 "4. 关闭省电模式或将应用加入白名单"
             }
         }
+    }
+
+    /**
+     * 检查WiFi省电设置
+     */
+    fun checkWifiPowerSavingSettings(context: Context): List<String> {
+        val issues = mutableListOf<String>()
+        
+        try {
+            val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+            
+            // 检查WiFi是否启用
+            if (!wifiManager.isWifiEnabled) {
+                issues.add("WiFi未启用")
+                return issues
+            }
+            
+            // 检查WiFi连接状态
+            val connectionInfo = wifiManager.connectionInfo
+            if (connectionInfo.networkId == -1) {
+                issues.add("未连接到WiFi网络")
+            }
+            
+            // 检查信号强度
+            val rssi = connectionInfo.rssi
+            val signalLevel = WifiManager.calculateSignalLevel(rssi, 5)
+            if (signalLevel < 2) {
+                issues.add("WiFi信号强度较弱 (${rssi}dBm)")
+            }
+            
+            Log.d(TAG, "WiFi状态检查: 信号强度=$rssi dBm, 等级=$signalLevel/4")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "检查WiFi省电设置失败: ${e.message}")
+            issues.add("无法检查WiFi状态")
+        }
+        
+        return issues
+    }
+
+    /**
+     * 获取网络保持相关的建议
+     */
+    fun getNetworkKeepAliveRecommendations(context: Context): List<String> {
+        val recommendations = mutableListOf<String>()
+        
+        try {
+            // 基本建议
+            recommendations.add("确保应用已获得电池优化白名单权限")
+            recommendations.add("在WiFi设置中关闭'智能WiFi'或'自动切换移动网络'")
+            
+            // 检查WiFi问题
+            val wifiIssues = checkWifiPowerSavingSettings(context)
+            if (wifiIssues.isNotEmpty()) {
+                recommendations.add("WiFi连接问题:")
+                wifiIssues.forEach { issue ->
+                    recommendations.add("  - $issue")
+                }
+            }
+            
+            // 厂商特定建议
+            if (isAggressivePowerManagementDevice()) {
+                recommendations.add("当前设备(${Build.MANUFACTURER})的特定建议:")
+                recommendations.add("  - 进入WiFi高级设置，关闭'WiFi休眠策略'")
+                recommendations.add("  - 禁用'智能省电'对WiFi的控制")
+                recommendations.add("  - 检查是否有'游戏模式'或'性能模式'可以启用")
+            }
+            
+            // 系统级建议
+            recommendations.add("系统设置建议:")
+            recommendations.add("  - 在开发者选项中启用'始终不休眠'(仅测试时)")
+            recommendations.add("  - 检查数据使用量设置中是否限制了应用")
+            recommendations.add("  - 确保路由器支持并启用了'WMM节能模式'")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "获取网络保持建议失败: ${e.message}")
+            recommendations.add("获取建议时出现错误，请手动检查网络和电源设置")
+        }
+        
+        return recommendations
     }
 } 
