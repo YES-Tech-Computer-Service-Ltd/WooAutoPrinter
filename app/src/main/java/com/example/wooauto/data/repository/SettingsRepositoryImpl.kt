@@ -71,6 +71,9 @@ class SettingsRepositoryImpl @Inject constructor(
         val CURRENT_CUSTOM_TEMPLATE_ID = stringPreferencesKey(KEY_CURRENT_CUSTOM_TEMPLATE_ID)
         val DEFAULT_AUTO_PRINT_TEMPLATE_ID = stringPreferencesKey(KEY_DEFAULT_AUTO_PRINT_TEMPLATE_ID)
         val TEMPORARY_MANUAL_PRINT_FLAG = booleanPreferencesKey(KEY_TEMPORARY_MANUAL_PRINT_FLAG)
+        
+        // 屏幕常亮设置
+        val KEEP_SCREEN_ON = booleanPreferencesKey(KEY_KEEP_SCREEN_ON)
     }
 
     // 设置键名常量
@@ -116,6 +119,9 @@ class SettingsRepositoryImpl @Inject constructor(
         const val KEY_CURRENT_CUSTOM_TEMPLATE_ID = "current_custom_template_id"
         const val KEY_DEFAULT_AUTO_PRINT_TEMPLATE_ID = "default_auto_print_template_id"
         const val KEY_TEMPORARY_MANUAL_PRINT_FLAG = "temporary_manual_print_flag"
+        
+        // 屏幕常亮设置
+        const val KEY_KEEP_SCREEN_ON = "keep_screen_on"
     }
 
     private val autoUpdateKey = "auto_update"
@@ -784,4 +790,18 @@ class SettingsRepositoryImpl @Inject constructor(
     
     // License Key
     private val LICENSE_KEY = stringPreferencesKey("license_key")
+
+    /**
+     * 获取屏幕常亮设置
+     */
+    override fun getKeepScreenOn(): Flow<Boolean> {
+        return wooCommerceConfig.keepScreenOn
+    }
+    
+    /**
+     * 设置屏幕常亮
+     */
+    override suspend fun setKeepScreenOn(keepOn: Boolean) {
+        wooCommerceConfig.updateKeepScreenOn(keepOn)
+    }
 } 

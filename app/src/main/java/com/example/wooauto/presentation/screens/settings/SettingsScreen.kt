@@ -55,6 +55,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.example.wooauto.presentation.screens.settings.PrinterSettings.PrinterSettingsDialogContent
+import androidx.compose.material3.Switch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -72,6 +73,7 @@ fun SettingsScreen(
     val isAutoPrintEnabled by viewModel.automaticPrinting.collectAsState()
     val templates by viewModel.templates.collectAsState()
     val defaultTemplateType by viewModel.defaultTemplateType.collectAsState()
+    val keepScreenOn by viewModel.keepScreenOn.collectAsState()
     
     // 预先获取需要用到的字符串资源
     val licenseRequiredMessage = stringResource(R.string.license_required_message)
@@ -333,6 +335,57 @@ fun SettingsScreen(
                                 showLicenseSettingsDialog = true
                             }
                         )
+                        
+                        Spacer(modifier = Modifier.height(8.dp))
+                        HorizontalDivider()
+                        Spacer(modifier = Modifier.height(8.dp))
+                        
+                        // 屏幕常亮设置
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Surface(
+                                modifier = Modifier.size(40.dp),
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Lightbulb,
+                                    contentDescription = "屏幕常亮",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier
+                                        .padding(8.dp)
+                                        .size(24.dp)
+                                )
+                            }
+                            
+                            Spacer(modifier = Modifier.width(16.dp))
+                            
+                            Column(
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(
+                                    text = "保持屏幕常亮",
+                                    style = MaterialTheme.typography.titleMedium
+                                )
+                                Text(
+                                    text = "应用运行时防止屏幕自动关闭",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                )
+                            }
+                            
+                            Switch(
+                                checked = keepScreenOn,
+                                onCheckedChange = { enabled ->
+                                    Log.d("设置", "屏幕常亮开关: $enabled")
+                                    viewModel.updateKeepScreenOn(enabled)
+                                }
+                            )
+                        }
                         
                         Spacer(modifier = Modifier.height(8.dp))
                         HorizontalDivider()

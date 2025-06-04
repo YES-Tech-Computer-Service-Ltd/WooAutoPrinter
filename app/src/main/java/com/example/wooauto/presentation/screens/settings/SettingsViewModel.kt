@@ -92,6 +92,9 @@ class SettingsViewModel @Inject constructor(
     private val _useWooCommerceFood = MutableStateFlow(false)
     val useWooCommerceFood: StateFlow<Boolean> = _useWooCommerceFood.asStateFlow()
 
+    private val _keepScreenOn = MutableStateFlow(false)
+    val keepScreenOn: StateFlow<Boolean> = _keepScreenOn.asStateFlow()
+
     private val _isTestingConnection = MutableStateFlow(false)
     val isTestingConnection: StateFlow<Boolean> = _isTestingConnection.asStateFlow()
 
@@ -244,6 +247,11 @@ class SettingsViewModel @Inject constructor(
                 _pollingInterval.value = config.pollingInterval
                 _useWooCommerceFood.value = config.useWooCommerceFood
                 
+                // 加载屏幕常亮设置
+                settingsRepository.getKeepScreenOn().collect { keepOn ->
+                    _keepScreenOn.value = keepOn
+                }
+                
                 Log.d("SettingsViewModel", "成功加载设置: $config")
             } catch (e: Exception) {
                 Log.e("SettingsViewModel", "加载设置失败", e)
@@ -281,6 +289,18 @@ class SettingsViewModel @Inject constructor(
     fun updateUseWooCommerceFood(use: Boolean) {
         _useWooCommerceFood.value = use
         saveSettings()
+    }
+
+    fun updateKeepScreenOn(keepOn: Boolean) {
+        viewModelScope.launch {
+            try {
+                _keepScreenOn.value = keepOn
+                settingsRepository.setKeepScreenOn(keepOn)
+                Log.d(TAG, "更新屏幕常亮设置: $keepOn")
+            } catch (e: Exception) {
+                Log.e(TAG, "更新屏幕常亮设置失败", e)
+            }
+        }
     }
 
     private fun saveSettings() {

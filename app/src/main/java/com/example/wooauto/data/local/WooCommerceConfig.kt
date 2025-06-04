@@ -36,12 +36,14 @@ class WooCommerceConfig @Inject constructor(
         val CONSUMER_SECRET = stringPreferencesKey("consumer_secret")
         val POLLING_INTERVAL = intPreferencesKey("polling_interval")
         val USE_WOOCOMMERCE_FOOD = booleanPreferencesKey("use_woocommerce_food")
+        val KEEP_SCREEN_ON = booleanPreferencesKey("keep_screen_on")
         
         // 默认值
         const val DEFAULT_POLLING_INTERVAL = 30 // 默认轮询间隔30秒
         const val DEFAULT_SITE_URL = "https://your-woocommerce-site.com"
         const val DEFAULT_CONSUMER_KEY = ""
         const val DEFAULT_CONSUMER_SECRET = ""
+        const val DEFAULT_KEEP_SCREEN_ON = false
         
         // 配置状态管理
         private val _isConfigured = MutableStateFlow(false)
@@ -80,6 +82,11 @@ class WooCommerceConfig @Inject constructor(
     // 是否使用WooCommerce Food插件
     val useWooCommerceFood: Flow<Boolean> = dataStore.data.map { preferences ->
         preferences[USE_WOOCOMMERCE_FOOD] ?: false
+    }
+    
+    // 是否保持屏幕常亮
+    val keepScreenOn: Flow<Boolean> = dataStore.data.map { preferences ->
+        preferences[KEEP_SCREEN_ON] ?: DEFAULT_KEEP_SCREEN_ON
     }
     
     // 是否已配置
@@ -137,6 +144,14 @@ class WooCommerceConfig @Inject constructor(
     suspend fun updateUseWooCommerceFood(use: Boolean) {
         dataStore.edit { preferences ->
             preferences[USE_WOOCOMMERCE_FOOD] = use
+        }
+    }
+    
+    // 更新是否保持屏幕常亮
+    suspend fun updateKeepScreenOn(keepOn: Boolean) {
+        Log.d(TAG, "更新屏幕常亮设置: $keepOn")
+        dataStore.edit { preferences ->
+            preferences[KEEP_SCREEN_ON] = keepOn
         }
     }
     
