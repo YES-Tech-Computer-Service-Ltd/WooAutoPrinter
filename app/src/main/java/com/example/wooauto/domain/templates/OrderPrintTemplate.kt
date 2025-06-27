@@ -29,4 +29,11 @@ interface OrderPrintTemplate {
      * @return 包含测试数据的订单对象
      */
     fun createTestOrder(config: PrinterConfig): Order
+    
+    /**
+     * 创建中文测试用的订单对象
+     * @param config 打印机配置
+     * @return 包含中文测试数据的订单对象
+     */
+    fun createChineseTestOrder(config: PrinterConfig): Order
 } 

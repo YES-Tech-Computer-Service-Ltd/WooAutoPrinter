@@ -71,6 +71,13 @@ interface PrinterManager {
      * @return 连接测试结果，成功返回true
      */
     suspend fun testConnection(config: PrinterConfig): Boolean
+    
+    /**
+     * 中文字符测试打印
+     * @param config 打印机配置
+     * @return 打印结果，成功返回true
+     */
+    suspend fun printChineseTest(config: PrinterConfig): Boolean
 }
 
 /**

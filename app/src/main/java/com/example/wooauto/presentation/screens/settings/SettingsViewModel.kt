@@ -737,6 +737,43 @@ class SettingsViewModel @Inject constructor(
     }
     
     /**
+     * 中文测试打印
+     */
+    suspend fun chineseTestPrint(config: PrinterConfig): Boolean {
+        return withContext(Dispatchers.IO) {
+            try {
+                Log.d(TAG, "开始中文测试打印")
+                
+                // 1. 准备阶段 - 设置UI状态
+                prepareForPrinting()
+                
+                // 2. 连接打印机
+                if (!connectToPrinter(config)) {
+                    return@withContext false
+                }
+                
+                // 3. 执行中文测试打印
+                val success = printerManager.printChineseTest(config)
+                
+                // 4. 处理结果
+                _isPrinting.value = false
+                if (!success) {
+                    _connectionErrorMessage.value = "中文测试打印失败"
+                }
+                
+                Log.d(TAG, "中文测试打印${if (success) "成功" else "失败"}")
+                return@withContext success
+                
+            } catch (e: Exception) {
+                Log.e(TAG, "中文测试打印异常", e)
+                _isPrinting.value = false
+                _connectionErrorMessage.value = "中文测试打印错误: ${e.message}"
+                return@withContext false
+            }
+        }
+    }
+    
+    /**
      * 准备打印
      * 设置打印相关UI状态
      */

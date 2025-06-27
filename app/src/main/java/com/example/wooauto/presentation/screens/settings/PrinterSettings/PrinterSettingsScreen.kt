@@ -106,6 +106,7 @@ private fun PrinterList(
     onEdit: (PrinterConfig) -> Unit,
     onDelete: (PrinterConfig) -> Unit,
     onTestPrint: (PrinterConfig) -> Unit,
+    onChineseTestPrint: (PrinterConfig) -> Unit,
     onSetDefault: (PrinterConfig, Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -122,6 +123,7 @@ private fun PrinterList(
                 onEdit = { onEdit(printer) },
                 onDelete = { onDelete(printer) },
                 onTestPrint = { onTestPrint(printer) },
+                onChineseTestPrint = { onChineseTestPrint(printer) },
                 onSetDefault = { isDefault -> onSetDefault(printer, isDefault) }
             )
         }
@@ -145,6 +147,7 @@ private fun PrinterSettingsContent(
     onEdit: (PrinterConfig) -> Unit,
     onDelete: (PrinterConfig) -> Unit,
     onTestPrint: (PrinterConfig) -> Unit,
+    onChineseTestPrint: (PrinterConfig) -> Unit,
     onSetDefault: (PrinterConfig, Boolean) -> Unit,
     onClearError: () -> Unit,
     onAddPrinter: () -> Unit,
@@ -185,6 +188,7 @@ private fun PrinterSettingsContent(
                     onEdit = onEdit,
                     onDelete = onDelete,
                     onTestPrint = onTestPrint,
+                    onChineseTestPrint = onChineseTestPrint,
                     onSetDefault = onSetDefault,
                     modifier = Modifier.weight(1f)
                 )
@@ -330,6 +334,22 @@ fun PrinterSettingsScreen(
                         }
                     } catch (e: Exception) {
                         snackbarHostState.showSnackbar("打印机错误: ${e.message ?: ""}")
+                    }
+                }
+            },
+            onChineseTestPrint = { printer ->
+                coroutineScope.launch {
+                    snackbarHostState.showSnackbar("正在进行中文测试打印...")
+                    try {
+                        val success = viewModel.chineseTestPrint(printer)
+                        if (success) {
+                            snackbarHostState.showSnackbar("中文测试打印成功")
+                        } else {
+                            val errorMsgDisplay = viewModel.connectionErrorMessage.value ?: "中文测试打印失败"
+                            snackbarHostState.showSnackbar(errorMsgDisplay)
+                        }
+                    } catch (e: Exception) {
+                        snackbarHostState.showSnackbar("中文测试打印错误: ${e.message ?: ""}")
                     }
                 }
             },
@@ -764,6 +784,7 @@ private fun PrinterConfigItem(
     onEdit: () -> Unit,
     onDelete: () -> Unit,
     onTestPrint: () -> Unit,
+    onChineseTestPrint: () -> Unit,
     onSetDefault: (Boolean) -> Unit
 ) {
     Card(
@@ -874,6 +895,30 @@ private fun PrinterConfigItem(
                         text = stringResource(id = R.string.test_print_button),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                
+                // 中文测试打印按钮
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier
+                        .clickable { onChineseTestPrint() }
+                        .padding(12.dp)
+                        .weight(1f)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Print,
+                        contentDescription = "Chinese Test Print",
+                        tint = MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.size(28.dp)
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = stringResource(id = R.string.chinese_test_print_button),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.secondary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -1093,6 +1138,22 @@ public fun PrinterSettingsDialogContent(
                         }
                     } catch (e: Exception) {
                         snackbarHostState.showSnackbar("打印机错误: ${e.message ?: ""}")
+                    }
+                }
+            },
+            onChineseTestPrint = { printer ->
+                coroutineScope.launch {
+                    snackbarHostState.showSnackbar("正在进行中文测试打印...")
+                    try {
+                        val success = viewModel.chineseTestPrint(printer)
+                        if (success) {
+                            snackbarHostState.showSnackbar("中文测试打印成功")
+                        } else {
+                            val errorMsgDisplay = viewModel.connectionErrorMessage.value ?: "中文测试打印失败"
+                            snackbarHostState.showSnackbar(errorMsgDisplay)
+                        }
+                    } catch (e: Exception) {
+                        snackbarHostState.showSnackbar("中文测试打印错误: ${e.message ?: ""}")
                     }
                 }
             },
