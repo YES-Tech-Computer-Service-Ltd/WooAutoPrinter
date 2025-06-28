@@ -1006,12 +1006,28 @@ class SettingsViewModel @Inject constructor(
         }
     }
     
-        /**
+    /**
      * 更新自动打印设置
      */
     fun updateAutomaticPrinting(enabled: Boolean) {
         _automaticPrinting.value = enabled
         saveAutomationSettings()
+         
+        // 立即确保默认打印机的自动打印设置也更新
+        if (enabled) {
+            viewModelScope.launch {
+                try {
+                    val defaultPrinter = settingsRepository.getDefaultPrinterConfig()
+                    if (defaultPrinter != null && !defaultPrinter.isAutoPrint) {
+                        val updatedConfig = defaultPrinter.copy(isAutoPrint = true)
+                        settingsRepository.savePrinterConfig(updatedConfig)
+                        Log.d(TAG, "更新默认打印机自动打印设置: ${defaultPrinter.name} -> isAutoPrint=true")
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "更新默认打印机自动打印设置失败: ${e.message}")
+                }
+            }
+        }
     }
 
     /**

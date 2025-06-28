@@ -1120,10 +1120,15 @@ class BluetoothPrinterManager @Inject constructor(
             // 4. 获取默认打印机配置
             val printerConfig = getDefaultPrinterConfig() ?: return false
 
-            // 5. 检查自动打印设置 - 只需要检查全局设置
+            // 5. 检查自动打印设置
             val globalAutoPrintEnabled = settingRepository.getAutoPrintEnabled()
             if (!globalAutoPrintEnabled) {
                 Log.d(TAG, "全局自动打印功能未开启")
+                return false
+            }
+            
+            if (!printerConfig.isAutoPrint) {
+//                Log.d(TAG, "打印机 ${printerConfig.name} 未启用自动打印功能")
                 return false
             }
 

@@ -157,7 +157,7 @@
     <string name="printer_model">打印机型号</string>
     <string name="scan_printers">扫描打印机</string>
     <string name="auto_print">自动打印</string>
-    <string name="enable_auto_print_for_printer">为此打印机启用自动打印</string>
+    <string name="enable_auto_print">为此打印机启用自动打印</string>
     <string name="copies">份数</string>
     <string name="print_template">打印模板</string>
     <string name="preview_template">预览模板</string>

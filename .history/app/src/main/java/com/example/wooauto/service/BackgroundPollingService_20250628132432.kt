@@ -854,23 +854,17 @@ class BackgroundPollingService : Service() {
                 sendNewOrderNotification(finalOrder)
                 
                 // 启用自动打印功能，并添加详细日志
-                Log.d(TAG, "【自动打印】====== 开始检查订单是否需要自动打印 ======")
-                Log.d(TAG, "【自动打印】订单 #${finalOrder.number} - 状态: ${finalOrder.status}, 已打印: ${finalOrder.isPrinted}")
+                Log.d(TAG, "====== 开始处理订单自动打印 ======")
                 
                 // 使用最终订单的打印状态判断是否需要打印
                 val shouldPrint = !finalOrder.isPrinted && finalOrder.status == "processing"
-                Log.d(TAG, "【自动打印】是否满足打印条件: $shouldPrint")
+                Log.d(TAG, "【打印状态保护】是否需要打印: $shouldPrint (最终打印状态=${finalOrder.isPrinted}, status=${finalOrder.status})")
                 
                 if (shouldPrint) {
-                    Log.d(TAG, "【自动打印】✓ 订单满足自动打印条件，准备打印...")
                     // 调用printOrder方法处理打印
                     printOrder(finalOrder)
-                } else {
-                    if (finalOrder.isPrinted) {
-                        Log.d(TAG, "【自动打印】订单 #${finalOrder.number} 已标记为已打印，跳过")
-                    } else if (finalOrder.status != "processing") {
-                        Log.d(TAG, "【自动打印】订单 #${finalOrder.number} 状态为 ${finalOrder.status}，不是 processing，跳过")
-                    }
+                } else if (finalOrder.isPrinted) {
+                    Log.d(TAG, "【打印状态保护】订单 #${finalOrder.number} 已标记为已打印，跳过打印")
                 }
                 
                 // 先标记订单通知已显示，然后再添加到已处理集合
@@ -959,13 +953,20 @@ class BackgroundPollingService : Service() {
                 
                 Log.d(TAG, "【自动打印调试】默认打印机: ${printerConfig.name} (${printerConfig.address})")
                 
-                // 检查是否开启自动打印 - 只需要检查全局设置
+                // 检查是否开启自动打印 - 需要同时检查全局设置和打印机设置
                 val globalAutoPrintEnabled = settingsRepository.getAutoPrintEnabled()
                 Log.d(TAG, "【自动打印调试】✓ 检查全局自动打印设置: ${if(globalAutoPrintEnabled) "已开启" else "未开启"}")
+                Log.d(TAG, "【自动打印调试】✓ 检查打印机自动打印设置: ${if(printerConfig.isAutoPrint) "已开启" else "未开启"}")
                 
                 if (!globalAutoPrintEnabled) {
                     Log.e(TAG, "【自动打印调试】❌ 全局自动打印功能未开启")
                     Log.e(TAG, "【自动打印调试】请在设置->自动化设置中开启自动打印")
+                    return@launch
+                }
+                
+                if (!printerConfig.isAutoPrint) {
+                    Log.e(TAG, "【自动打印调试】❌ 打印机配置未开启自动打印")
+                    Log.e(TAG, "【自动打印调试】请在打印机设置中开启该打印机的自动打印功能")
                     return@launch
                 }
                 

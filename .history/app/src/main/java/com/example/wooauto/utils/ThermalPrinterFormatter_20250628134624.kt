@@ -258,18 +258,20 @@ class ThermalPrinterFormatter {
          * @return 格式化后的文本
          */
         fun formatItemPriceLine(name: String, quantity: Int, price: String, paperWidth: Int): String {
-            val quantityPrice = "${quantity} x $price"
-            val maxChars = getCharsPerLine(paperWidth)
-            
-            // 如果商品名称和价格信息总长度超过行宽，分两行显示
-            if (name.length + quantityPrice.length + 2 > maxChars) {
+            // 对于较窄的打印机，可能需要将商品名称和价格分为两行
+            if (paperWidth == PrinterConfig.PAPER_WIDTH_57MM && name.length > 14) {
                 val sb = StringBuilder()
                 sb.append("[L]$name\n")
-                sb.append("[L]  $quantityPrice\n")
+                sb.append("[L]  ${quantity} x $price\n")
+                return sb.toString()
+            } else if (paperWidth == PrinterConfig.PAPER_WIDTH_80MM && name.length > 26) {
+                // 80mm打印机但有效打印宽度控制在72mm
+                val sb = StringBuilder()
+                sb.append("[L]$name\n")
+                sb.append("[L]  ${quantity} x $price\n")
                 return sb.toString()
             } else {
-                // 使用formatLeftRightText来处理左右对齐
-                return formatLeftRightText(name, quantityPrice, paperWidth)
+                return "[L]$name[R]${quantity} x $price\n"
             }
         }
         

@@ -959,13 +959,20 @@ class BackgroundPollingService : Service() {
                 
                 Log.d(TAG, "【自动打印调试】默认打印机: ${printerConfig.name} (${printerConfig.address})")
                 
-                // 检查是否开启自动打印 - 只需要检查全局设置
+                // 检查是否开启自动打印 - 需要同时检查全局设置和打印机设置
                 val globalAutoPrintEnabled = settingsRepository.getAutoPrintEnabled()
                 Log.d(TAG, "【自动打印调试】✓ 检查全局自动打印设置: ${if(globalAutoPrintEnabled) "已开启" else "未开启"}")
+                Log.d(TAG, "【自动打印调试】✓ 检查打印机自动打印设置: ${if(printerConfig.isAutoPrint) "已开启" else "未开启"}")
                 
                 if (!globalAutoPrintEnabled) {
                     Log.e(TAG, "【自动打印调试】❌ 全局自动打印功能未开启")
                     Log.e(TAG, "【自动打印调试】请在设置->自动化设置中开启自动打印")
+                    return@launch
+                }
+                
+                if (!printerConfig.isAutoPrint) {
+                    Log.e(TAG, "【自动打印调试】❌ 打印机配置未开启自动打印")
+                    Log.e(TAG, "【自动打印调试】请在打印机设置中开启该打印机的自动打印功能")
                     return@launch
                 }
                 

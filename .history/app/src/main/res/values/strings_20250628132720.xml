@@ -144,7 +144,7 @@
     <string name="printer_model">Printer Model</string>
     <string name="scan_printers">Scan for Printers</string>
     <string name="auto_print">Auto Print</string>
-    <string name="enable_auto_print_for_printer">Enable Auto Print for This Printer</string>
+    <string name="enable_auto_print">Enable Auto Print for This Printer</string>
     <string name="copies">Copies</string>
     <string name="print_template">Print Template</string>
     <string name="preview_template">Preview Template</string>
@@ -509,6 +509,7 @@
     <string name="open_camera_failed">Failed to open camera for QR scanning.</string>
     <string name="error_parsing_qr_code">Error parsing QR code data.</string>
     <string name="auto_print_settings">Auto Print Settings</string>
+    <string name="enable_auto_print">Enable Automatic Printing</string>
     <string name="default_print_template">Default Print Template</string>
     <string name="no_templates_available">No templates available</string>
     <string name="app_version">App Version: %1$s</string>
