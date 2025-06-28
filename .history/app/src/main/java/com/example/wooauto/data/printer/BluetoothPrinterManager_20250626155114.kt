@@ -28,6 +28,7 @@ import com.example.wooauto.domain.printer.PrinterStatus
 import com.example.wooauto.domain.repositories.DomainOrderRepository
 import com.example.wooauto.domain.repositories.DomainSettingRepository
 import com.example.wooauto.domain.templates.OrderPrintTemplate
+import com.example.wooauto.utils.ThermalPrinterFormatter
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -141,12 +142,12 @@ class BluetoothPrinterManager @Inject constructor(
         private const val SCAN_TIMEOUT = 60000L // 增加到60秒
 
         // 连接超时时间 (毫秒)
-        private const val CONNECT_TIMEOUT = 15000L
-        private const val CONNECTION_TIMEOUT = 10000L // 新增连接超时
+        private const val CONNECT_TIMEOUT = 20000L // 增加到20秒
+        private const val CONNECTION_TIMEOUT = 15000L // 增加到15秒
 
         // 最大重试次数
-        private const val MAX_RETRY_COUNT = 5
-        private const val MAX_RECONNECT_ATTEMPTS = 3
+        private const val MAX_RETRY_COUNT = 3 // 减少重试次数，避免过度重试
+        private const val MAX_RECONNECT_ATTEMPTS = 2 // 减少重连次数
 
         // 心跳间隔 (毫秒) - 每15秒发送一次心跳，避免蓝牙断连
         private const val HEARTBEAT_INTERVAL = 15000L
@@ -313,6 +314,24 @@ class BluetoothPrinterManager @Inject constructor(
             isConnecting = true
             Log.d(TAG, "【打印机连接】开始连接打印机: ${config.name} (${config.address})")
 
+            // 检查蓝牙适配器状态
+            val adapter = getBluetoothAdapter()
+            if (adapter == null || !adapter.isEnabled) {
+                Log.e(TAG, "蓝牙未开启或不可用")
+                updatePrinterStatus(config, PrinterStatus.ERROR)
+                return false
+            }
+
+            // 停止任何正在进行的设备发现，提高连接成功率
+            try {
+                if (adapter.isDiscovering) {
+                    adapter.cancelDiscovery()
+                    delay(500) // 等待发现完全停止
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "停止设备发现失败: ${e.message}")
+            }
+
             // 获取蓝牙设备
             val device = getBluetoothDevice(config.address)
             if (device == null) {
@@ -321,38 +340,91 @@ class BluetoothPrinterManager @Inject constructor(
                 return false
             }
 
+            // 检查设备配对状态
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    if (ActivityCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED) {
+                        if (device.bondState != BluetoothDevice.BOND_BONDED) {
+                            Log.w(TAG, "设备未配对: ${config.name}")
+                        }
+                    }
+                } else {
+                    if (device.bondState != BluetoothDevice.BOND_BONDED) {
+                        Log.w(TAG, "设备未配对: ${config.name}")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "检查配对状态失败: ${e.message}")
+            }
+
             // 如果不是当前配置的打印机，则断开原连接
             if (currentPrinterConfig != null && currentPrinterConfig?.id != config.id) {
                 disconnect(currentPrinterConfig!!)
+                delay(1000) // 等待断开完成
             }
 
-            // 如果已经连接，直接返回
+            // 如果已经连接，先测试连接是否有效
             if (getPrinterStatus(config) == PrinterStatus.CONNECTED) {
-                return true
-            }
-
-            // 检查连接是否有效
-            if (currentConnection?.isConnected == true && currentPrinterConfig?.id == config.id) {
-                updatePrinterStatus(config, PrinterStatus.CONNECTED)
-                return true
+                val testResult = testConnection(config)
+                if (testResult) {
+                    return true
+                } else {
+                    Log.w(TAG, "现有连接测试失败，重新建立连接")
+                    // 清理现有连接
+                    try {
+                        currentConnection?.disconnect()
+                        currentConnection = null
+                        currentPrinter = null
+                    } catch (e: Exception) {
+                        Log.w(TAG, "清理连接失败: ${e.message}")
+                    }
+                }
             }
 
             // 创建蓝牙连接，添加超时控制
+            Log.d(TAG, "创建蓝牙连接...")
             val connection = BluetoothConnection(device)
             updatePrinterStatus(config, PrinterStatus.CONNECTING)
 
-            // 使用withTimeout添加超时控制
-            val connected = withTimeoutOrNull(CONNECTION_TIMEOUT) {
+            // 使用withTimeout添加超时控制，增加重试机制
+            var connected = false
+            var lastException: Exception? = null
+            
+            for (attempt in 1..MAX_RETRY_COUNT) {
                 try {
-                    connection.connect()
-                    true
+                    Log.d(TAG, "连接尝试 $attempt/$MAX_RETRY_COUNT")
+                    
+                    connected = withTimeoutOrNull(CONNECTION_TIMEOUT) {
+                        try {
+                            connection.connect()
+                            true
+                        } catch (e: Exception) {
+                            Log.e(TAG, "连接尝试失败: ${e.message}")
+                            lastException = e
+                            false
+                        }
+                    } ?: false
+
+                    if (connected) {
+                        Log.d(TAG, "连接成功")
+                        break
+                    } else {
+                        Log.w(TAG, "连接尝试 $attempt 失败")
+                        if (attempt < MAX_RETRY_COUNT) {
+                            delay(2000) // 等待2秒再重试
+                        }
+                    }
                 } catch (e: Exception) {
-                    Log.e(TAG, "连接失败: ${e.message}", e)
-                    false
+                    Log.e(TAG, "连接尝试 $attempt 异常: ${e.message}")
+                    lastException = e
+                    if (attempt < MAX_RETRY_COUNT) {
+                        delay(2000)
+                    }
                 }
-            } ?: false
+            }
 
             if (!connected) {
+                Log.e(TAG, "所有连接尝试失败，最后一个异常: ${lastException?.message}")
                 updatePrinterStatus(config, PrinterStatus.ERROR)
                 return false
             }
@@ -392,7 +464,7 @@ class BluetoothPrinterManager @Inject constructor(
                 return false
             }
         } catch (e: Exception) {
-            Log.e(TAG, "连接打印机异常: ${e.message}", e)
+            Log.e(TAG, "连接过程中发生异常: ${e.message}", e)
             updatePrinterStatus(config, PrinterStatus.ERROR)
             return false
         } finally {
@@ -401,13 +473,33 @@ class BluetoothPrinterManager @Inject constructor(
     }
 
     /**
-     * 处理格式化文本行，支持基本HTML标签
+     * 处理格式化文本行，支持基本HTML标签和GB18030编码
      */
     private fun processFormattedLine(line: String, outputStream: ByteArrayOutputStream) {
         var text = line
         var isBold = false
         var isDoubleWidth = false
         var isDoubleHeight = false
+        var alignment = 'L' // 默认左对齐
+
+        // 处理对齐标记 [L], [C], [R]
+        if (text.startsWith("[L]")) {
+            alignment = 'L'
+            text = text.substring(3)
+        } else if (text.startsWith("[C]")) {
+            alignment = 'C'
+            text = text.substring(3)
+        } else if (text.startsWith("[R]")) {
+            alignment = 'R'
+            text = text.substring(3)
+        }
+
+        // 发送对齐命令
+        when (alignment) {
+            'L' -> outputStream.write(byteArrayOf(0x1B, 0x61, 0x00))  // ESC a 0 - 左对齐
+            'C' -> outputStream.write(byteArrayOf(0x1B, 0x61, 0x01))  // ESC a 1 - 居中对齐
+            'R' -> outputStream.write(byteArrayOf(0x1B, 0x61, 0x02))  // ESC a 2 - 右对齐
+        }
 
         // 处理加粗标签
         if (text.contains("<b>") || text.contains("</b>")) {
@@ -460,8 +552,19 @@ class BluetoothPrinterManager @Inject constructor(
             text = text.replace("<h>", "").replace("</h>", "")
         }
 
-        // 写入纯文本内容
-        outputStream.write(text.toByteArray(Charsets.UTF_8))
+        // 写入纯文本内容 - 使用GB18030编码
+        try {
+            val gb18030Bytes = ThermalPrinterFormatter.toGB18030Bytes(text)
+            Log.d(TAG, "GB18030编码: '$text' -> ${gb18030Bytes.size} 字节: ${gb18030Bytes.joinToString(", ") { "0x%02X".format(it) }}")
+            outputStream.write(gb18030Bytes)
+        } catch (e: Exception) {
+            Log.e(TAG, "GB18030编码失败，回退到UTF-8: ${e.message}")
+            // 回退到UTF-8编码
+            outputStream.write(text.toByteArray(Charsets.UTF_8))
+        }
+
+        // 添加换行符
+        outputStream.write(byteArrayOf(0x0A))  // LF
 
         // 重置格式
         if (isBold) {
@@ -549,8 +652,8 @@ class BluetoothPrinterManager @Inject constructor(
             // 添加一个几乎空白的打印内容作为触发任务
             try {
                 Log.d(TAG, "【打印机】发送虚拟打印任务以触发切纸命令执行")
-                // 发送单个空格作为内容，编码为GBK以支持中文打印机
-                val emptyContent = " ".toByteArray(charset("GBK"))
+                // 发送单个空格作为内容，使用GB18030编码以支持中文打印机
+                val emptyContent = ThermalPrinterFormatter.toGB18030Bytes(" ")
                 currentConnection?.write(emptyContent)
                 // 再发送一个换行，确保命令被处理
                 currentConnection?.write(byteArrayOf(0x0A))
@@ -969,22 +1072,22 @@ class BluetoothPrinterManager @Inject constructor(
      * @return 是否成功处理
      */
     private suspend fun handleSuccessfulPrint(order: Order): Boolean {
-//        Log.d(TAG, "打印成功，检查订单 ${order.id} 当前打印状态")
+        Log.d(TAG, "打印成功，检查订单 ${order.id} 当前打印状态")
 
         // 获取最新的订单信息
         val latestOrder = orderRepository.getOrderById(order.id)
 
         // 只有在订单未被标记为已打印时才进行标记
         if (latestOrder != null && !latestOrder.isPrinted) {
-//            Log.d(TAG, "标记订单 ${order.id} 为已打印")
+            Log.d(TAG, "标记订单 ${order.id} 为已打印")
             val markResult = orderRepository.markOrderAsPrinted(order.id)
             if (markResult) {
-//                Log.d(TAG, "成功标记订单 ${order.id} 为已打印")
+                Log.d(TAG, "成功标记订单 ${order.id} 为已打印")
             } else {
                 Log.e(TAG, "标记订单 ${order.id} 为已打印-失败")
             }
         } else {
-//            Log.d(TAG, "订单 ${order.id} 已被标记为已打印，跳过重复标记")
+            Log.d(TAG, "订单 ${order.id} 已被标记为已打印，跳过重复标记")
         }
 
         return true
@@ -1205,10 +1308,46 @@ class BluetoothPrinterManager @Inject constructor(
      */
     private suspend fun chunkedPrintingProcess(content: String, config: PrinterConfig): Boolean {
         try {
+            // 检查内容是否包含中文
+            val containsChinese = content.any { char -> 
+                char.code in 0x4E00..0x9FFF || // 基本汉字
+                char.code in 0x3400..0x4DBF || // 扩展A区
+                char.code in 0x20000..0x2A6DF || // 扩展B区
+                char.code in 0x2A700..0x2B73F || // 扩展C区
+                char.code in 0x2B740..0x2B81F || // 扩展D区
+                char.code in 0x2B820..0x2CEAF || // 扩展E区
+                char.code in 0xF900..0xFAFF || // 兼容汉字
+                char.code in 0x2F800..0x2FA1F // 兼容扩展
+            }
+            
+            if (containsChinese) {
+                Log.d(TAG, "检测到中文内容，使用GB18030编码直接发送")
+                // 对于包含中文的内容，使用直接发送GB18030编码的方式
+                sendFormattedContentWithGB18030(content)
+                return true
+            } else {
+                Log.d(TAG, "纯英文内容，使用EscPosPrinter库打印")
+                // 对于纯英文内容，使用EscPosPrinter库
+                return printWithEscPosLibrary(content, config)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "分块打印出错: ${e.message}")
+            return false
+        }
+    }
+    
+    /**
+     * 使用EscPosPrinter库打印内容
+     * @param content 要打印的内容
+     * @param config 打印机配置
+     * @return 是否成功打印
+     */
+    private suspend fun printWithEscPosLibrary(content: String, config: PrinterConfig): Boolean {
+        try {
             // 将内容按行分割
             val lines = content.split("\n")
             val totalLines = lines.size
-            Log.d(TAG, "分块打印，总行数: $totalLines")
+            Log.d(TAG, "EscPosPrinter打印，总行数: $totalLines")
             
             // 每块最大行数 - 根据行长度可能更少
             val maxChunkLines = 15 
@@ -1226,7 +1365,7 @@ class BluetoothPrinterManager @Inject constructor(
                 if (chunkContent.isNotBlank()) {
                     Log.d(TAG, "打印内容块 ${currentLine / maxChunkLines + 1}: 行 $currentLine-${endLine-1}")
                     
-                    // 使用打印库打印当前块
+                    // 使用EscPosPrinter库打印当前块
                     currentPrinter?.printFormattedText(chunkContent)
                     
                     // 每个块之后立即刷新缓冲区，确保完全打印
@@ -1270,8 +1409,127 @@ class BluetoothPrinterManager @Inject constructor(
             
             return true
         } catch (e: Exception) {
-            Log.e(TAG, "分块打印出错: ${e.message}")
+            Log.e(TAG, "EscPosPrinter打印出错: ${e.message}")
             return false
+        }
+    }
+    
+    /**
+     * 发送格式化内容，使用GB18030编码
+     * 正确结合ESC/POS命令语言
+     * @param content 要发送的内容
+     */
+    private fun sendFormattedContentWithGB18030(content: String) {
+        try {
+            if (currentConnection == null) {
+                Log.e(TAG, "无有效连接，无法发送内容")
+                return
+            }
+            
+            Log.d(TAG, "开始发送GB18030编码内容")
+            
+            // 第一步：初始化打印机
+            currentConnection?.write(byteArrayOf(0x1B, 0x40))  // ESC @ - 初始化打印机
+            Thread.sleep(100)
+            
+            // 第二步：清除缓冲区
+            currentConnection?.write(byteArrayOf(0x18))  // CAN - 清除打印缓冲区
+            Thread.sleep(50)
+            
+            // 第三步：按行处理内容并发送
+            val lines = content.split("\n")
+            for (line in lines) {
+                if (line.isNotBlank()) {
+                    // 处理每一行
+                    processFormattedLineWithEscPos(line)
+                } else {
+                    // 空行只发送换行符
+                    currentConnection?.write(byteArrayOf(0x0A))  // LF
+                }
+            }
+            
+            // 第四步：发送走纸命令
+            currentConnection?.write(byteArrayOf(0x1B, 0x64, 0x03))  // ESC d 3 - 走纸3行
+            Thread.sleep(100)
+            
+            // 第五步：强制刷新缓冲区
+            forcePrinterFlush()
+            
+            Log.d(TAG, "GB18030编码内容发送完成")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "发送GB18030编码内容失败: ${e.message}", e)
+            throw e
+        }
+    }
+    
+    /**
+     * 处理格式化文本行，结合ESC/POS命令和GB18030编码
+     */
+    private fun processFormattedLineWithEscPos(line: String) {
+        var text = line
+        var isBold = false
+        var alignment = 'L' // 默认左对齐
+
+        // 处理对齐标记 [L], [C], [R]
+        if (text.startsWith("[L]")) {
+            alignment = 'L'
+            text = text.substring(3)
+        } else if (text.startsWith("[C]")) {
+            alignment = 'C'
+            text = text.substring(3)
+        } else if (text.startsWith("[R]")) {
+            alignment = 'R'
+            text = text.substring(3)
+        }
+
+        // 发送对齐命令
+        when (alignment) {
+            'L' -> currentConnection?.write(byteArrayOf(0x1B, 0x61, 0x00))  // ESC a 0 - 左对齐
+            'C' -> currentConnection?.write(byteArrayOf(0x1B, 0x61, 0x01))  // ESC a 1 - 居中对齐
+            'R' -> currentConnection?.write(byteArrayOf(0x1B, 0x61, 0x02))  // ESC a 2 - 右对齐
+        }
+
+        // 处理加粗标签
+        if (text.contains("<b>") || text.contains("</b>")) {
+            // 开启加粗模式
+            if (text.contains("<b>")) {
+                currentConnection?.write(byteArrayOf(0x1B, 0x45, 0x01))  // ESC E 1
+                isBold = true
+            }
+
+            // 清除标签
+            text = text.replace("<b>", "").replace("</b>", "")
+        }
+
+        // 处理下划线标签
+        if (text.contains("<u>") || text.contains("</u>")) {
+            // 开启下划线模式
+            if (text.contains("<u>")) {
+                currentConnection?.write(byteArrayOf(0x1B, 0x2D, 0x01))  // ESC - 1
+            }
+
+            // 清除标签
+            text = text.replace("<u>", "").replace("</u>", "")
+        }
+
+        // 写入纯文本内容 - 使用GB18030编码
+        try {
+            val gb18030Bytes = ThermalPrinterFormatter.toGB18030Bytes(text)
+            Log.d(TAG, "GB18030编码: '$text' -> ${gb18030Bytes.size} 字节")
+            currentConnection?.write(gb18030Bytes)
+        } catch (e: Exception) {
+            Log.e(TAG, "GB18030编码失败，回退到UTF-8: ${e.message}")
+            // 回退到UTF-8编码
+            currentConnection?.write(text.toByteArray(Charsets.UTF_8))
+        }
+
+        // 添加换行符
+        currentConnection?.write(byteArrayOf(0x0A))  // LF
+
+        // 重置格式
+        if (isBold) {
+            currentConnection?.write(byteArrayOf(0x1B, 0x45, 0x00))  // ESC E 0 - 关闭加粗
         }
     }
     
@@ -1307,13 +1565,21 @@ class BluetoothPrinterManager @Inject constructor(
 
     /**
      * 创建简单的打印内容，适用于出现解析问题时使用
+     * 包含中英文混合内容以测试GB18030编码
      */
     private fun createSimpleContent(): String {
         return """
-            [L]test printing
+            [L]测试打印 - Test Print
             [L]----------------
             [L]
-            [L]printing is working
+            [L]中文打印测试 Chinese Print Test
+            [L]打印机工作正常 Printer Working
+            [L]----------------
+            [L]
+            [L]商品名称: 测试商品
+            [L]数量: 1 x 价格: $10.00
+            [L]
+            [L]总计: $10.00
             [L]----------------
             
             
@@ -1531,9 +1797,12 @@ class BluetoothPrinterManager @Inject constructor(
                 Log.d(TAG, "启动打印机心跳机制，间隔: ${HEARTBEAT_INTERVAL / 1000}秒")
                 var reconnectAttempts = 0
                 var lastReconnectTime = 0L
+                var lastSuccessfulHeartbeat = System.currentTimeMillis()
 
                 while (isActive && heartbeatEnabled) {
                     try {
+                        val currentTime = System.currentTimeMillis()
+                        
                         // 1. 检查打印机连接状态
                         val status = getPrinterStatus(config)
 
@@ -1541,6 +1810,8 @@ class BluetoothPrinterManager @Inject constructor(
                             // 2a. 如果已连接，发送心跳命令
                             try {
                                 sendHeartbeatCommand()
+                                lastSuccessfulHeartbeat = currentTime
+                                
                                 // 心跳成功，重置重连尝试次数
                                 if (reconnectAttempts > 0) {
                                     Log.d(TAG, "心跳成功，连接恢复稳定")
@@ -1549,26 +1820,32 @@ class BluetoothPrinterManager @Inject constructor(
                             } catch (e: Exception) {
                                 // 心跳发送失败，可能连接已断开
                                 Log.e(TAG, "心跳命令发送失败: ${e.message}")
-                                updatePrinterStatus(config, PrinterStatus.ERROR)
+                                
+                                // 检查是否连续心跳失败时间过长
+                                val timeSinceLastSuccess = currentTime - lastSuccessfulHeartbeat
+                                if (timeSinceLastSuccess > HEARTBEAT_INTERVAL * 3) {
+                                    Log.w(TAG, "连续心跳失败超过${timeSinceLastSuccess}ms，标记连接为错误状态")
+                                    updatePrinterStatus(config, PrinterStatus.ERROR)
+                                }
                                 throw e // 向上抛出异常以触发重连逻辑
                             }
                         } else if (status != PrinterStatus.CONNECTED) {
                             // 2b. 如果未连接，检查是否应该重连
-                            val currentTime = System.currentTimeMillis()
                             val timeSinceLastReconnect = currentTime - lastReconnectTime
                             
-                            // 避免频繁重连，至少间隔30秒
-                            if (timeSinceLastReconnect > 30000 && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+                            // 避免频繁重连，至少间隔30秒，并增加更强的重试机制
+                            if (timeSinceLastReconnect > 30000 && reconnectAttempts < MAX_RECONNECT_ATTEMPTS * 2) {
                                 Log.d(TAG, "打印机未连接，尝试重新连接: ${config.name} (尝试次数: ${reconnectAttempts + 1})")
 
                                 // 增加指数退避重试，避免频繁重连
                                 val backoffDelay = if (reconnectAttempts > 0) {
-                                    minOf(RECONNECT_DELAY * (1 shl reconnectAttempts), 60000L)
+                                    minOf(RECONNECT_DELAY * (1 shl (reconnectAttempts / 2)), 60000L)
                                 } else {
                                     0L
                                 }
 
                                 if (backoffDelay > 0) {
+                                    Log.d(TAG, "等待${backoffDelay}ms后重连")
                                     delay(backoffDelay)
                                 }
 
@@ -1578,17 +1855,18 @@ class BluetoothPrinterManager @Inject constructor(
 
                                 if (reconnected) {
                                     reconnectAttempts = 0
+                                    lastSuccessfulHeartbeat = System.currentTimeMillis()
                                     Log.d(TAG, "重连成功，重置重试计数")
                                 } else {
                                     reconnectAttempts++
                                     Log.d(TAG, "重连失败，增加重试计数: $reconnectAttempts")
                                 }
-                            } else if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+                            } else if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS * 2) {
                                 Log.w(TAG, "已达到最大重连次数，暂停重连尝试")
-                                // 暂停一段时间后重置重连计数
-                                if (timeSinceLastReconnect > 300000) { // 5分钟后重置
+                                // 暂停更长时间后重置重连计数
+                                if (timeSinceLastReconnect > 600000) { // 10分钟后重置
                                     reconnectAttempts = 0
-                                    Log.d(TAG, "重置重连计数")
+                                    Log.d(TAG, "长时间暂停后重置重连计数")
                                 }
                             }
                         }
@@ -1597,9 +1875,11 @@ class BluetoothPrinterManager @Inject constructor(
                         
                         // 处理连接断开异常
                         if (e.message?.contains("Broken pipe") == true || 
+                            e.message?.contains("Connection reset") == true ||
                             e is EscPosConnectionException) {
                             updatePrinterStatus(config, PrinterStatus.DISCONNECTED)
                             reconnectAttempts++
+                            Log.d(TAG, "检测到连接断开，增加重连计数: $reconnectAttempts")
                         }
                     }
 
@@ -2378,8 +2658,8 @@ class BluetoothPrinterManager @Inject constructor(
             
             // 第四步：发送虚拟打印任务激活切纸命令
             Log.d(TAG, "【打印机】发送虚拟打印任务以触发切纸命令执行")
-            // 发送多个空格和换行作为触发
-            val emptyContent = "      ".toByteArray(charset("GBK"))
+            // 发送多个空格和换行作为触发，使用GB18030编码
+            val emptyContent = ThermalPrinterFormatter.toGB18030Bytes("      ")
             currentConnection?.write(emptyContent)
             
             // 多个换行确保命令被处理
@@ -2396,6 +2676,217 @@ class BluetoothPrinterManager @Inject constructor(
         } catch (e: Exception) {
             Log.e(TAG, "【打印机】强制切纸操作失败: ${e.message}", e)
             return false
+        }
+    }
+
+    /**
+     * 测试中文GB18030编码打印
+     * 专门用于验证中文打印功能是否正常工作
+     * 
+     * @param config 打印机配置
+     * @return 测试是否成功
+     */
+    override suspend fun testChinesePrinting(config: PrinterConfig): Boolean {
+        try {
+            Log.d(TAG, "【中文打印测试】开始测试中文GB18030编码打印")
+            
+            // 确保连接
+            if (!ensurePrinterConnected(config)) {
+                Log.e(TAG, "【中文打印测试】无法连接打印机")
+                return false
+            }
+            
+            // 创建中文测试内容
+            val chineseTestContent = """
+                [C]<b>中文打印测试</b>
+                [C]Chinese Print Test
+                [C]==================
+                [L]
+                [L]店铺名称: 测试餐厅
+                [L]Store Name: Test Restaurant
+                [L]
+                [L]订单号: TEST-001
+                [L]Order #: TEST-001
+                [L]
+                [L]客户信息:
+                [L]Customer Info:
+                [L]姓名: 张三
+                [L]Name: Zhang San
+                [L]电话: 138-0013-8000
+                [L]Phone: 138-0013-8000
+                [L]
+                [L]商品明细:
+                [L]Items:
+                [L]1. 宫保鸡丁 x 2    $32.00
+                [L]   Kung Pao Chicken
+                [L]   辣度: 中辣
+                [L]   Spice: Medium
+                [L]
+                [L]2. 麻婆豆腐 x 1    $18.00
+                [L]   Mapo Tofu
+                [L]   辣度: 特辣
+                [L]   Spice: Extra Hot
+                [L]
+                [L]3. 白米饭 x 2      $6.00
+                [L]   White Rice
+                [L]
+                [C]==================
+                [L]小计: $56.00
+                [L]Subtotal: $56.00
+                [L]税费: $5.60
+                [L]Tax: $5.60
+                [L]配送费: $5.00
+                [L]Delivery: $5.00
+                [L]小费: $10.00
+                [L]Tip: $10.00
+                [C]==================
+                [L]<b>总计: $76.60</b>
+                [L]<b>Total: $76.60</b>
+                [L]
+                [L]支付方式: 信用卡
+                [L]Payment: Credit Card
+                [L]
+                [L]备注: 请尽快配送，谢谢！
+                [L]Notes: Please deliver ASAP, thank you!
+                [L]
+                [C]==================
+                [C]感谢您的惠顾！
+                [C]Thank you for your business!
+                [C]==================
+                
+                
+                
+            """.trimIndent()
+            
+            // 打印中文测试内容
+            Log.d(TAG, "【中文打印测试】开始打印中文测试内容")
+            val success = printContent(chineseTestContent, config)
+            
+            if (success) {
+                Log.d(TAG, "【中文打印测试】中文打印测试成功")
+            } else {
+                Log.e(TAG, "【中文打印测试】中文打印测试失败")
+            }
+            
+            return success
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "【中文打印测试】中文打印测试异常: ${e.message}", e)
+            return false
+        }
+    }
+    
+    /**
+     * 简单的中文GB18030编码测试
+     * 用于调试编码问题
+     * 
+     * @param config 打印机配置
+     * @return 测试是否成功
+     */
+    override suspend fun testSimpleChinesePrint(config: PrinterConfig): Boolean {
+        try {
+            Log.d(TAG, "【简单中文测试】开始简单中文GB18030编码测试")
+            
+            // 确保连接
+            if (!ensurePrinterConnected(config)) {
+                Log.e(TAG, "【简单中文测试】无法连接打印机")
+                return false
+            }
+            
+            // 使用最简单的测试方法：直接发送原始数据
+            Log.d(TAG, "【简单中文测试】开始发送原始中文数据")
+            sendRawChineseData()
+            
+            Log.d(TAG, "【简单中文测试】简单中文测试完成")
+            return true
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "【简单中文测试】简单中文测试异常: ${e.message}", e)
+            return false
+        }
+    }
+    
+    /**
+     * 发送原始中文数据，最简单的测试方法
+     */
+    private fun sendRawChineseData() {
+        try {
+            if (currentConnection == null) {
+                Log.e(TAG, "无有效连接，无法发送原始数据")
+                return
+            }
+            
+            Log.d(TAG, "开始发送原始中文数据")
+            
+            // 第一步：初始化打印机
+            currentConnection?.write(byteArrayOf(0x1B, 0x40))  // ESC @ - 初始化打印机
+            Thread.sleep(100)
+            
+            // 第二步：发送简单的测试文本
+            val testText = "中文测试\n测试中文打印\n你好世界\n打印机工作正常\n==========\n"
+            
+            // 转换为GB18030编码
+            val gb18030Bytes = ThermalPrinterFormatter.toGB18030Bytes(testText)
+            Log.d(TAG, "原始数据GB18030编码: ${gb18030Bytes.size} 字节")
+            
+            // 直接发送编码后的数据
+            currentConnection?.write(gb18030Bytes)
+            Thread.sleep(100)
+            
+            // 第三步：发送走纸命令
+            currentConnection?.write(byteArrayOf(0x1B, 0x64, 0x03))  // ESC d 3 - 走纸3行
+            Thread.sleep(100)
+            
+            // 第四步：强制刷新缓冲区
+            forcePrinterFlush()
+            
+            Log.d(TAG, "原始中文数据发送完成")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "发送原始中文数据失败: ${e.message}", e)
+            throw e
+        }
+    }
+    
+    /**
+     * 发送原始英文数据，用于验证基本ESC/POS命令
+     */
+    private fun sendRawEnglishData() {
+        try {
+            if (currentConnection == null) {
+                Log.e(TAG, "无有效连接，无法发送原始数据")
+                return
+            }
+            
+            Log.d(TAG, "开始发送原始英文数据")
+            
+            // 第一步：初始化打印机
+            currentConnection?.write(byteArrayOf(0x1B, 0x40))  // ESC @ - 初始化打印机
+            Thread.sleep(100)
+            
+            // 第二步：发送简单的英文测试文本
+            val testText = "English Test\nTest English Print\nHello World\nPrinter Working\n==========\n"
+            
+            // 使用UTF-8编码
+            val utf8Bytes = testText.toByteArray(Charsets.UTF_8)
+            Log.d(TAG, "原始数据UTF-8编码: ${utf8Bytes.size} 字节")
+            
+            // 直接发送编码后的数据
+            currentConnection?.write(utf8Bytes)
+            Thread.sleep(100)
+            
+            // 第三步：发送走纸命令
+            currentConnection?.write(byteArrayOf(0x1B, 0x64, 0x03))  // ESC d 3 - 走纸3行
+            Thread.sleep(100)
+            
+            // 第四步：强制刷新缓冲区
+            forcePrinterFlush()
+            
+            Log.d(TAG, "原始英文数据发送完成")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "发送原始英文数据失败: ${e.message}", e)
+            throw e
         }
     }
 }

@@ -1255,10 +1255,6 @@ class BluetoothPrinterManager @Inject constructor(
             // 分块打印内容，解决缓冲区溢出问题
             Log.d(TAG, "开始分块打印内容（总长度: ${contentWithExtra.length}字符）")
             return chunkedPrintingProcess(contentWithExtra, config)
-            
-            // TODO: 后续可以添加设置选项来切换打印模式
-            // 原有的分块打印逻辑暂时保留但不使用
-            // return chunkedPrintingProcess(contentWithExtra, config)
         } catch (e: Exception) {
             // 捕获所有异常，包括解析异常
             Log.e(TAG, "打印机库异常: ${e.message}", e)
@@ -1333,16 +1329,18 @@ class BluetoothPrinterManager @Inject constructor(
                 val endTime = System.currentTimeMillis()
                 Log.d(TAG, "【统一中文处理】完整订单GB18030处理完成，耗时: ${endTime - startTime}ms")
                 
-                // 添加ESC/POS触发器 - 发送一个空的英文打印任务
-                Log.d(TAG, "【中文触发器】发送ESC/POS触发任务")
-                try {
-                    // 使用ESC/POS库发送一个最小的内容
-                    // 这会创建一个新的打印任务，可能会触发前面的中文内容被处理
-                    currentPrinter?.printFormattedText(" \n")
-                    delay(100)
-                    Log.d(TAG, "【中文触发器】ESC/POS触发任务完成")
-                } catch (e: Exception) {
-                    Log.e(TAG, "【中文触发器】发送触发任务失败: ${e.message}")
+                // 中文内容特殊处理：发送额外的触发命令
+                Log.d(TAG, "【统一中文处理】执行中文内容特殊触发")
+                currentConnection?.let { conn ->
+                    // 发送一个ASCII空格作为触发器
+                    conn.write(" ".toByteArray(Charsets.US_ASCII))
+                    delay(10)
+                    // 发送换行符
+                    conn.write(byteArrayOf(0x0A, 0x0D)) // LF CR
+                    delay(10)
+                    // 执行一次初始化，强制刷新所有缓冲区
+                    conn.write(byteArrayOf(0x1B, 0x40)) // ESC @
+                    delay(50)
                 }
             } else {
                 // 如果订单不包含中文，整个订单都使用ESC/POS库处理
@@ -2619,6 +2617,26 @@ class BluetoothPrinterManager @Inject constructor(
             
             // 立即强制刷新，确保内容被发送到打印机
             forceImmediateFlush(connection)
+            
+            // 增强的刷新机制 - 专门针对中文内容
+            Log.d(TAG, "【GB18030编码】执行增强刷新机制")
+            
+            // 1. 发送打印机状态查询命令，强制处理缓冲区
+            connection.write(byteArrayOf(0x10, 0x04, 0x04)) // DLE EOT 4 - 查询打印机状态
+            delay(50)
+            
+            // 2. 发送一个小的英文打印任务作为触发器
+            val triggerContent = " \n".toByteArray(Charsets.US_ASCII)
+            connection.write(triggerContent)
+            delay(20)
+            
+            // 3. 再次发送走纸命令确保内容输出
+            connection.write(byteArrayOf(0x1B, 0x64, 0x02)) // ESC d 2 - 走纸2行
+            delay(50)
+            
+            // 4. 发送切纸命令（如果配置了自动切纸）
+            connection.write(byteArrayOf(0x1D, 0x56, 0x01)) // GS V 1 - 部分切纸
+            delay(20)
             
             Log.d(TAG, "【GB18030编码】中文内容处理完成")
             

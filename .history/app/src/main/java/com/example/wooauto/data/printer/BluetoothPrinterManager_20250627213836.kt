@@ -1332,18 +1332,6 @@ class BluetoothPrinterManager @Inject constructor(
                 sendContentWithGB18030Encoding(content)
                 val endTime = System.currentTimeMillis()
                 Log.d(TAG, "【统一中文处理】完整订单GB18030处理完成，耗时: ${endTime - startTime}ms")
-                
-                // 添加ESC/POS触发器 - 发送一个空的英文打印任务
-                Log.d(TAG, "【中文触发器】发送ESC/POS触发任务")
-                try {
-                    // 使用ESC/POS库发送一个最小的内容
-                    // 这会创建一个新的打印任务，可能会触发前面的中文内容被处理
-                    currentPrinter?.printFormattedText(" \n")
-                    delay(100)
-                    Log.d(TAG, "【中文触发器】ESC/POS触发任务完成")
-                } catch (e: Exception) {
-                    Log.e(TAG, "【中文触发器】发送触发任务失败: ${e.message}")
-                }
             } else {
                 // 如果订单不包含中文，整个订单都使用ESC/POS库处理
                 Log.d(TAG, "【统一英文处理】整个订单使用ESC/POS库处理")
@@ -2619,6 +2607,22 @@ class BluetoothPrinterManager @Inject constructor(
             
             // 立即强制刷新，确保内容被发送到打印机
             forceImmediateFlush(connection)
+            
+            // 添加简单的缓冲区刷新增强
+            Log.d(TAG, "【GB18030编码】执行额外的缓冲区刷新")
+            
+            // 1. 发送一个空的ASCII字符串作为触发器
+            // 这会创建一个新的打印任务，推动前面的中文内容被处理
+            connection.write(" ".toByteArray(Charsets.US_ASCII))
+            delay(50)
+            
+            // 2. 发送一个换行符
+            connection.write(byteArrayOf(0x0A)) // LF
+            delay(50)
+            
+            // 3. 发送一个小的走纸命令
+            connection.write(byteArrayOf(0x1B, 0x64, 0x01)) // ESC d 1 - 走纸1行
+            delay(50)
             
             Log.d(TAG, "【GB18030编码】中文内容处理完成")
             

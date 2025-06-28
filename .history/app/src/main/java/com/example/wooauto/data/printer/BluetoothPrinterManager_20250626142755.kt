@@ -54,11 +54,9 @@ import android.graphics.Color
 import android.graphics.Paint
 import androidx.annotation.RequiresPermission
 import java.io.ByteArrayOutputStream
-import java.util.Date
 import kotlin.math.max
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import com.example.wooauto.utils.ThermalPrinterFormatter
 
 @Singleton
 class BluetoothPrinterManager @Inject constructor(
@@ -447,6 +445,9 @@ class BluetoothPrinterManager @Inject constructor(
                 val printer = EscPosPrinter(connection, dpi, paperWidthMm, nbCharPerLine)
                 currentPrinter = printer
 
+                // 设置打印机编码为GB18030以支持中文
+                setupPrinterEncoding()
+
                 // 启动心跳检测
                 startHeartbeat(config)
 
@@ -474,6 +475,37 @@ class BluetoothPrinterManager @Inject constructor(
     }
 
     /**
+     * 设置打印机编码为GB18030以支持中文
+     */
+    private fun setupPrinterEncoding() {
+        try {
+            Log.d(TAG, "【打印机编码】设置打印机编码为GB18030")
+            
+            // 发送编码设置命令
+            // ESC R n - 选择国际字符集
+            // n = 15 表示 GB18030 编码
+            currentConnection?.write(byteArrayOf(0x1B, 0x52, 15))
+            Thread.sleep(100)
+            
+            // 发送字符代码页设置命令
+            // ESC t n - 选择代码页
+            // n = 15 表示 GB18030 代码页
+            currentConnection?.write(byteArrayOf(0x1B, 0x74, 15))
+            Thread.sleep(100)
+            
+            // 发送GB18030编码命令 (部分打印机支持)
+            // ESC @ - 初始化打印机，然后设置编码
+            currentConnection?.write(byteArrayOf(0x1B, 0x40))
+            Thread.sleep(100)
+            
+            Log.d(TAG, "【打印机编码】GB18030编码设置完成")
+        } catch (e: Exception) {
+            Log.e(TAG, "【打印机编码】设置编码失败: ${e.message}")
+            // 不抛出异常，继续使用默认编码
+        }
+    }
+
+    /**
      * 处理格式化文本行，支持基本HTML标签
      */
     private fun processFormattedLine(line: String, outputStream: ByteArrayOutputStream) {
@@ -481,33 +513,6 @@ class BluetoothPrinterManager @Inject constructor(
         var isBold = false
         var isDoubleWidth = false
         var isDoubleHeight = false
-
-        Log.d(TAG, "【格式化行】原始内容: \"$line\"")
-
-        // 首先处理对齐标记
-        when {
-            text.startsWith("[L]") -> {
-                Log.d(TAG, "【格式化行】检测到左对齐标记")
-                outputStream.write(byteArrayOf(0x1B, 0x61, 0x00)) // ESC a 0 - 左对齐
-                text = text.substring(3) // 移除[L]标记
-            }
-            text.startsWith("[C]") -> {
-                Log.d(TAG, "【格式化行】检测到居中对齐标记")
-                outputStream.write(byteArrayOf(0x1B, 0x61, 0x01)) // ESC a 1 - 居中对齐
-                text = text.substring(3) // 移除[C]标记
-            }
-            text.startsWith("[R]") -> {
-                Log.d(TAG, "【格式化行】检测到右对齐标记")
-                outputStream.write(byteArrayOf(0x1B, 0x61, 0x02)) // ESC a 2 - 右对齐
-                text = text.substring(3) // 移除[R]标记
-            }
-            else -> {
-                Log.d(TAG, "【格式化行】使用默认左对齐")
-                outputStream.write(byteArrayOf(0x1B, 0x61, 0x00)) // ESC a 0 - 左对齐
-            }
-        }
-        
-        Log.d(TAG, "【格式化行】移除对齐标记后: \"$text\"")
 
         // 处理加粗标签
         if (text.contains("<b>") || text.contains("</b>")) {
@@ -560,24 +565,27 @@ class BluetoothPrinterManager @Inject constructor(
             text = text.replace("<h>", "").replace("</h>", "")
         }
 
-        // 写入纯文本内容，使用GB18030编码支持中文打印
-        Log.d(TAG, "【格式化行】最终文本内容: \"$text\"")
-        val encodedBytes = text.toByteArray(charset("GB18030"))
-        Log.d(TAG, "【格式化行】GB18030编码后字节数: ${encodedBytes.size}")
-        outputStream.write(encodedBytes)
+        // 写入纯文本内容 - 使用GB18030编码支持中文
+        try {
+            outputStream.write(text.toByteArray(charset("GB18030")))
+        } catch (e: Exception) {
+            Log.w(TAG, "GB18030编码失败，尝试GBK编码: ${e.message}")
+            try {
+                outputStream.write(text.toByteArray(charset("GBK")))
+            } catch (e2: Exception) {
+                Log.w(TAG, "GBK编码也失败，使用UTF-8: ${e2.message}")
+                outputStream.write(text.toByteArray(Charsets.UTF_8))
+            }
+        }
 
         // 重置格式
         if (isBold) {
-            Log.d(TAG, "【格式化行】重置加粗格式")
             outputStream.write(byteArrayOf(0x1B, 0x45, 0x00))  // ESC E 0 - 关闭加粗
         }
 
         if (isDoubleWidth || isDoubleHeight) {
-            Log.d(TAG, "【格式化行】重置字体大小")
             outputStream.write(byteArrayOf(0x1B, 0x21, 0x00))  // ESC ! 0 - 重置字体大小
         }
-        
-        Log.d(TAG, "【格式化行】行处理完成")
     }
 
     /**
@@ -1255,10 +1263,6 @@ class BluetoothPrinterManager @Inject constructor(
             // 分块打印内容，解决缓冲区溢出问题
             Log.d(TAG, "开始分块打印内容（总长度: ${contentWithExtra.length}字符）")
             return chunkedPrintingProcess(contentWithExtra, config)
-            
-            // TODO: 后续可以添加设置选项来切换打印模式
-            // 原有的分块打印逻辑暂时保留但不使用
-            // return chunkedPrintingProcess(contentWithExtra, config)
         } catch (e: Exception) {
             // 捕获所有异常，包括解析异常
             Log.e(TAG, "打印机库异常: ${e.message}", e)
@@ -1321,36 +1325,32 @@ class BluetoothPrinterManager @Inject constructor(
             val totalLines = lines.size
             Log.d(TAG, "分块打印，总行数: $totalLines")
             
-            // 检查整个内容是否包含中文字符，决定使用统一的处理方式
-            val hasChineseContent = containsChineseCharacters(content)
-            Log.d(TAG, "【编码策略】整个订单包含中文: $hasChineseContent")
+            // 每块最大行数 - 根据行长度可能更少
+            val maxChunkLines = 15 
+            var currentLine = 0
             
-            if (hasChineseContent) {
-                // 如果订单包含中文，整个订单都使用GB18030编码处理
-                Log.d(TAG, "【统一中文处理】整个订单使用GB18030编码处理")
-                val startTime = System.currentTimeMillis()
-                sendContentWithGB18030Encoding(content)
-                val endTime = System.currentTimeMillis()
-                Log.d(TAG, "【统一中文处理】完整订单GB18030处理完成，耗时: ${endTime - startTime}ms")
+            // 分块打印所有内容
+            while (currentLine < totalLines) {
+                // 计算当前块的终止行
+                val endLine = minOf(currentLine + maxChunkLines, totalLines)
                 
-                // 添加ESC/POS触发器 - 发送一个空的英文打印任务
-                Log.d(TAG, "【中文触发器】发送ESC/POS触发任务")
-                try {
-                    // 使用ESC/POS库发送一个最小的内容
-                    // 这会创建一个新的打印任务，可能会触发前面的中文内容被处理
-                    currentPrinter?.printFormattedText(" \n")
-                    delay(100)
-                    Log.d(TAG, "【中文触发器】ESC/POS触发任务完成")
-                } catch (e: Exception) {
-                    Log.e(TAG, "【中文触发器】发送触发任务失败: ${e.message}")
+                // 提取当前块内容
+                val chunkLines = lines.subList(currentLine, endLine)
+                val chunkContent = chunkLines.joinToString("\n")
+                
+                if (chunkContent.isNotBlank()) {
+                    Log.d(TAG, "打印内容块 ${currentLine / maxChunkLines + 1}: 行 $currentLine-${endLine-1}")
+                    
+                    // 使用自定义的GB18030打印方法替代原来的printFormattedText
+                    printFormattedTextWithGB18030(chunkContent)
+                    
+                    // 每个块之后立即刷新缓冲区，确保完全打印
+                    forcePrinterFlush()
+                    delay(500) // 给打印机处理时间
                 }
-            } else {
-                // 如果订单不包含中文，整个订单都使用ESC/POS库处理
-                Log.d(TAG, "【统一英文处理】整个订单使用ESC/POS库处理")
-                val startTime = System.currentTimeMillis()
-                currentPrinter?.printFormattedText(content)
-                val endTime = System.currentTimeMillis()
-                Log.d(TAG, "【统一英文处理】完整订单ESC/POS处理完成，耗时: ${endTime - startTime}ms")
+                
+                // 移动到下一块
+                currentLine = endLine
             }
             
             // 确保所有内容都已打印完毕
@@ -2268,7 +2268,7 @@ class BluetoothPrinterManager @Inject constructor(
                 
             """.trimIndent()
             
-            currentPrinter?.printFormattedText(testText)
+            printFormattedTextWithGB18030(testText)
             Thread.sleep(1000)  // 给打印机更多时间处理文本
             
             // 使用强制切纸选项和额外走纸
@@ -2319,7 +2319,7 @@ class BluetoothPrinterManager @Inject constructor(
             """.trimIndent()
             
             // 打印测试标题
-            currentPrinter?.printFormattedText(testText)
+            printFormattedTextWithGB18030(testText)
             Thread.sleep(1000)  // 等待打印完成
             
             // 大量走纸，避免卡纸
@@ -2377,7 +2377,7 @@ class BluetoothPrinterManager @Inject constructor(
                         
                     """.trimIndent()
                     
-                    currentPrinter?.printFormattedText(descText)
+                    printFormattedTextWithGB18030(descText)
                 Thread.sleep(300)
                     
                     // 走纸
@@ -2507,7 +2507,7 @@ class BluetoothPrinterManager @Inject constructor(
             
             // 第四步：发送虚拟打印任务激活切纸命令
             Log.d(TAG, "【打印机】发送虚拟打印任务以触发切纸命令执行")
-            // 发送多个空格和换行作为触发，使用GB18030编码
+            // 发送多个空格和换行作为触发
             val emptyContent = "      ".toByteArray(charset("GB18030"))
             currentConnection?.write(emptyContent)
             
@@ -2529,152 +2529,38 @@ class BluetoothPrinterManager @Inject constructor(
     }
 
     /**
-     * 中文字符测试打印
+     * 使用GB18030编码打印格式化文本
+     * 替代EscPosPrinter的printFormattedText方法，确保中文正确显示
+     * @param text 要打印的文本
      */
-    override suspend fun printChineseTest(config: PrinterConfig): Boolean = withContext(Dispatchers.IO) {
+    private fun printFormattedTextWithGB18030(text: String) {
         try {
-            Log.d(TAG, "【中文测试】开始中文字符测试打印")
-
-            // 1. 检查并确保连接 - 与testPrint使用相同的连接逻辑
-            if (!ensurePrinterConnected(config)) {
-                Log.e(TAG, "【中文测试】打印机连接失败，无法执行中文测试打印")
-                return@withContext false
-            }
-
-            // 2. 创建中文测试订单对象 - 使用与testPrint相同的方法
-            val chineseTestOrder = templateManager.createChineseTestOrder(config)
-
-            // 3. 使用正常的订单打印流程 - 享受完整的缓冲区管理和切纸逻辑
-            val success = printOrder(chineseTestOrder, config)
-
-            if (success) {
-                Log.d(TAG, "【中文测试】中文测试打印成功")
-            } else {
-                Log.e(TAG, "【中文测试】中文测试打印失败")
-            }
-
-            return@withContext success
-        } catch (e: Exception) {
-            Log.e(TAG, "【中文测试】中文测试打印异常: ${e.message}", e)
-            return@withContext false
-        }
-    }
-
-    /**
-     * 检测文本是否包含中文字符
-     */
-    private fun containsChineseCharacters(text: String): Boolean {
-        // 先移除格式标记，避免误判
-        val cleanText = text.replace(Regex("\\[L\\]|\\[C\\]|\\[R\\]|<[^>]*>"), "")
-        
-        return cleanText.any { char ->
-            // 检查是否为中文字符（包括CJK统一汉字、中文标点符号等）
-            char.code in 0x4E00..0x9FFF || // CJK统一汉字
-            char.code in 0x3400..0x4DBF || // CJK扩展A
-            char.code in 0x3000..0x303F || // CJK符号和标点
-            char.code in 0xFF00..0xFFEF || // 全角ASCII、全角标点符号
-            char.code in 0xFE30..0xFE4F || // CJK兼容形式
-            char.code in 0x2E80..0x2EFF || // CJK部首补充
-            char.code in 0x31C0..0x31EF || // CJK笔画
-            char == '￥' || char == '￿'     // 常见中文符号
-        }.also { result ->
-            if (result) {
-                Log.d(TAG, "【中文检测】检测到中文字符: ${cleanText.take(20)}...")
-            }
-        }
-    }
-
-    /**
-     * 使用GB18030编码发送内容
-     */
-    private suspend fun sendContentWithGB18030Encoding(content: String) {
-        try {
-            val connection = currentConnection ?: return
+            Log.d(TAG, "【GB18030打印】开始打印文本，长度: ${text.length}")
             
-            Log.d(TAG, "【GB18030编码】开始处理中文内容，总长度: ${content.length}")
-            
-            // 先设置中文模式
-            setupChineseMode(connection)
-            
-            // 逐行处理内容
-            val lines = content.split("\n")
-            Log.d(TAG, "【GB18030编码】分解为 ${lines.size} 行")
-            val outputStream = ByteArrayOutputStream()
-            
-            for ((index, line) in lines.withIndex()) {
-                Log.d(TAG, "【GB18030编码】处理第${index + 1}行: \"$line\"")
-                
-                // 使用我们现有的格式化处理方法，它支持GB18030编码
-                processFormattedLine(line, outputStream)
-                outputStream.write(byteArrayOf(0x0A)) // 添加换行
-                
-                Log.d(TAG, "【GB18030编码】第${index + 1}行处理完成")
+            if (currentConnection == null) {
+                Log.e(TAG, "【GB18030打印】无有效连接")
+                return
             }
             
-            // 发送处理好的内容
-            val data = outputStream.toByteArray()
-            Log.d(TAG, "【GB18030编码】准备发送数据，大小: ${data.size}字节")
-            connection.write(data)
-            Log.d(TAG, "【GB18030编码】数据已发送到连接")
+            // 将文本转换为GB18030编码
+            val gb18030Bytes = try {
+                text.toByteArray(charset("GB18030"))
+            } catch (e: Exception) {
+                Log.w(TAG, "GB18030编码失败，尝试GBK: ${e.message}")
+                try {
+                    text.toByteArray(charset("GBK"))
+                } catch (e2: Exception) {
+                    Log.w(TAG, "GBK编码也失败，使用UTF-8: ${e2.message}")
+                    text.toByteArray(Charsets.UTF_8)
+                }
+            }
             
-            // 立即强制刷新，确保内容被发送到打印机
-            forceImmediateFlush(connection)
+            // 直接发送编码后的字节数组到打印机
+            currentConnection?.write(gb18030Bytes)
             
-            Log.d(TAG, "【GB18030编码】中文内容处理完成")
-            
+            Log.d(TAG, "【GB18030打印】文本发送完成")
         } catch (e: Exception) {
-            Log.e(TAG, "【GB18030编码】发送中文内容失败: ${e.message}", e)
+            Log.e(TAG, "【GB18030打印】打印失败: ${e.message}", e)
         }
     }
-
-    /**
-     * 设置中文模式
-     */
-    private suspend fun setupChineseMode(connection: BluetoothConnection) {
-        try {
-            Log.d(TAG, "【中文模式】设置中文字符模式")
-            
-            // 使用之前成功的双重中文模式设置策略
-            // 取消默认中文模式
-            connection.write(byteArrayOf(0x1C, 0x2E)) // FS . - Cancel Chinese mode
-            delay(50)
-            
-            // 重新启用正确的中文字符模式  
-            connection.write(byteArrayOf(0x1C, 0x26)) // FS & - Set Chinese Character Mode
-            delay(50)
-            
-            Log.d(TAG, "【中文模式】中文字符模式设置完成")
-            
-        } catch (e: Exception) {
-            Log.e(TAG, "【中文模式】设置中文模式失败: ${e.message}")
-        }
-    }
-
-    /**
-     * 立即强制刷新 - 确保内容立即输出到打印机
-     */
-    private suspend fun forceImmediateFlush(connection: BluetoothConnection) {
-        try {
-            Log.d(TAG, "【立即刷新】强制立即输出内容")
-            
-            // 发送多种立即输出命令
-            // 1. 实时状态查询，强制缓冲区刷新
-            connection.write(byteArrayOf(0x10, 0x04, 0x01)) // DLE EOT 1
-            delay(20)
-            
-            // 2. 立即输出当前缓冲区
-            connection.write(byteArrayOf(0x0A)) // LF
-            delay(10)
-            
-            // 3. 强制表单进纸
-            connection.write(byteArrayOf(0x0C)) // FF
-            delay(20)
-            
-            Log.d(TAG, "【立即刷新】立即输出序列完成")
-            
-        } catch (e: Exception) {
-            Log.e(TAG, "【立即刷新】立即刷新失败: ${e.message}")
-        }
-    }
-
 }
