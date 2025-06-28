@@ -1,0 +1,411 @@
+package com.example.wooauto.data.printer
+
+import android.util.Log
+import com.dantsu.escposprinter.connection.bluetooth.BluetoothConnection
+import java.nio.charset.Charset
+
+/**
+ * GB18030编码打印机工具类
+ * 专门处理GB18030编码的打印功能，解决中文显示问题
+ */
+class GB18030Printer(private val connection: BluetoothConnection) {
+    
+    companion object {
+        private const val TAG = "GB18030Printer"
+        
+        // GB18030编码
+        private val GB18030_CHARSET = Charset.forName("GB18030")
+        
+        // ESC/POS命令常量
+        private val ESC = 0x1B
+        private val GS = 0x1D
+        private val LF = 0x0A
+        private val CR = 0x0D
+        private val FF = 0x0C
+        
+        // 初始化打印机命令
+        private val INIT_COMMAND = byteArrayOf(ESC, 0x40)
+        
+        // 设置GB18030编码命令 (ESC t 15)
+        private val SET_GB18030_ENCODING = byteArrayOf(ESC, 0x74, 0x0F)
+        
+        // 字体样式命令
+        private val BOLD_ON = byteArrayOf(ESC, 0x45, 0x01)
+        private val BOLD_OFF = byteArrayOf(ESC, 0x45, 0x00)
+        private val UNDERLINE_ON = byteArrayOf(ESC, 0x2D, 0x01)
+        private val UNDERLINE_OFF = byteArrayOf(ESC, 0x2D, 0x00)
+        
+        // 字体大小命令
+        private val DOUBLE_WIDTH = byteArrayOf(ESC, 0x21, 0x20)
+        private val DOUBLE_HEIGHT = byteArrayOf(ESC, 0x21, 0x10)
+        private val DOUBLE_SIZE = byteArrayOf(ESC, 0x21, 0x30)
+        private val NORMAL_SIZE = byteArrayOf(ESC, 0x21, 0x00)
+        
+        // 对齐命令
+        private val ALIGN_LEFT = byteArrayOf(ESC, 0x61, 0x00)
+        private val ALIGN_CENTER = byteArrayOf(ESC, 0x61, 0x01)
+        private val ALIGN_RIGHT = byteArrayOf(ESC, 0x61, 0x02)
+        
+        // 切纸命令
+        private val CUT_PAPER = byteArrayOf(GS, 0x56, 0x01)
+        
+        // 走纸命令
+        private val FEED_LINE = byteArrayOf(LF)
+        private val FEED_PAPER = byteArrayOf(ESC, 0x64, 0x05)
+    }
+    
+    /**
+     * 初始化打印机并设置GB18030编码
+     */
+    fun initialize(): Boolean {
+        return try {
+            Log.d(TAG, "初始化打印机并设置GB18030编码")
+            
+            // 初始化打印机
+            connection.write(INIT_COMMAND)
+            Thread.sleep(100)
+            
+            // 设置GB18030编码
+            connection.write(SET_GB18030_ENCODING)
+            Thread.sleep(100)
+            
+            Log.d(TAG, "打印机初始化完成，已设置GB18030编码")
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "打印机初始化失败: ${e.message}")
+            false
+        }
+    }
+    
+    /**
+     * 打印纯文本（GB18030编码）
+     * @param text 要打印的文本
+     */
+    fun printText(text: String) {
+        try {
+            val bytes = text.toByteArray(GB18030_CHARSET)
+            connection.write(bytes)
+            Log.d(TAG, "打印文本: $text")
+        } catch (e: Exception) {
+            Log.e(TAG, "打印文本失败: ${e.message}")
+        }
+    }
+    
+    /**
+     * 打印文本并换行
+     * @param text 要打印的文本
+     */
+    fun printLine(text: String) {
+        printText(text)
+        feedLine()
+    }
+    
+    /**
+     * 打印居中对齐的文本
+     * @param text 要打印的文本
+     */
+    fun printCenter(text: String) {
+        try {
+            connection.write(ALIGN_CENTER)
+            printText(text)
+            connection.write(ALIGN_LEFT) // 恢复左对齐
+            feedLine()
+        } catch (e: Exception) {
+            Log.e(TAG, "打印居中文本失败: ${e.message}")
+        }
+    }
+    
+    /**
+     * 打印右对齐的文本
+     * @param text 要打印的文本
+     */
+    fun printRight(text: String) {
+        try {
+            connection.write(ALIGN_RIGHT)
+            printText(text)
+            connection.write(ALIGN_LEFT) // 恢复左对齐
+            feedLine()
+        } catch (e: Exception) {
+            Log.e(TAG, "打印右对齐文本失败: ${e.message}")
+        }
+    }
+    
+    /**
+     * 打印加粗文本
+     * @param text 要打印的文本
+     */
+    fun printBold(text: String) {
+        try {
+            connection.write(BOLD_ON)
+            printText(text)
+            connection.write(BOLD_OFF)
+            feedLine()
+        } catch (e: Exception) {
+            Log.e(TAG, "打印加粗文本失败: ${e.message}")
+        }
+    }
+    
+    /**
+     * 打印加粗居中的文本
+     * @param text 要打印的文本
+     */
+    fun printBoldCenter(text: String) {
+        try {
+            connection.write(BOLD_ON)
+            connection.write(ALIGN_CENTER)
+            printText(text)
+            connection.write(BOLD_OFF)
+            connection.write(ALIGN_LEFT)
+            feedLine()
+        } catch (e: Exception) {
+            Log.e(TAG, "打印加粗居中文本失败: ${e.message}")
+        }
+    }
+    
+    /**
+     * 打印下划线文本
+     * @param text 要打印的文本
+     */
+    fun printUnderline(text: String) {
+        try {
+            connection.write(UNDERLINE_ON)
+            printText(text)
+            connection.write(UNDERLINE_OFF)
+            feedLine()
+        } catch (e: Exception) {
+            Log.e(TAG, "打印下划线文本失败: ${e.message}")
+        }
+    }
+    
+    /**
+     * 打印双倍大小文本
+     * @param text 要打印的文本
+     */
+    fun printDoubleSize(text: String) {
+        try {
+            connection.write(DOUBLE_SIZE)
+            printText(text)
+            connection.write(NORMAL_SIZE)
+            feedLine()
+        } catch (e: Exception) {
+            Log.e(TAG, "打印双倍大小文本失败: ${e.message}")
+        }
+    }
+    
+    /**
+     * 打印双倍大小居中的文本
+     * @param text 要打印的文本
+     */
+    fun printDoubleSizeCenter(text: String) {
+        try {
+            connection.write(DOUBLE_SIZE)
+            connection.write(ALIGN_CENTER)
+            printText(text)
+            connection.write(NORMAL_SIZE)
+            connection.write(ALIGN_LEFT)
+            feedLine()
+        } catch (e: Exception) {
+            Log.e(TAG, "打印双倍大小居中文本失败: ${e.message}")
+        }
+    }
+    
+    /**
+     * 打印分隔线
+     * @param char 分隔符字符，默认为"-"
+     * @param length 分隔线长度，默认为32
+     */
+    fun printSeparator(char: String = "-", length: Int = 32) {
+        val separator = char.repeat(length)
+        printLine(separator)
+    }
+    
+    /**
+     * 打印空行
+     * @param lines 空行数量，默认为1
+     */
+    fun printEmptyLines(lines: Int = 1) {
+        repeat(lines) {
+            feedLine()
+        }
+    }
+    
+    /**
+     * 走纸
+     * @param lines 走纸行数，默认为1
+     */
+    fun feedLine(lines: Int = 1) {
+        try {
+            repeat(lines) {
+                connection.write(FEED_LINE)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "走纸失败: ${e.message}")
+        }
+    }
+    
+    /**
+     * 走纸（指定行数）
+     * @param lines 走纸行数
+     */
+    fun feedPaper(lines: Int) {
+        try {
+            val command = byteArrayOf(ESC, 0x64, lines.toByte())
+            connection.write(command)
+        } catch (e: Exception) {
+            Log.e(TAG, "走纸失败: ${e.message}")
+        }
+    }
+    
+    /**
+     * 切纸
+     */
+    fun cutPaper() {
+        try {
+            connection.write(CUT_PAPER)
+            Log.d(TAG, "执行切纸")
+        } catch (e: Exception) {
+            Log.e(TAG, "切纸失败: ${e.message}")
+        }
+    }
+    
+    /**
+     * 打印格式化文本（支持简单标签）
+     * @param formattedText 格式化文本，支持以下标签：
+     *   [C] - 居中
+     *   [R] - 右对齐
+     *   [L] - 左对齐（默认）
+     *   [B] - 加粗
+     *   [U] - 下划线
+     *   [D] - 双倍大小
+     *   [S] - 分隔线
+     */
+    fun printFormattedText(formattedText: String) {
+        try {
+            val lines = formattedText.split("\n")
+            
+            for (line in lines) {
+                if (line.isBlank()) {
+                    feedLine()
+                    continue
+                }
+                
+                var text = line.trim()
+                var isBold = false
+                var isUnderline = false
+                var isDoubleSize = false
+                var alignment = ALIGN_LEFT
+                
+                // 处理对齐标签
+                when {
+                    text.startsWith("[C]") -> {
+                        alignment = ALIGN_CENTER
+                        text = text.substring(3)
+                    }
+                    text.startsWith("[R]") -> {
+                        alignment = ALIGN_RIGHT
+                        text = text.substring(3)
+                    }
+                    text.startsWith("[L]") -> {
+                        alignment = ALIGN_LEFT
+                        text = text.substring(3)
+                    }
+                }
+                
+                // 处理样式标签
+                when {
+                    text.startsWith("[B]") -> {
+                        isBold = true
+                        text = text.substring(3)
+                    }
+                    text.startsWith("[U]") -> {
+                        isUnderline = true
+                        text = text.substring(3)
+                    }
+                    text.startsWith("[D]") -> {
+                        isDoubleSize = true
+                        text = text.substring(3)
+                    }
+                }
+                
+                // 处理分隔线
+                if (text.startsWith("[S]")) {
+                    val separator = text.substring(3).ifEmpty { "-" }
+                    printSeparator(separator)
+                    continue
+                }
+                
+                // 应用样式
+                if (isDoubleSize) connection.write(DOUBLE_SIZE)
+                if (isBold) connection.write(BOLD_ON)
+                if (isUnderline) connection.write(UNDERLINE_ON)
+                connection.write(alignment)
+                
+                // 打印文本
+                if (text.isNotBlank()) {
+                    printText(text)
+                }
+                
+                // 恢复样式
+                if (isUnderline) connection.write(UNDERLINE_OFF)
+                if (isBold) connection.write(BOLD_OFF)
+                if (isDoubleSize) connection.write(NORMAL_SIZE)
+                connection.write(ALIGN_LEFT)
+                
+                feedLine()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "打印格式化文本失败: ${e.message}")
+        }
+    }
+    
+    /**
+     * 打印测试页面
+     */
+    fun printTestPage() {
+        try {
+            Log.d(TAG, "开始打印测试页面")
+            
+            initialize()
+            
+            printDoubleSizeCenter("GB18030打印测试")
+            printEmptyLines(2)
+            
+            printBoldCenter("中文测试")
+            printLine("你好世界 - Hello World")
+            printLine("测试成功！- Test Success!")
+            printLine("中文商品名称测试")
+            printLine("客户姓名：张三")
+            printLine("配送地址：北京市朝阳区")
+            printLine("联系电话：138-1234-5678")
+            printLine("订单备注：请尽快配送")
+            printLine("支付方式：微信支付")
+            
+            printSeparator()
+            
+            printLine("数字测试：1234567890")
+            printLine("符号测试：!@#$%^&*()")
+            printLine("混合测试：中文English123")
+            
+            printSeparator()
+            printEmptyLines(3)
+            
+            cutPaper()
+            
+            Log.d(TAG, "测试页面打印完成")
+        } catch (e: Exception) {
+            Log.e(TAG, "打印测试页面失败: ${e.message}")
+        }
+    }
+    
+    /**
+     * 关闭连接
+     */
+    fun close() {
+        try {
+            connection.disconnect()
+            Log.d(TAG, "打印机连接已关闭")
+        } catch (e: Exception) {
+            Log.e(TAG, "关闭打印机连接失败: ${e.message}")
+        }
+    }
+} 
