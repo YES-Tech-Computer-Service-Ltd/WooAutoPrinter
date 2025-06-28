@@ -91,6 +91,38 @@ class DefaultOrderPrintTemplate @Inject constructor(
         }
     }
     
+    override fun generateOrderPrintContent(order: Order, config: PrinterConfig, templateId: String?): String {
+        Log.d(TAG, "生成订单打印内容: ${order.number}, 指定模板ID: $templateId")
+        
+        if (templateId.isNullOrEmpty()) {
+            // 如果没有指定模板ID，使用默认逻辑
+            return generateOrderPrintContent(order, config)
+        }
+        
+        // 直接使用指定的模板ID
+        val templateType: TemplateType = when {
+            templateId == "full_details" -> TemplateType.FULL_DETAILS
+            templateId == "delivery" -> TemplateType.DELIVERY
+            templateId == "kitchen" -> TemplateType.KITCHEN
+            templateId.startsWith("custom_") -> TemplateType.FULL_DETAILS
+            else -> TemplateType.FULL_DETAILS
+        }
+        
+        // 获取模板配置
+        val templateConfig = runBlocking { 
+            templateConfigRepository.getOrCreateConfig(templateId, templateType)
+        }
+        
+        Log.d(TAG, "使用指定模板: $templateId, 模板类型: $templateType")
+        
+        // 根据不同模板类型生成内容
+        return when (templateType) {
+            TemplateType.FULL_DETAILS -> generateFullDetailsTemplate(order, config, templateConfig)
+            TemplateType.DELIVERY -> generateDeliveryTemplate(order, config, templateConfig)
+            TemplateType.KITCHEN -> generateKitchenTemplate(order, config, templateConfig)
+        }
+    }
+    
     /**
      * 生成完整订单详情模板 - 包含所有信息
      */
