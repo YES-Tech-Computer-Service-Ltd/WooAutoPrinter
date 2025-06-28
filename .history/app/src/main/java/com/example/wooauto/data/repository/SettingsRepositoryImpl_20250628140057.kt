@@ -810,46 +810,4 @@ class SettingsRepositoryImpl @Inject constructor(
     override suspend fun setKeepScreenOn(keepOn: Boolean) {
         wooCommerceConfig.updateKeepScreenOn(keepOn)
     }
-    
-    /**
-     * 获取模板打印份数设置
-     * @return Map<模板ID, 打印份数>
-     */
-    override suspend fun getTemplatePrintCopies(): Map<String, Int> {
-        val jsonString = dataStore.data
-            .catch { exception ->
-                if (exception is IOException) {
-                    Log.e("SettingsRepositoryImpl", "Error reading template_print_copies.", exception)
-                    emit(androidx.datastore.preferences.core.emptyPreferences())
-                } else {
-                    throw exception
-                }
-            }
-            .map { preferences ->
-                preferences[PreferencesKeys.TEMPLATE_PRINT_COPIES]
-            }.first()
-        
-        return if (jsonString.isNullOrEmpty()) {
-            emptyMap()
-        } else {
-            try {
-                val type = object : TypeToken<Map<String, Int>>() {}.type
-                gson.fromJson(jsonString, type)
-            } catch (e: Exception) {
-                Log.e("SettingsRepositoryImpl", "Error parsing template_print_copies JSON", e)
-                emptyMap()
-            }
-        }
-    }
-
-    /**
-     * 保存模板打印份数设置
-     * @param printCopies Map<模板ID, 打印份数>
-     */
-    override suspend fun saveTemplatePrintCopies(printCopies: Map<String, Int>) {
-        val jsonString = gson.toJson(printCopies)
-        dataStore.edit { settings ->
-            settings[PreferencesKeys.TEMPLATE_PRINT_COPIES] = jsonString
-        }
-    }
 } 

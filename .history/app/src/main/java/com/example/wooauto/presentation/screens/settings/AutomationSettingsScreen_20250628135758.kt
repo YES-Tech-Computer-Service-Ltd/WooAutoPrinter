@@ -1,0 +1,311 @@
+package com.example.wooauto.presentation.screens.settings
+
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AddCircleOutline
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.RemoveCircleOutline
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.wooauto.R
+import com.example.wooauto.domain.templates.TemplateType
+import com.example.wooauto.presentation.screens.templatePreview.TemplateConfigViewModel
+import kotlinx.coroutines.launch
+
+/**
+ * 自动化设置屏幕
+ * 允许用户配置自动处理订单、自动打印等功能
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AutomationSettingsDialogContent(
+    viewModel: SettingsViewModel = hiltViewModel(),
+    onClose: () -> Unit
+) {
+    val scrollState = rememberScrollState()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
+    
+    val settingsSavedText = stringResource(R.string.settings_saved)
+    
+    val automaticPrintingState by viewModel.automaticPrinting.collectAsState()
+    var automaticPrinting by remember { mutableStateOf(automaticPrintingState) }
+    
+    // 存储每个模板的打印份数 - key是模板ID，value是份数
+    var templatePrintCopies by remember { mutableStateOf(mutableMapOf<String, Int>()) }
+    
+    // 添加TemplateConfigViewModel来获取所有模板
+    val templateConfigViewModel: TemplateConfigViewModel = hiltViewModel()
+    val allConfigs by templateConfigViewModel.allConfigs.collectAsState()
+    val isLoadingTemplates by templateConfigViewModel.isLoading.collectAsState()
+    
+    // 获取Context用于字符串资源
+    val context = LocalContext.current
+    
+    // 准备显示的模板选项（包含模板ID信息）
+    val availableTemplates = remember(allConfigs) {
+        val defaultTemplates = listOf(
+            Triple("full_details", TemplateType.FULL_DETAILS, 
+                context.getString(R.string.auto_print_template_full_details)),
+            Triple("delivery", TemplateType.DELIVERY, 
+                context.getString(R.string.auto_print_template_delivery)), 
+            Triple("kitchen", TemplateType.KITCHEN, 
+                context.getString(R.string.auto_print_template_kitchen))
+        )
+        
+        val customTemplates = allConfigs
+            .filter { it.templateId.startsWith("custom_") }
+            .map { config ->
+                Triple(config.templateId, TemplateType.FULL_DETAILS, config.templateName)
+            }
+        
+        defaultTemplates + customTemplates
+    }
+    
+    LaunchedEffect(automaticPrintingState) {
+        automaticPrinting = automaticPrintingState
+    }
+    
+    // 加载所有模板配置和当前选中的自动打印模板
+    LaunchedEffect(Unit) {
+        templateConfigViewModel.loadAllConfigs()
+        // 尝试加载保存的自动打印模板ID
+        try {
+            val savedTemplateId = viewModel.settingsRepository.getDefaultAutoPrintTemplateId()
+            if (savedTemplateId != null) {
+                selectedTemplateId = savedTemplateId
+                // 如果是自定义模板，将selectedTemplate设为FULL_DETAILS
+                if (savedTemplateId.startsWith("custom_")) {
+                    selectedTemplate = TemplateType.FULL_DETAILS
+                } else {
+                    // 根据模板ID设置对应的TemplateType
+                    selectedTemplate = when (savedTemplateId) {
+                        "full_details" -> TemplateType.FULL_DETAILS
+                        "delivery" -> TemplateType.DELIVERY
+                        "kitchen" -> TemplateType.KITCHEN
+                        else -> TemplateType.FULL_DETAILS
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            // 如果加载失败，使用默认值
+        }
+    }
+    
+    Card(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(vertical = 32.dp, horizontal = 16.dp),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+    ) {
+        Scaffold(
+            snackbarHost = { SnackbarHost(snackbarHostState) },
+            topBar = {
+                TopAppBar(
+                    title = { Text(stringResource(R.string.auto_print_settings)) },
+                    navigationIcon = {
+                        IconButton(onClick = onClose) {
+                            Icon(Icons.Default.Close, contentDescription = stringResource(R.string.close))
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                    )
+                )
+            }
+        ) { innerPadding ->
+            Column(
+                modifier = Modifier
+                    .padding(innerPadding)
+                    .fillMaxSize()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .verticalScroll(scrollState)
+                        .padding(16.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = stringResource(R.string.automatic_printing),
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                                Text(
+                                    text = stringResource(R.string.automatic_printing_desc),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Switch(
+                                checked = automaticPrinting,
+                                onCheckedChange = { 
+                                    automaticPrinting = it
+                                }
+                            )
+                        }
+                    }
+                    
+                    if (automaticPrinting) {
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                        Text(
+                            text = stringResource(R.string.print_templates),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(top = 8.dp, bottom = 8.dp)
+                        )
+                        
+                        if (isLoadingTemplates) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator()
+                            }
+                        } else {
+                            availableTemplates.forEach { (templateId, templateType, templateName) ->
+                                TemplateTypeRow(
+                                    templateId = templateId,
+                                    templateType = templateType,
+                                    templateName = templateName,
+                                    currentSelectedType = selectedTemplate,
+                                    currentSelectedId = selectedTemplateId
+                                ) { id, type -> 
+                                    selectedTemplateId = id
+                                    selectedTemplate = type
+                                }
+                            }
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+                
+                Button(
+                    onClick = {
+                        viewModel.updateAutomaticPrinting(automaticPrinting)
+                        if(automaticPrinting) { 
+                            // 确保始终有一个默认模板
+                            val templateIdToSave = selectedTemplateId ?: "full_details"
+                            val templateTypeToSave = selectedTemplate
+                            
+                            // 使用新的方法同时保存模板ID和类型
+                            viewModel.updateDefaultAutoPrintTemplate(templateIdToSave, templateTypeToSave)
+                        }
+                        
+                        // 通知后台服务重启轮询，使设置立即生效
+                        viewModel.notifyServiceToRestartPolling()
+                        
+                        coroutineScope.launch {
+                            snackbarHostState.showSnackbar(settingsSavedText)
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, end = 16.dp, bottom = 16.dp, top = 8.dp)
+                ) {
+                    Text(stringResource(id = R.string.save_settings))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TemplateTypeRow(
+    templateId: String,
+    templateType: TemplateType,
+    templateName: String,
+    printCopies: Int,
+    onCopiesChanged: (String, Int) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            text = templateName,
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.bodyLarge
+        )
+        
+        // 数量选择器
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // 减少按钮
+            IconButton(
+                onClick = { 
+                    if (printCopies > 0) {
+                        onCopiesChanged(templateId, printCopies - 1)
+                    }
+                },
+                modifier = Modifier.size(36.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.RemoveCircleOutline,
+                    contentDescription = "减少",
+                    tint = if (printCopies > 0) MaterialTheme.colorScheme.primary 
+                           else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                )
+            }
+            
+            // 显示份数
+            Text(
+                text = printCopies.toString(),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.widthIn(min = 24.dp),
+                textAlign = TextAlign.Center
+            )
+            
+            // 增加按钮
+            IconButton(
+                onClick = { 
+                    if (printCopies < 9) { // 限制最大份数为9
+                        onCopiesChanged(templateId, printCopies + 1)
+                    }
+                },
+                modifier = Modifier.size(36.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.AddCircleOutline,
+                    contentDescription = "增加",
+                    tint = if (printCopies < 9) MaterialTheme.colorScheme.primary 
+                           else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                )
+            }
+        }
+    }
+} 
