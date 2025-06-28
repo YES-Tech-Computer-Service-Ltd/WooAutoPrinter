@@ -1054,6 +1054,20 @@ class BluetoothPrinterManager @Inject constructor(
 //        Log.d(TAG, "生成打印内容完成，准备发送打印数据")
         return content
     }
+    
+    /**
+     * 生成订单打印内容（指定模板）
+     * @param order 订单
+     * @param config 打印机配置
+     * @param templateId 模板ID
+     * @return 格式化后的打印内容
+     */
+    private fun generateOrderContent(order: Order, config: PrinterConfig, templateId: String): String {
+        Log.d(TAG, "开始生成打印内容: 订单 ${order.number}, 模板: $templateId")
+        val content = templateManager.generateOrderPrintContent(order, config, templateId)
+        Log.d(TAG, "生成打印内容完成，准备发送打印数据")
+        return content
+    }
 
     /**
      * 处理连接错误
@@ -1144,6 +1158,84 @@ class BluetoothPrinterManager @Inject constructor(
 //            Log.d(TAG, "========== 自动打印订单 #${order.number} 处理完成 ==========")
         }
     }
+    
+    override suspend fun printOrderWithTemplate(order: Order, config: PrinterConfig, templateId: String): Boolean =
+        withContext(Dispatchers.IO) {
+            Log.d(TAG, "使用模板打印订单: #${order.number}, 模板ID: $templateId")
+            
+            // 添加打印前的详细状态日志
+            val printerStatus = getPrinterStatus(config)
+            Log.d(TAG, "【打印机状态】开始使用模板打印订单 #${order.number}，当前打印机 ${config.name} 状态: $printerStatus")
+
+            var retryCount = 0
+            while (retryCount < 3) {
+                try {
+                    Log.d(TAG, "准备使用模板打印订单: ${order.number} (尝试 ${retryCount + 1}/3)")
+
+                    // 1. 检查并确保连接
+                    if (!ensurePrinterConnected(config)) {
+                        Log.e(TAG, "打印机连接失败，尝试重试...")
+                        retryCount++
+                        delay(1000)
+                        continue
+                    }
+
+                    // 1.5 打印订单前专门清理缓存
+                    try {
+                        Log.d(TAG, "【打印订单】订单#${order.number} - 使用模板$templateId 打印前清理缓存")
+                        
+                        // 初始化打印机
+                        val initCommand = byteArrayOf(0x1B, 0x40)  // ESC @
+                        currentConnection?.write(initCommand)
+                        Thread.sleep(100)
+                        
+                        // 清除缓冲区
+                        val clearCommand = byteArrayOf(0x18)  // CAN
+                        currentConnection?.write(clearCommand)
+                        Thread.sleep(100)
+                        
+                        // 走纸一小段确保打印头位置正确
+                        val feedCommand = byteArrayOf(0x1B, 0x64, 2)  // ESC d 2 - 走2行
+                        currentConnection?.write(feedCommand)
+                        Thread.sleep(50)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "【打印订单】清理缓存失败: ${e.message}")
+                        // 继续尝试打印，不要因为这个错误中断
+                    }
+
+                    // 2. 生成指定模板的打印内容
+                    val content = generateOrderContent(order, config, templateId)
+
+                    // 3. 发送打印内容
+                    val success = printContent(content, config)
+
+                    // 4. 处理打印结果
+                    if (success) {
+                        // 成功打印后处理订单状态
+                        return@withContext handleSuccessfulPrint(order)
+                    } else {
+                        Log.e(TAG, "使用模板打印内容失败，尝试重试...")
+                        retryCount++
+                        delay(1000)
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "使用模板打印订单异常: ${e.message}", e)
+
+                    // 对于连接断开的异常，尝试重新连接
+                    if (e.message?.contains("Broken pipe") == true ||
+                        e is EscPosConnectionException
+                    ) {
+                        handleConnectionError(config)
+                    }
+
+                    retryCount++
+                    delay(1000)
+                }
+            }
+
+            Log.e(TAG, "使用模板打印订单尝试3次后仍然失败: ${order.number}")
+            return@withContext false
+        }
 
     /**
      * 验证订单是否满足打印条件

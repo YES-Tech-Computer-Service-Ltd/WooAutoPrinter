@@ -436,4 +436,16 @@ interface DomainSettingRepository {
      * @param keepOn 是否保持屏幕常亮
      */
     suspend fun setKeepScreenOn(keepOn: Boolean)
+    
+    /**
+     * 获取模板打印份数设置
+     * @return Map<模板ID, 打印份数>
+     */
+    suspend fun getTemplatePrintCopies(): Map<String, Int>
+
+    /**
+     * 保存模板打印份数设置
+     * @param printCopies Map<模板ID, 打印份数>
+     */
+    suspend fun saveTemplatePrintCopies(printCopies: Map<String, Int>)
 } 

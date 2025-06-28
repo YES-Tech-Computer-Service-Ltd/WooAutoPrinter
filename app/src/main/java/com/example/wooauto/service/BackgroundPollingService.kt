@@ -971,9 +971,14 @@ class BackgroundPollingService : Service() {
                 
                 Log.d(TAG, "【自动打印调试】准备自动打印新订单: #${order.number}, 打印机: ${printerConfig.name}")
                 
-                // 获取用户设置的默认模板类型
-                val defaultTemplateType = settingsRepository.getDefaultTemplateType()
-                Log.d(TAG, "【自动打印调试】使用默认打印模板: $defaultTemplateType")
+                // 获取模板打印份数设置
+                val templatePrintCopies = settingsRepository.getTemplatePrintCopies()
+                if (templatePrintCopies.isEmpty()) {
+                    Log.e(TAG, "【自动打印调试】❌ 未设置任何模板的打印份数")
+                    return@launch
+                }
+                
+                Log.d(TAG, "【自动打印调试】打印模板设置: $templatePrintCopies")
                 
                 // 检查打印机是否已连接，如果未连接则先尝试连接
                 val printerStatus = printerManager.getPrinterStatus(printerConfig)
@@ -1004,18 +1009,42 @@ class BackgroundPollingService : Service() {
                     return@launch
                 }
                 
-                // 打印订单
+                // 打印订单 - 支持多模板多份数
                 Log.d(TAG, "【自动打印调试】开始执行打印订单: #${order.number}")
                 
-                // 使用超时机制避免打印操作挂起
-                val printResult = withTimeoutOrNull(30000) { // 30秒超时
-                    printerManager.printOrder(order, printerConfig)
-                } ?: false
+                var anyPrintSuccess = false
                 
-                Log.d(TAG, "【自动打印调试】打印结果: ${if (printResult) "成功" else "失败"}")
+                // 遍历每个模板并打印相应份数
+                for ((templateId, copies) in templatePrintCopies) {
+                    if (copies > 0) {
+                        Log.d(TAG, "【自动打印调试】准备打印模板: $templateId, 份数: $copies")
+                        
+                        // 打印指定份数
+                        for (i in 1..copies) {
+                            Log.d(TAG, "【自动打印调试】打印第 $i/$copies 份 (模板: $templateId)")
+                            
+                            // 使用超时机制避免打印操作挂起
+                            val printResult = withTimeoutOrNull(30000) { // 30秒超时
+                                printerManager.printOrderWithTemplate(order, printerConfig, templateId)
+                            } ?: false
+                            
+                            if (printResult) {
+                                Log.d(TAG, "【自动打印调试】✓ 第 $i 份打印成功 (模板: $templateId)")
+                                anyPrintSuccess = true
+                            } else {
+                                Log.e(TAG, "【自动打印调试】❌ 第 $i 份打印失败 (模板: $templateId)")
+                            }
+                            
+                            // 如果不是最后一份，稍微延迟避免打印机过载
+                            if (i < copies || templatePrintCopies.size > 1) {
+                                delay(500)
+                            }
+                        }
+                    }
+                }
                 
-                if (printResult) {
-                    Log.d(TAG, "【自动打印调试】✓ 打印命令发送成功！")
+                if (anyPrintSuccess) {
+                    Log.d(TAG, "【自动打印调试】✓ 至少有一份打印成功！")
                     Log.d(TAG, "【自动打印调试】订单 #${order.number} 将由打印管理器自动标记为已打印")
                     
                     // 验证标记是否成功（仅用于日志验证）
@@ -1027,7 +1056,7 @@ class BackgroundPollingService : Service() {
                         Log.w(TAG, "【自动打印调试】⚠ 注意：订单 #${order.number} 可能还未被标记为已打印，状态: ${finalOrder?.isPrinted}")
                     }
                 } else {
-                    Log.e(TAG, "【自动打印调试】❌ 打印失败！订单 #${order.number} 维持未打印状态")
+                    Log.e(TAG, "【自动打印调试】❌ 所有打印都失败！订单 #${order.number} 维持未打印状态")
                 }
                 
                 Log.d(TAG, "【自动打印调试】=====================================")
