@@ -7,7 +7,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AddCircleOutline
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.RemoveCircleOutline
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -15,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.wooauto.R
@@ -41,11 +46,8 @@ fun AutomationSettingsDialogContent(
     val automaticPrintingState by viewModel.automaticPrinting.collectAsState()
     var automaticPrinting by remember { mutableStateOf(automaticPrintingState) }
     
-    val selectedTemplateState by viewModel.defaultTemplateType.collectAsState()
-    var selectedTemplate by remember { mutableStateOf(selectedTemplateState) }
-    
-    // 记录当前选中的模板ID（用于支持自定义模板）
-    var selectedTemplateId by remember { mutableStateOf<String?>(null) }
+    // 存储每个模板的打印份数 - key是模板ID，value是份数
+    var templatePrintCopies by remember { mutableStateOf(mutableMapOf<String, Int>()) }
     
     // 添加TemplateConfigViewModel来获取所有模板
     val templateConfigViewModel: TemplateConfigViewModel = hiltViewModel()
@@ -78,39 +80,16 @@ fun AutomationSettingsDialogContent(
     LaunchedEffect(automaticPrintingState) {
         automaticPrinting = automaticPrintingState
     }
-    LaunchedEffect(selectedTemplateState) {
-        selectedTemplate = selectedTemplateState
-        // 根据TemplateType确定对应的默认模板ID（向后兼容）
-        selectedTemplateId = when (selectedTemplateState) {
-            TemplateType.FULL_DETAILS -> "full_details"
-            TemplateType.DELIVERY -> "delivery"
-            TemplateType.KITCHEN -> "kitchen"
-        }
-    }
     
-    // 加载所有模板配置和当前选中的自动打印模板
+    // 加载所有模板配置和当前的打印份数设置
     LaunchedEffect(Unit) {
         templateConfigViewModel.loadAllConfigs()
-        // 尝试加载保存的自动打印模板ID
+        // 尝试加载保存的自动打印模板份数
         try {
-            val savedTemplateId = viewModel.settingsRepository.getDefaultAutoPrintTemplateId()
-            if (savedTemplateId != null) {
-                selectedTemplateId = savedTemplateId
-                // 如果是自定义模板，将selectedTemplate设为FULL_DETAILS
-                if (savedTemplateId.startsWith("custom_")) {
-                    selectedTemplate = TemplateType.FULL_DETAILS
-                } else {
-                    // 根据模板ID设置对应的TemplateType
-                    selectedTemplate = when (savedTemplateId) {
-                        "full_details" -> TemplateType.FULL_DETAILS
-                        "delivery" -> TemplateType.DELIVERY
-                        "kitchen" -> TemplateType.KITCHEN
-                        else -> TemplateType.FULL_DETAILS
-                    }
-                }
-            }
+            val savedCopies = viewModel.getTemplatePrintCopies()
+            templatePrintCopies = savedCopies.toMutableMap()
         } catch (e: Exception) {
-            // 如果加载失败，使用默认值
+            // 如果加载失败，使用默认值（全部为0）
         }
     }
     
@@ -203,12 +182,17 @@ fun AutomationSettingsDialogContent(
                                     templateId = templateId,
                                     templateType = templateType,
                                     templateName = templateName,
-                                    currentSelectedType = selectedTemplate,
-                                    currentSelectedId = selectedTemplateId
-                                ) { id, type -> 
-                                    selectedTemplateId = id
-                                    selectedTemplate = type
-                                }
+                                    printCopies = templatePrintCopies[templateId] ?: 0,
+                                    onCopiesChanged = { id, copies ->
+                                        templatePrintCopies = templatePrintCopies.toMutableMap().apply {
+                                            if (copies > 0) {
+                                                put(id, copies)
+                                            } else {
+                                                remove(id)
+                                            }
+                                        }
+                                    }
+                                )
                             }
                         }
                     }
@@ -220,12 +204,8 @@ fun AutomationSettingsDialogContent(
                     onClick = {
                         viewModel.updateAutomaticPrinting(automaticPrinting)
                         if(automaticPrinting) { 
-                            // 确保始终有一个默认模板
-                            val templateIdToSave = selectedTemplateId ?: "full_details"
-                            val templateTypeToSave = selectedTemplate
-                            
-                            // 使用新的方法同时保存模板ID和类型
-                            viewModel.updateDefaultAutoPrintTemplate(templateIdToSave, templateTypeToSave)
+                            // 保存每个模板的打印份数
+                            viewModel.updateTemplatePrintCopies(templatePrintCopies)
                         }
                         
                         // 通知后台服务重启轮询，使设置立即生效
@@ -251,29 +231,68 @@ private fun TemplateTypeRow(
     templateId: String,
     templateType: TemplateType,
     templateName: String,
-    currentSelectedType: TemplateType,
-    currentSelectedId: String?,
-    onSelected: (String, TemplateType) -> Unit
+    printCopies: Int,
+    onCopiesChanged: (String, Int) -> Unit
 ) {
-    // 判断是否选中：对于自定义模板比较ID，对于默认模板比较类型
-    val isSelected = if (templateId.startsWith("custom_")) {
-        currentSelectedId == templateId
-    } else {
-        currentSelectedType == templateType && currentSelectedId == templateId
-    }
-    
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp)
-            .clickable { onSelected(templateId, templateType) },
-        verticalAlignment = Alignment.CenterVertically
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        RadioButton(
-            selected = isSelected,
-            onClick = { onSelected(templateId, templateType) }
+        Text(
+            text = templateName,
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.bodyLarge
         )
-        Spacer(modifier = Modifier.width(8.dp))
-        Text(templateName)
+        
+        // 数量选择器
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // 减少按钮
+            IconButton(
+                onClick = { 
+                    if (printCopies > 0) {
+                        onCopiesChanged(templateId, printCopies - 1)
+                    }
+                },
+                modifier = Modifier.size(36.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.RemoveCircleOutline,
+                    contentDescription = "减少",
+                    tint = if (printCopies > 0) MaterialTheme.colorScheme.primary 
+                           else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                )
+            }
+            
+            // 显示份数
+            Text(
+                text = printCopies.toString(),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.widthIn(min = 24.dp),
+                textAlign = TextAlign.Center
+            )
+            
+            // 增加按钮
+            IconButton(
+                onClick = { 
+                    if (printCopies < 9) { // 限制最大份数为9
+                        onCopiesChanged(templateId, printCopies + 1)
+                    }
+                },
+                modifier = Modifier.size(36.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.AddCircleOutline,
+                    contentDescription = "增加",
+                    tint = if (printCopies < 9) MaterialTheme.colorScheme.primary 
+                           else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                )
+            }
+        }
     }
 } 
