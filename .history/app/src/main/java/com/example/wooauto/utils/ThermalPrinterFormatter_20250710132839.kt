@@ -55,8 +55,8 @@ class ThermalPrinterFormatter {
             
             // 上装饰线
             sb.append("[C]$topBottomLine\n")
-            // 店铺名称使用专门的中文字体放大方案 - 支持中文和英文放大显示
-            sb.append("[C]${formatChineseLargeFont(storeName, paperWidth)}\n")
+            // 店铺名称（双倍高宽、加粗、居中）- 支持中文和英文放大显示
+            sb.append("[C]<w><h><b>$storeName</b></h></w>\n")
             // 下装饰线
             sb.append("[C]$topBottomLine\n")
             
@@ -261,19 +261,15 @@ class ThermalPrinterFormatter {
             val quantityPrice = "${quantity} x $price"
             val maxChars = getCharsPerLine(paperWidth)
             
-            // 使用专门的中文字体放大方案处理商品名称
-            val formattedName = formatChineseLargeFont(name, paperWidth)
-            
             // 如果商品名称和价格信息总长度超过行宽，分两行显示
             if (name.length + quantityPrice.length + 2 > maxChars) {
                 val sb = StringBuilder()
-                // 商品名称使用字体放大方案 - 支持中文和英文放大显示
-                sb.append("[L]$formattedName\n")
+                sb.append("[L]$name\n")
                 sb.append("[L]  $quantityPrice\n")
                 return sb.toString()
             } else {
-                // 使用formatLeftRightText来处理左右对齐，商品名称使用字体放大方案
-                return formatLeftRightText(formattedName, quantityPrice, paperWidth)
+                // 使用formatLeftRightText来处理左右对齐
+                return formatLeftRightText(name, quantityPrice, paperWidth)
             }
         }
         
@@ -288,46 +284,6 @@ class ThermalPrinterFormatter {
             Log.d(TAG, "转换为ESC/POS命令: $formattedText")
             // 这里只是演示，实际应用中会使用专门的打印库处理具体的ESC/POS命令
             return formattedText
-        }
-        
-        /**
-         * 为中文内容提供备用字体放大方案
-         * 当硬件字体放大不支持中文时，使用字符间距等方式增强视觉效果
-         * @param text 文本内容
-         * @param paperWidth 打印纸宽度
-         * @return 格式化后的文本
-         */
-        fun formatChineseLargeFont(text: String, paperWidth: Int): String {
-            // 检测是否包含中文字符
-            val hasChineseCharacters = text.any { char ->
-                char.code in 0x4E00..0x9FFF || // CJK统一汉字
-                char.code in 0x3400..0x4DBF || // CJK扩展A
-                char.code in 0x3000..0x303F || // CJK符号和标点
-                char.code in 0xFF00..0xFFEF    // 全角ASCII、全角标点符号
-            }
-            
-            return if (hasChineseCharacters) {
-                // 对于中文内容，使用字符间距来增强视觉效果
-                val sb = StringBuilder()
-                
-                // 在中文字符之间添加空格，增加视觉间距
-                var result = ""
-                for (i in text.indices) {
-                    result += text[i]
-                    // 如果当前字符是中文，并且下一个字符也存在且是中文，添加半角空格
-                    if (i < text.length - 1 && 
-                        text[i].code in 0x4E00..0x9FFF && 
-                        text[i + 1].code in 0x4E00..0x9FFF) {
-                        result += " "
-                    }
-                }
-                
-                // 使用加粗和双倍标签组合
-                "<h><w><b>$result</b></w></h>"
-            } else {
-                // 英文内容直接使用标准放大标签
-                "<h><w><b>$text</b></w></h>"
-            }
         }
     }
 } 

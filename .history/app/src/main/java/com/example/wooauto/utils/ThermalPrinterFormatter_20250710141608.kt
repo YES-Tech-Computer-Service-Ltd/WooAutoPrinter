@@ -55,8 +55,8 @@ class ThermalPrinterFormatter {
             
             // 上装饰线
             sb.append("[C]$topBottomLine\n")
-            // 店铺名称使用专门的中文字体放大方案 - 支持中文和英文放大显示
-            sb.append("[C]${formatChineseLargeFont(storeName, paperWidth)}\n")
+            // 店铺名称（双倍高宽、加粗、居中）- 支持中文和英文放大显示
+            sb.append("[C]<w><h><b>$storeName</b></h></w>\n")
             // 下装饰线
             sb.append("[C]$topBottomLine\n")
             
@@ -261,19 +261,16 @@ class ThermalPrinterFormatter {
             val quantityPrice = "${quantity} x $price"
             val maxChars = getCharsPerLine(paperWidth)
             
-            // 使用专门的中文字体放大方案处理商品名称
-            val formattedName = formatChineseLargeFont(name, paperWidth)
-            
             // 如果商品名称和价格信息总长度超过行宽，分两行显示
             if (name.length + quantityPrice.length + 2 > maxChars) {
                 val sb = StringBuilder()
-                // 商品名称使用字体放大方案 - 支持中文和英文放大显示
-                sb.append("[L]$formattedName\n")
+                // 商品名称使用双倍高度字体 - 支持中文和英文放大显示
+                sb.append("[L]<h><b>$name</b></h>\n")
                 sb.append("[L]  $quantityPrice\n")
                 return sb.toString()
             } else {
-                // 使用formatLeftRightText来处理左右对齐，商品名称使用字体放大方案
-                return formatLeftRightText(formattedName, quantityPrice, paperWidth)
+                // 使用formatLeftRightText来处理左右对齐，商品名称使用双倍高度字体
+                return formatLeftRightText("<h><b>$name</b></h>", quantityPrice, paperWidth)
             }
         }
         

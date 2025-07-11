@@ -91,6 +91,38 @@ class DefaultOrderPrintTemplate @Inject constructor(
         }
     }
     
+    override fun generateOrderPrintContent(order: Order, config: PrinterConfig, templateId: String?): String {
+        Log.d(TAG, "生成订单打印内容: ${order.number}, 指定模板ID: $templateId")
+        
+        if (templateId.isNullOrEmpty()) {
+            // 如果没有指定模板ID，使用默认逻辑
+            return generateOrderPrintContent(order, config)
+        }
+        
+        // 直接使用指定的模板ID
+        val templateType: TemplateType = when {
+            templateId == "full_details" -> TemplateType.FULL_DETAILS
+            templateId == "delivery" -> TemplateType.DELIVERY
+            templateId == "kitchen" -> TemplateType.KITCHEN
+            templateId.startsWith("custom_") -> TemplateType.FULL_DETAILS
+            else -> TemplateType.FULL_DETAILS
+        }
+        
+        // 获取模板配置
+        val templateConfig = runBlocking { 
+            templateConfigRepository.getOrCreateConfig(templateId, templateType)
+        }
+        
+        Log.d(TAG, "使用指定模板: $templateId, 模板类型: $templateType")
+        
+        // 根据不同模板类型生成内容
+        return when (templateType) {
+            TemplateType.FULL_DETAILS -> generateFullDetailsTemplate(order, config, templateConfig)
+            TemplateType.DELIVERY -> generateDeliveryTemplate(order, config, templateConfig)
+            TemplateType.KITCHEN -> generateKitchenTemplate(order, config, templateConfig)
+        }
+    }
+    
     /**
      * 生成完整订单详情模板 - 包含所有信息
      */
@@ -313,31 +345,26 @@ class DefaultOrderPrintTemplate @Inject constructor(
             sb.append(ThermalPrinterFormatter.formatLeftText(ThermalPrinterFormatter.formatBold("Delivery Info"), paperWidth))
         }
         
-        // 判断订单类型和配送地址
-        val isDelivery = order.woofoodInfo?.isDelivery ?: false
-        val deliveryAddress = order.getEffectiveShippingAddress()
-        
         // 订单类型 (配送或取餐)
+        val isDelivery = order.woofoodInfo?.isDelivery ?: false
         sb.append(ThermalPrinterFormatter.formatLabelValue("Order Type", 
             if (isDelivery) "Delivery" else "Takeaway", paperWidth))
         
-        // 显示配送地址（对于配送订单，或者当有不同于账单地址的配送地址时）
-        if (!showOnlyOrderType) {
-            if (isDelivery || (deliveryAddress.isNotBlank() && deliveryAddress != order.billingInfo)) {
-                sb.append(ThermalPrinterFormatter.formatLabelValue("Delivery Address", deliveryAddress, paperWidth))
+        if (!showOnlyOrderType && isDelivery) {
+            // 优先使用WooFood插件的配送地址，如果为空则使用billing地址作为备选
+            val deliveryAddress = order.woofoodInfo?.deliveryAddress?.takeIf { it.isNotBlank() } 
+                                 ?: order.billingInfo.takeIf { it.isNotBlank() }
+            
+            deliveryAddress?.let { address ->
+                sb.append(ThermalPrinterFormatter.formatLabelValue("Delivery Address", address, paperWidth))
             }
             
-            // 显示WooFood相关费用（如果有）
             order.woofoodInfo?.deliveryFee?.let {
-                if (it.isNotBlank() && it != "0.00") {
-                    sb.append(ThermalPrinterFormatter.formatLabelValue("Delivery Fee", it, paperWidth))
-                }
+                sb.append(ThermalPrinterFormatter.formatLabelValue("Delivery Fee", it, paperWidth))
             }
             
             order.woofoodInfo?.tip?.let {
-                if (it.isNotBlank() && it != "0.00") {
-                    sb.append(ThermalPrinterFormatter.formatLabelValue("Tip", it, paperWidth))
-                }
+                sb.append(ThermalPrinterFormatter.formatLabelValue("Tip", it, paperWidth))
             }
         }
         
@@ -380,8 +407,10 @@ class DefaultOrderPrintTemplate @Inject constructor(
                 val price = item.price
                 sb.append(ThermalPrinterFormatter.formatItemPriceLine(name, item.quantity, price, paperWidth))
             } else {
+                // 厨房模式或不显示价格时，商品名称也使用专门的中文字体放大方案 - 支持中文和英文放大显示
+                val formattedProductName = ThermalPrinterFormatter.formatChineseLargeFont("${item.quantity} x $name", paperWidth)
                 sb.append(ThermalPrinterFormatter.formatLeftText(
-                    ThermalPrinterFormatter.formatBold("${item.quantity} x $name"), 
+                    formattedProductName, 
                 paperWidth
             ))
             }
@@ -519,6 +548,19 @@ class DefaultOrderPrintTemplate @Inject constructor(
             PrinterConfig.PAPER_WIDTH_57MM -> create58mmTestOrder()
             PrinterConfig.PAPER_WIDTH_80MM -> create80mmTestOrder()
             else -> createDefaultTestOrder()
+        }
+    }
+    
+    /**
+     * 创建中文测试订单 - 使用中文字符测试GB18030编码
+     */
+    override fun createChineseTestOrder(config: PrinterConfig): Order {
+        val paperWidth = config.paperWidth
+        
+        return when (paperWidth) {
+            PrinterConfig.PAPER_WIDTH_57MM -> create58mmChineseTestOrder()
+            PrinterConfig.PAPER_WIDTH_80MM -> create80mmChineseTestOrder()
+            else -> createDefaultChineseTestOrder()
         }
     }
     
@@ -743,6 +785,222 @@ class DefaultOrderPrintTemplate @Inject constructor(
             discountTotal = "0.00",
             taxLines = listOf(
                 TaxLine(1, "Tax", 8.3, "$5.00")
+            )
+        )
+    }
+    
+    /**
+     * 创建58mm中文测试订单
+     */
+    private fun create58mmChineseTestOrder(): Order {
+        val currentTime = Date()
+        return Order(
+            id = 888001L,
+            number = "中文测试-58MM-001",
+            status = "processing",
+            dateCreated = currentTime,
+            total = "￥125.50",
+            customerName = "张三",
+            contactInfo = "138-8888-8888",
+            billingInfo = "北京市朝阳区建国路1号",
+            paymentMethod = "微信支付",
+            items = listOf(
+                OrderItem(
+                    id = 1,
+                    productId = 101,
+                    name = "宫保鸡丁",
+                    quantity = 1,
+                    price = "￥38.00",
+                    subtotal = "￥38.00",
+                    total = "￥38.00",
+                    image = "",
+                    options = listOf(
+                        ItemOption("辣度", "中辣"),
+                        ItemOption("米饭", "香米")
+                    )
+                ),
+                OrderItem(
+                    id = 2,
+                    productId = 102,
+                    name = "麻婆豆腐",
+                    quantity = 1,
+                    price = "￥28.00",
+                    subtotal = "￥28.00",
+                    total = "￥28.00",
+                    image = "",
+                    options = listOf(
+                        ItemOption("辣度", "微辣")
+                    )
+                ),
+                OrderItem(
+                    id = 3,
+                    productId = 103,
+                    name = "酸辣汤",
+                    quantity = 2,
+                    price = "￥18.00",
+                    subtotal = "￥36.00",
+                    total = "￥36.00",
+                    image = "",
+                    options = emptyList()
+                )
+            ),
+            isPrinted = false,
+            notificationShown = false,
+            notes = "中文测试订单 - 请确保中文字符正确显示",
+            woofoodInfo = WooFoodInfo(
+                orderMethod = "外卖",
+                deliveryTime = "60分钟内",
+                deliveryAddress = "北京市朝阳区建国路1号",
+                deliveryFee = "￥8.00",
+                tip = "￥5.00",
+                isDelivery = true
+            ),
+            subtotal = "￥102.00",
+            totalTax = "￥10.50",
+            discountTotal = "0.00",
+            taxLines = listOf(
+                TaxLine(1, "增值税", 10.3, "￥10.50")
+            )
+        )
+    }
+    
+    /**
+     * 创建80mm中文测试订单
+     */
+    private fun create80mmChineseTestOrder(): Order {
+        val currentTime = Date()
+        return Order(
+            id = 888002L,
+            number = "中文测试-80MM-002",
+            status = "processing",
+            dateCreated = currentTime,
+            total = "￥198.88",
+            customerName = "李明华",
+            contactInfo = "186-1234-5678",
+            billingInfo = "上海市浦东新区陆家嘴金融贸易区世纪大道100号",
+            paymentMethod = "支付宝",
+            items = listOf(
+                OrderItem(
+                    id = 1,
+                    productId = 201,
+                    name = "北京烤鸭套餐",
+                    quantity = 1,
+                    price = "￥89.00",
+                    subtotal = "￥89.00",
+                    total = "￥89.00",
+                    image = "",
+                    options = listOf(
+                        ItemOption("配菜", "黄瓜丝，葱丝"),
+                        ItemOption("饼皮", "薄饼"),
+                        ItemOption("酱料", "甜面酱")
+                    )
+                ),
+                OrderItem(
+                    id = 2,
+                    productId = 202,
+                    name = "四川麻辣火锅",
+                    quantity = 1,
+                    price = "￥68.00",
+                    subtotal = "￥68.00",
+                    total = "￥68.00",
+                    image = "",
+                    options = listOf(
+                        ItemOption("辣度", "特辣"),
+                        ItemOption("锅底", "牛油锅底"),
+                        ItemOption("配菜", "毛肚，鸭血，豆腐")
+                    )
+                ),
+                OrderItem(
+                    id = 3,
+                    productId = 203,
+                    name = "广式点心拼盘",
+                    quantity = 1,
+                    price = "￥45.00",
+                    subtotal = "￥45.00",
+                    total = "￥45.00",
+                    image = "",
+                    options = listOf(
+                        ItemOption("种类", "虾饺，烧卖，叉烧包")
+                    )
+                )
+            ),
+            isPrinted = false,
+            notificationShown = false,
+            notes = "中文测试订单 - 包含各种中文字符：简体，繁體，符号￥€$，数字１２３４５６７８９０",
+            woofoodInfo = WooFoodInfo(
+                orderMethod = "外卖配送",
+                deliveryTime = "45分钟内送达",
+                deliveryAddress = "上海市浦东新区陆家嘴金融贸易区世纪大道100号2楼201室",
+                deliveryFee = "￥12.00",
+                tip = "￥8.88",
+                isDelivery = true
+            ),
+            subtotal = "￥202.00",
+            totalTax = "￥16.88",
+            discountTotal = "￥20.00",
+            taxLines = listOf(
+                TaxLine(1, "增值税", 8.36, "￥16.88")
+            )
+        )
+    }
+    
+    /**
+     * 创建默认中文测试订单
+     */
+    private fun createDefaultChineseTestOrder(): Order {
+        val currentTime = Date()
+        return Order(
+            id = 888003L,
+            number = "中文测试-DEFAULT-003",
+            status = "processing",
+            dateCreated = currentTime,
+            total = "￥88.88",
+            customerName = "王小明",
+            contactInfo = "138-0000-1111",
+            billingInfo = "深圳市南山区科技园南区",
+            paymentMethod = "现金支付",
+            items = listOf(
+                OrderItem(
+                    id = 1,
+                    productId = 301,
+                    name = "中文测试菜品A",
+                    quantity = 1,
+                    price = "￥39.00",
+                    subtotal = "￥39.00",
+                    total = "￥39.00",
+                    image = "",
+                    options = listOf(
+                        ItemOption("测试选项", "中文值")
+                    )
+                ),
+                OrderItem(
+                    id = 2,
+                    productId = 302,
+                    name = "中文测试菜品B",
+                    quantity = 2,
+                    price = "￥19.88",
+                    subtotal = "￥39.76",
+                    total = "￥39.76",
+                    image = "",
+                    options = emptyList()
+                )
+            ),
+            isPrinted = false,
+            notificationShown = false,
+            notes = "默认中文测试订单 - 测试GB18030编码支持",
+            woofoodInfo = WooFoodInfo(
+                orderMethod = "自取",
+                deliveryTime = null,
+                deliveryAddress = null,
+                deliveryFee = null,
+                tip = null,
+                isDelivery = false
+            ),
+            subtotal = "￥78.76",
+            totalTax = "￥10.12",
+            discountTotal = "0.00",
+            taxLines = listOf(
+                TaxLine(1, "税费", 12.8, "￥10.12")
             )
         )
     }

@@ -407,8 +407,10 @@ class DefaultOrderPrintTemplate @Inject constructor(
                 val price = item.price
                 sb.append(ThermalPrinterFormatter.formatItemPriceLine(name, item.quantity, price, paperWidth))
             } else {
+                // 厨房模式或不显示价格时，商品名称也使用专门的中文字体放大方案 - 支持中文和英文放大显示
+                val formattedProductName = ThermalPrinterFormatter.formatChineseLargeFont("${item.quantity} x $name", paperWidth)
                 sb.append(ThermalPrinterFormatter.formatLeftText(
-                    ThermalPrinterFormatter.formatBold("${item.quantity} x $name"), 
+                    formattedProductName, 
                 paperWidth
             ))
             }

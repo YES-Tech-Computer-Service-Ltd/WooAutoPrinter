@@ -483,6 +483,12 @@ class BluetoothPrinterManager @Inject constructor(
         var isDoubleHeight = false
 
         Log.d(TAG, "【格式化行】原始内容: \"$line\"")
+        
+        // 检测当前行是否包含中文字符
+        val hasChineseInLine = containsChineseCharacters(line)
+        if (hasChineseInLine) {
+            Log.d(TAG, "【格式化行】检测到中文内容，启用中文字体控制增强模式")
+        }
 
         // 首先处理对齐标记
         when {
@@ -537,6 +543,10 @@ class BluetoothPrinterManager @Inject constructor(
             if (text.contains("<w>")) {
                 // 开启双倍宽度 - ESC ! 设置打印模式
                 outputStream.write(byteArrayOf(0x1B, 0x21, 0x20))  // 双倍宽度
+                
+                // 为中文字符额外发送字体控制命令
+                outputStream.write(byteArrayOf(0x1C, 0x21, 0x04))  // FS ! 4 - 中文双倍宽度
+                
                 isDoubleWidth = true
             }
 
@@ -550,8 +560,12 @@ class BluetoothPrinterManager @Inject constructor(
                 // 开启双倍高度 - 如果已经开启了双倍宽度，则使用双倍高宽
                 if (isDoubleWidth) {
                     outputStream.write(byteArrayOf(0x1B, 0x21, 0x30))  // 双倍高宽
+                    // 为中文字符额外发送字体控制命令
+                    outputStream.write(byteArrayOf(0x1C, 0x21, 0x0C))  // FS ! 12 - 中文双倍高宽
                 } else {
                     outputStream.write(byteArrayOf(0x1B, 0x21, 0x10))  // 只双倍高度
+                    // 为中文字符额外发送字体控制命令
+                    outputStream.write(byteArrayOf(0x1C, 0x21, 0x08))  // FS ! 8 - 中文双倍高度
                 }
                 isDoubleHeight = true
             }
@@ -575,6 +589,9 @@ class BluetoothPrinterManager @Inject constructor(
         if (isDoubleWidth || isDoubleHeight) {
             Log.d(TAG, "【格式化行】重置字体大小")
             outputStream.write(byteArrayOf(0x1B, 0x21, 0x00))  // ESC ! 0 - 重置字体大小
+            
+            // 同时重置中文字体大小
+            outputStream.write(byteArrayOf(0x1C, 0x21, 0x00))  // FS ! 0 - 重置中文字体大小
         }
         
         Log.d(TAG, "【格式化行】行处理完成")
@@ -2730,7 +2747,16 @@ class BluetoothPrinterManager @Inject constructor(
             connection.write(byteArrayOf(0x1C, 0x26)) // FS & - Set Chinese Character Mode
             delay(50)
             
-            Log.d(TAG, "【中文模式】中文字符模式设置完成")
+            // 为确保中文模式下字体控制命令正常工作，增加兼容性设置
+            // 设置打印机为混合模式，同时支持中文和字体控制
+            connection.write(byteArrayOf(0x1B, 0x40)) // ESC @ - 初始化打印机
+            delay(50)
+            
+            // 再次设置中文字符模式
+            connection.write(byteArrayOf(0x1C, 0x26)) // FS & - Set Chinese Character Mode
+            delay(50)
+            
+            Log.d(TAG, "【中文模式】中文字符模式和字体兼容性设置完成")
             
         } catch (e: Exception) {
             Log.e(TAG, "【中文模式】设置中文模式失败: ${e.message}")
