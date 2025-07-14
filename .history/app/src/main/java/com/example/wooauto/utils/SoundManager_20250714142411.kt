@@ -373,20 +373,6 @@ class SoundManager @Inject constructor(
         // 记录当前播放的声音类型
         currentPlayingSoundType = type
 
-        // 调用内部播放方法
-        playInternalSound(type)
-    }
-
-    /**
-     * 内部播放方法 - 不设置重复播放计数，用于重复播放调用
-     * @param type 声音类型
-     */
-    private fun playInternalSound(type: String) {
-        if (!_soundEnabled.value) {
-            Log.d(TAG, "[内部音效] 声音已禁用，不播放提示音")
-            return
-        }
-
         // 如果已经有声音在播放，先停止
         stopCurrentSound()
         
@@ -494,12 +480,12 @@ class SoundManager @Inject constructor(
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "[内部音效] 播放声音失败: ${e.message}", e)
+            Log.e(TAG, "[音效播放] 播放声音失败: ${e.message}", e)
             try {
                 // 兜底使用默认通知声音
                 playSystemSound(RingtoneManager.TYPE_NOTIFICATION)
-            } catch (fallbackException: Exception) {
-                Log.e(TAG, "[内部音效] 兜底播放也失败", fallbackException)
+            } catch (e: Exception) {
+                Log.e(TAG, "[音效播放] 播放备用声音也失败: ${e.message}", e)
             }
         }
     }
@@ -1267,9 +1253,9 @@ class SoundManager @Inject constructor(
             CoroutineScope(Dispatchers.Main).launch {
                 delay(repeatPlayInterval)  // 等待间隔时间
                 
-                // 播放下一次 - 使用内部播放方法，避免重新设置重复计数
+                // 播放下一次
                 Log.d(TAG, "[重复播放] 开始第${currentRepeatCount + 1}次播放")
-                playInternalSound(currentPlayingSoundType)
+                playSound(currentPlayingSoundType)
             }
         } else {
             // 播放完成，恢复系统音量

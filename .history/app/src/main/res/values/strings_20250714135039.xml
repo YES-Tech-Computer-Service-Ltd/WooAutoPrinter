@@ -217,17 +217,24 @@
     <string name="sound_type_desc">Select sound for new order notifications</string>
     <string name="volume_min">0%</string>
     <string name="volume_max">300%</string>
-    
-    <!-- Volume Level Names -->
-    <string name="volume_level_silent">Silent</string>
-    <string name="volume_level_soft">Soft</string>
-    <string name="volume_level_medium">Medium</string>
-    <string name="volume_level_loud">Loud</string>
-    <string name="volume_level_very_loud">Very Loud</string>
-    <string name="volume_level_extreme">Extreme</string>
     <!-- Sound Types -->
     <string name="sound_type_default">system default</string>
-
+    <string name="sound_type_alarm">system alarm</string>
+    <string name="sound_type_ringtone">system ringtone</string>
+    <string name="sound_type_event">system event</string>
+    <string name="sound_type_email">system email</string>
+    <string name="sound_type_custom">custom audio</string>
+    
+    <!-- Volume Level Status -->
+    <string name="sound_volume_format">Volume: %1$d%%</string>
+    <string name="sound_type_format">Type: %1$s</string>
+    <string name="sound_status_format">%1$s, %2$s</string>
+    <string name="sound_disabled">Sound disabled</string>
+    <string name="audio_file_selected">Audio file selected</string>
+    <string name="audio_file_select_error">Audio file selection error</string>
+    <string name="close">Close</string>
+    <string name="sound_test">Test Sound</string>
+    
     <!-- Template Preview -->
     <string name="template_full_order_details">Full Order Details</string>
     <string name="template_delivery_receipt">Delivery Receipt</string>
@@ -539,14 +546,6 @@
     <string name="sound_type_format">Sound: %1$s</string>
     <string name="sound_status_format">%1$s - %2$s</string>
     <string name="sound_disabled">Disabled</string>
-    
-    <!-- Extreme Volume Enhancement Features -->
-    <string name="extreme_volume_title">Extreme Volume Enhancement</string>
-    <string name="extreme_volume_desc">Advanced audio technologies to break through system limits</string>
-    <string name="multi_layer_audio">Multi-Layer Audio</string>
-    <string name="audio_enhancement">Audio Enhancement</string>
-    <string name="volume_booster">Volume Booster</string>
-    <string name="extreme_volume_note">For extremely noisy environments like restaurants</string>
 
     <!-- License Status -->
     <string name="license_status_valid">License Verified - Valid until %1$s</string>

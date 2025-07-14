@@ -494,12 +494,12 @@ class SoundManager @Inject constructor(
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "[内部音效] 播放声音失败: ${e.message}", e)
+            Log.e(TAG, "[音效播放] 播放声音失败: ${e.message}", e)
             try {
                 // 兜底使用默认通知声音
                 playSystemSound(RingtoneManager.TYPE_NOTIFICATION)
-            } catch (fallbackException: Exception) {
-                Log.e(TAG, "[内部音效] 兜底播放也失败", fallbackException)
+            } catch (e: Exception) {
+                Log.e(TAG, "[音效播放] 播放备用声音也失败: ${e.message}", e)
             }
         }
     }

@@ -475,12 +475,12 @@ fun VolumeLevelSelector(
         val currentLevel = volumeLevels[currentLevelIndex]
         Text(
             text = when (currentLevel.first) {
-                0 -> "🔇 ${stringResource(R.string.volume_level_silent)} - 无声音提示"
-                100 -> "🔈 ${stringResource(R.string.volume_level_soft)} - 适用于安静环境"
-                300 -> "🔉 ${stringResource(R.string.volume_level_medium)} - 适用于一般环境"
-                500 -> "📢 ${stringResource(R.string.volume_level_loud)} - 适用于嘈杂环境"
-                750 -> "🔊 ${stringResource(R.string.volume_level_very_loud)} - 适用于忙碌餐厅"
-                1000 -> "⚠️ ${stringResource(R.string.volume_level_extreme)} - 适用于极度嘈杂环境"
+                0 -> "🔇 静音 - 无声音提示"
+                100 -> "🔈 轻声 - 适用于安静环境"
+                300 -> "🔉 中等 - 适用于一般环境"
+                500 -> "📢 响亮 - 适用于嘈杂环境"
+                750 -> "🔊 很响 - 适用于忙碌餐厅"
+                1000 -> "⚠️ 极响 - 适用于极度嘈杂环境"
                 else -> "🔊 当前音量级别"
             },
             style = MaterialTheme.typography.bodyMedium,

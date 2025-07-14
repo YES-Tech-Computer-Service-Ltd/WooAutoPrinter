@@ -32,7 +32,7 @@ class SoundSettingsViewModel @Inject constructor(
     }
 
     // 通知音量
-    private val _notificationVolume = MutableStateFlow(50)   // 默认轻级别
+    private val _notificationVolume = MutableStateFlow(250)  // 默认中等级别
     val notificationVolume: StateFlow<Int> = _notificationVolume.asStateFlow()
 
     // 提示音类型

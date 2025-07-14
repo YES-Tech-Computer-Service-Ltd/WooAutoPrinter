@@ -503,6 +503,108 @@ class SoundManager @Inject constructor(
             }
         }
     }
+                
+                SoundSettings.SOUND_TYPE_RINGTONE -> {
+                    Log.d(TAG, "[系统音效] 播放系统铃声")
+                    // 使用系统铃声
+                    playSystemSound(RingtoneManager.TYPE_RINGTONE)
+                }
+                
+                SoundSettings.SOUND_TYPE_DEFAULT -> {
+                    Log.d(TAG, "[系统音效] 播放默认通知声音")
+                    // 默认通知声音
+                    playSystemSound(RingtoneManager.TYPE_NOTIFICATION)
+                }
+                
+                SoundSettings.SOUND_TYPE_EVENT -> {
+                    Log.d(TAG, "[系统音效] 播放事件声音")
+                    // 尝试使用系统事件声音，安卓原生没有这个类型，我们使用特定URI
+                    try {
+                        val uri = Settings.System.DEFAULT_NOTIFICATION_URI
+                        playSpecificSound(uri)
+                    } catch (e: Exception) {
+                        // 使用备用系统声音
+                        playSystemSound(RingtoneManager.TYPE_NOTIFICATION)
+                    }
+                }
+                
+                SoundSettings.SOUND_TYPE_EMAIL -> {
+                    Log.d(TAG, "[系统音效] 播放邮件声音")
+                    // 尝试使用邮件声音，安卓原生没有这个类型，我们使用特定URI
+                    try {
+                        // 在不同Android版本上尝试不同的声音
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            // Android 8以上使用第二个可用的通知声音
+                            val availableSounds = RingtoneManager(context).cursor
+                            if (availableSounds.moveToPosition(1)) { // 尝试获取第二个声音
+                                val uri = Uri.parse(availableSounds.getString(RingtoneManager.URI_COLUMN_INDEX) + "/" +
+                                        availableSounds.getString(RingtoneManager.ID_COLUMN_INDEX))
+                                playSpecificSound(uri)
+                                availableSounds.close()
+                                return
+                            }
+                            availableSounds.close()
+                        }
+                        // 备用：使用系统第三个铃声
+                        val manager = RingtoneManager(context)
+                        manager.setType(RingtoneManager.TYPE_NOTIFICATION)
+                        val cursor = manager.cursor
+                        
+                        // 尝试获取第三个铃声
+                        if(cursor.count > 2 && cursor.moveToPosition(2)) {
+                            val position = cursor.position
+                            val uri = manager.getRingtoneUri(position)
+                            playSpecificSound(uri)
+                            cursor.close()
+                            return
+                        }
+                        cursor.close()
+                        
+                        // 如果没有找到额外的铃声，使用默认通知声音
+                        playSystemSound(RingtoneManager.TYPE_NOTIFICATION)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "[系统音效] 播放邮件声音失败: ${e.message}")
+                        // 备用声音
+                        playSystemSound(RingtoneManager.TYPE_NOTIFICATION)
+                    }
+                }
+                
+                SoundSettings.SOUND_TYPE_CUSTOM -> {
+                    Log.d(TAG, "[自定义音效] 播放自定义声音")
+                    // 播放自定义音频文件
+                    if (_customSoundUri.value.isNotEmpty()) {
+                        try {
+                            // 直接使用保存的文件路径
+                            val filePath = _customSoundUri.value
+                            playCustomSound(filePath)
+                            Log.d(TAG, "[自定义音效] 播放自定义声音: $filePath")
+                        } catch (e: Exception) {
+                            Log.e(TAG, "[自定义音效] 播放自定义声音失败: ${e.message}", e)
+                            // 失败时使用默认声音
+                            playSystemSound(RingtoneManager.TYPE_NOTIFICATION)
+                        }
+                    } else {
+                        Log.d(TAG, "[自定义音效] 自定义声音URI为空，使用默认声音")
+                        playSystemSound(RingtoneManager.TYPE_NOTIFICATION)
+                    }
+                }
+                
+                else -> {
+                    Log.d(TAG, "[系统音效] 未知类型，使用默认通知声音")
+                    // 未知类型使用默认通知声音
+                    playSystemSound(RingtoneManager.TYPE_NOTIFICATION)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "[音效播放] 播放声音失败: ${e.message}", e)
+            try {
+                // 兜底使用默认通知声音
+                playSystemSound(RingtoneManager.TYPE_NOTIFICATION)
+            } catch (e: Exception) {
+                Log.e(TAG, "[音效播放] 播放备用声音也失败: ${e.message}", e)
+            }
+        }
+    }
     
     /**
      * 播放测试音效（仅播放一次，不重复）- 用于设置页面的音量/类型测试

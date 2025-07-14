@@ -189,7 +189,7 @@ class SettingsViewModel @Inject constructor(
     val downloadProgress: StateFlow<Int> = _downloadProgress.asStateFlow()
 
     // 添加声音设置相关状态
-    private val _soundVolume = MutableStateFlow(50)   // 默认轻级别
+    private val _soundVolume = MutableStateFlow(250)  // 默认中等级别
     val soundVolume: StateFlow<Int> = _soundVolume.asStateFlow()
     
     private val _soundType = MutableStateFlow("")

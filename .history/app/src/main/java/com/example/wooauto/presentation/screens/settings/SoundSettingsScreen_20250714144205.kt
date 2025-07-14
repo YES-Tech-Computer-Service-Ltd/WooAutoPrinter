@@ -425,12 +425,12 @@ fun VolumeLevelSelector(
         
         // 音量档位选择器
         val volumeLevels = listOf(
-            0 to stringResource(R.string.volume_level_silent),
-            100 to stringResource(R.string.volume_level_soft), 
-            300 to stringResource(R.string.volume_level_medium),
-            500 to stringResource(R.string.volume_level_loud),
-            750 to stringResource(R.string.volume_level_very_loud),
-            1000 to stringResource(R.string.volume_level_extreme)
+            0 to "静音",
+            100 to "轻声", 
+            300 to "中等",
+            500 to "响亮",
+            750 to "很响",
+            1000 to "极响"
         )
         
         // 找到当前值对应的档位索引
@@ -475,12 +475,12 @@ fun VolumeLevelSelector(
         val currentLevel = volumeLevels[currentLevelIndex]
         Text(
             text = when (currentLevel.first) {
-                0 -> "🔇 ${stringResource(R.string.volume_level_silent)} - 无声音提示"
-                100 -> "🔈 ${stringResource(R.string.volume_level_soft)} - 适用于安静环境"
-                300 -> "🔉 ${stringResource(R.string.volume_level_medium)} - 适用于一般环境"
-                500 -> "📢 ${stringResource(R.string.volume_level_loud)} - 适用于嘈杂环境"
-                750 -> "🔊 ${stringResource(R.string.volume_level_very_loud)} - 适用于忙碌餐厅"
-                1000 -> "⚠️ ${stringResource(R.string.volume_level_extreme)} - 适用于极度嘈杂环境"
+                0 -> "🔇 静音 - 无声音提示"
+                100 -> "🔈 轻声 - 适用于安静环境"
+                300 -> "🔉 中等 - 适用于一般环境"
+                500 -> "📢 响亮 - 适用于嘈杂环境"
+                750 -> "🔊 很响 - 适用于忙碌餐厅"
+                1000 -> "⚠️ 极响 - 适用于极度嘈杂环境"
                 else -> "🔊 当前音量级别"
             },
             style = MaterialTheme.typography.bodyMedium,

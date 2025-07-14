@@ -229,18 +229,9 @@
     <string name="sound_type_title">提示音类型</string>
     <string name="sound_type_desc">选择新订单提示音</string>
     <string name="volume_min">0%</string>
-    <string name="volume_max">300%</string>
-    
-    <!-- 音量档位名称 -->
-    <string name="volume_level_silent">静音</string>
-    <string name="volume_level_soft">轻声</string>
-    <string name="volume_level_medium">中等</string>
-    <string name="volume_level_loud">响亮</string>
-    <string name="volume_level_very_loud">很响</string>
-    <string name="volume_level_extreme">极响</string>
+    <string name="volume_max">150%</string>
     <!-- Sound Types -->
     <string name="sound_type_custom">自定义音频文件</string>
-
     <string name="select_audio_file">选择音频文件</string>
     
     <!-- Template Preview -->
@@ -544,14 +535,6 @@
     <string name="sound_type_format">提示音: %1$s</string>
     <string name="sound_status_format">%1$s - %2$s</string>
     <string name="sound_disabled">已禁用</string>
-    
-    <!-- 极限音量增强功能 -->
-    <string name="extreme_volume_title">极限音量增强</string>
-    <string name="extreme_volume_desc">突破系统限制的高级音频技术</string>
-    <string name="multi_layer_audio">多层音频叠加</string>
-    <string name="audio_enhancement">音频增强处理</string>
-    <string name="volume_booster">音量助推器</string>
-    <string name="extreme_volume_note">专为餐厅等极度嘈杂环境设计</string>
 
     <!-- License Status -->
     <string name="license_status_valid">证书已验证 - 有效期至 %1$s</string>

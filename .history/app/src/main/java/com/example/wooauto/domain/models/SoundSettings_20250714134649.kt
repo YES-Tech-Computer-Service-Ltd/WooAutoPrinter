@@ -6,7 +6,7 @@ package com.example.wooauto.domain.models
  */
 data class SoundSettings(
     // 通知音量 (0-1000)
-    val notificationVolume: Int = 50,   // 默认轻级别
+    val notificationVolume: Int = 250,  // 默认中等级别
     
     // 提示音类型
     val soundType: String = SOUND_TYPE_DEFAULT,
@@ -28,11 +28,11 @@ data class SoundSettings(
         
         // 音量级别定义 - 7个级别对应不同的音量百分比
         const val VOLUME_LEVEL_MUTE = 0      // 静音 (0%)
-        const val VOLUME_LEVEL_VERY_SOFT = 25   // 很轻 (25%)
-        const val VOLUME_LEVEL_SOFT = 50        // 轻 (50%)
-        const val VOLUME_LEVEL_MEDIUM = 100     // 中等 (100%)
-        const val VOLUME_LEVEL_LOUD = 300       // 响亮 (300%)
-        const val VOLUME_LEVEL_VERY_LOUD = 700  // 很响 (700%)
+        const val VOLUME_LEVEL_VERY_SOFT = 50   // 很轻 (50%)
+        const val VOLUME_LEVEL_SOFT = 100       // 轻 (100%)
+        const val VOLUME_LEVEL_MEDIUM = 250     // 中等 (250%)
+        const val VOLUME_LEVEL_LOUD = 500       // 响亮 (500%)
+        const val VOLUME_LEVEL_VERY_LOUD = 750  // 很响 (750%)
         const val VOLUME_LEVEL_EXTREME = 1000   // 极响 (1000%)
         
         // 获取所有可用的提示音类型

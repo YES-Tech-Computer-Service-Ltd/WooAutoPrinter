@@ -230,14 +230,6 @@
     <string name="sound_type_desc">选择新订单提示音</string>
     <string name="volume_min">0%</string>
     <string name="volume_max">300%</string>
-    
-    <!-- 音量档位名称 -->
-    <string name="volume_level_silent">静音</string>
-    <string name="volume_level_soft">轻声</string>
-    <string name="volume_level_medium">中等</string>
-    <string name="volume_level_loud">响亮</string>
-    <string name="volume_level_very_loud">很响</string>
-    <string name="volume_level_extreme">极响</string>
     <!-- Sound Types -->
     <string name="sound_type_custom">自定义音频文件</string>
 

@@ -247,9 +247,9 @@ class SoundManager @Inject constructor(
         _currentVolume.value = safeVolume
         saveSettings()
         
-        // 播放测试音效，让用户直接听到音量效果（仅播放一次，不重复）
+        // 播放测试音效，让用户直接听到音量效果
         Log.d(TAG, "[音效播放] 原因: 设置音量测试 - 新音量: $safeVolume, 声音类型: ${_currentSoundType.value}")
-        playTestSoundOnce(_currentSoundType.value)
+        playSound(_currentSoundType.value)
     }
     
     /**
@@ -264,9 +264,9 @@ class SoundManager @Inject constructor(
             _currentSoundType.value = type
             saveSettings()
             
-            // 播放测试音效，让用户直接听到选择的音效（仅播放一次，不重复）
+            // 播放测试音效，让用户直接听到选择的音效
             Log.d(TAG, "[音效播放] 原因: 设置声音类型测试 - 新类型: $type")
-            playTestSoundOnce(type)
+            playSound(type)
         }
     }
     
@@ -278,10 +278,10 @@ class SoundManager @Inject constructor(
         _soundEnabled.value = enabled
         saveSettings()
         
-        // 如果启用声音，播放一个测试音效（仅播放一次，不重复）
+        // 如果启用声音，播放一个测试音效
         if (enabled) {
             Log.d(TAG, "[音效播放] 原因: 启用声音设置测试 - 声音类型: ${_currentSoundType.value}")
-            playTestSoundOnce(_currentSoundType.value)
+            playSound(_currentSoundType.value)
         } else {
             Log.d(TAG, "[音效设置] 声音已禁用，不播放测试音效")
         }
@@ -295,9 +295,9 @@ class SoundManager @Inject constructor(
         _customSoundUri.value = uri
         saveSettings()
         
-        // 如果当前声音类型是自定义，那么播放测试音效（仅播放一次，不重复）
+        // 如果当前声音类型是自定义，那么播放测试音效
         if (_currentSoundType.value == SoundSettings.SOUND_TYPE_CUSTOM) {
-            playTestSoundOnce(_currentSoundType.value)
+            playSound(_currentSoundType.value)
         }
     }
     
@@ -372,20 +372,6 @@ class SoundManager @Inject constructor(
 
         // 记录当前播放的声音类型
         currentPlayingSoundType = type
-
-        // 调用内部播放方法
-        playInternalSound(type)
-    }
-
-    /**
-     * 内部播放方法 - 不设置重复播放计数，用于重复播放调用
-     * @param type 声音类型
-     */
-    private fun playInternalSound(type: String) {
-        if (!_soundEnabled.value) {
-            Log.d(TAG, "[内部音效] 声音已禁用，不播放提示音")
-            return
-        }
 
         // 如果已经有声音在播放，先停止
         stopCurrentSound()
@@ -494,117 +480,12 @@ class SoundManager @Inject constructor(
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "[内部音效] 播放声音失败: ${e.message}", e)
+            Log.e(TAG, "[音效播放] 播放声音失败: ${e.message}", e)
             try {
                 // 兜底使用默认通知声音
                 playSystemSound(RingtoneManager.TYPE_NOTIFICATION)
-            } catch (fallbackException: Exception) {
-                Log.e(TAG, "[内部音效] 兜底播放也失败", fallbackException)
-            }
-        }
-    }
-    
-    /**
-     * 播放测试音效（仅播放一次，不重复）- 用于设置页面的音量/类型测试
-     * @param type 声音类型
-     */
-    fun playTestSoundOnce(type: String) {
-        if (!_soundEnabled.value) {
-            Log.d(TAG, "[测试音效] 声音已禁用，不播放测试音效")
-            return
-        }
-
-        Log.d(TAG, "[测试音效] 开始播放测试音效 - 类型: $type, 音量级别: ${_currentVolume.value}% (仅播放一次)")
-
-        // 如果已经有声音在播放，先停止
-        stopCurrentSound()
-        
-        // 立即执行振动提醒 - 与声音同时进行
-        performVibration()
-        
-        try {
-            // 根据声音类型使用不同的系统声音ID或URI
-            when(type) {
-                SoundSettings.SOUND_TYPE_ALARM -> {
-                    Log.d(TAG, "[测试音效] 播放系统闹钟声音")
-                    playSystemSoundOnce(RingtoneManager.TYPE_ALARM)
-                }
-                
-                SoundSettings.SOUND_TYPE_RINGTONE -> {
-                    Log.d(TAG, "[测试音效] 播放系统铃声")
-                    playSystemSoundOnce(RingtoneManager.TYPE_RINGTONE)
-                }
-                
-                SoundSettings.SOUND_TYPE_EVENT -> {
-                    Log.d(TAG, "[测试音效] 播放系统事件声音")
-                    try {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                            val availableSounds = RingtoneManager(context).cursor
-                            if (availableSounds.moveToPosition(1)) {
-                                val uri = Uri.parse(availableSounds.getString(RingtoneManager.URI_COLUMN_INDEX) + "/" +
-                                        availableSounds.getString(RingtoneManager.ID_COLUMN_INDEX))
-                                playSpecificSoundOnce(uri)
-                                availableSounds.close()
-                                return
-                            }
-                            availableSounds.close()
-                        }
-                        playSystemSoundOnce(RingtoneManager.TYPE_NOTIFICATION)
-                    } catch (e: Exception) {
-                        Log.e(TAG, "[测试音效] 播放事件声音失败: ${e.message}")
-                        playSystemSoundOnce(RingtoneManager.TYPE_NOTIFICATION)
-                    }
-                }
-                
-                SoundSettings.SOUND_TYPE_EMAIL -> {
-                    Log.d(TAG, "[测试音效] 播放系统邮件声音")
-                    try {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                            val availableSounds = RingtoneManager(context).cursor
-                            if (availableSounds.moveToPosition(2)) {
-                                val uri = Uri.parse(availableSounds.getString(RingtoneManager.URI_COLUMN_INDEX) + "/" +
-                                        availableSounds.getString(RingtoneManager.ID_COLUMN_INDEX))
-                                playSpecificSoundOnce(uri)
-                                availableSounds.close()
-                                return
-                            }
-                            availableSounds.close()
-                        }
-                        playSystemSoundOnce(RingtoneManager.TYPE_NOTIFICATION)
-                    } catch (e: Exception) {
-                        Log.e(TAG, "[测试音效] 播放邮件声音失败: ${e.message}")
-                        playSystemSoundOnce(RingtoneManager.TYPE_NOTIFICATION)
-                    }
-                }
-                
-                SoundSettings.SOUND_TYPE_CUSTOM -> {
-                    Log.d(TAG, "[测试音效] 播放自定义声音")
-                    if (_customSoundUri.value.isNotEmpty()) {
-                        try {
-                            val filePath = _customSoundUri.value
-                            playCustomSoundOnce(filePath)
-                            Log.d(TAG, "[测试音效] 播放自定义声音: $filePath")
-                        } catch (e: Exception) {
-                            Log.e(TAG, "[测试音效] 播放自定义声音失败: ${e.message}", e)
-                            playSystemSoundOnce(RingtoneManager.TYPE_NOTIFICATION)
-                        }
-                    } else {
-                        Log.d(TAG, "[测试音效] 自定义声音URI为空，使用默认声音")
-                        playSystemSoundOnce(RingtoneManager.TYPE_NOTIFICATION)
-                    }
-                }
-                
-                else -> {
-                    Log.d(TAG, "[测试音效] 未知类型或默认类型，使用默认通知声音")
-                    playSystemSoundOnce(RingtoneManager.TYPE_NOTIFICATION)
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "[测试音效] 播放测试音效失败: ${e.message}", e)
-            try {
-                playSystemSoundOnce(RingtoneManager.TYPE_NOTIFICATION)
             } catch (e: Exception) {
-                Log.e(TAG, "[测试音效] 播放备用声音也失败: ${e.message}", e)
+                Log.e(TAG, "[音效播放] 播放备用声音也失败: ${e.message}", e)
             }
         }
     }
@@ -661,11 +542,11 @@ class SoundManager @Inject constructor(
         try {
             Log.d(TAG, "[多音频叠加] 开始多音频叠加播放，目标音量: ${_currentVolume.value}%")
             
-            // 计算需要的音频层数 - 减少并发数量避免系统负担
+            // 计算需要的音频层数
             val layerCount = when {
-                _currentVolume.value >= 1000 -> 3  // 极响：3层叠加（减少负担）
-                _currentVolume.value >= 750 -> 2   // 很响：2层叠加
-                else -> 2                          // 默认：2层叠加
+                _currentVolume.value >= 1000 -> 6  // 极响：6层叠加
+                _currentVolume.value >= 750 -> 4   // 很响：4层叠加
+                else -> 3                          // 默认：3层叠加
             }
             
             // 清理之前的播放器
@@ -688,8 +569,8 @@ class SoundManager @Inject constructor(
                     
                     setDataSource(context, uri)
                     
-                    // 轻微的延迟启动，创造更厚重的音效（减少延迟避免状态冲突）
-                    val delayMs = i * 20L
+                    // 轻微的延迟启动，创造更厚重的音效
+                    val delayMs = i * 50L
                     
                     setOnPreparedListener { mediaPlayer ->
                         CoroutineScope(Dispatchers.Main).launch {
@@ -719,18 +600,8 @@ class SoundManager @Inject constructor(
                     }
                     
                     setOnCompletionListener {
-                        try {
-                            concurrentPlayers.remove(this)
-                            this.release()
-                        } catch (e: Exception) {
-                            Log.w(TAG, "[多音频叠加] 播放完成处理失败: ${e.message}")
-                        }
-                    }
-                    
-                    setOnErrorListener { _, what, extra ->
-                        Log.e(TAG, "[多音频叠加] 第${i + 1}层MediaPlayer错误: what=$what, extra=$extra")
                         concurrentPlayers.remove(this)
-                        true
+                        this.release()
                     }
                     
                     prepareAsync()
@@ -1267,9 +1138,9 @@ class SoundManager @Inject constructor(
             CoroutineScope(Dispatchers.Main).launch {
                 delay(repeatPlayInterval)  // 等待间隔时间
                 
-                // 播放下一次 - 使用内部播放方法，避免重新设置重复计数
+                // 播放下一次
                 Log.d(TAG, "[重复播放] 开始第${currentRepeatCount + 1}次播放")
-                playInternalSound(currentPlayingSoundType)
+                playSound(currentPlayingSoundType)
             }
         } else {
             // 播放完成，恢复系统音量
@@ -1377,350 +1248,5 @@ class SoundManager @Inject constructor(
     fun stopAllSounds() {
         stopCurrentSound()
         Log.d(TAG, "已停止所有正在播放的声音")
-    }
-    
-    // ================================ 单次播放方法 ================================
-    
-    /**
-     * 播放系统声音（仅播放一次，不重复）
-     */
-    private fun playSystemSoundOnce(ringtoneType: Int) {
-        try {
-            Log.d(TAG, "[测试音效] 播放系统声音 - 类型: $ringtoneType, 音量: ${_currentVolume.value}% (仅播放一次)")
-            
-            // 停止之前的声音
-            stopCurrentSound()
-            
-            // 如果音量超过100%，临时提升系统音量
-            boostSystemVolume()
-            
-            val notificationUri = RingtoneManager.getDefaultUri(ringtoneType)
-            Log.d(TAG, "[测试音效] 获取到系统声音URI: $notificationUri")
-            
-            // 根据音量级别选择播放策略
-            when {
-                _currentVolume.value >= 750 -> {
-                    // 极响/很响级别：使用多音频叠加技术
-                    playWithMultipleAudioLayersOnce(notificationUri)
-                }
-                _currentVolume.value >= 500 -> {
-                    // 响亮级别：使用音频增强技术
-                    playWithAudioEnhancementOnce(notificationUri)
-                }
-                _currentVolume.value >= 250 -> {
-                    // 中等级别：使用标准增强
-                    playWithStandardEnhancementOnce(notificationUri)
-                }
-                else -> {
-                    // 低音量：使用标准播放
-                    playStandardSoundOnce(notificationUri)
-                }
-            }
-            
-        } catch (e: Exception) {
-            Log.e(TAG, "[测试音效] 播放系统声音失败", e)
-            playFallbackSoundOnce()
-        }
-    }
-    
-    /**
-     * 播放指定URI声音（仅播放一次，不重复）
-     */
-    private fun playSpecificSoundOnce(uri: Uri) {
-        try {
-            Log.d(TAG, "[测试音效] 播放特定URI声音: $uri, 音量: ${_currentVolume.value}% (仅播放一次)")
-            
-            // 停止之前的声音
-            stopCurrentSound()
-            
-            // 如果音量超过100%，临时提升系统音量
-            boostSystemVolume()
-            
-            // 根据音量级别选择播放策略
-            when {
-                _currentVolume.value >= 750 -> {
-                    playWithMultipleAudioLayersOnce(uri)
-                }
-                _currentVolume.value >= 500 -> {
-                    playWithAudioEnhancementOnce(uri)
-                }
-                _currentVolume.value >= 250 -> {
-                    playWithStandardEnhancementOnce(uri)
-                }
-                else -> {
-                    playStandardSoundOnce(uri)
-                }
-            }
-            
-        } catch (e: Exception) {
-            Log.e(TAG, "[测试音效] 播放特定URI声音失败", e)
-            playFallbackSoundOnce()
-        }
-    }
-    
-    /**
-     * 播放自定义声音（仅播放一次，不重复）
-     */
-    private fun playCustomSoundOnce(filePath: String) {
-        try {
-            Log.d(TAG, "[测试音效] 播放自定义声音: $filePath, 音量: ${_currentVolume.value}% (仅播放一次)")
-            
-            stopCurrentSound()
-            boostSystemVolume()
-            
-            val uri = Uri.parse(filePath)
-            
-            when {
-                _currentVolume.value >= 750 -> {
-                    playWithMultipleAudioLayersOnce(uri)
-                }
-                _currentVolume.value >= 500 -> {
-                    playWithAudioEnhancementOnce(uri)
-                }
-                _currentVolume.value >= 250 -> {
-                    playWithStandardEnhancementOnce(uri)
-                }
-                else -> {
-                    playStandardSoundOnce(uri)
-                }
-            }
-            
-        } catch (e: Exception) {
-            Log.e(TAG, "[测试音效] 播放自定义声音失败", e)
-            playFallbackSoundOnce()
-        }
-    }
-    
-    /**
-     * 标准播放（仅播放一次，不重复）
-     */
-    private fun playStandardSoundOnce(uri: Uri) {
-        try {
-            ringtonePlayer = RingtoneManager.getRingtone(context, uri)
-            ringtonePlayer?.play()
-            testSoundPlaying = true
-            
-            CoroutineScope(Dispatchers.Main).launch {
-                delay(3000)
-                stopCurrentSound()
-                // 注意：这里不调用 handleRepeatPlay()，因为是单次播放
-            }
-            
-        } catch (e: Exception) {
-            Log.e(TAG, "[测试音效] 标准播放失败", e)
-            playFallbackSoundOnce()
-        }
-    }
-    
-    /**
-     * 标准增强播放（仅播放一次，不重复）
-     */
-    private fun playWithStandardEnhancementOnce(uri: Uri) {
-        try {
-            ringtonePlayer = RingtoneManager.getRingtone(context, uri)
-            
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                try {
-                    val volumeGain = (_currentVolume.value / 100f).coerceAtMost(2.5f)
-                    ringtonePlayer?.volume = volumeGain
-                    Log.d(TAG, "[测试音效] 设置音量增益: $volumeGain")
-                } catch (e: Exception) {
-                    Log.w(TAG, "[测试音效] 设置音量失败: ${e.message}")
-                }
-            }
-            
-            ringtonePlayer?.play()
-            testSoundPlaying = true
-            
-            CoroutineScope(Dispatchers.Main).launch {
-                delay(3000)
-                stopCurrentSound()
-                // 注意：这里不调用 handleRepeatPlay()
-            }
-            
-        } catch (e: Exception) {
-            Log.e(TAG, "[测试音效] 标准增强播放失败", e)
-            playStandardSoundOnce(uri)
-        }
-    }
-    
-    /**
-     * 音频增强播放（仅播放一次，不重复）
-     */
-    private fun playWithAudioEnhancementOnce(uri: Uri) {
-        try {
-            Log.d(TAG, "[测试音效] 音频增强播放，目标音量: ${_currentVolume.value}% (仅播放一次)")
-            
-            val player = MediaPlayer().apply {
-                setAudioAttributes(
-                    AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                        .setFlags(AudioAttributes.FLAG_AUDIBILITY_ENFORCED)
-                        .build()
-                )
-                
-                setDataSource(context, uri)
-                
-                setOnPreparedListener { mediaPlayer ->
-                    try {
-                        mediaPlayer.setVolume(1.0f, 1.0f)
-                        setupAdvancedAudioEffects(mediaPlayer.audioSessionId)
-                        mediaPlayer.start()
-                        Log.d(TAG, "[测试音效] 音频增强播放启动")
-                    } catch (e: Exception) {
-                        Log.e(TAG, "[测试音效] 播放器设置失败: ${e.message}")
-                    }
-                }
-                
-                setOnCompletionListener {
-                    try {
-                        this.release()
-                        testSoundPlaying = false
-                    } catch (e: Exception) {
-                        Log.w(TAG, "[测试音效] 播放器释放失败: ${e.message}")
-                    }
-                }
-                
-                setOnErrorListener { _, what, extra ->
-                    Log.e(TAG, "[测试音效] MediaPlayer错误: what=$what, extra=$extra")
-                    testSoundPlaying = false
-                    true
-                }
-                
-                prepareAsync()
-            }
-            
-            ringtonePlayer = null
-            testSoundPlaying = true
-            
-            CoroutineScope(Dispatchers.Main).launch {
-                delay(3000)
-                try {
-                    if (player.isPlaying) {
-                        player.stop()
-                    }
-                    player.release()
-                } catch (e: Exception) {
-                    Log.w(TAG, "[测试音效] 停止播放器失败: ${e.message}")
-                }
-                // 注意：这里不调用 handleRepeatPlay()
-            }
-            
-        } catch (e: Exception) {
-            Log.e(TAG, "[测试音效] 音频增强播放失败", e)
-            playStandardSoundOnce(uri)
-        }
-    }
-    
-    /**
-     * 多音频叠加播放（仅播放一次，不重复）
-     */
-    private fun playWithMultipleAudioLayersOnce(uri: Uri) {
-        try {
-            Log.d(TAG, "[测试音效] 多音频叠加播放，目标音量: ${_currentVolume.value}% (仅播放一次)")
-            
-            val layerCount = when {
-                _currentVolume.value >= 1000 -> 3
-                _currentVolume.value >= 750 -> 2
-                else -> 2
-            }
-            
-            stopAllConcurrentPlayers()
-            Thread.sleep(50)
-            
-            for (i in 0 until layerCount) {
-                try {
-                    val player = MediaPlayer().apply {
-                        setAudioAttributes(
-                            AudioAttributes.Builder()
-                                .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
-                                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                                .setFlags(AudioAttributes.FLAG_AUDIBILITY_ENFORCED)
-                                .build()
-                        )
-                        
-                        setDataSource(context, uri)
-                        
-                        val delayMs = i * 20L
-                        
-                        setOnPreparedListener { mediaPlayer ->
-                            CoroutineScope(Dispatchers.Main).launch {
-                                delay(delayMs)
-                                
-                                try {
-                                    if (mediaPlayer.isPlaying || !concurrentPlayers.contains(this@apply)) {
-                                        Log.w(TAG, "[测试音效] MediaPlayer状态异常，跳过第${i + 1}层音频")
-                                        return@launch
-                                    }
-                                    
-                                    mediaPlayer.setVolume(1.0f, 1.0f)
-                                    setupAudioEffects(mediaPlayer.audioSessionId)
-                                    mediaPlayer.start()
-                                    Log.d(TAG, "[测试音效] 启动第${i + 1}层音频，延迟: ${delayMs}ms")
-                                } catch (e: IllegalStateException) {
-                                    Log.e(TAG, "[测试音效] MediaPlayer状态错误，第${i + 1}层音频启动失败: ${e.message}")
-                                } catch (e: Exception) {
-                                    Log.e(TAG, "[测试音效] 第${i + 1}层音频启动出错: ${e.message}")
-                                }
-                            }
-                        }
-                        
-                        setOnCompletionListener {
-                            try {
-                                concurrentPlayers.remove(this)
-                                this.release()
-                            } catch (e: Exception) {
-                                Log.w(TAG, "[测试音效] 播放完成处理失败: ${e.message}")
-                            }
-                        }
-                        
-                        setOnErrorListener { _, what, extra ->
-                            Log.e(TAG, "[测试音效] 第${i + 1}层MediaPlayer错误: what=$what, extra=$extra")
-                            concurrentPlayers.remove(this)
-                            true
-                        }
-                        
-                        prepareAsync()
-                    }
-                    
-                    concurrentPlayers.add(player)
-                } catch (e: Exception) {
-                    Log.e(TAG, "[测试音效] 创建第${i + 1}层MediaPlayer失败: ${e.message}")
-                }
-            }
-            
-            testSoundPlaying = true
-            
-            CoroutineScope(Dispatchers.Main).launch {
-                delay(3500)
-                stopAllConcurrentPlayers()
-                // 注意：这里不调用 handleRepeatPlay()
-            }
-            
-        } catch (e: Exception) {
-            Log.e(TAG, "[测试音效] 多音频叠加播放失败", e)
-            playStandardSoundOnce(uri)
-        }
-    }
-    
-    /**
-     * 播放回退声音（仅播放一次，不重复）
-     */
-    private fun playFallbackSoundOnce() {
-        try {
-            val fallbackUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-            ringtonePlayer = RingtoneManager.getRingtone(context, fallbackUri)
-            ringtonePlayer?.play()
-            Log.d(TAG, "[测试音效] 使用备用系统通知声音")
-            
-            CoroutineScope(Dispatchers.Main).launch {
-                delay(3000)
-                stopCurrentSound()
-                // 注意：这里不调用 handleRepeatPlay()
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "[测试音效] 播放备用声音也失败", e)
-        }
     }
 } 

@@ -217,14 +217,6 @@
     <string name="sound_type_desc">Select sound for new order notifications</string>
     <string name="volume_min">0%</string>
     <string name="volume_max">300%</string>
-    
-    <!-- Volume Level Names -->
-    <string name="volume_level_silent">Silent</string>
-    <string name="volume_level_soft">Soft</string>
-    <string name="volume_level_medium">Medium</string>
-    <string name="volume_level_loud">Loud</string>
-    <string name="volume_level_very_loud">Very Loud</string>
-    <string name="volume_level_extreme">Extreme</string>
     <!-- Sound Types -->
     <string name="sound_type_default">system default</string>
 

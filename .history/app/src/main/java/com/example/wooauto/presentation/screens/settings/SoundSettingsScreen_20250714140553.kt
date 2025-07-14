@@ -29,7 +29,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
-import androidx.compose.material3.SliderDefaults
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -389,103 +388,107 @@ fun VolumeLevelSelector(
     onValueChange: (Int) -> Unit,
     enabled: Boolean
 ) {
+    val volumeLevels = SoundSettings.getAllVolumeLevels()
+    val currentLevel = SoundSettings.getClosestVolumeLevel(value)
+    
     Column(
         modifier = Modifier.fillMaxWidth()
     ) {
-        // 显示当前音量值和级别名称
+        // 显示当前级别名称
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+            horizontalArrangement = Arrangement.Center
         ) {
             Text(
-                text = "音量: ${value}%",
+                text = "当前级别: ${SoundSettings.getVolumeLevelDisplayName(currentLevel)}",
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.Bold,
                 color = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
-            )
-            
-            Text(
-                text = when {
-                    value >= 700 -> "极响"
-                    value >= 300 -> "很响"
-                    value >= 250 -> "响亮"
-                    value >= 100 -> "中等"
-                    value >= 50 -> "轻"
-                    value >= 25 -> "很轻"
-                    value > 0 -> "微弱"
-                    else -> "静音"
-                },
-                style = MaterialTheme.typography.bodyMedium,
-                color = if (enabled) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
             )
         }
         
         Spacer(modifier = Modifier.height(16.dp))
         
-        // 音量档位选择器
-        val volumeLevels = listOf(
-            0 to stringResource(R.string.volume_level_silent),
-            100 to stringResource(R.string.volume_level_soft), 
-            300 to stringResource(R.string.volume_level_medium),
-            500 to stringResource(R.string.volume_level_loud),
-            750 to stringResource(R.string.volume_level_very_loud),
-            1000 to stringResource(R.string.volume_level_extreme)
-        )
-        
-        // 找到当前值对应的档位索引
-        val currentLevelIndex = volumeLevels.indexOfLast { it.first <= value }.coerceAtLeast(0)
-        
-        Slider(
-            value = currentLevelIndex.toFloat(),
-            onValueChange = { newIndex -> 
-                val selectedLevel = volumeLevels[newIndex.toInt()]
-                onValueChange(selectedLevel.first)
-            },
+        // 级别选择网格
+        Column(
             modifier = Modifier.fillMaxWidth(),
-            enabled = enabled,
-            valueRange = 0f..(volumeLevels.size - 1).toFloat(),
-            steps = volumeLevels.size - 2, // steps = 档位数量 - 2
-            colors = SliderDefaults.colors(
-                thumbColor = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
-                activeTrackColor = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
-                inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant
-            )
-        )
-        
-        Spacer(modifier = Modifier.height(8.dp))
-        
-        // 显示档位标记
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            volumeLevels.forEach { (_, levelName) ->
-                Text(
-                    text = levelName,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                )
+            volumeLevels.chunked(2).forEach { levelRow ->  // 每行2个级别
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    levelRow.forEach { level ->
+                        val isSelected = level == currentLevel
+                        
+                        Button(
+                            onClick = { onValueChange(level) },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(60.dp),
+                            enabled = enabled,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isSelected) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.surfaceVariant
+                                },
+                                contentColor = if (isSelected) {
+                                    MaterialTheme.colorScheme.onPrimary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                }
+                            ),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Text(
+                                    text = SoundSettings.getVolumeLevelDisplayName(level),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                )
+                                if (level > 0) {  // 不显示静音的百分比
+                                    Text(
+                                        text = "${level}%",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = if (isSelected) {
+                                            MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
+                                        } else {
+                                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    
+                    // 如果这一行只有一个元素，添加空白占位
+                    if (levelRow.size == 1) {
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
+                }
             }
         }
         
         Spacer(modifier = Modifier.height(16.dp))
         
-        // 当前音量级别说明
-        val currentLevel = volumeLevels[currentLevelIndex]
+        // 级别说明
         Text(
-            text = when (currentLevel.first) {
-                0 -> "🔇 ${stringResource(R.string.volume_level_silent)} - 无声音提示"
-                100 -> "🔈 ${stringResource(R.string.volume_level_soft)} - 适用于安静环境"
-                300 -> "🔉 ${stringResource(R.string.volume_level_medium)} - 适用于一般环境"
-                500 -> "📢 ${stringResource(R.string.volume_level_loud)} - 适用于嘈杂环境"
-                750 -> "🔊 ${stringResource(R.string.volume_level_very_loud)} - 适用于忙碌餐厅"
-                1000 -> "⚠️ ${stringResource(R.string.volume_level_extreme)} - 适用于极度嘈杂环境"
-                else -> "🔊 当前音量级别"
+            text = when {
+                currentLevel >= 750 -> "⚠️ 极强音量 - 适用于极度嘈杂环境（如餐厅高峰期）"
+                currentLevel >= 500 -> "🔊 很强音量 - 适用于嘈杂环境（如忙碌餐厅）"
+                currentLevel >= 250 -> "📢 中等音量 - 适用于一般环境"
+                currentLevel >= 100 -> "🔉 轻音量 - 适用于安静环境"
+                currentLevel >= 50 -> "🔈 很轻音量 - 适用于非常安静的环境"
+                else -> "🔇 静音 - 无声音提示"
             },
-            style = MaterialTheme.typography.bodyMedium,
+            style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontWeight = FontWeight.Medium,
             modifier = Modifier.fillMaxWidth()
         )
     }
@@ -963,8 +966,6 @@ fun SoundSettingsDialogContent(
                     )
                     Text(soundTestText)
                 }
-                
-
             }
         }
     }

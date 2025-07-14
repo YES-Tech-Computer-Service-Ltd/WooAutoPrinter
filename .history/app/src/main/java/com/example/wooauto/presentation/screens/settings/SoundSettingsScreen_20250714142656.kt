@@ -407,8 +407,8 @@ fun VolumeLevelSelector(
             
             Text(
                 text = when {
-                    value >= 700 -> "极响"
-                    value >= 300 -> "很响"
+                    value >= 750 -> "极响"
+                    value >= 500 -> "很响"
                     value >= 250 -> "响亮"
                     value >= 100 -> "中等"
                     value >= 50 -> "轻"
@@ -423,29 +423,14 @@ fun VolumeLevelSelector(
         
         Spacer(modifier = Modifier.height(16.dp))
         
-        // 音量档位选择器
-        val volumeLevels = listOf(
-            0 to stringResource(R.string.volume_level_silent),
-            100 to stringResource(R.string.volume_level_soft), 
-            300 to stringResource(R.string.volume_level_medium),
-            500 to stringResource(R.string.volume_level_loud),
-            750 to stringResource(R.string.volume_level_very_loud),
-            1000 to stringResource(R.string.volume_level_extreme)
-        )
-        
-        // 找到当前值对应的档位索引
-        val currentLevelIndex = volumeLevels.indexOfLast { it.first <= value }.coerceAtLeast(0)
-        
+        // 音量滑块
         Slider(
-            value = currentLevelIndex.toFloat(),
-            onValueChange = { newIndex -> 
-                val selectedLevel = volumeLevels[newIndex.toInt()]
-                onValueChange(selectedLevel.first)
-            },
+            value = value.toFloat(),
+            onValueChange = { onValueChange(it.toInt()) },
             modifier = Modifier.fillMaxWidth(),
             enabled = enabled,
-            valueRange = 0f..(volumeLevels.size - 1).toFloat(),
-            steps = volumeLevels.size - 2, // steps = 档位数量 - 2
+            valueRange = 0f..1000f,
+            steps = 39, // 40个step: 0, 25, 50, 75, 100, 125, ..., 975, 1000
             colors = SliderDefaults.colors(
                 thumbColor = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
                 activeTrackColor = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
@@ -455,14 +440,14 @@ fun VolumeLevelSelector(
         
         Spacer(modifier = Modifier.height(8.dp))
         
-        // 显示档位标记
+        // 显示刻度标记
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            volumeLevels.forEach { (_, levelName) ->
+            listOf(0, 50, 250, 500, 750, 1000).forEach { scaleValue ->
                 Text(
-                    text = levelName,
+                    text = "${scaleValue}%",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                 )
@@ -471,21 +456,19 @@ fun VolumeLevelSelector(
         
         Spacer(modifier = Modifier.height(16.dp))
         
-        // 当前音量级别说明
-        val currentLevel = volumeLevels[currentLevelIndex]
+        // 音量级别说明
         Text(
-            text = when (currentLevel.first) {
-                0 -> "🔇 ${stringResource(R.string.volume_level_silent)} - 无声音提示"
-                100 -> "🔈 ${stringResource(R.string.volume_level_soft)} - 适用于安静环境"
-                300 -> "🔉 ${stringResource(R.string.volume_level_medium)} - 适用于一般环境"
-                500 -> "📢 ${stringResource(R.string.volume_level_loud)} - 适用于嘈杂环境"
-                750 -> "🔊 ${stringResource(R.string.volume_level_very_loud)} - 适用于忙碌餐厅"
-                1000 -> "⚠️ ${stringResource(R.string.volume_level_extreme)} - 适用于极度嘈杂环境"
-                else -> "🔊 当前音量级别"
+            text = when {
+                value >= 750 -> "⚠️ 极强音量 - 适用于极度嘈杂环境（如餐厅高峰期）"
+                value >= 500 -> "🔊 很强音量 - 适用于嘈杂环境（如忙碌餐厅）"
+                value >= 250 -> "📢 中等音量 - 适用于一般环境"
+                value >= 100 -> "🔉 轻音量 - 适用于安静环境"
+                value >= 50 -> "🔈 很轻音量 - 适用于非常安静的环境"
+                value > 0 -> "🔇 微弱音量 - 仅在极安静环境下可听到"
+                else -> "🔇 静音 - 无声音提示"
             },
-            style = MaterialTheme.typography.bodyMedium,
+            style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontWeight = FontWeight.Medium,
             modifier = Modifier.fillMaxWidth()
         )
     }
