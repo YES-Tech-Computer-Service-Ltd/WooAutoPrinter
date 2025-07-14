@@ -1,0 +1,330 @@
+package com.example.wooauto.utils
+
+import android.util.Log
+import com.example.wooauto.domain.models.PrinterConfig
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+/**
+ * 热敏打印机格式化工具
+ * 用于处理各种宽度打印机的文本格式转换
+ */
+class ThermalPrinterFormatter {
+    companion object {
+        private const val TAG = "ThermalPrinterFormatter"
+        
+        // 打印机字符数 - 不同纸张宽度的打印机能打印的字符数
+        private const val CHAR_COUNT_58MM = 28  // 58mm打印机一行约28个英文字符(有效打印区域约50mm)
+        private const val CHAR_COUNT_80MM = 42  // 80mm打印机一行约42个英文字符(有效打印区域约72mm)
+        
+        /**
+         * 获取打印机每行能打印的字符数
+         * @param paperWidth 打印纸宽度，单位mm
+         * @return 每行字符数
+         */
+        fun getCharsPerLine(paperWidth: Int): Int {
+            return when (paperWidth) {
+                PrinterConfig.PAPER_WIDTH_80MM -> CHAR_COUNT_80MM
+                PrinterConfig.PAPER_WIDTH_57MM -> CHAR_COUNT_58MM
+                else -> CHAR_COUNT_58MM // 默认使用58mm
+            }
+        }
+        
+        /**
+         * 格式化标题行
+         * @param title 标题文本
+         * @param paperWidth 打印纸宽度
+         * @return 格式化后的文本
+         */
+        fun formatTitle(title: String, paperWidth: Int): String {
+            return "[C]<b>$title</b>\n"
+        }
+        
+        /**
+         * 格式化店铺名称（大号字体，加粗，居中）
+         * @param storeName 店铺名称
+         * @param paperWidth 打印纸宽度
+         * @return 格式化后的文本
+         */
+        fun formatStoreName(storeName: String, paperWidth: Int): String {
+            // 使用加粗和上下装饰线来突出显示店铺名称
+            val chars = getCharsPerLine(paperWidth)
+            val topBottomLine = "=".repeat(chars)
+            val sb = StringBuilder()
+            
+            // 上装饰线
+            sb.append("[C]$topBottomLine\n")
+            // 店铺名称使用专门的中文字体放大方案 - 支持中文和英文放大显示
+            sb.append("[C]${formatChineseLargeFont(storeName, paperWidth)}\n")
+            // 下装饰线
+            sb.append("[C]$topBottomLine\n")
+            
+            return sb.toString()
+        }
+        
+        /**
+         * 格式化店铺地址（中等字体，居中）
+         * @param storeAddress 店铺地址
+         * @param paperWidth 打印纸宽度
+         * @return 格式化后的文本
+         */
+        fun formatStoreAddress(storeAddress: String, paperWidth: Int): String {
+            return "[C]$storeAddress\n"
+        }
+        
+        /**
+         * 格式化店铺电话（中等字体，居中，带前缀）
+         * @param storePhone 店铺电话
+         * @param paperWidth 打印纸宽度
+         * @return 格式化后的文本
+         */
+        fun formatStorePhone(storePhone: String, paperWidth: Int): String {
+            return "[C]Tel: $storePhone\n"
+        }
+        
+        /**
+         * 格式化分隔线
+         * @param paperWidth 打印纸宽度
+         * @return 格式化后的分隔线
+         */
+        fun formatDivider(paperWidth: Int): String {
+            val chars = getCharsPerLine(paperWidth)
+            val divider = "-".repeat(chars)
+            return "[C]$divider\n"
+        }
+        
+        /**
+         * 格式化标签值对
+         * @param label 标签
+         * @param value 值
+         * @param paperWidth 打印纸宽度
+         * @return 格式化后的文本
+         */
+        fun formatLabelValue(label: String, value: String, paperWidth: Int): String {
+            return "[L]<b>$label:</b> $value\n"
+        }
+        
+        /**
+         * 格式化居中文本
+         * @param text 文本内容
+         * @param paperWidth 打印纸宽度
+         * @return 格式化后的文本
+         */
+        fun formatCenteredText(text: String, paperWidth: Int): String {
+            return "[C]$text\n"
+        }
+        
+        /**
+         * 格式化左对齐文本
+         * @param text 文本内容
+         * @param paperWidth 打印纸宽度
+         * @return 格式化后的文本
+         */
+        fun formatLeftText(text: String, paperWidth: Int): String {
+            return "[L]$text\n"
+        }
+        
+        /**
+         * 格式化右对齐文本
+         * @param text 文本内容
+         * @param paperWidth 打印纸宽度
+         * @return 格式化后的文本
+         */
+        fun formatRightText(text: String, paperWidth: Int): String {
+            return "[R]$text\n"
+        }
+        
+        /**
+         * 格式化左右对齐的行（用于价格等）
+         * @param left 左侧文本
+         * @param right 右侧文本
+         * @param paperWidth 打印纸宽度
+         * @return 格式化后的文本
+         */
+        fun formatLeftRightText(left: String, right: String, paperWidth: Int): String {
+            val maxChars = getCharsPerLine(paperWidth)
+            val totalLength = left.length + right.length
+            
+            // 如果总长度超过行宽，分两行显示
+            if (totalLength >= maxChars) {
+                return "[L]$left\n[R]$right\n"
+            }
+            
+            // 计算需要的空格数
+            val spacesNeeded = maxChars - totalLength
+            val spaces = " ".repeat(spacesNeeded)
+            
+            // 使用空格填充实现左右对齐
+            return "[L]$left$spaces$right\n"
+        }
+        
+        /**
+         * 格式化加粗文本
+         * @param text 文本内容
+         * @return 格式化后的文本
+         */
+        fun formatBold(text: String): String {
+            return "<b>$text</b>"
+        }
+        
+        /**
+         * 格式化缩进文本（用于子项）
+         * @param text 文本内容
+         * @param indent 缩进级别
+         * @param paperWidth 打印纸宽度
+         * @return 格式化后的文本
+         */
+        fun formatIndentedText(text: String, indent: Int = 1, paperWidth: Int): String {
+            val indentText = "  ".repeat(indent) // 每级缩进2个空格
+            return "[L]$indentText$text\n"
+        }
+        
+        /**
+         * 格式化日期时间
+         * @param date 日期对象
+         * @param format 日期格式，默认为 yyyy-MM-dd HH:mm:ss
+         * @return 格式化后的日期字符串
+         */
+        fun formatDateTime(date: Date, format: String = "yyyy-MM-dd HH:mm:ss"): String {
+            val dateFormat = SimpleDateFormat(format, Locale.getDefault())
+            return dateFormat.format(date)
+        }
+        
+        /**
+         * 格式化多行文本，确保每行不超过打印机宽度
+         * @param text 文本内容
+         * @param paperWidth 打印纸宽度
+         * @param alignment 对齐方式：'L'=左对齐，'C'=居中，'R'=右对齐
+         * @return 格式化后的文本
+         */
+        fun formatMultilineText(text: String, paperWidth: Int, alignment: Char = 'L'): String {
+            val maxChars = getCharsPerLine(paperWidth)
+            val sb = StringBuilder()
+            
+            // 按换行符分割
+            val lines = text.split("\n")
+            
+            for (line in lines) {
+                // 如果单行长度超过打印机宽度，需要拆分
+                if (line.length > maxChars) {
+                    var remainingText = line
+                    while (remainingText.isNotEmpty()) {
+                        val chunk = remainingText.take(maxChars)
+                        sb.append("[$alignment]$chunk\n")
+                        remainingText = remainingText.drop(maxChars)
+                    }
+                } else {
+                    sb.append("[$alignment]$line\n")
+                }
+            }
+            
+            return sb.toString()
+        }
+        
+        /**
+         * 添加空行
+         * @param count 空行数量
+         * @return 格式化后的文本
+         */
+        fun addEmptyLines(count: Int): String {
+            return "\n".repeat(count)
+        }
+        
+        /**
+         * 格式化页脚信息
+         * @param text 页脚文本
+         * @param paperWidth 打印纸宽度
+         * @return 格式化后的文本
+         */
+        fun formatFooter(text: String, paperWidth: Int): String {
+            val sb = StringBuilder()
+            sb.append(formatDivider(paperWidth))
+            
+            // 使用多行文本格式化方法，并设置为居中对齐
+            // 这样可以处理自动换行和手动换行的情况
+            sb.append(formatMultilineText(text, paperWidth, 'C'))
+            
+            sb.append(addEmptyLines(3)) // 添加空行便于撕纸
+            return sb.toString()
+        }
+        
+        /**
+         * 格式化商品行（带价格）
+         * @param name 商品名称
+         * @param quantity 数量
+         * @param price 单价
+         * @param paperWidth 打印纸宽度
+         * @return 格式化后的文本
+         */
+        fun formatItemPriceLine(name: String, quantity: Int, price: String, paperWidth: Int): String {
+            val quantityPrice = "${quantity} x $price"
+            val maxChars = getCharsPerLine(paperWidth)
+            
+            // 如果商品名称和价格信息总长度超过行宽，分两行显示
+            if (name.length + quantityPrice.length + 2 > maxChars) {
+                val sb = StringBuilder()
+                // 商品名称使用双倍高度字体 - 支持中文和英文放大显示
+                sb.append("[L]<h><b>$name</b></h>\n")
+                sb.append("[L]  $quantityPrice\n")
+                return sb.toString()
+            } else {
+                // 使用formatLeftRightText来处理左右对齐，商品名称使用双倍高度字体
+                return formatLeftRightText("<h><b>$name</b></h>", quantityPrice, paperWidth)
+            }
+        }
+        
+        /**
+         * 转换ESC/POS命令
+         * 将我们的简单格式转换为打印机命令
+         * 注意：这个方法只是演示，实际打印由打印库处理
+         * @param formattedText 已格式化的文本
+         * @return ESC/POS命令字符串
+         */
+        fun convertToEscPos(formattedText: String): String {
+            Log.d(TAG, "转换为ESC/POS命令: $formattedText")
+            // 这里只是演示，实际应用中会使用专门的打印库处理具体的ESC/POS命令
+            return formattedText
+        }
+        
+        /**
+         * 为中文内容提供备用字体放大方案
+         * 当硬件字体放大不支持中文时，使用字符间距等方式增强视觉效果
+         * @param text 文本内容
+         * @param paperWidth 打印纸宽度
+         * @return 格式化后的文本
+         */
+        fun formatChineseLargeFont(text: String, paperWidth: Int): String {
+            // 检测是否包含中文字符
+            val hasChineseCharacters = text.any { char ->
+                char.code in 0x4E00..0x9FFF || // CJK统一汉字
+                char.code in 0x3400..0x4DBF || // CJK扩展A
+                char.code in 0x3000..0x303F || // CJK符号和标点
+                char.code in 0xFF00..0xFFEF    // 全角ASCII、全角标点符号
+            }
+            
+            return if (hasChineseCharacters) {
+                // 对于中文内容，使用字符间距来增强视觉效果
+                val sb = StringBuilder()
+                
+                // 在中文字符之间添加空格，增加视觉间距
+                var result = ""
+                for (i in text.indices) {
+                    result += text[i]
+                    // 如果当前字符是中文，并且下一个字符也存在且是中文，添加半角空格
+                    if (i < text.length - 1 && 
+                        text[i].code in 0x4E00..0x9FFF && 
+                        text[i + 1].code in 0x4E00..0x9FFF) {
+                        result += " "
+                    }
+                }
+                
+                // 使用加粗和双倍标签组合
+                "<h><w><b>$result</b></w></h>"
+            } else {
+                // 英文内容直接使用标准放大标签
+                "<h><w><b>$text</b></w></h>"
+            }
+        }
+    }
+} 
