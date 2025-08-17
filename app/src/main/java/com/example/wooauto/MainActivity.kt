@@ -275,84 +275,12 @@ class MainActivity : ComponentActivity(), OrderNotificationManager.NotificationC
     private suspend fun initAppLanguage() {
         try {
             Log.d(TAG, "开始初始化应用语言设置")
-            
-            // 初始化 LocaleManager
+            // 交给 LocaleManager 统一初始化与应用
             LocaleManager.initialize(applicationContext)
-            
-            // 从SharedPreferences加载保存的语言设置
-            val savedLocale = withContext(Dispatchers.IO) {
-                LocaleHelper.loadSavedLocale(this@MainActivity)
-            }
-            
-            if (savedLocale != null) {
-                // 找到保存的语言设置，应用它
-                Log.d(TAG, "从SharedPreferences加载语言设置: ${savedLocale.language}")
-                
-                // 使用更完整的语言设置方法
-                withContext(Dispatchers.Main) {
-                    LocaleManager.setLocale(this@MainActivity, savedLocale)
-                    
-                    // 确保状态也更新
-                    LocaleManager.updateLocale(savedLocale)
-                }
-            } else {
-                // 没有保存的语言设置，使用系统语言
-                val systemLocale = LocaleHelper.getSystemLocale(this@MainActivity)
-                // 确保使用的是我们支持的语言之一
-                val supportedLocale = LocaleHelper.SUPPORTED_LOCALES.find { 
-                    it.language == systemLocale.language 
-                } ?: Locale.ENGLISH
-                
-                Log.d(TAG, "没有保存的语言设置，使用系统语言: ${supportedLocale.language}")
-                
-                // 使用更完整的语言设置方法
-                withContext(Dispatchers.Main) {
-                    LocaleManager.setLocale(this@MainActivity, supportedLocale)
-                    
-                    // 更新UI状态
-                    LocaleManager.updateLocale(supportedLocale)
-                }
-                
-                // 保存语言设置 (IO线程)
-                withContext(Dispatchers.IO) {
-                    LocaleHelper.saveLocalePreference(this@MainActivity, supportedLocale)
-                }
-            }
-            
-            // 应用当前语言到上下文 (必须在主线程)
-            withContext(Dispatchers.Main) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                    // API 24+, 使用createConfigurationContext方法
-                    val locale = LocaleManager.currentLocale
-                    val localeList = android.os.LocaleList(locale)
-                    val config = resources.configuration.apply {
-                        setLocales(localeList)
-                    }
-                    createConfigurationContext(config)
-                } else {
-                    // API 23及以下，使用旧方法
-                    val locale = LocaleManager.currentLocale
-                    // 创建新的Configuration对象而不是使用copy()
-                    val config = android.content.res.Configuration(resources.configuration)
-                    @Suppress("DEPRECATION")
-                    config.locale = locale
-                    @Suppress("DEPRECATION")
-                    resources.updateConfiguration(config, resources.displayMetrics)
-                }
-            }
-
-//            Log.d(TAG, "应用语言初始化完成: ${LocaleManager.currentLocale.language}")
+            // 不再重复设置/回退，避免竞态与闪切
         } catch (e: Exception) {
             Log.e(TAG, "初始化应用语言失败", e)
-            // 如果初始化失败，使用英语作为默认语言
-            try {
-                withContext(Dispatchers.Main) {
-                    LocaleManager.setLocale(this@MainActivity, Locale.ENGLISH)
-                    LocaleManager.updateLocale(Locale.ENGLISH)
-                }
-            } catch (e2: Exception) {
-                Log.e(TAG, "回退到英语也失败了", e2)
-            }
+            // 保持现状，不做强制回退，避免“自动切换”
         }
     }
     

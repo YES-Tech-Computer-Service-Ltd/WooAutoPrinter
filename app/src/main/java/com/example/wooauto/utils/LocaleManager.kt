@@ -156,21 +156,9 @@ object LocaleManager {
      */
     fun forceRefreshUI() {
         try {
-            // 临时切换语言再切换回来，强制触发UI重组
-            val tempLocale = if (currentLocale.language == "en") {
-                JavaLocale.SIMPLIFIED_CHINESE
-            } else {
-                JavaLocale.ENGLISH
-            }
-            
-            // 先更新到临时语言
-            updateLocale(tempLocale)
-            
-            // 200毫秒后切换回原语言
-            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                updateLocale(currentLocale)
-                Log.d(TAG, "强制刷新UI完成")
-            }, 200)
+            // 保持当前语言，重新应用当前Locale，避免临时切换导致的“自动切换”现象
+            updateLocale(currentLocale)
+            Log.d(TAG, "请求UI刷新（保持当前语言）")
         } catch (e: Exception) {
             Log.e(TAG, "强制刷新UI失败: ${e.message}", e)
         }

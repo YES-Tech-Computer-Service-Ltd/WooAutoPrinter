@@ -432,10 +432,6 @@ class SettingsViewModel @Inject constructor(
                 // 2. 更新当前语言状态
                 _currentLocale.value = locale
                 
-                // 3. 额外尝试一次强制刷新 UI，确保语言变化生效
-                kotlinx.coroutines.delay(100)  // 短暂延迟以确保状态更新
-                LocaleManager.forceRefreshUI()
-                
                 Log.d("SettingsViewModel", "语言切换完成，UI 将立即更新")
             } catch (e: Exception) {
                 Log.e("SettingsViewModel", "语言切换失败", e)
