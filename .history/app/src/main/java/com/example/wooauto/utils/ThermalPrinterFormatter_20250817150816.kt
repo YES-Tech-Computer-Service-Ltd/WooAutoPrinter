@@ -144,10 +144,7 @@ class ThermalPrinterFormatter {
          */
         fun formatLeftRightText(left: String, right: String, paperWidth: Int): String {
             val maxChars = getCharsPerLine(paperWidth)
-            // 计算可见长度（忽略格式标签），避免因<b>/<h>/<w>等标签影响空格计算
-            val visibleLeft = left.replace(Regex("<[^>]*>"), "")
-            val visibleRight = right.replace(Regex("<[^>]*>"), "")
-            val totalLength = visibleLeft.length + visibleRight.length
+            val totalLength = left.length + right.length
             
             // 如果总长度超过行宽，分两行显示
             if (totalLength >= maxChars) {
@@ -276,9 +273,8 @@ class ThermalPrinterFormatter {
                 sb.append("[L]<h><w><b>  $quantityPrice</b></w></h>\n")
                 return sb.toString()
             } else {
-                // 使用formatLeftRightText来处理左右对齐，左右两侧都使用放大方案
-                val enlargedRight = "<h><w><b>" + quantityPrice + "</b></w></h>"
-                return formatLeftRightText(formattedName, enlargedRight, paperWidth)
+                // 使用formatLeftRightText来处理左右对齐，商品名称使用字体放大方案
+                return formatLeftRightText(formattedName, quantityPrice, paperWidth)
             }
         }
         

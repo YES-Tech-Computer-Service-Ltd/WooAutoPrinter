@@ -276,9 +276,8 @@ class ThermalPrinterFormatter {
                 sb.append("[L]<h><w><b>  $quantityPrice</b></w></h>\n")
                 return sb.toString()
             } else {
-                // 使用formatLeftRightText来处理左右对齐，左右两侧都使用放大方案
-                val enlargedRight = "<h><w><b>" + quantityPrice + "</b></w></h>"
-                return formatLeftRightText(formattedName, enlargedRight, paperWidth)
+                // 使用formatLeftRightText来处理左右对齐，商品名称使用字体放大方案
+                return formatLeftRightText(formattedName, quantityPrice, paperWidth)
             }
         }
         

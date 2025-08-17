@@ -543,8 +543,8 @@ class BluetoothPrinterManager @Inject constructor(
             if (text.contains("<w>")) {
                 // 开启双倍宽度 - ESC ! 设置打印模式
                 outputStream.write(byteArrayOf(0x1B, 0x21, 0x20))  // 双倍宽度
-                // 同时使用 GS ! 设置水平放大，增强在部分设备/中文模式下对拉丁字符的兼容
-                outputStream.write(byteArrayOf(0x1D, 0x21, 0x01))  // GS ! 0x01 - 仅双倍宽度（水平 x2）
+                // 同时使用 GS ! 设置宽度放大，增强在部分设备/中文模式下对拉丁字符的兼容
+                outputStream.write(byteArrayOf(0x1D, 0x21, 0x10))  // GS ! 0x10 - 仅双倍宽度
                 
                 // 为中文字符额外发送字体控制命令
                 outputStream.write(byteArrayOf(0x1C, 0x21, 0x04))  // FS ! 4 - 中文双倍宽度
@@ -562,14 +562,14 @@ class BluetoothPrinterManager @Inject constructor(
                 // 开启双倍高度 - 如果已经开启了双倍宽度，则使用双倍高宽
                 if (isDoubleWidth) {
                     outputStream.write(byteArrayOf(0x1B, 0x21, 0x30))  // 双倍高宽
-                    // 使用 GS ! 设置双倍高宽，确保拉丁字符同样生效（垂直 x2 且水平 x2）
+                    // 使用 GS ! 设置双倍高宽，确保拉丁字符同样生效
                     outputStream.write(byteArrayOf(0x1D, 0x21, 0x11))  // GS ! 0x11 - 双倍高宽
                     // 为中文字符额外发送字体控制命令
                     outputStream.write(byteArrayOf(0x1C, 0x21, 0x0C))  // FS ! 12 - 中文双倍高宽
                 } else {
                     outputStream.write(byteArrayOf(0x1B, 0x21, 0x10))  // 只双倍高度
-                    // 使用 GS ! 设置仅双倍高度（垂直 x2）
-                    outputStream.write(byteArrayOf(0x1D, 0x21, 0x10))  // GS ! 0x10 - 仅双倍高度
+                    // 使用 GS ! 设置仅双倍高度
+                    outputStream.write(byteArrayOf(0x1D, 0x21, 0x01))  // GS ! 0x01 - 仅双倍高度
                     // 为中文字符额外发送字体控制命令
                     outputStream.write(byteArrayOf(0x1C, 0x21, 0x08))  // FS ! 8 - 中文双倍高度
                 }
