@@ -346,8 +346,6 @@ class OrderNotificationManager @Inject constructor(
                 }
                 if (success) {
                     Log.d(TAG, "成功标记订单为已读: $orderId")
-                    // 用户接单或关闭提示时，停止可能的持续响铃
-                    soundManager.stopAllSounds()
                 } else {
                     Log.e(TAG, "标记订单为已读失败: $orderId")
                 }

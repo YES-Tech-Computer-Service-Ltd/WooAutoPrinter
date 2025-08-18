@@ -49,45 +49,6 @@ import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileOutputStream
 
-@Composable
-private fun KeepRingingSwitch(
-    enabled: Boolean,
-    onEnabledChange: (Boolean) -> Unit,
-    isSoundEnabled: Boolean
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(
-            imageVector = Icons.Default.AudioFile,
-            contentDescription = null,
-            modifier = Modifier.padding(end = 16.dp)
-        )
-        Column(
-            modifier = Modifier.weight(1f)
-        ) {
-            Text(
-                text = "接单持续提示",
-                style = MaterialTheme.typography.titleMedium
-            )
-            Text(
-                text = "新订单到达后，提示音将持续响铃，直到你点击接受订单。",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        Switch(
-            checked = enabled,
-            onCheckedChange = onEnabledChange,
-            enabled = isSoundEnabled,
-            modifier = Modifier.padding(start = 8.dp)
-        )
-    }
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SoundSettingsScreen(
@@ -103,7 +64,6 @@ fun SoundSettingsScreen(
     val soundType by viewModel.soundType.collectAsState()
     val soundEnabled by viewModel.soundEnabled.collectAsState()
     val customSoundUri by viewModel.customSoundUri.collectAsState()
-    val keepRingingUntilAccept by viewModel.keepRingingUntilAccept.collectAsState()
     
     val scrollState = rememberScrollState()
     
@@ -252,7 +212,7 @@ fun SoundSettingsScreen(
                     
                     // 标题
                     Text(
-                        text = stringResource(id = R.string.notification_settings),
+                        text = stringResource(id = R.string.sound_settings),
                         style = MaterialTheme.typography.titleLarge,
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -301,16 +261,6 @@ fun SoundSettingsScreen(
                                 viewModel.setSoundEnabled(it)
                             }
                         }
-                    )
-
-                    Spacer(modifier = Modifier.height(12.dp))
-                    // 接单持续提示开关（独立设置）
-                    KeepRingingSwitch(
-                        enabled = keepRingingUntilAccept,
-                        onEnabledChange = { value: Boolean ->
-                            coroutineScope.launch { viewModel.setKeepRingingUntilAccept(value) }
-                        },
-                        isSoundEnabled = soundEnabled
                     )
                     
                     Spacer(modifier = Modifier.height(24.dp))
@@ -679,7 +629,6 @@ fun SoundSettingsDialogContent(
     val soundType by viewModel.soundType.collectAsState()
     val soundEnabled by viewModel.soundEnabled.collectAsState()
     val customSoundUri by viewModel.customSoundUri.collectAsState()
-    val keepRingingUntilAccept by viewModel.keepRingingUntilAccept.collectAsState()
     
     val scrollState = rememberScrollState()
     
@@ -840,18 +789,6 @@ fun SoundSettingsDialogContent(
                                 viewModel.setSoundEnabled(it)
                             }
                         }
-                    )
-                    
-                    Spacer(modifier = Modifier.height(12.dp))
-                    // 接单持续提示开关（对话框版本）
-                    KeepRingingSwitch(
-                        enabled = keepRingingUntilAccept,
-                        onEnabledChange = { enabled ->
-                            coroutineScope.launch {
-                                viewModel.setKeepRingingUntilAccept(enabled)
-                            }
-                        },
-                        isSoundEnabled = soundEnabled
                     )
                     
                     Spacer(modifier = Modifier.height(24.dp))

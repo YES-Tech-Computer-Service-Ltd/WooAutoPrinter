@@ -213,12 +213,11 @@ class MainActivity : ComponentActivity(), OrderNotificationManager.NotificationC
             ) {
                 WooAutoApp.GetContent()
                 
-                // 强化显示条件：当开启“接单持续提示”且仍有当前订单时，强制显示弹窗，避免外部事件误关
-                val keepRinging = soundManager.isKeepRingingUntilAcceptEnabled()
-                if ((showNewOrderDialog || (keepRinging && currentNewOrder != null)) && currentNewOrder != null) {
+                // 显示新订单弹窗
+                if (showNewOrderDialog && currentNewOrder != null) {
                     NewOrderPopup(
                         order = currentNewOrder!!,
-                        keepRingingUntilAccept = keepRinging,
+                        keepRingingUntilAccept = soundManager.isKeepRingingUntilAcceptEnabled(),
                         onDismiss = { 
                             // 只是隐藏弹窗，不处理已读状态（由NewOrderPopup内部处理）
                             showNewOrderDialog = false

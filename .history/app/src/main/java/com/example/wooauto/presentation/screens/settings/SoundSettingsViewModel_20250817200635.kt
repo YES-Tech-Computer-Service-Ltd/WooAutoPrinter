@@ -46,10 +46,6 @@ class SoundSettingsViewModel @Inject constructor(
     // 自定义声音URI
     private val _customSoundUri = MutableStateFlow("")
     val customSoundUri: StateFlow<String> = _customSoundUri.asStateFlow()
-    
-    // 接单持续提示 - 独立开关（不改SoundSettings数据类）
-    private val _keepRingingUntilAccept = MutableStateFlow(false)
-    val keepRingingUntilAccept: StateFlow<Boolean> = _keepRingingUntilAccept.asStateFlow()
 
     init {
         loadSettings()
@@ -66,7 +62,6 @@ class SoundSettingsViewModel @Inject constructor(
                 _soundType.value = settings.soundType
                 _soundEnabled.value = settings.soundEnabled
                 _customSoundUri.value = settings.customSoundUri
-                _keepRingingUntilAccept.value = settingsRepository.getKeepRingingUntilAccept()
                 
                 Log.d(TAG, "成功加载声音设置: 音量=${settings.notificationVolume}, 类型=${settings.soundType}, 启用=${settings.soundEnabled}, 自定义声音=${settings.customSoundUri}")
             } catch (e: Exception) {
@@ -88,7 +83,6 @@ class SoundSettingsViewModel @Inject constructor(
             )
             
             settingsRepository.saveSoundSettings(settings)
-            settingsRepository.setKeepRingingUntilAccept(_keepRingingUntilAccept.value)
             Log.d(TAG, "成功保存声音设置")
             
             // 应用到SoundManager
@@ -100,8 +94,6 @@ class SoundSettingsViewModel @Inject constructor(
                 if (_soundType.value == SoundSettings.SOUND_TYPE_CUSTOM) {
                     soundManager.setCustomSoundUri(_customSoundUri.value)
                 }
-                // 同步应用“接单持续提示”
-                soundManager.setKeepRingingUntilAccept(_keepRingingUntilAccept.value)
             } else {
                 soundManager.setSoundEnabled(false)
             }
@@ -137,18 +129,6 @@ class SoundSettingsViewModel @Inject constructor(
     suspend fun setSoundEnabled(enabled: Boolean) {
         _soundEnabled.value = enabled
         soundManager.setSoundEnabled(enabled)
-    }
-    
-    /** 设置接单持续提示 */
-    suspend fun setKeepRingingUntilAccept(enabled: Boolean) {
-        _keepRingingUntilAccept.value = enabled
-        soundManager.setKeepRingingUntilAccept(enabled)
-        try {
-            settingsRepository.setKeepRingingUntilAccept(enabled)
-            Log.d(TAG, "已立即持久化 keepRingingUntilAccept=$enabled")
-        } catch (e: Exception) {
-            Log.e(TAG, "持久化 keepRingingUntilAccept 失败", e)
-        }
     }
     
     /**

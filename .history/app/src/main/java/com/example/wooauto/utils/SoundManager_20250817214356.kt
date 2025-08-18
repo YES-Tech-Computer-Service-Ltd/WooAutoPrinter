@@ -137,7 +137,6 @@ class SoundManager @Inject constructor(
     private var isLoopingForAcceptance: Boolean = false
     private var loopGuardJob: kotlinx.coroutines.Job? = null
     private var ringtoneLoopJob: kotlinx.coroutines.Job? = null
-    private var continuousRingingJob: kotlinx.coroutines.Job? = null
     
     // 系统音量管理 - 用于在播放提示音时临时提升音量
     private var originalSystemVolume = -1  // 保存原始音量
@@ -345,7 +344,7 @@ class SoundManager @Inject constructor(
             // 根据设置决定是否持续响铃
             if (keepRingingUntilAccept) {
                 isLoopingForAcceptance = true
-                startContinuousRinging(_currentSoundType.value)
+                playLoopingRingtone(_currentSoundType.value)
             } else {
                 // 直接使用playSound方法确保声音类型一致性
                 playSound(_currentSoundType.value)
@@ -364,29 +363,12 @@ class SoundManager @Inject constructor(
                 // 无论多少个通知，根据设置选择播放模式
                 if (keepRingingUntilAccept) {
                     isLoopingForAcceptance = true
-                    startContinuousRinging(_currentSoundType.value)
+                    playLoopingRingtone(_currentSoundType.value)
                 } else {
                     playSound(_currentSoundType.value)
                 }
                 pendingNotifications = 0
                 lastPlayTime = System.currentTimeMillis()
-            }
-        }
-    }
-
-    /**
-     * 连续提示模式：按固定间隔重复触发原有的单次播放路径
-     * 避免直接长循环的MediaPlayer在部分设备上被静音或打断
-     */
-    private fun startContinuousRinging(type: String) {
-        if (continuousRingingJob?.isActive == true) return
-        continuousRingingJob = CoroutineScope(Dispatchers.Main).launch {
-            while (isLoopingForAcceptance && keepRingingUntilAccept) {
-                try {
-                    playSound(type)
-                } catch (_: Exception) {}
-                // 单次播放内部会做3秒左右的播放与重复，这里拉长周期避免重叠
-                delay(4000)
             }
         }
     }
@@ -1539,8 +1521,6 @@ class SoundManager @Inject constructor(
         isLoopingForAcceptance = false
         loopGuardJob?.cancel()
         loopGuardJob = null
-        continuousRingingJob?.cancel()
-        continuousRingingJob = null
         Log.d(TAG, "已停止所有正在播放的声音")
     }
 

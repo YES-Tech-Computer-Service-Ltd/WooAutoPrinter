@@ -143,12 +143,6 @@ class SoundSettingsViewModel @Inject constructor(
     suspend fun setKeepRingingUntilAccept(enabled: Boolean) {
         _keepRingingUntilAccept.value = enabled
         soundManager.setKeepRingingUntilAccept(enabled)
-        try {
-            settingsRepository.setKeepRingingUntilAccept(enabled)
-            Log.d(TAG, "已立即持久化 keepRingingUntilAccept=$enabled")
-        } catch (e: Exception) {
-            Log.e(TAG, "持久化 keepRingingUntilAccept 失败", e)
-        }
     }
     
     /**

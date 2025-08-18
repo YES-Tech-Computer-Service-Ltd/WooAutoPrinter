@@ -309,8 +309,7 @@ fun SoundSettingsScreen(
                         enabled = keepRingingUntilAccept,
                         onEnabledChange = { value: Boolean ->
                             coroutineScope.launch { viewModel.setKeepRingingUntilAccept(value) }
-                        },
-                        isSoundEnabled = soundEnabled
+                        }
                     )
                     
                     Spacer(modifier = Modifier.height(24.dp))
@@ -850,8 +849,7 @@ fun SoundSettingsDialogContent(
                             coroutineScope.launch {
                                 viewModel.setKeepRingingUntilAccept(enabled)
                             }
-                        },
-                        isSoundEnabled = soundEnabled
+                        }
                     )
                     
                     Spacer(modifier = Modifier.height(24.dp))

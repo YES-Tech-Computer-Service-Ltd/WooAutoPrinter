@@ -667,27 +667,6 @@ class SettingsRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun getKeepRingingUntilAccept(): Boolean {
-        return dataStore.data
-            .catch { exception ->
-                if (exception is IOException) {
-                    Log.e("SettingsRepositoryImpl", "Error reading keep_ringing_until_accept.", exception)
-                    emit(androidx.datastore.preferences.core.emptyPreferences())
-                } else {
-                    throw exception
-                }
-            }
-            .map { preferences ->
-                preferences[PreferencesKeys.KEEP_RINGING_UNTIL_ACCEPT] ?: false
-            }.first()
-    }
-
-    override suspend fun setKeepRingingUntilAccept(enabled: Boolean) {
-        dataStore.edit { settings ->
-            settings[PreferencesKeys.KEEP_RINGING_UNTIL_ACCEPT] = enabled
-        }
-    }
-
     override suspend fun getDefaultPrintTemplate(): TemplateType {
         val templateName = dataStore.data
             .catch { exception ->

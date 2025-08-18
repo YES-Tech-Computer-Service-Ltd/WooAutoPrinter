@@ -347,7 +347,7 @@ fun OrdersScreen(
                 locale = locale,
                 additionalActions = {
                     val unreadCount by viewModel.unreadOrdersCount.collectAsState()
-                    InboxButton(unreadCount = unreadCount, onClick = { showUnreadDialog = true })
+                    InboxButton(unreadCount = unreadCount, onClick = { /* 打开未读弹窗 */ })
                 }
             )
         }
@@ -533,40 +533,6 @@ fun OrdersScreen(
             if (showUnreadDialog) {
                 UnreadOrdersDialog(
                     onDismiss = { showUnreadDialog = false }
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun InboxButton(
-    unreadCount: Int,
-    onClick: () -> Unit
-) {
-    Box {
-        IconButton(onClick = onClick, modifier = Modifier.size(44.dp)) {
-            Icon(
-                imageVector = Icons.Default.Email,
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(22.dp)
-            )
-        }
-        if (unreadCount > 0) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .offset(x = 4.dp, y = 4.dp)
-                    .size(18.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.error),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = if (unreadCount > 99) "99+" else unreadCount.toString(),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Color.White
                 )
             }
         }

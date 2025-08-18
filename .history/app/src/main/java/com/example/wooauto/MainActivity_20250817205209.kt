@@ -62,12 +62,10 @@ import java.util.Locale
 import kotlinx.coroutines.async
 import kotlinx.coroutines.Job
 import java.util.concurrent.atomic.AtomicBoolean
-import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity(), OrderNotificationManager.NotificationCallback {
-    @Inject
-    lateinit var soundManager: com.example.wooauto.utils.SoundManager
+    @Inject lateinit var soundManager: com.example.wooauto.utils.SoundManager
     
     private val TAG = "MainActivity"
     
@@ -213,12 +211,10 @@ class MainActivity : ComponentActivity(), OrderNotificationManager.NotificationC
             ) {
                 WooAutoApp.GetContent()
                 
-                // 强化显示条件：当开启“接单持续提示”且仍有当前订单时，强制显示弹窗，避免外部事件误关
-                val keepRinging = soundManager.isKeepRingingUntilAcceptEnabled()
-                if ((showNewOrderDialog || (keepRinging && currentNewOrder != null)) && currentNewOrder != null) {
+                // 显示新订单弹窗
+                if (showNewOrderDialog && currentNewOrder != null) {
                     NewOrderPopup(
                         order = currentNewOrder!!,
-                        keepRingingUntilAccept = keepRinging,
                         onDismiss = { 
                             // 只是隐藏弹窗，不处理已读状态（由NewOrderPopup内部处理）
                             showNewOrderDialog = false
@@ -424,7 +420,6 @@ class MainActivity : ComponentActivity(), OrderNotificationManager.NotificationC
 @Composable
 fun NewOrderPopup(
     order: Order,
-    keepRingingUntilAccept: Boolean,
     onDismiss: () -> Unit,
     onManualClose: () -> Unit,
     onViewDetails: () -> Unit,
@@ -440,29 +435,27 @@ fun NewOrderPopup(
     // 用于区分自动关闭和手动关闭的状态
     var isAutoClose by remember { mutableStateOf(false) }
     
-    // 自动关闭定时器：当开启“接单持续提示”时不自动关闭
-    LaunchedEffect(key1 = order.id, key2 = keepRingingUntilAccept) {
-        if (!keepRingingUntilAccept) {
-            delay(10000)
-            isAutoClose = true
-            onDismiss()
-        }
+    // 10秒自动关闭定时器
+    LaunchedEffect(key1 = order.id) {
+        delay(10000) // 10秒后自动关闭
+        isAutoClose = true
+        onDismiss() // 自动关闭，不标记为已读
     }
     
     Dialog(
         onDismissRequest = {
-            // 在“接单持续提示”开启时，完全忽略任何外部dismiss请求，防止系统或外部事件导致自动关闭
-            if (keepRingingUntilAccept) return@Dialog
-            // 用户手动关闭（点击外部区域或返回键）或定时自动关闭
+            // 用户手动关闭（点击外部区域或返回键）
             if (!isAutoClose) {
+                // 手动关闭标记为已读
                 onManualClose()
             } else {
+                // 自动关闭，不标记为已读
                 onDismiss()
             }
         },
         properties = DialogProperties(
-            dismissOnBackPress = !keepRingingUntilAccept,
-            dismissOnClickOutside = !keepRingingUntilAccept,
+            dismissOnBackPress = true,
+            dismissOnClickOutside = true,
             usePlatformDefaultWidth = false
         )
     ) {

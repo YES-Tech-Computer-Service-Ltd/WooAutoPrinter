@@ -161,6 +161,7 @@ fun OrdersScreen(
     val selectedOrder by viewModel.selectedOrder.collectAsState()
     val isRefreshing by viewModel.refreshing.collectAsState()
     val currencySymbol by viewModel.currencySymbol.collectAsState()
+    val unreadCount by viewModel.unreadOrdersCount.collectAsState()
     
     // 新增状态，用于控制何时显示UI
     val isInitialized = remember { mutableStateOf(false) }
@@ -346,8 +347,10 @@ fun OrdersScreen(
                 showRefreshButton = true,
                 locale = locale,
                 additionalActions = {
-                    val unreadCount by viewModel.unreadOrdersCount.collectAsState()
-                    InboxButton(unreadCount = unreadCount, onClick = { showUnreadDialog = true })
+                    InboxButton(
+                        unreadCount = unreadCount,
+                        onClick = { showUnreadDialog = true }
+                    )
                 }
             )
         }
@@ -528,7 +531,7 @@ fun OrdersScreen(
                     }
                 )
             }
-            
+
             // 未读订单对话框
             if (showUnreadDialog) {
                 UnreadOrdersDialog(
@@ -548,7 +551,7 @@ private fun InboxButton(
         IconButton(onClick = onClick, modifier = Modifier.size(44.dp)) {
             Icon(
                 imageVector = Icons.Default.Email,
-                contentDescription = null,
+                contentDescription = "Unread inbox",
                 tint = Color.White,
                 modifier = Modifier.size(22.dp)
             )

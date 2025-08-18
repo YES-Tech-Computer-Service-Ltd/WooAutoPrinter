@@ -850,8 +850,7 @@ fun SoundSettingsDialogContent(
                             coroutineScope.launch {
                                 viewModel.setKeepRingingUntilAccept(enabled)
                             }
-                        },
-                        isSoundEnabled = soundEnabled
+                        }
                     )
                     
                     Spacer(modifier = Modifier.height(24.dp))

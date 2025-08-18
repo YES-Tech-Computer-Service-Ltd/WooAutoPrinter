@@ -136,8 +136,6 @@ class SoundManager @Inject constructor(
     private var keepRingingUntilAccept: Boolean = false
     private var isLoopingForAcceptance: Boolean = false
     private var loopGuardJob: kotlinx.coroutines.Job? = null
-    private var ringtoneLoopJob: kotlinx.coroutines.Job? = null
-    private var continuousRingingJob: kotlinx.coroutines.Job? = null
     
     // 系统音量管理 - 用于在播放提示音时临时提升音量
     private var originalSystemVolume = -1  // 保存原始音量
@@ -345,7 +343,7 @@ class SoundManager @Inject constructor(
             // 根据设置决定是否持续响铃
             if (keepRingingUntilAccept) {
                 isLoopingForAcceptance = true
-                startContinuousRinging(_currentSoundType.value)
+                playLoopingRingtone(_currentSoundType.value)
             } else {
                 // 直接使用playSound方法确保声音类型一致性
                 playSound(_currentSoundType.value)
@@ -364,29 +362,12 @@ class SoundManager @Inject constructor(
                 // 无论多少个通知，根据设置选择播放模式
                 if (keepRingingUntilAccept) {
                     isLoopingForAcceptance = true
-                    startContinuousRinging(_currentSoundType.value)
+                    playLoopingRingtone(_currentSoundType.value)
                 } else {
                     playSound(_currentSoundType.value)
                 }
                 pendingNotifications = 0
                 lastPlayTime = System.currentTimeMillis()
-            }
-        }
-    }
-
-    /**
-     * 连续提示模式：按固定间隔重复触发原有的单次播放路径
-     * 避免直接长循环的MediaPlayer在部分设备上被静音或打断
-     */
-    private fun startContinuousRinging(type: String) {
-        if (continuousRingingJob?.isActive == true) return
-        continuousRingingJob = CoroutineScope(Dispatchers.Main).launch {
-            while (isLoopingForAcceptance && keepRingingUntilAccept) {
-                try {
-                    playSound(type)
-                } catch (_: Exception) {}
-                // 单次播放内部会做3秒左右的播放与重复，这里拉长周期避免重叠
-                delay(4000)
             }
         }
     }
@@ -564,19 +545,6 @@ class SoundManager @Inject constructor(
                 @Suppress("DEPRECATION")
                 audioManager.requestAudioFocus(null, AudioManager.STREAM_RING, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
             } catch (_: Exception) {}
-
-            // 在循环播放场景下也提升系统音量，确保足够响亮
-            try {
-                boostSystemVolume()
-                // 循环模式下，同时提升铃声流音量
-                try {
-                    val ringMax = audioManager.getStreamMaxVolume(AudioManager.STREAM_RING)
-                    val ringCur = audioManager.getStreamVolume(AudioManager.STREAM_RING)
-                    if (ringCur < ringMax) {
-                        audioManager.setStreamVolume(AudioManager.STREAM_RING, ringMax, 0)
-                    }
-                } catch (_: Exception) {}
-            } catch (_: Exception) {}
             mediaPlayer = MediaPlayer().apply {
                 setAudioAttributes(
                     AudioAttributes.Builder()
@@ -588,19 +556,16 @@ class SoundManager @Inject constructor(
                 isLooping = true
                 setOnPreparedListener { mp ->
                     try {
-                        // 循环播放场景，强制最大媒体音量，配合系统音量提升
-                        mp.setVolume(1.0f, 1.0f)
-                        // 若可用，附加音频增强效果
-                        try { setupAudioEffects(mp.audioSessionId) } catch (_: Exception) {}
+                        // 音量增强（简化版）
+                        val gain = (_currentVolume.value / 1000f).coerceIn(0f, 1f)
+                        mp.setVolume(max(0.1f, gain), max(0.1f, gain))
                         mp.start()
                         performVibration()
                     } catch (_: Exception) {}
                 }
                 setOnErrorListener { _, what, extra ->
                     Log.e(TAG, "[循环铃声] MediaPlayer 错误: what=$what, extra=$extra")
-                    // 回退到Ringtone循环
-                    fallbackLoopWithRingtone(uri)
-                    true
+                    false
                 }
                 prepareAsync()
             }
@@ -623,42 +588,7 @@ class SoundManager @Inject constructor(
         } catch (e: Exception) {
             Log.e(TAG, "[循环铃声] 启动失败: ${e.message}")
             // 回退到单次播放
-            try {
-                val uri = when (type) {
-                    SoundSettings.SOUND_TYPE_ALARM -> RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-                    SoundSettings.SOUND_TYPE_RINGTONE -> RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
-                    SoundSettings.SOUND_TYPE_EVENT -> RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-                    SoundSettings.SOUND_TYPE_EMAIL -> RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-                    SoundSettings.SOUND_TYPE_CUSTOM -> Uri.parse(_customSoundUri.value)
-                    else -> RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-                }
-                fallbackLoopWithRingtone(uri)
-            } catch (_: Exception) {
-                playSound(type)
-            }
-        }
-    }
-
-    private fun fallbackLoopWithRingtone(uri: Uri?) {
-        try {
-            stopCurrentSound()
-            if (uri == null) return
-            ringtonePlayer = RingtoneManager.getRingtone(context, uri)
-            // 播放一次并启动循环任务定期重播
-            ringtonePlayer?.play()
-            ringtoneLoopJob?.cancel()
-            ringtoneLoopJob = CoroutineScope(Dispatchers.Main).launch {
-                while (isLoopingForAcceptance && keepRingingUntilAccept) {
-                    delay(3500)
-                    try {
-                        if (ringtonePlayer?.isPlaying != true) {
-                            ringtonePlayer?.play()
-                        }
-                    } catch (_: Exception) {}
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "[循环铃声] Ringtone回退失败: ${e.message}")
+            playSound(type)
         }
     }
     
@@ -1293,10 +1223,8 @@ class SoundManager @Inject constructor(
     private fun stopCurrentSound() {
         try {
             // 停止传统 ringtone 播放器
-            try { ringtonePlayer?.stop() } catch (_: Exception) {}
+            ringtonePlayer?.stop()
             ringtonePlayer = null
-            ringtoneLoopJob?.cancel()
-            ringtoneLoopJob = null
             
             // 停止 MediaPlayer
             mediaPlayer?.stop()
@@ -1539,8 +1467,6 @@ class SoundManager @Inject constructor(
         isLoopingForAcceptance = false
         loopGuardJob?.cancel()
         loopGuardJob = null
-        continuousRingingJob?.cancel()
-        continuousRingingJob = null
         Log.d(TAG, "已停止所有正在播放的声音")
     }
 
@@ -1551,9 +1477,6 @@ class SoundManager @Inject constructor(
             stopAllSounds()
         }
     }
-
-    /** 查询当前是否启用接单持续提示 */
-    fun isKeepRingingUntilAcceptEnabled(): Boolean = keepRingingUntilAccept
     
     // ================================ 单次播放方法 ================================
     

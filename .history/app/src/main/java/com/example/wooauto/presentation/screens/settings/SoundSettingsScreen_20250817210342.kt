@@ -52,8 +52,7 @@ import java.io.FileOutputStream
 @Composable
 private fun KeepRingingSwitch(
     enabled: Boolean,
-    onEnabledChange: (Boolean) -> Unit,
-    isSoundEnabled: Boolean
+    onEnabledChange: (Boolean) -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -82,7 +81,6 @@ private fun KeepRingingSwitch(
         Switch(
             checked = enabled,
             onCheckedChange = onEnabledChange,
-            enabled = isSoundEnabled,
             modifier = Modifier.padding(start = 8.dp)
         )
     }
@@ -309,8 +307,7 @@ fun SoundSettingsScreen(
                         enabled = keepRingingUntilAccept,
                         onEnabledChange = { value: Boolean ->
                             coroutineScope.launch { viewModel.setKeepRingingUntilAccept(value) }
-                        },
-                        isSoundEnabled = soundEnabled
+                        }
                     )
                     
                     Spacer(modifier = Modifier.height(24.dp))
@@ -850,8 +847,7 @@ fun SoundSettingsDialogContent(
                             coroutineScope.launch {
                                 viewModel.setKeepRingingUntilAccept(enabled)
                             }
-                        },
-                        isSoundEnabled = soundEnabled
+                        }
                     )
                     
                     Spacer(modifier = Modifier.height(24.dp))

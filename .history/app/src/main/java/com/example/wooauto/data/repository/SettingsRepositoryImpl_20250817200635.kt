@@ -66,7 +66,6 @@ class SettingsRepositoryImpl @Inject constructor(
         val SOUND_TYPE = stringPreferencesKey(KEY_SOUND_TYPE)
         val SOUND_ENABLED = booleanPreferencesKey(KEY_SOUND_ENABLED)
         val CUSTOM_SOUND_URI = stringPreferencesKey(KEY_CUSTOM_SOUND_URI)
-        val KEEP_RINGING_UNTIL_ACCEPT = booleanPreferencesKey(KEY_KEEP_RINGING_UNTIL_ACCEPT)
         
         // 自定义模板相关键
         val CURRENT_CUSTOM_TEMPLATE_ID = stringPreferencesKey(KEY_CURRENT_CUSTOM_TEMPLATE_ID)
@@ -118,7 +117,6 @@ class SettingsRepositoryImpl @Inject constructor(
         const val KEY_SOUND_TYPE = "sound_type"
         const val KEY_SOUND_ENABLED = "sound_enabled"
         const val KEY_CUSTOM_SOUND_URI = "custom_sound_uri"
-        const val KEY_KEEP_RINGING_UNTIL_ACCEPT = "keep_ringing_until_accept"
         
         // 自定义模板相关键名
         const val KEY_CURRENT_CUSTOM_TEMPLATE_ID = "current_custom_template_id"
@@ -664,27 +662,6 @@ class SettingsRepositoryImpl @Inject constructor(
     override suspend fun setCustomSoundUri(uri: String) {
         dataStore.edit { settings ->
             settings[PreferencesKeys.CUSTOM_SOUND_URI] = uri
-        }
-    }
-
-    override suspend fun getKeepRingingUntilAccept(): Boolean {
-        return dataStore.data
-            .catch { exception ->
-                if (exception is IOException) {
-                    Log.e("SettingsRepositoryImpl", "Error reading keep_ringing_until_accept.", exception)
-                    emit(androidx.datastore.preferences.core.emptyPreferences())
-                } else {
-                    throw exception
-                }
-            }
-            .map { preferences ->
-                preferences[PreferencesKeys.KEEP_RINGING_UNTIL_ACCEPT] ?: false
-            }.first()
-    }
-
-    override suspend fun setKeepRingingUntilAccept(enabled: Boolean) {
-        dataStore.edit { settings ->
-            settings[PreferencesKeys.KEEP_RINGING_UNTIL_ACCEPT] = enabled
         }
     }
 
