@@ -83,6 +83,7 @@ class MainActivity : ComponentActivity(), OrderNotificationManager.NotificationC
     // 用于存储新订单的状态
     private var showNewOrderDialog by mutableStateOf(false)
     private var currentNewOrder by mutableStateOf<Order?>(null)
+    private var currentPendingOrderCount by mutableStateOf(1)
     
     // 屏幕常亮状态
     private var isKeepScreenOnEnabled by mutableStateOf(false)
@@ -219,6 +220,7 @@ class MainActivity : ComponentActivity(), OrderNotificationManager.NotificationC
                     NewOrderPopup(
                         order = currentNewOrder!!,
                         keepRingingUntilAccept = keepRinging,
+                        pendingCount = currentPendingOrderCount,
                         onDismiss = { 
                             // 只是隐藏弹窗，不处理已读状态（由NewOrderPopup内部处理）
                             showNewOrderDialog = false
@@ -273,10 +275,19 @@ class MainActivity : ComponentActivity(), OrderNotificationManager.NotificationC
     }
     
     // 实现NotificationCallback接口
-    override fun onNewOrderReceived(order: Order) {
-        Log.d(TAG, "收到新订单通知: #${order.number}")
-        currentNewOrder = order
-        showNewOrderDialog = true
+    override fun onNewOrderReceived(order: Order, totalCount: Int) {
+        Log.d(TAG, "收到新订单通知: #${order.number} (本批数量=$totalCount)")
+        val incoming = if (totalCount <= 0) 1 else totalCount
+        if (showNewOrderDialog && currentNewOrder != null) {
+            // 弹窗已显示：累计增加数量，并更新展示的订单为最新
+            currentPendingOrderCount += incoming
+            currentNewOrder = order
+        } else {
+            // 弹窗未显示：以本批数量为基准
+            currentPendingOrderCount = incoming
+            currentNewOrder = order
+            showNewOrderDialog = true
+        }
     }
     
     /**
@@ -425,6 +436,7 @@ class MainActivity : ComponentActivity(), OrderNotificationManager.NotificationC
 fun NewOrderPopup(
     order: Order,
     keepRingingUntilAccept: Boolean,
+    pendingCount: Int = 1,
     onDismiss: () -> Unit,
     onManualClose: () -> Unit,
     onViewDetails: () -> Unit,
@@ -551,13 +563,45 @@ fun NewOrderPopup(
                     
                     Spacer(modifier = Modifier.height(8.dp))
                     
-                    // 显示可能有多个订单的提示
-                    Text(
-                        text = stringResource(R.string.multiple_orders_hint),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.secondary,
-                        modifier = Modifier.padding(vertical = 4.dp)
-                    )
+                    // 显示多个订单提示（更醒目）
+                    if (pendingCount > 1) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(
+                                    color = MaterialTheme.colorScheme.errorContainer,
+                                    shape = RoundedCornerShape(8.dp)
+                                )
+                                .padding(horizontal = 12.dp, vertical = 10.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Start
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Notifications,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onErrorContainer,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "当前有 ${pendingCount} 个新订单待确认",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.onErrorContainer,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    } else {
+                        Text(
+                            text = stringResource(R.string.multiple_orders_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.secondary,
+                            modifier = Modifier.padding(vertical = 4.dp)
+                        )
+                    }
                     
                     Spacer(modifier = Modifier.height(8.dp))
                     

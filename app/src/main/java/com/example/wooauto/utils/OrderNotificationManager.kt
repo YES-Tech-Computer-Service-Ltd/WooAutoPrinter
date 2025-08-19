@@ -57,7 +57,7 @@ class OrderNotificationManager @Inject constructor(
     
     // 通知回调接口
     interface NotificationCallback {
-        fun onNewOrderReceived(order: Order)
+        fun onNewOrderReceived(order: Order, totalCount: Int)
     }
     
     private var callback: NotificationCallback? = null
@@ -262,11 +262,11 @@ class OrderNotificationManager @Inject constructor(
                     // 播放提示音（是否持续响由设置控制）
                     soundManager.playOrderNotificationSound()
                     
-                    // 重要：仅向MainActivity发送一个通知，优先使用最近的订单
+                    // 重要：仅向MainActivity发送一个通知，附带总数量
                     val newestOrder = orders.maxByOrNull { it.dateCreated.time }
                     newestOrder?.let { order ->
                         Log.d(TAG, "向MainActivity发送批量通知，显示最新订单 #${order.number}，实际共有 ${orders.size} 个新订单")
-                        callback?.onNewOrderReceived(order)
+                        callback?.onNewOrderReceived(order, orders.size)
                     }
                 } else if (!startupSilenceEnded) {
                     Log.d(TAG, "在启动静默期内，跳过通知声音和UI显示，订单数量: ${orders.size}")
@@ -322,7 +322,7 @@ class OrderNotificationManager @Inject constructor(
                     // 只有在不在启动静默期时才播放声音和发送通知
                     if (startupSilenceEnded) {
                         soundManager.playOrderNotificationSound()
-                        callback?.onNewOrderReceived(order)
+                        callback?.onNewOrderReceived(order, 1)
                     } else {
                         Log.d(TAG, "在启动静默期内，记录但不通知: #${order.number}")
                     }
