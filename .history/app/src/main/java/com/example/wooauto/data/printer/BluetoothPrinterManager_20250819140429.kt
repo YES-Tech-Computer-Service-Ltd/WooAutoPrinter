@@ -1490,47 +1490,12 @@ class BluetoothPrinterManager @Inject constructor(
                     Log.e(TAG, "【中文触发器】发送触发任务失败: ${e.message}")
                 }
             } else {
-                // 如果订单不包含中文，先尝试整块发送；失败则回退为分块发送
+                // 如果订单不包含中文，整个订单都使用ESC/POS库处理
                 Log.d(TAG, "【统一英文处理】整个订单使用ESC/POS库处理")
                 val startTime = System.currentTimeMillis()
-                try {
-                    currentPrinter?.printFormattedText(content)
-                    val endTime = System.currentTimeMillis()
-                    Log.d(TAG, "【统一英文处理】完整订单ESC/POS处理完成，耗时: ${endTime - startTime}ms")
-                } catch (e: Exception) {
-                    Log.e(TAG, "【统一英文处理】整块发送失败: ${e.message}，尝试分块发送")
-                    // 若为连接类错误，先同步重连，再按小块发送
-                    if (e.message?.contains("Broken pipe") == true || e is EscPosConnectionException) {
-                        handleConnectionError(config)
-                    }
-
-                    // 分块（按行）发送，减小缓冲压力
-                    val chunkSize = 8
-                    var index = 0
-                    while (index < lines.size) {
-                        val end = minOf(index + chunkSize, lines.size)
-                        val chunk = lines.subList(index, end).joinToString("\n")
-                        try {
-                            currentPrinter?.printFormattedText(chunk)
-                        } catch (ce: Exception) {
-                            Log.e(TAG, "【统一英文处理】分块发送失败: ${ce.message}")
-                            if (ce.message?.contains("Broken pipe") == true || ce is EscPosConnectionException) {
-                                handleConnectionError(config)
-                                // 重连后重试当前块一次
-                                try {
-                                    currentPrinter?.printFormattedText(chunk)
-                                } catch (retryEx: Exception) {
-                                    Log.e(TAG, "【统一英文处理】分块重试仍失败: ${retryEx.message}")
-                                    throw retryEx
-                                }
-                            } else {
-                                throw ce
-                            }
-                        }
-                        index = end
-                        delay(30)
-                    }
-                }
+                currentPrinter?.printFormattedText(content)
+                val endTime = System.currentTimeMillis()
+                Log.d(TAG, "【统一英文处理】完整订单ESC/POS处理完成，耗时: ${endTime - startTime}ms")
             }
             
             // 确保所有内容都已打印完毕
