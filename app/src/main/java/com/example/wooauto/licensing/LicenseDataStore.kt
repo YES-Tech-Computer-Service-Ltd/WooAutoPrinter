@@ -32,7 +32,6 @@ object LicenseDataStore {
         return context.dataStore.data.map { preferences ->
             val isLicensed = preferences[IS_LICENSED] ?: false
             if (!isLicensed) {
-                println("isLicensed: Not licensed")
                 return@map false
             }
             val endDateStr = preferences[LICENSE_END_DATE] ?: return@map false
@@ -48,11 +47,9 @@ object LicenseDataStore {
                 val endDateTime = calendar.time
                 val currentCalendar = Calendar.getInstance(TimeZone.getDefault())
                 val currentDateTime = currentCalendar.time
-                val isValid = endDateTime.after(currentDateTime)
-                println("isLicensed: endDate=$endDateStr, endDateTime=$endDateTime, currentDateTime=$currentDateTime, isValid=$isValid")
-                isValid
+                endDateTime.after(currentDateTime)
             } catch (e: Exception) {
-                println("isLicensed: Error parsing endDate=$endDateStr, ${e.message}")
+                Log.e("LicenseDataStore", "isLicensed: Error parsing endDate=$endDateStr", e)
                 false
             }
         }
@@ -61,23 +58,18 @@ object LicenseDataStore {
     suspend fun setLicensed(context: Context, isLicensed: Boolean) {
         context.dataStore.edit { preferences ->
             preferences[IS_LICENSED] = isLicensed
-            Log.d("LicenseDataStore", "Setting isLicensed: $isLicensed")
         }
     }
 
     fun getLicenseStartDate(context: Context): Flow<String?> {
         return context.dataStore.data.map { preferences ->
-            val startDate = preferences[LICENSE_START_DATE]
-            println("getLicenseStartDate: $startDate")
-            startDate
+            preferences[LICENSE_START_DATE]
         }
     }
 
     fun getLicenseEndDate(context: Context): Flow<String?> {
         return context.dataStore.data.map { preferences ->
-            val endDate = preferences[LICENSE_END_DATE]
-            println("getLicenseEndDate: $endDate")
-            endDate
+            preferences[LICENSE_END_DATE]
         }
     }
 
@@ -113,14 +105,12 @@ object LicenseDataStore {
 
     suspend fun saveLicenseStartDate(context: Context, startDate: String) {
         context.dataStore.edit { preferences ->
-            println("Saving startDate: $startDate")
             preferences[LICENSE_START_DATE] = startDate
         }
     }
 
     suspend fun saveLicenseEndDate(context: Context, endDate: String) {
         context.dataStore.edit { preferences ->
-            println("Saving endDate: $endDate")
             preferences[LICENSE_END_DATE] = endDate
         }
     }
@@ -136,7 +126,6 @@ object LicenseDataStore {
         email: String = "user@example.com"
     ) {
         context.dataStore.edit { preferences ->
-            println("Saving licenseInfo: isLicensed=$isLicensed, endDate=$endDate, edition=$edition, capabilities=$capabilities, licensedTo=$licensedTo, email=$email")
             preferences[IS_LICENSED] = isLicensed
             preferences[LICENSE_END_DATE] = endDate
             preferences[LICENSE_KEY] = licenseKey
@@ -149,7 +138,6 @@ object LicenseDataStore {
 
     suspend fun clearLicenseInfo(context: Context) {
         context.dataStore.edit { preferences ->
-            println("Clearing licenseInfo")
             preferences.remove(IS_LICENSED)
             preferences.remove(LICENSE_START_DATE)
             preferences.remove(LICENSE_END_DATE)
@@ -180,11 +168,9 @@ object LicenseDataStore {
             
             calendar.add(Calendar.DAY_OF_MONTH, safeValidity)
             val endDate = calendar.time
-            val result = sdf.format(endDate)
-            println("calculateEndDate: activationDate=$activationDate, validity=$validity, safeValidity=$safeValidity, endDate=$result")
-            return result
+            return sdf.format(endDate)
         } catch (e: Exception) {
-            println("calculateEndDate: Error processing $activationDate, validity=$validity, ${e.message}")
+            Log.e("LicenseDataStore", "calculateEndDate: Error processing activationDate=$activationDate, validity=$validity", e)
             // 如果出错，返回一个默认的未来日期
             try {
                 val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
@@ -206,7 +192,7 @@ object LicenseDataStore {
             val date = sdf.parse(dateStr) ?: return ""
             return sdf.format(date)
         } catch (e: Exception) {
-            println("formatDate: Error processing $dateStr, ${e.message}")
+            Log.e("LicenseDataStore", "formatDate: Error processing $dateStr", e)
             return ""
         }
     }

@@ -207,6 +207,37 @@ class BackgroundPollingService : Service() {
                                 // 屏幕关闭，一定在后台
                                 Log.d(TAG, "屏幕关闭，设置前台状态为false，轮询将继续运行")
                                 isAppInForeground = false
+                                
+                                // 息屏时加强网络保持措施
+                                Log.d(TAG, "【息屏处理】屏幕关闭，加强网络保持措施")
+                                serviceScope.launch {
+                                    try {
+                                        // 重新获取所有锁，确保在息屏状态下保持最强的网络保持
+                                        delay(1000) // 等待系统稳定
+                                        
+                                        Log.d(TAG, "【息屏处理】重新获取电源和网络锁")
+                                        acquireWakeLock()
+                                        acquireWifiLock()
+                                        acquireHighPerfWifiLock()
+                                        
+                                        // 检查WiFi状态
+                                        val wifiState = wifiManager?.wifiState
+                                        Log.d(TAG, "【息屏处理】息屏后WiFi状态: $wifiState")
+                                        
+                                        // 等待5秒后进行网络连接检查
+                                        delay(5000)
+                                        val isConnected = checkNetworkConnectivity()
+                                        Log.d(TAG, "【息屏处理】息屏5秒后网络状态: $isConnected")
+                                        
+                                        if (!isConnected) {
+                                            Log.w(TAG, "【息屏处理】息屏后检测到网络断开，立即处理")
+                                            handleNetworkDisconnection()
+                                        }
+                                    } catch (e: Exception) {
+                                        Log.e(TAG, "【息屏处理】息屏网络保持处理失败: ${e.message}", e)
+                                    }
+                                }
+                                
                                 adjustPollingInterval()
                             }
                             "android.intent.action.USER_PRESENT" -> {
@@ -291,6 +322,7 @@ class BackgroundPollingService : Service() {
         pollingJob?.cancel()
         intervalMonitorJob?.cancel()
         watchdogJob?.cancel() // 取消看门狗任务
+        networkHeartbeatJob?.cancel() // 取消网络心跳检测
         
         // 取消整个服务协程作用域
         serviceScope.cancel()
@@ -306,6 +338,7 @@ class BackgroundPollingService : Service() {
         // 释放电源锁
         releaseWakeLock()
         releaseWifiLock()
+        releaseHighPerfWifiLock() // 释放高性能WiFi锁
         
         Log.d(TAG, "【服务销毁】资源清理完成")
         super.onDestroy()
@@ -469,6 +502,10 @@ class BackgroundPollingService : Service() {
             // 在开始轮询时获取锁
             acquireWakeLock()
             acquireWifiLock()
+            acquireHighPerfWifiLock() // 获取高性能WiFi锁
+            
+            // 启动网络心跳检测
+            startNetworkHeartbeat()
             
             // 检查电池优化状态
             checkBatteryOptimization()
@@ -653,7 +690,7 @@ class BackgroundPollingService : Service() {
             // 记录上次轮询时间，用于日志
             val lastPollTime = latestPolledDate
             
-            Log.d(TAG, "【自动打印调试】开始执行轮询，上次轮询时间: ${lastPollTime?.toString() ?: "首次轮询"}")
+            
             
             // 执行轮询
             val result = orderRepository.refreshProcessingOrdersForPolling(lastPollTime)
@@ -667,7 +704,7 @@ class BackgroundPollingService : Service() {
                 
                 // 有新订单时记录日志
                 if (orders.isNotEmpty()) {
-                    Log.d(TAG, "【自动打印调试】轮询成功，获取了 ${orders.size} 个处理中订单")
+                    
                     
                     // 过滤并处理新订单
                     val newOrderCount = processNewOrders(orders)
@@ -683,22 +720,20 @@ class BackgroundPollingService : Service() {
                         // 通知UI层刷新数据
                         sendRefreshOrdersBroadcast()
                     } else {
-                        Log.d(TAG, "【自动打印调试】虽然获取了订单，但都是已处理过的，不发送广播")
+                        
                     }
                 } else {
                     // 减少无新订单时的日志输出频率
                     val minutes = System.currentTimeMillis() / 60000
-                    if (!initialPollingComplete || (minutes % 10L == 0L)) { // 每10分钟记录一次，修改为Long类型比较
-                        Log.d(TAG, "【自动打印调试】轮询成功，但没有新的处理中订单")
-                    }
+                    if (!initialPollingComplete || (minutes % 10L == 0L)) { }
                 }
             } else {
                 // 处理错误
                 val error = result.exceptionOrNull()
-                Log.e(TAG, "【自动打印调试】轮询订单失败: ${error?.message}", error)
+                Log.e(TAG, "轮询订单失败: ${error?.message}", error)
             }
         } catch (e: Exception) {
-            Log.e(TAG, "【自动打印调试】轮询过程中发生异常: ${e.message}", e)
+            Log.e(TAG, "轮询过程中发生异常: ${e.message}", e)
         }
     }
 
@@ -759,11 +794,11 @@ class BackgroundPollingService : Service() {
     private suspend fun processNewOrders(orders: List<Order>): Int {
         var newOrderCount = 0
         
-        Log.d(TAG, "处理新订单，共 ${orders.size} 个")
+        
         
         // 确定应用启动后的首次轮询
         val isFirstPolling = latestPolledDate == null
-        Log.d(TAG, "是否首次轮询: $isFirstPolling")
+        
         
         // 获取当前时间
         val currentTime = System.currentTimeMillis()
@@ -788,16 +823,16 @@ class BackgroundPollingService : Service() {
             
             // 记录订单时间与当前时间的差距
             val timeDiff = (currentTime - order.dateCreated.time) / 1000 // 秒
-            Log.d(TAG, "订单 #${order.number} 创建于 ${timeDiff}秒前, 首次轮询: $isFirstPolling, 是否新订单: $isNewOrder, 是否最近订单: $isRecentOrder")
+            
             
             if (isNewOrder && isRecentOrder) {
-                Log.d(TAG, "【打印状态保护】处理新订单: #${order.number}, ID: ${order.id}, 状态: ${order.status}, API中打印状态: ${order.isPrinted}")
+                
                 
                 // 获取数据库中的打印状态 - 数据库是打印状态的真实来源
                 val latestOrder = orderRepository.getOrderById(order.id)
                 val isPrintedInDb = latestOrder?.isPrinted ?: false
                 
-                Log.d(TAG, "【打印状态保护】订单 #${order.number} 的数据库打印状态: $isPrintedInDb")
+                
                 
                 // 创建最终处理的订单对象，以数据库打印状态为准
                 val finalOrder = if (latestOrder != null) {
@@ -808,7 +843,7 @@ class BackgroundPollingService : Service() {
                     order
                 }
                 
-                Log.d(TAG, "【打印状态保护】最终处理的订单 #${finalOrder.number} 打印状态: ${finalOrder.isPrinted}")
+                
                 
                 // 不再根据API和数据库的不一致进行更新，而是始终以数据库为主
                 // 这确保了手动标记的打印状态不会被API覆盖
@@ -817,17 +852,22 @@ class BackgroundPollingService : Service() {
                 sendNewOrderNotification(finalOrder)
                 
                 // 启用自动打印功能，并添加详细日志
-                Log.d(TAG, "====== 开始处理订单自动打印 ======")
+                
                 
                 // 使用最终订单的打印状态判断是否需要打印
                 val shouldPrint = !finalOrder.isPrinted && finalOrder.status == "processing"
-                Log.d(TAG, "【打印状态保护】是否需要打印: $shouldPrint (最终打印状态=${finalOrder.isPrinted}, status=${finalOrder.status})")
+                
                 
                 if (shouldPrint) {
+                    
                     // 调用printOrder方法处理打印
                     printOrder(finalOrder)
-                } else if (finalOrder.isPrinted) {
-                    Log.d(TAG, "【打印状态保护】订单 #${finalOrder.number} 已标记为已打印，跳过打印")
+                } else {
+                    if (finalOrder.isPrinted) {
+                        
+                    } else if (finalOrder.status != "processing") {
+                        
+                    }
                 }
                 
                 // 先标记订单通知已显示，然后再添加到已处理集合
@@ -862,7 +902,7 @@ class BackgroundPollingService : Service() {
             if (processedOrderIds.isNotEmpty()) {
                 val oldestId = processedOrderIds.iterator().next()
                 processedOrderIds.remove(oldestId)
-                Log.d(TAG, "从处理记录中移除最旧的订单ID: $oldestId, 当前缓存大小: ${processedOrderIds.size}")
+                
             }
         }
     }
@@ -889,61 +929,64 @@ class BackgroundPollingService : Service() {
     private fun printOrder(order: Order) {
         serviceScope.launch {
             try {
-                Log.d(TAG, "【自动打印调试】开始执行自动打印订单: #${order.number}")
+                
                 
                 // 检查订单是否已打印
                 if (order.isPrinted) {
-                    Log.d(TAG, "【自动打印调试】订单已打印，跳过: #${order.number}")
+                    
                     return@launch
                 }
                 
                 // 检查订单状态是否为"处理中"
                 if (order.status != "processing") {
-                    Log.d(TAG, "【自动打印调试】订单状态非处理中，不自动打印: ${order.status}")
+                    
                     return@launch
                 }
                 
                 // 获取默认打印机配置
                 val printerConfig = settingsRepository.getDefaultPrinterConfig()
                 if (printerConfig == null) {
-                    Log.e(TAG, "【自动打印调试】未设置默认打印机，无法打印订单")
+                    Log.e(TAG, "【自动打印调试】❌ 未设置默认打印机，无法打印订单")
+                    Log.e(TAG, "【自动打印调试】请在设置->打印机设置中添加并设置默认打印机")
                     return@launch
                 }
                 
-                // 检查是否开启自动打印 - 需要同时检查全局设置和打印机设置
+                
+                
+                // 检查是否开启自动打印 - 只需要检查全局设置
                 val globalAutoPrintEnabled = settingsRepository.getAutoPrintEnabled()
-                Log.d(TAG, "【自动打印调试】检查全局自动打印设置: enabled=$globalAutoPrintEnabled")
-                Log.d(TAG, "【自动打印调试】检查打印机自动打印设置: isAutoPrint=${printerConfig.isAutoPrint}")
+                
                 
                 if (!globalAutoPrintEnabled) {
-                    Log.d(TAG, "【自动打印调试】全局自动打印功能未开启，跳过")
+                    Log.e(TAG, "【自动打印调试】❌ 全局自动打印功能未开启")
+                    Log.e(TAG, "【自动打印调试】请在设置->自动化设置中开启自动打印")
                     return@launch
                 }
                 
-                if (!printerConfig.isAutoPrint) {
-                    Log.d(TAG, "【自动打印调试】打印机配置未开启自动打印，跳过")
+                
+                
+                // 获取模板打印份数设置
+                val templatePrintCopies = settingsRepository.getTemplatePrintCopies()
+                if (templatePrintCopies.isEmpty()) {
+                    Log.e(TAG, "【自动打印调试】❌ 未设置任何模板的打印份数")
                     return@launch
                 }
                 
-                Log.d(TAG, "【自动打印调试】准备自动打印新订单: #${order.number}, 打印机: ${printerConfig.name}")
-                
-                // 获取用户设置的默认模板类型
-                val defaultTemplateType = settingsRepository.getDefaultTemplateType()
-                Log.d(TAG, "【自动打印调试】使用默认打印模板: $defaultTemplateType")
+                Log.d(TAG, "【自动打印调试】打印模板设置: $templatePrintCopies")
                 
                 // 检查打印机是否已连接，如果未连接则先尝试连接
                 val printerStatus = printerManager.getPrinterStatus(printerConfig)
-                Log.d(TAG, "【自动打印调试】当前打印机状态: $printerStatus")
+                
                 
                 if (printerStatus != PrinterStatus.CONNECTED) {
-                    Log.d(TAG, "【自动打印调试】打印机未连接，尝试连接打印机: ${printerConfig.name}")
+                    
                     
                     // 使用超时机制避免连接挂起
                     val connected = withTimeoutOrNull(15000) { // 与蓝牙管理器保持一致
                         printerManager.connect(printerConfig)
                     } ?: false
                     
-                    Log.d(TAG, "【自动打印调试】打印机连接结果: $connected")
+                    
                     
                     if (!connected) {
                         Log.e(TAG, "【自动打印调试】无法连接打印机，打印失败: ${printerConfig.name}")
@@ -953,38 +996,62 @@ class BackgroundPollingService : Service() {
                 
                 // 再次检查订单是否已经被标记为已打印（可能在轮询期间被手动打印）
                 val updatedOrder = orderRepository.getOrderById(order.id)
-                Log.d(TAG, "【自动打印调试】再次检查订单打印状态: ${updatedOrder?.isPrinted}")
+                
                 
                 if (updatedOrder?.isPrinted == true) {
                     Log.d(TAG, "【自动打印调试】订单在轮询间隔内已被标记为已打印，跳过打印: #${order.number}")
                     return@launch
                 }
                 
-                // 打印订单
-                Log.d(TAG, "【自动打印调试】开始执行打印订单: #${order.number}")
+                // 打印订单 - 支持多模板多份数
                 
-                // 使用超时机制避免打印操作挂起
-                val printResult = withTimeoutOrNull(30000) { // 30秒超时
-                    printerManager.printOrder(order, printerConfig)
-                } ?: false
                 
-                Log.d(TAG, "【自动打印调试】打印结果: ${if (printResult) "成功" else "失败"}")
+                var anyPrintSuccess = false
                 
-                if (printResult) {
-                    Log.d(TAG, "【自动打印调试】打印成功，订单将由打印管理器自动标记为已打印: #${order.number}")
+                // 遍历每个模板并打印相应份数
+                for ((templateId, copies) in templatePrintCopies) {
+                    if (copies > 0) {
+                        
+                        
+                        // 打印指定份数
+                        for (i in 1..copies) {
+                            
+                            
+                            // 使用超时机制避免打印操作挂起
+                            val printResult = withTimeoutOrNull(30000) { // 30秒超时
+                                printerManager.printOrderWithTemplate(order, printerConfig, templateId)
+                            } ?: false
+                            
+                            if (printResult) {
+                                
+                                anyPrintSuccess = true
+                            } else {
+                                Log.e(TAG, "【自动打印调试】❌ 第 $i 份打印失败 (模板: $templateId)")
+                            }
+                            
+                            // 如果不是最后一份，稍微延迟避免打印机过载
+                            if (i < copies || templatePrintCopies.size > 1) {
+                                delay(500)
+                            }
+                        }
+                    }
+                }
+                
+                if (anyPrintSuccess) {
+                    
                     
                     // 验证标记是否成功（仅用于日志验证）
+                    delay(500) // 等待一下让打印管理器更新状态
                     val finalOrder = orderRepository.getOrderById(order.id)
-                    if (finalOrder?.isPrinted == true) {
-                        Log.d(TAG, "【自动打印调试】验证：订单 #${order.number} 已被正确标记为已打印")
-                    } else {
-                        Log.w(TAG, "【自动打印调试】注意：订单 #${order.number} 可能还未被标记为已打印，状态: ${finalOrder?.isPrinted}")
+                    if (finalOrder?.isPrinted != true) {
+                        Log.w(TAG, "订单 #${order.number} 可能还未被标记为已打印，状态: ${finalOrder?.isPrinted}")
                     }
                 } else {
-                    Log.e(TAG, "【自动打印调试】打印失败，订单 #${order.number} 维持未打印状态")
+                    Log.e(TAG, "所有打印都失败：订单 #${order.number} 维持未打印状态")
                 }
+                
             } catch (e: Exception) {
-                Log.e(TAG, "【自动打印调试】自动打印订单时发生异常: ${e.message}", e)
+                Log.e(TAG, "自动打印订单时发生异常: ${e.message}", e)
             }
         }
     }
@@ -1046,14 +1113,14 @@ class BackgroundPollingService : Service() {
                                 removeOldestProcessedId()
                             }
                             
-                            Log.d(TAG, "【自动打印调试】已清理订单处理队列: ${sizeBefore} -> ${processedOrderIds.size}")
+                            
                         }
                     }
                     
                     // 释放运行时内存
                     System.gc()
                 } catch (e: Exception) {
-                    Log.e(TAG, "【自动打印调试】定期清理任务异常: ${e.message}", e)
+                    Log.e(TAG, "定期清理任务异常: ${e.message}", e)
                 }
             }
         }
@@ -1341,6 +1408,15 @@ class BackgroundPollingService : Service() {
                     Log.i(TAG, "【电源管理】${index + 1}. $recommendation")
                 }
             }
+            
+            // 获取网络保持相关建议
+            val networkRecommendations = PowerManagementUtils.getNetworkKeepAliveRecommendations(this)
+            if (networkRecommendations.isNotEmpty()) {
+                Log.i(TAG, "【网络保持】网络保持优化建议:")
+                networkRecommendations.forEachIndexed { index, recommendation ->
+                    Log.i(TAG, "【网络保持】${index + 1}. $recommendation")
+                }
+            }
         } catch (e: Exception) {
             Log.e(TAG, "【电源管理】检查省电设置失败: ${e.message}", e)
         }
@@ -1392,6 +1468,219 @@ class BackgroundPollingService : Service() {
             Log.d(TAG, "【电源管理】已显示高级电源管理提醒通知")
         } catch (e: Exception) {
             Log.e(TAG, "【电源管理】显示高级电源管理通知失败: ${e.message}", e)
+        }
+    }
+
+    /**
+     * 获取高性能WiFi锁，防止WiFi在息屏时进入省电模式
+     */
+    private fun acquireHighPerfWifiLock() {
+        try {
+            if (highPerfWifiLock?.isHeld != true) {
+                highPerfWifiLock?.acquire()
+                Log.d(TAG, "【电源管理】已获取高性能WiFi锁，防止WiFi省电")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "【电源管理】获取高性能WiFi锁失败: ${e.message}", e)
+        }
+    }
+
+    /**
+     * 释放高性能WiFi锁
+     */
+    private fun releaseHighPerfWifiLock() {
+        try {
+            if (highPerfWifiLock?.isHeld == true) {
+                highPerfWifiLock?.release()
+                Log.d(TAG, "【电源管理】已释放高性能WiFi锁")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "【电源管理】释放高性能WiFi锁失败: ${e.message}", e)
+        }
+    }
+
+    /**
+     * 启动网络心跳检测
+     * 定期检查网络连接状态，发现断网时主动重连
+     */
+    private fun startNetworkHeartbeat() {
+        if (networkHeartbeatJob?.isActive == true) {
+            Log.d(TAG, "【网络心跳】网络心跳检测已在运行")
+            return
+        }
+        
+        networkHeartbeatJob = serviceScope.launch {
+            try {
+                while (isActive && isPollingActive) {
+                    delay(NETWORK_HEARTBEAT_INTERVAL)
+                    
+                    Log.d(TAG, "【网络心跳】执行网络连接检查")
+                    
+                    val currentTime = System.currentTimeMillis()
+                    lastNetworkCheckTime = currentTime
+                    
+                    // 检查网络连接状态
+                    val isConnected = checkNetworkConnectivity()
+                    
+                    if (!isConnected) {
+                        Log.w(TAG, "【网络心跳】检测到网络断开，尝试恢复")
+                        handleNetworkDisconnection()
+                    } else {
+                        Log.d(TAG, "【网络心跳】网络连接正常")
+                        networkRetryCount = 0 // 重置重试计数
+                        
+                        // 额外检查：尝试一个简单的网络请求
+                        val canReachInternet = testInternetConnectivity()
+                        if (!canReachInternet) {
+                            Log.w(TAG, "【网络心跳】虽然WiFi已连接，但无法访问互联网")
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "【网络心跳】网络心跳检测异常: ${e.message}", e)
+            }
+        }
+        
+        Log.d(TAG, "【网络心跳】网络心跳检测已启动")
+    }
+
+    /**
+     * 检查网络连接状态
+     */
+    private fun checkNetworkConnectivity(): Boolean {
+        return try {
+            val connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+            
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                val network = connectivityManager.activeNetwork ?: return false
+                val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
+                
+                capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) &&
+                capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+                capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+            } else {
+                @Suppress("DEPRECATION")
+                val networkInfo = connectivityManager.activeNetworkInfo
+                networkInfo?.isConnected == true
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "【网络心跳】检查网络连接状态失败: ${e.message}", e)
+            false
+        }
+    }
+
+    /**
+     * 测试互联网连接
+     */
+    private suspend fun testInternetConnectivity(): Boolean {
+        return try {
+            withTimeoutOrNull(5000) {
+                // 尝试简单的网络请求来测试连接
+                val url = java.net.URL("https://www.google.com")
+                val connection = url.openConnection()
+                connection.connectTimeout = 3000
+                connection.readTimeout = 3000
+                connection.connect()
+                true
+            } ?: false
+        } catch (e: Exception) {
+            Log.w(TAG, "【网络心跳】互联网连接测试失败: ${e.message}")
+            false
+        }
+    }
+
+    /**
+     * 处理网络断开情况
+     */
+    private fun handleNetworkDisconnection() {
+        serviceScope.launch {
+            try {
+                networkRetryCount++
+                Log.w(TAG, "【网络心跳】处理网络断开，重试次数: $networkRetryCount/$MAX_NETWORK_RETRY_COUNT")
+                
+                if (networkRetryCount <= MAX_NETWORK_RETRY_COUNT) {
+                    // 尝试重新获取WiFi锁
+                    Log.d(TAG, "【网络心跳】重新获取WiFi锁")
+                    releaseWifiLock()
+                    releaseHighPerfWifiLock()
+                    delay(1000)
+                    acquireWifiLock()
+                    acquireHighPerfWifiLock()
+                    
+                    // 检查WiFi状态
+                    val wifiState = wifiManager?.wifiState
+                    Log.d(TAG, "【网络心跳】当前WiFi状态: $wifiState")
+                    
+                    // 如果WiFi已禁用，尝试启用
+                    if (wifiState == WifiManager.WIFI_STATE_DISABLED) {
+                        Log.w(TAG, "【网络心跳】WiFi已禁用，尝试启用")
+                        try {
+                            @Suppress("DEPRECATION")
+                            wifiManager?.isWifiEnabled = true
+                        } catch (e: Exception) {
+                            Log.e(TAG, "【网络心跳】无法启用WiFi (需要用户权限): ${e.message}")
+                        }
+                    }
+                    
+                    // 等待网络恢复
+                    delay(5000)
+                    
+                    // 再次检查连接
+                    val isReconnected = checkNetworkConnectivity()
+                    if (isReconnected) {
+                        Log.i(TAG, "【网络心跳】网络连接已恢复")
+                        networkRetryCount = 0
+                        
+                        // 网络恢复后，触发一次立即轮询
+                        if (isPollingActive) {
+                            Log.d(TAG, "【网络心跳】网络恢复后触发立即轮询")
+                            delay(1000) // 稍等片刻确保网络完全稳定
+                            try {
+                                val result = orderRepository.refreshProcessingOrdersForPolling(latestPolledDate)
+                                if (result.isSuccess) {
+                                    val orders = result.getOrDefault(emptyList())
+                                    Log.d(TAG, "【网络心跳】网络恢复轮询获取了 ${orders.size} 个订单")
+                                    if (orders.isNotEmpty()) {
+                                        processNewOrders(orders)
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                Log.e(TAG, "【网络心跳】网络恢复后轮询失败: ${e.message}")
+                            }
+                        }
+                    } else {
+                        Log.w(TAG, "【网络心跳】网络连接仍未恢复，将继续监控")
+                    }
+                } else {
+                    Log.e(TAG, "【网络心跳】网络重连失败，已达到最大重试次数")
+                    // 显示网络问题通知
+                    showNetworkIssueNotification()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "【网络心跳】处理网络断开异常: ${e.message}", e)
+            }
+        }
+    }
+
+    /**
+     * 显示网络问题通知
+     */
+    private fun showNetworkIssueNotification() {
+        try {
+            val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+                .setContentTitle("网络连接问题")
+                .setContentText("检测到持续的网络连接问题，请检查WiFi设置")
+                .setSmallIcon(R.drawable.ic_launcher_foreground)
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setAutoCancel(true)
+                .build()
+
+            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            notificationManager.notify(1004, notification)
+            
+            Log.d(TAG, "【网络心跳】已显示网络问题通知")
+        } catch (e: Exception) {
+            Log.e(TAG, "【网络心跳】显示网络问题通知失败: ${e.message}", e)
         }
     }
 } 

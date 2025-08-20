@@ -383,7 +383,7 @@ class BluetoothPrinterManager @Inject constructor(
             }
 
             // 创建蓝牙连接，添加超时控制
-            
+            Log.d(TAG, "创建蓝牙连接...")
             val connection = BluetoothConnection(device)
             updatePrinterStatus(config, PrinterStatus.CONNECTING)
 
@@ -393,7 +393,7 @@ class BluetoothPrinterManager @Inject constructor(
             
             for (attempt in 1..MAX_RETRY_COUNT) {
                 try {
-                    
+                    Log.d(TAG, "连接尝试 $attempt/$MAX_RETRY_COUNT")
                     
                     connected = withTimeoutOrNull(CONNECTION_TIMEOUT) {
                         try {
@@ -694,7 +694,9 @@ class BluetoothPrinterManager @Inject constructor(
         }
 
         // 添加安卓版本日志帮助调试
-        
+        Log.d(TAG, "===== 蓝牙打印机扫描开始 =====")
+        Log.d(TAG, "安卓版本: ${Build.VERSION.SDK_INT}")
+        Log.d(TAG, "扫描打印机类型: $type")
 
         // 输出诊断信息，帮助识别问题
         logBluetoothDiagnostics()
@@ -868,7 +870,7 @@ class BluetoothPrinterManager @Inject constructor(
                 BluetoothDevice.BOND_NONE -> "未配对"
                 else -> "未知状态(${device.bondState})"
             }
-            
+            Log.d(TAG, "设备: $deviceName, 地址: ${device.address}, 绑定状态: $bondState")
 
             PrinterDevice(
                 name = deviceName,
@@ -1703,12 +1705,13 @@ class BluetoothPrinterManager @Inject constructor(
      * 输出蓝牙诊断信息，帮助识别权限问题
      */
     fun logBluetoothDiagnostics() {
-        
+        Log.d(TAG, "==== 蓝牙诊断信息 ====")
         Log.d(TAG, "Android版本: ${Build.VERSION.SDK_INT} (${Build.VERSION.RELEASE})")
 
         // 检查蓝牙适配器
         val bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
-        
+        Log.d(TAG, "蓝牙适配器: ${bluetoothAdapter != null}")
+        Log.d(TAG, "蓝牙已启用: ${bluetoothAdapter?.isEnabled == true}")
 
         // 检查权限状态
         val permissions = mutableListOf<Pair<String, Boolean>>()
@@ -2176,7 +2179,7 @@ class BluetoothPrinterManager @Inject constructor(
 
                             BluetoothAdapter.ACTION_DISCOVERY_FINISHED -> {
                                 // 扫描完成但未找到目标设备
-                                
+                                Log.d(TAG, "蓝牙扫描完成，但未找到目标设备: $targetAddress")
 
                                 // 解注册接收器
                                 try {
@@ -2258,7 +2261,7 @@ class BluetoothPrinterManager @Inject constructor(
      * @return 是否有蓝牙权限
      */
     private fun hasBluetoothPermission(): Boolean {
-        
+        Log.d(TAG, "检查蓝牙权限，安卓版本: ${Build.VERSION.SDK_INT}")
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             // Android 12 及以上版本需要 BLUETOOTH_CONNECT 和 BLUETOOTH_SCAN 权限
             val hasConnectPermission = ActivityCompat.checkSelfPermission(
@@ -2403,7 +2406,7 @@ class BluetoothPrinterManager @Inject constructor(
      */
     suspend fun testDirectCut(config: PrinterConfig): Boolean {
         try {
-            
+            Log.d(TAG, "开始切纸功能测试")
             
             // 确保连接
             if (!ensurePrinterConnected(config)) {
@@ -2455,7 +2458,7 @@ class BluetoothPrinterManager @Inject constructor(
      */
     suspend fun test80mmPrinterCut(config: PrinterConfig): Boolean {
         try {
-            
+            Log.d(TAG, "【80mm打印机】开始专项切纸测试")
             
             // 确保连接
             if (!ensurePrinterConnected(config)) {
@@ -2545,7 +2548,7 @@ class BluetoothPrinterManager @Inject constructor(
                     Thread.sleep(500)
                     
                     // 发送切纸命令
-                    
+                    Log.d(TAG, "【80mm切纸测试】尝试命令 #$commandIndex: $description")
                     currentConnection?.write(command)
                     Thread.sleep(800)  // 给予足够时间执行命令
                     
@@ -2560,7 +2563,7 @@ class BluetoothPrinterManager @Inject constructor(
             Thread.sleep(1000)
             
             // 尝试多种切纸命令，增加成功率
-            
+            Log.d(TAG, "【打印机】发送多种切纸命令")
             
             // 1. 标准切纸命令 (GS V)
             currentConnection?.write(byteArrayOf(0x1D, 0x56, 0x01))  // GS V 1 - 部分切纸
@@ -2574,7 +2577,7 @@ class BluetoothPrinterManager @Inject constructor(
             // 4. 发送小走纸指令以触发打印机缓冲处理
             currentConnection?.write(byteArrayOf(0x0A, 0x0D, 0x0A))  // LF CR LF
             
-            
+            Log.d(TAG, "【80mm打印机】切纸测试完成，共测试 ${specificCommands.size} 组命令")
             return true
             
         } catch (e: Exception) {
@@ -2624,7 +2627,7 @@ class BluetoothPrinterManager @Inject constructor(
      */
     fun forcePaperCut(config: PrinterConfig): Boolean {
         try {
-            
+            Log.d(TAG, "【打印机】开始强制切纸流程")
             
             if (currentConnection == null) {
                 Log.e(TAG, "【打印机】无有效连接，无法执行强制切纸")
@@ -2680,7 +2683,7 @@ class BluetoothPrinterManager @Inject constructor(
             // 第五步：再次初始化打印机
             currentConnection?.write(byteArrayOf(0x1B, 0x40))
             
-            
+            Log.d(TAG, "【打印机】强制切纸流程完成")
             return true
         } catch (e: Exception) {
             Log.e(TAG, "【打印机】强制切纸操作失败: ${e.message}", e)

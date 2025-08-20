@@ -690,7 +690,7 @@ class BackgroundPollingService : Service() {
             // 记录上次轮询时间，用于日志
             val lastPollTime = latestPolledDate
             
-            Log.d(TAG, "【自动打印调试】开始执行轮询，上次轮询时间: ${lastPollTime?.toString() ?: "首次轮询"}")
+            
             
             // 执行轮询
             val result = orderRepository.refreshProcessingOrdersForPolling(lastPollTime)
@@ -704,7 +704,7 @@ class BackgroundPollingService : Service() {
                 
                 // 有新订单时记录日志
                 if (orders.isNotEmpty()) {
-                    Log.d(TAG, "【自动打印调试】轮询成功，获取了 ${orders.size} 个处理中订单")
+                    
                     
                     // 过滤并处理新订单
                     val newOrderCount = processNewOrders(orders)
@@ -720,22 +720,20 @@ class BackgroundPollingService : Service() {
                         // 通知UI层刷新数据
                         sendRefreshOrdersBroadcast()
                     } else {
-                        Log.d(TAG, "【自动打印调试】虽然获取了订单，但都是已处理过的，不发送广播")
+                        
                     }
                 } else {
                     // 减少无新订单时的日志输出频率
                     val minutes = System.currentTimeMillis() / 60000
-                    if (!initialPollingComplete || (minutes % 10L == 0L)) { // 每10分钟记录一次，修改为Long类型比较
-                        Log.d(TAG, "【自动打印调试】轮询成功，但没有新的处理中订单")
-                    }
+                    if (!initialPollingComplete || (minutes % 10L == 0L)) { }
                 }
             } else {
                 // 处理错误
                 val error = result.exceptionOrNull()
-                Log.e(TAG, "【自动打印调试】轮询订单失败: ${error?.message}", error)
+                Log.e(TAG, "轮询订单失败: ${error?.message}", error)
             }
         } catch (e: Exception) {
-            Log.e(TAG, "【自动打印调试】轮询过程中发生异常: ${e.message}", e)
+            Log.e(TAG, "轮询过程中发生异常: ${e.message}", e)
         }
     }
 
@@ -796,11 +794,11 @@ class BackgroundPollingService : Service() {
     private suspend fun processNewOrders(orders: List<Order>): Int {
         var newOrderCount = 0
         
-        Log.d(TAG, "处理新订单，共 ${orders.size} 个")
+        
         
         // 确定应用启动后的首次轮询
         val isFirstPolling = latestPolledDate == null
-        Log.d(TAG, "是否首次轮询: $isFirstPolling")
+        
         
         // 获取当前时间
         val currentTime = System.currentTimeMillis()
@@ -825,16 +823,16 @@ class BackgroundPollingService : Service() {
             
             // 记录订单时间与当前时间的差距
             val timeDiff = (currentTime - order.dateCreated.time) / 1000 // 秒
-            Log.d(TAG, "订单 #${order.number} 创建于 ${timeDiff}秒前, 首次轮询: $isFirstPolling, 是否新订单: $isNewOrder, 是否最近订单: $isRecentOrder")
+            
             
             if (isNewOrder && isRecentOrder) {
-                Log.d(TAG, "【打印状态保护】处理新订单: #${order.number}, ID: ${order.id}, 状态: ${order.status}, API中打印状态: ${order.isPrinted}")
+                
                 
                 // 获取数据库中的打印状态 - 数据库是打印状态的真实来源
                 val latestOrder = orderRepository.getOrderById(order.id)
                 val isPrintedInDb = latestOrder?.isPrinted ?: false
                 
-                Log.d(TAG, "【打印状态保护】订单 #${order.number} 的数据库打印状态: $isPrintedInDb")
+                
                 
                 // 创建最终处理的订单对象，以数据库打印状态为准
                 val finalOrder = if (latestOrder != null) {
@@ -845,7 +843,7 @@ class BackgroundPollingService : Service() {
                     order
                 }
                 
-                Log.d(TAG, "【打印状态保护】最终处理的订单 #${finalOrder.number} 打印状态: ${finalOrder.isPrinted}")
+                
                 
                 // 不再根据API和数据库的不一致进行更新，而是始终以数据库为主
                 // 这确保了手动标记的打印状态不会被API覆盖
@@ -854,22 +852,21 @@ class BackgroundPollingService : Service() {
                 sendNewOrderNotification(finalOrder)
                 
                 // 启用自动打印功能，并添加详细日志
-                Log.d(TAG, "【自动打印】====== 开始检查订单是否需要自动打印 ======")
-                Log.d(TAG, "【自动打印】订单 #${finalOrder.number} - 状态: ${finalOrder.status}, 已打印: ${finalOrder.isPrinted}")
+                
                 
                 // 使用最终订单的打印状态判断是否需要打印
                 val shouldPrint = !finalOrder.isPrinted && finalOrder.status == "processing"
-                Log.d(TAG, "【自动打印】是否满足打印条件: $shouldPrint")
+                
                 
                 if (shouldPrint) {
-                    Log.d(TAG, "【自动打印】✓ 订单满足自动打印条件，准备打印...")
+                    
                     // 调用printOrder方法处理打印
                     printOrder(finalOrder)
                 } else {
                     if (finalOrder.isPrinted) {
-                        Log.d(TAG, "【自动打印】订单 #${finalOrder.number} 已标记为已打印，跳过")
+                        
                     } else if (finalOrder.status != "processing") {
-                        Log.d(TAG, "【自动打印】订单 #${finalOrder.number} 状态为 ${finalOrder.status}，不是 processing，跳过")
+                        
                     }
                 }
                 
@@ -905,7 +902,7 @@ class BackgroundPollingService : Service() {
             if (processedOrderIds.isNotEmpty()) {
                 val oldestId = processedOrderIds.iterator().next()
                 processedOrderIds.remove(oldestId)
-                Log.d(TAG, "从处理记录中移除最旧的订单ID: $oldestId, 当前缓存大小: ${processedOrderIds.size}")
+                
             }
         }
     }
@@ -932,20 +929,17 @@ class BackgroundPollingService : Service() {
     private fun printOrder(order: Order) {
         serviceScope.launch {
             try {
-                Log.d(TAG, "【自动打印调试】=====================================")
-                Log.d(TAG, "【自动打印调试】开始执行自动打印订单: #${order.number}")
-                Log.d(TAG, "【自动打印调试】订单信息: ID=${order.id}, 状态=${order.status}, 已打印=${order.isPrinted}")
+                
                 
                 // 检查订单是否已打印
                 if (order.isPrinted) {
-                    Log.d(TAG, "【自动打印调试】订单已打印，跳过: #${order.number}")
+                    
                     return@launch
                 }
                 
                 // 检查订单状态是否为"处理中"
                 if (order.status != "processing") {
-                    Log.d(TAG, "【自动打印调试】订单状态非处理中(${order.status})，不自动打印")
-                    Log.d(TAG, "【自动打印调试】提示：只有状态为'processing'的订单才会自动打印")
+                    
                     return@launch
                 }
                 
@@ -957,11 +951,11 @@ class BackgroundPollingService : Service() {
                     return@launch
                 }
                 
-                Log.d(TAG, "【自动打印调试】默认打印机: ${printerConfig.name} (${printerConfig.address})")
+                
                 
                 // 检查是否开启自动打印 - 只需要检查全局设置
                 val globalAutoPrintEnabled = settingsRepository.getAutoPrintEnabled()
-                Log.d(TAG, "【自动打印调试】✓ 检查全局自动打印设置: ${if(globalAutoPrintEnabled) "已开启" else "未开启"}")
+                
                 
                 if (!globalAutoPrintEnabled) {
                     Log.e(TAG, "【自动打印调试】❌ 全局自动打印功能未开启")
@@ -969,7 +963,7 @@ class BackgroundPollingService : Service() {
                     return@launch
                 }
                 
-                Log.d(TAG, "【自动打印调试】准备自动打印新订单: #${order.number}, 打印机: ${printerConfig.name}")
+                
                 
                 // 获取模板打印份数设置
                 val templatePrintCopies = settingsRepository.getTemplatePrintCopies()
@@ -982,17 +976,17 @@ class BackgroundPollingService : Service() {
                 
                 // 检查打印机是否已连接，如果未连接则先尝试连接
                 val printerStatus = printerManager.getPrinterStatus(printerConfig)
-                Log.d(TAG, "【自动打印调试】当前打印机状态: $printerStatus")
+                
                 
                 if (printerStatus != PrinterStatus.CONNECTED) {
-                    Log.d(TAG, "【自动打印调试】打印机未连接，尝试连接打印机: ${printerConfig.name}")
+                    
                     
                     // 使用超时机制避免连接挂起
                     val connected = withTimeoutOrNull(15000) { // 与蓝牙管理器保持一致
                         printerManager.connect(printerConfig)
                     } ?: false
                     
-                    Log.d(TAG, "【自动打印调试】打印机连接结果: $connected")
+                    
                     
                     if (!connected) {
                         Log.e(TAG, "【自动打印调试】无法连接打印机，打印失败: ${printerConfig.name}")
@@ -1002,7 +996,7 @@ class BackgroundPollingService : Service() {
                 
                 // 再次检查订单是否已经被标记为已打印（可能在轮询期间被手动打印）
                 val updatedOrder = orderRepository.getOrderById(order.id)
-                Log.d(TAG, "【自动打印调试】再次检查订单打印状态: ${updatedOrder?.isPrinted}")
+                
                 
                 if (updatedOrder?.isPrinted == true) {
                     Log.d(TAG, "【自动打印调试】订单在轮询间隔内已被标记为已打印，跳过打印: #${order.number}")
@@ -1010,18 +1004,18 @@ class BackgroundPollingService : Service() {
                 }
                 
                 // 打印订单 - 支持多模板多份数
-                Log.d(TAG, "【自动打印调试】开始执行打印订单: #${order.number}")
+                
                 
                 var anyPrintSuccess = false
                 
                 // 遍历每个模板并打印相应份数
                 for ((templateId, copies) in templatePrintCopies) {
                     if (copies > 0) {
-                        Log.d(TAG, "【自动打印调试】准备打印模板: $templateId, 份数: $copies")
+                        
                         
                         // 打印指定份数
                         for (i in 1..copies) {
-                            Log.d(TAG, "【自动打印调试】打印第 $i/$copies 份 (模板: $templateId)")
+                            
                             
                             // 使用超时机制避免打印操作挂起
                             val printResult = withTimeoutOrNull(30000) { // 30秒超时
@@ -1029,7 +1023,7 @@ class BackgroundPollingService : Service() {
                             } ?: false
                             
                             if (printResult) {
-                                Log.d(TAG, "【自动打印调试】✓ 第 $i 份打印成功 (模板: $templateId)")
+                                
                                 anyPrintSuccess = true
                             } else {
                                 Log.e(TAG, "【自动打印调试】❌ 第 $i 份打印失败 (模板: $templateId)")
@@ -1044,24 +1038,20 @@ class BackgroundPollingService : Service() {
                 }
                 
                 if (anyPrintSuccess) {
-                    Log.d(TAG, "【自动打印调试】✓ 至少有一份打印成功！")
-                    Log.d(TAG, "【自动打印调试】订单 #${order.number} 将由打印管理器自动标记为已打印")
+                    
                     
                     // 验证标记是否成功（仅用于日志验证）
                     delay(500) // 等待一下让打印管理器更新状态
                     val finalOrder = orderRepository.getOrderById(order.id)
-                    if (finalOrder?.isPrinted == true) {
-                        Log.d(TAG, "【自动打印调试】✓ 验证成功：订单 #${order.number} 已被正确标记为已打印")
-                    } else {
-                        Log.w(TAG, "【自动打印调试】⚠ 注意：订单 #${order.number} 可能还未被标记为已打印，状态: ${finalOrder?.isPrinted}")
+                    if (finalOrder?.isPrinted != true) {
+                        Log.w(TAG, "订单 #${order.number} 可能还未被标记为已打印，状态: ${finalOrder?.isPrinted}")
                     }
                 } else {
-                    Log.e(TAG, "【自动打印调试】❌ 所有打印都失败！订单 #${order.number} 维持未打印状态")
+                    Log.e(TAG, "所有打印都失败：订单 #${order.number} 维持未打印状态")
                 }
                 
-                Log.d(TAG, "【自动打印调试】=====================================")
             } catch (e: Exception) {
-                Log.e(TAG, "【自动打印调试】自动打印订单时发生异常: ${e.message}", e)
+                Log.e(TAG, "自动打印订单时发生异常: ${e.message}", e)
             }
         }
     }
@@ -1123,14 +1113,14 @@ class BackgroundPollingService : Service() {
                                 removeOldestProcessedId()
                             }
                             
-                            Log.d(TAG, "【自动打印调试】已清理订单处理队列: ${sizeBefore} -> ${processedOrderIds.size}")
+                            
                         }
                     }
                     
                     // 释放运行时内存
                     System.gc()
                 } catch (e: Exception) {
-                    Log.e(TAG, "【自动打印调试】定期清理任务异常: ${e.message}", e)
+                    Log.e(TAG, "定期清理任务异常: ${e.message}", e)
                 }
             }
         }

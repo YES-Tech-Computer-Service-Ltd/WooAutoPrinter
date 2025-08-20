@@ -306,7 +306,15 @@ class FakeSettingRepository : DomainSettingRepository {
     override suspend fun setCustomSoundUri(uri: String) {
         _customSoundUri.value = uri
     }
-    
+
+    override suspend fun getKeepRingingUntilAccept(): Boolean {
+        TODO("Not yet implemented")
+    }
+
+    override suspend fun setKeepRingingUntilAccept(enabled: Boolean) {
+        TODO("Not yet implemented")
+    }
+
     // 自动更新相关方法实现
     override suspend fun getAutoUpdate(): Boolean {
         return _autoUpdate.value

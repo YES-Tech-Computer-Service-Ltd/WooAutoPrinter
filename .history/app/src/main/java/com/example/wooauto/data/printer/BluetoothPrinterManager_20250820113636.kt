@@ -1708,7 +1708,8 @@ class BluetoothPrinterManager @Inject constructor(
 
         // 检查蓝牙适配器
         val bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
-        
+        Log.d(TAG, "蓝牙适配器: ${bluetoothAdapter != null}")
+        Log.d(TAG, "蓝牙已启用: ${bluetoothAdapter?.isEnabled == true}")
 
         // 检查权限状态
         val permissions = mutableListOf<Pair<String, Boolean>>()
@@ -2545,7 +2546,7 @@ class BluetoothPrinterManager @Inject constructor(
                     Thread.sleep(500)
                     
                     // 发送切纸命令
-                    
+                    Log.d(TAG, "【80mm切纸测试】尝试命令 #$commandIndex: $description")
                     currentConnection?.write(command)
                     Thread.sleep(800)  // 给予足够时间执行命令
                     
@@ -2560,7 +2561,7 @@ class BluetoothPrinterManager @Inject constructor(
             Thread.sleep(1000)
             
             // 尝试多种切纸命令，增加成功率
-            
+            Log.d(TAG, "【打印机】发送多种切纸命令")
             
             // 1. 标准切纸命令 (GS V)
             currentConnection?.write(byteArrayOf(0x1D, 0x56, 0x01))  // GS V 1 - 部分切纸
