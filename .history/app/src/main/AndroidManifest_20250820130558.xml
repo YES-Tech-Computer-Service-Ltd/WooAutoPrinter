@@ -19,6 +19,9 @@
     <!-- 振动权限 - 用于在嘈杂环境下提供触觉反馈 -->
     <uses-permission android:name="android.permission.VIBRATE" />
     
+    <!-- 音频增强权限 - 用于突破系统音量限制 -->
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    
     <!-- 电源管理权限 - 防止息屏断网 -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />

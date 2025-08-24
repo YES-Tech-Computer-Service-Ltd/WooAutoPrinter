@@ -8,6 +8,7 @@ import android.util.Log
 import androidx.multidex.MultiDexApplication
 import androidx.work.Configuration
 import androidx.work.WorkManager
+import androidx.core.content.ContextCompat
 import com.example.wooauto.data.local.WooCommerceConfig
 import com.example.wooauto.data.remote.metadata.MetadataProcessorFactory
 import com.example.wooauto.data.remote.metadata.MetadataProcessorRegistry
@@ -395,7 +396,7 @@ class WooAutoApplication : MultiDexApplication(), Configuration.Provider {
         try {
             Log.d("WooAutoApplication", "正在启动后台轮询服务")
             val serviceIntent = Intent(this, BackgroundPollingService::class.java)
-            startService(serviceIntent)
+            ContextCompat.startForegroundService(this, serviceIntent)
         } catch (e: Exception) {
             Log.e("WooAutoApplication", "启动服务时出错: ${e.message}", e)
         }

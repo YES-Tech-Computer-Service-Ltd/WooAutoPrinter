@@ -21,7 +21,6 @@
     
     <!-- 音频增强权限 - 用于突破系统音量限制 -->
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
-    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     
     <!-- 电源管理权限 - 防止息屏断网 -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
