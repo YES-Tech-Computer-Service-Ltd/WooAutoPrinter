@@ -48,6 +48,7 @@ object LocaleHelper {
         }
     }
     
+    // 已移除旧版全局切换入口。请统一使用 LocaleManager.updateLocale / setAndSaveLocale。
     
     /**
      * 获取适用于特定语言的Resources

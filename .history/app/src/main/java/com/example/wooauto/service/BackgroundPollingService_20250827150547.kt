@@ -302,13 +302,16 @@ class BackgroundPollingService : Service() {
         } else {
             startPolling()
         }
-        
+
         // 启动定期清理任务
         startPeriodicCleanupTask()
         
         // 启动轮询看门狗
         startPollingWatchdog()
         
+        // 应用/服务启动后，尝试自动连接默认打印机（若有配置）
+        tryAutoConnectDefaultPrinter()
+
         return START_STICKY
     }
 
@@ -344,14 +347,83 @@ class BackgroundPollingService : Service() {
         super.onDestroy()
     }
 
+    /**
+     * 启动后尝试自动连接默认打印机（一次性触发）
+     */
+    private fun tryAutoConnectDefaultPrinter() {
+        serviceScope.launch {
+            try {
+                // 避免与正在进行的连接流程冲突，稍作延迟（从1s提升到5s）
+                delay(5000)
+                val defaultConfig = try {
+                    settingsRepository.getDefaultPrinterConfig()
+                } catch (e: Exception) {
+                    Log.w(TAG, "获取默认打印机配置失败: ${e.message}")
+                    null
+                }
+
+                if (defaultConfig == null) {
+                    Log.d(TAG, "未配置默认打印机，跳过自动连接")
+                    return@launch
+                }
+
+                val cfg = defaultConfig ?: return@launch
+
+                val currentStatus = try {
+                    printerManager.getPrinterStatus(cfg)
+                } catch (e: Exception) {
+                    Log.w(TAG, "读取打印机状态失败: ${e.message}")
+                    null
+                }
+
+                if (currentStatus == com.example.wooauto.domain.printer.PrinterStatus.CONNECTED) {
+                    Log.d(TAG, "默认打印机已连接，跳过自动连接")
+                    return@launch
+                }
+
+                Log.d(TAG, "尝试自动连接默认打印机: ${cfg.name} (${cfg.address})")
+                val connected = try {
+                    withTimeoutOrNull(15000) {
+                        printerManager.connect(cfg)
+                    } ?: false
+                } catch (e: Exception) {
+                    Log.w(TAG, "自动连接默认打印机失败: ${e.message}")
+                    false
+                }
+
+                Log.d(TAG, "自动连接默认打印机结果: $connected")
+                if (!connected) {
+                    // 首次失败缩短重试间隔到30秒
+                    scheduleRetryAutoConnect(30000)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "自动连接默认打印机流程异常: ${e.message}", e)
+            }
+        }
+    }
+
+    // 自动连接重试任务
+    private var autoConnectRetryJob: Job? = null
+
+    // 调度下一次自动连接重试
+    private fun scheduleRetryAutoConnect(delayMs: Long) {
+        autoConnectRetryJob?.cancel()
+        autoConnectRetryJob = serviceScope.launch {
+            try {
+                delay(delayMs)
+                tryAutoConnectDefaultPrinter()
+            } catch (_: Exception) {}
+        }
+    }
+
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                getString(R.string.update_notification_channel_name),
+                getString(R.string.app_name),
                 NotificationManager.IMPORTANCE_LOW // 降低通知重要性以减少用户干扰
             ).apply {
-                description = getString(R.string.update_notification_channel_desc)
+                description = "WooAuto订单同步服务"
             }
             val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             notificationManager.createNotificationChannel(channel)
@@ -359,7 +431,7 @@ class BackgroundPollingService : Service() {
     }
 
     private fun startForeground() {
-        val notification = createNotification(getString(R.string.app_name), getString(R.string.loading))
+        val notification = createNotification(getString(R.string.app_name), "正在同步订单数据...")
         
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -912,7 +984,7 @@ class BackgroundPollingService : Service() {
         
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(getString(R.string.new_order_received))
-            .setContentText(getString(R.string.order_amount, order.total))
+            .setContentText("订单号: ${order.number}, 金额: ${order.total}")
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
@@ -1428,8 +1500,8 @@ class BackgroundPollingService : Service() {
     private fun showBatteryOptimizationNotification() {
         try {
             val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-                .setContentTitle(getString(R.string.api_config_required))
-                .setContentText(getString(R.string.api_notification_not_configured))
+                .setContentTitle("建议关闭电池优化")
+                .setContentText("为确保订单同步正常运行，建议将WooAuto加入电池优化白名单")
                 .setSmallIcon(R.drawable.ic_launcher_foreground)
                 .setPriority(NotificationCompat.PRIORITY_DEFAULT)
                 .setAutoCancel(true)
@@ -1452,12 +1524,14 @@ class BackgroundPollingService : Service() {
             val guidance = PowerManagementUtils.getManufacturerSpecificGuidance()
             
             val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-                .setContentTitle(getString(R.string.about))
-                .setContentText(getString(R.string.update_ready_to_install))
+                .setContentTitle("检测到${Build.MANUFACTURER}设备")
+                .setContentText("该设备可能有激进的省电策略，点击查看优化建议")
                 .setSmallIcon(R.drawable.ic_launcher_foreground)
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setAutoCancel(true)
-                .setStyle(NotificationCompat.BigTextStyle().bigText(guidance))
+                .setStyle(NotificationCompat.BigTextStyle().bigText(
+                    "为确保WooAuto正常运行，建议进行以下设置：\n\n$guidance"
+                ))
                 .build()
 
             val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -1666,8 +1740,8 @@ class BackgroundPollingService : Service() {
     private fun showNetworkIssueNotification() {
         try {
             val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-                .setContentTitle(getString(R.string.error_network))
-                .setContentText(getString(R.string.update_check_failed))
+                .setContentTitle("网络连接问题")
+                .setContentText("检测到持续的网络连接问题，请检查WiFi设置")
                 .setSmallIcon(R.drawable.ic_launcher_foreground)
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setAutoCancel(true)

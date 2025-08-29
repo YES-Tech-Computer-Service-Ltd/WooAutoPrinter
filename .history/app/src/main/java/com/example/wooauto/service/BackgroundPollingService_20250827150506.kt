@@ -348,10 +348,10 @@ class BackgroundPollingService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                getString(R.string.update_notification_channel_name),
+                getString(R.string.app_name),
                 NotificationManager.IMPORTANCE_LOW // 降低通知重要性以减少用户干扰
             ).apply {
-                description = getString(R.string.update_notification_channel_desc)
+                description = "WooAuto订单同步服务"
             }
             val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             notificationManager.createNotificationChannel(channel)
@@ -359,7 +359,7 @@ class BackgroundPollingService : Service() {
     }
 
     private fun startForeground() {
-        val notification = createNotification(getString(R.string.app_name), getString(R.string.loading))
+        val notification = createNotification(getString(R.string.app_name), "正在同步订单数据...")
         
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -912,7 +912,7 @@ class BackgroundPollingService : Service() {
         
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(getString(R.string.new_order_received))
-            .setContentText(getString(R.string.order_amount, order.total))
+            .setContentText("订单号: ${order.number}, 金额: ${order.total}")
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
@@ -1428,8 +1428,8 @@ class BackgroundPollingService : Service() {
     private fun showBatteryOptimizationNotification() {
         try {
             val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-                .setContentTitle(getString(R.string.api_config_required))
-                .setContentText(getString(R.string.api_notification_not_configured))
+                .setContentTitle("建议关闭电池优化")
+                .setContentText("为确保订单同步正常运行，建议将WooAuto加入电池优化白名单")
                 .setSmallIcon(R.drawable.ic_launcher_foreground)
                 .setPriority(NotificationCompat.PRIORITY_DEFAULT)
                 .setAutoCancel(true)
@@ -1452,12 +1452,14 @@ class BackgroundPollingService : Service() {
             val guidance = PowerManagementUtils.getManufacturerSpecificGuidance()
             
             val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-                .setContentTitle(getString(R.string.about))
-                .setContentText(getString(R.string.update_ready_to_install))
+                .setContentTitle("检测到${Build.MANUFACTURER}设备")
+                .setContentText("该设备可能有激进的省电策略，点击查看优化建议")
                 .setSmallIcon(R.drawable.ic_launcher_foreground)
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setAutoCancel(true)
-                .setStyle(NotificationCompat.BigTextStyle().bigText(guidance))
+                .setStyle(NotificationCompat.BigTextStyle().bigText(
+                    "为确保WooAuto正常运行，建议进行以下设置：\n\n$guidance"
+                ))
                 .build()
 
             val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -1666,8 +1668,8 @@ class BackgroundPollingService : Service() {
     private fun showNetworkIssueNotification() {
         try {
             val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-                .setContentTitle(getString(R.string.error_network))
-                .setContentText(getString(R.string.update_check_failed))
+                .setContentTitle("网络连接问题")
+                .setContentText("检测到持续的网络连接问题，请检查WiFi设置")
                 .setSmallIcon(R.drawable.ic_launcher_foreground)
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setAutoCancel(true)

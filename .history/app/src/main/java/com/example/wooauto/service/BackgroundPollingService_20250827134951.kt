@@ -42,6 +42,10 @@ import android.net.wifi.WifiManager
 import android.os.PowerManager
 import android.provider.Settings
 import com.example.wooauto.utils.PowerManagementUtils
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.core.app.ActivityCompat
+import android.bluetooth.BluetoothAdapter
 
 @AndroidEntryPoint
 class BackgroundPollingService : Service() {
@@ -303,6 +307,9 @@ class BackgroundPollingService : Service() {
             startPolling()
         }
         
+        // 应用/服务启动后，尝试自动连接默认打印机（若有配置）
+        tryAutoConnectDefaultPrinter()
+
         // 启动定期清理任务
         startPeriodicCleanupTask()
         
@@ -344,14 +351,96 @@ class BackgroundPollingService : Service() {
         super.onDestroy()
     }
 
+    /**
+     * 启动后尝试自动连接默认打印机（一次性触发）
+     */
+    private fun tryAutoConnectDefaultPrinter() {
+        serviceScope.launch {
+            try {
+                // 避免与正在进行的连接流程冲突，稍作延迟
+                delay(1000)
+
+                // Android 12+ 需要先确认BLUETOOTH_CONNECT权限
+                if (!hasBluetoothConnectPermission()) {
+                    Log.w(TAG, "缺少BLUETOOTH_CONNECT权限，延迟重试自动连接")
+                    scheduleRetryAutoConnect(30000)
+                    return@launch
+                }
+
+                // 确认蓝牙已开启
+                val adapter = BluetoothAdapter.getDefaultAdapter()
+                if (adapter == null || !adapter.isEnabled) {
+                    Log.w(TAG, "蓝牙未开启或适配器不可用，延迟重试自动连接")
+                    scheduleRetryAutoConnect(30000)
+                    return@launch
+                }
+                val defaultConfig = try {
+                    settingsRepository.getDefaultPrinterConfig()
+                } catch (e: Exception) {
+                    Log.w(TAG, "获取默认打印机配置失败: ${e.message}")
+                    null
+                }
+
+                if (defaultConfig == null) {
+                    Log.d(TAG, "未配置默认打印机，跳过自动连接")
+                    return@launch
+                }
+
+                val cfg = defaultConfig ?: return@launch
+
+                val currentStatus = try {
+                    printerManager.getPrinterStatus(cfg)
+                } catch (e: Exception) {
+                    Log.w(TAG, "读取打印机状态失败: ${e.message}")
+                    null
+                }
+
+                if (currentStatus == com.example.wooauto.domain.printer.PrinterStatus.CONNECTED) {
+                    Log.d(TAG, "默认打印机已连接，跳过自动连接")
+                    return@launch
+                }
+
+                Log.d(TAG, "尝试自动连接默认打印机: ${cfg.name} (${cfg.address})")
+                val connected = try {
+                    withTimeoutOrNull(15000) {
+                        printerManager.connect(cfg)
+                    } ?: false
+                } catch (e: Exception) {
+                    Log.w(TAG, "自动连接默认打印机失败: ${e.message}")
+                    false
+                }
+
+                Log.d(TAG, "自动连接默认打印机结果: $connected")
+                if (!connected) {
+                    // 初次连接失败时，定时重试，避免首次安装/权限未就绪时长期停留错误态
+                    scheduleRetryAutoConnect(60000)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "自动连接默认打印机流程异常: ${e.message}", e)
+            }
+        }
+    }
+
+    private fun hasBluetoothConnectPermission(): Boolean {
+        return if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.S) true
+        else ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun scheduleRetryAutoConnect(delayMs: Long) {
+        serviceScope.launch {
+            delay(delayMs)
+            tryAutoConnectDefaultPrinter()
+        }
+    }
+
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                getString(R.string.update_notification_channel_name),
+                getString(R.string.app_name),
                 NotificationManager.IMPORTANCE_LOW // 降低通知重要性以减少用户干扰
             ).apply {
-                description = getString(R.string.update_notification_channel_desc)
+                description = "WooAuto订单同步服务"
             }
             val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             notificationManager.createNotificationChannel(channel)
@@ -359,7 +448,7 @@ class BackgroundPollingService : Service() {
     }
 
     private fun startForeground() {
-        val notification = createNotification(getString(R.string.app_name), getString(R.string.loading))
+        val notification = createNotification(getString(R.string.app_name), "正在同步订单数据...")
         
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -912,7 +1001,7 @@ class BackgroundPollingService : Service() {
         
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(getString(R.string.new_order_received))
-            .setContentText(getString(R.string.order_amount, order.total))
+            .setContentText("订单号: ${order.number}, 金额: ${order.total}")
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
@@ -1428,8 +1517,8 @@ class BackgroundPollingService : Service() {
     private fun showBatteryOptimizationNotification() {
         try {
             val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-                .setContentTitle(getString(R.string.api_config_required))
-                .setContentText(getString(R.string.api_notification_not_configured))
+                .setContentTitle("建议关闭电池优化")
+                .setContentText("为确保订单同步正常运行，建议将WooAuto加入电池优化白名单")
                 .setSmallIcon(R.drawable.ic_launcher_foreground)
                 .setPriority(NotificationCompat.PRIORITY_DEFAULT)
                 .setAutoCancel(true)
@@ -1452,12 +1541,14 @@ class BackgroundPollingService : Service() {
             val guidance = PowerManagementUtils.getManufacturerSpecificGuidance()
             
             val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-                .setContentTitle(getString(R.string.about))
-                .setContentText(getString(R.string.update_ready_to_install))
+                .setContentTitle("检测到${Build.MANUFACTURER}设备")
+                .setContentText("该设备可能有激进的省电策略，点击查看优化建议")
                 .setSmallIcon(R.drawable.ic_launcher_foreground)
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setAutoCancel(true)
-                .setStyle(NotificationCompat.BigTextStyle().bigText(guidance))
+                .setStyle(NotificationCompat.BigTextStyle().bigText(
+                    "为确保WooAuto正常运行，建议进行以下设置：\n\n$guidance"
+                ))
                 .build()
 
             val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -1666,8 +1757,8 @@ class BackgroundPollingService : Service() {
     private fun showNetworkIssueNotification() {
         try {
             val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-                .setContentTitle(getString(R.string.error_network))
-                .setContentText(getString(R.string.update_check_failed))
+                .setContentTitle("网络连接问题")
+                .setContentText("检测到持续的网络连接问题，请检查WiFi设置")
                 .setSmallIcon(R.drawable.ic_launcher_foreground)
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setAutoCancel(true)

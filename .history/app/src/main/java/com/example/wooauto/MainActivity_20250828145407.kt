@@ -11,7 +11,7 @@ import android.provider.Settings
 import android.util.Log
 import android.view.WindowManager
 import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
+import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
@@ -56,7 +56,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 
 @AndroidEntryPoint
-class MainActivity : AppCompatActivity(), OrderNotificationManager.NotificationCallback {
+class MainActivity : ComponentActivity(), OrderNotificationManager.NotificationCallback {
     @Inject
     lateinit var soundManager: com.example.wooauto.utils.SoundManager
     
@@ -680,7 +680,7 @@ fun NewOrderPopup(
                             contentDescription = null
                         )
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text(stringResource(R.string.view_details))
+                        Text("接受订单")
                     }
                     
                     Spacer(modifier = Modifier.width(8.dp))

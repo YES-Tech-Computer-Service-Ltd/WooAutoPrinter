@@ -48,6 +48,12 @@ object LocaleHelper {
         }
     }
     
+    @Deprecated("请使用 LocaleManager.updateLocale/setAndSaveLocale 统一入口")
+    fun setLocale(locale: Locale) {
+        val localeList = LocaleListCompat.create(locale)
+        AppCompatDelegate.setApplicationLocales(localeList)
+        android.util.Log.d("LocaleHelper", "(Deprecated)setLocale -> ${locale.language}, ${locale.country}")
+    }
     
     /**
      * 获取适用于特定语言的Resources
