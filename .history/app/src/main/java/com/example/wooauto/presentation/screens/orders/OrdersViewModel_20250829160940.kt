@@ -20,7 +20,6 @@ import com.example.wooauto.service.BackgroundPollingService.Companion.ACTION_ORD
 import com.example.wooauto.service.BackgroundPollingService.Companion.ACTION_NEW_ORDERS_RECEIVED
 import com.example.wooauto.service.BackgroundPollingService.Companion.EXTRA_ORDER_COUNT
 import dagger.hilt.android.lifecycle.HiltViewModel
-import com.example.wooauto.utils.UiLog
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -31,13 +30,10 @@ import kotlinx.coroutines.launch
 import java.util.Date
 import javax.inject.Inject
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
-import com.example.wooauto.BuildConfig
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.Calendar
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.CancellationException
 
 @HiltViewModel
 class OrdersViewModel @Inject constructor(
@@ -63,12 +59,13 @@ class OrdersViewModel @Inject constructor(
 
     private val _isConfigured = MutableStateFlow(false)
     val isConfigured: StateFlow<Boolean> = _isConfigured.asStateFlow()
-    // 配置检查是否完成，用于避免UI误判为“未配置”
-    private val _isConfigChecked = MutableStateFlow(false)
-    val isConfigChecked: StateFlow<Boolean> = _isConfigChecked.asStateFlow()
 
     private val _isLoading = MutableStateFlow(true)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
+    // 配置检查完成标志，避免UI在检查过程中误判为“未配置”
+    private val _configChecked = MutableStateFlow(false)
+    val configChecked: StateFlow<Boolean> = _configChecked.asStateFlow()
     
     private val _orders = MutableStateFlow<List<Order>>(emptyList())
     val orders: StateFlow<List<Order>> = _orders.asStateFlow()
@@ -101,25 +98,17 @@ class OrdersViewModel @Inject constructor(
     private val _currencySymbol = MutableStateFlow("C$")
     val currencySymbol: StateFlow<String> = _currencySymbol.asStateFlow()
 
-    // 仅保留一个活跃的订单流收集，避免同时收集全量与筛选流造成 UI 覆盖/闪烁
-    private var ordersCollectJob: Job? = null
-    private var filterLoadingTimeoutJob: Job? = null
-
-    // 空态防抖：筛选切换后短时间内不展示“未找到匹配订单”
-    private val _emptyGuardActive = MutableStateFlow(false)
-    val emptyGuardActive: StateFlow<Boolean> = _emptyGuardActive.asStateFlow()
-
     // 广播接收器
     private val ordersUpdateReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             when (intent.action) {
                 ACTION_ORDERS_UPDATED -> {
-                    UiLog.d(TAG, "收到订单更新广播，刷新订单列表")
+                    Log.d(TAG, "收到订单更新广播，刷新订单列表")
                     refreshOrders()
                 }
                 ACTION_NEW_ORDERS_RECEIVED -> {
                     val orderCount = intent.getIntExtra(EXTRA_ORDER_COUNT, 0)
-                    UiLog.d(TAG, "收到新订单广播，新订单数量: $orderCount，刷新订单列表")
+                    Log.d(TAG, "收到新订单广播，新订单数量: $orderCount，刷新订单列表")
                     refreshOrders()
                 }
             }
@@ -127,7 +116,7 @@ class OrdersViewModel @Inject constructor(
     }
 
     init {
-        UiLog.d(TAG, "OrdersViewModel 初始化")
+        Log.d(TAG, "OrdersViewModel 初始化")
         
         // 检查配置和注册广播
         checkConfiguration()
@@ -146,10 +135,10 @@ class OrdersViewModel @Inject constructor(
         viewModelScope.launch {
             licenseManager.eligibilityInfo.asFlow()
                 .collect { eligibilityInfo ->
-                    UiLog.d(TAG, "许可证资格状态变化: $eligibilityInfo")
+                    Log.d(TAG, "许可证资格状态变化: $eligibilityInfo")
                     // 当许可证状态变化时，重新检查配置
                     val configResult = checkApiConfiguration()
-                    UiLog.d(TAG, "许可证状态变化后重新检查配置结果: $configResult")
+                    Log.d(TAG, "许可证状态变化后重新检查配置结果: $configResult")
                 }
         }
         
@@ -284,13 +273,14 @@ class OrdersViewModel @Inject constructor(
                     WooCommerceConfig.isConfigured.collectLatest { configured ->
                         Log.d(TAG, "API配置状态变更: $configured")
                         _isConfigured.value = configured
-                        _isConfigChecked.value = true
                         
                         // 如果配置状态变为已配置，尝试刷新订单
                         if (configured) {
                             Log.d(TAG, "配置状态变为已配置，尝试刷新订单")
                             refreshOrders()
                         }
+                        // 首次收到配置状态时，认为检查已完成
+                        _configChecked.value = true
                     }
                 }
             } catch (e: Exception) {
@@ -312,13 +302,15 @@ class OrdersViewModel @Inject constructor(
                 _isLoading.value = false
             } finally {
                 isCheckingConfig = false
+                if (!_configChecked.value) {
+                    _configChecked.value = true
+                }
             }
         }
     }
     
     private fun observeOrders() {
-        ordersCollectJob?.cancel()
-        ordersCollectJob = viewModelScope.launch {
+        viewModelScope.launch {
             try {
                 Log.d("OrdersViewModel", "开始观察订单数据流")
                 // 首先从数据库加载缓存的订单，不等待API
@@ -331,14 +323,10 @@ class OrdersViewModel @Inject constructor(
                 
                 // 观察订单流以获取持续更新
                 orderRepository.getAllOrdersFlow().collectLatest { ordersList ->
-                    if (BuildConfig.DEBUG) Log.d("OrdersViewModel", "订单流更新，收到${ordersList.size}个订单")
+                    Log.d("OrdersViewModel", "订单流更新，收到${ordersList.size}个订单")
                     _orders.value = ordersList
                     _isLoading.value = false
                 }
-            } catch (e: CancellationException) {
-                // 这是预期的：切换筛选/数据源时会取消旧收集，避免误报错误
-                UiLog.d(TAG, "订单流收集被取消（切换数据源或筛选）")
-                throw e
             } catch (e: Exception) {
                 Log.e("OrdersViewModel", "观察订单时出错: ${e.message}")
                 _errorMessage.value = "无法加载订单: ${e.message}"
@@ -374,27 +362,38 @@ class OrdersViewModel @Inject constructor(
                 
                 val apiConfigured = checkApiConfiguration()
                 if (apiConfigured) {
-                    // 根据当前筛选决定刷新范围
-                    val currentStatus = _currentStatusFilter.value
-                    val apiStatus = mapStatusToChinese(currentStatus, true)
-                    val result = if (currentStatus.isNullOrEmpty()) {
-                        orderRepository.refreshOrders()
-                    } else {
-                        orderRepository.refreshOrders(apiStatus)
-                    }
+                    val result = orderRepository.refreshOrders()
                     if (result.isSuccess) {
                         val refreshedOrders = result.getOrDefault(emptyList())
                         Log.d(TAG, "成功刷新订单数据，获取到 ${refreshedOrders.size} 个订单")
                         
-                        // 刷新后根据当前筛选重新绑定到对应的Flow，避免用全量数据覆盖UI
-                        if (currentStatus.isNullOrEmpty()) {
-                            observeOrders()
+                        // 验证打印状态
+                        val refreshedPrintedMap = refreshedOrders.associateBy({ it.id }, { it.isPrinted })
+                        
+                        // 检查是否有任何打印状态丢失
+                        val lostPrintStatus = currentPrintedMap.filter { it.value && refreshedPrintedMap[it.key] == false }
+                        if (lostPrintStatus.isNotEmpty()) {
+                            Log.e("OrdersViewModel", "【打印状态保护】警告：刷新后丢失了 ${lostPrintStatus.size} 个订单的打印状态")
+                            Log.e("OrdersViewModel", "【打印状态保护】丢失打印状态的订单ID: ${lostPrintStatus.keys}")
+                            
+                            // 修复丢失的打印状态
+                            val correctedOrders = refreshedOrders.map { order ->
+                                if (lostPrintStatus.containsKey(order.id)) {
+                                    order.copy(isPrinted = true)
+                                } else {
+                                    order
+                                }
+                            }
+                            
+                            // 使用修复后的订单列表
+                            _orders.value = correctedOrders
                         } else {
-                            observeFilteredOrders(apiStatus ?: currentStatus)
+                            _orders.value = refreshedOrders
                         }
-                        // 延迟后同步未读状态
-                        delay(300)
-                        loadUnreadOrders()
+                        
+                        // 确保所有订单已正确持久化到数据库后再加载未读订单
+                        delay(300) // 添加短暂延迟确保数据库操作完成
+                        loadUnreadOrders() // 从数据库加载未读订单
                     } else {
                         Log.w(TAG, "刷新订单数据失败: ${result.exceptionOrNull()?.message}")
                         _errorMessage.value = result.exceptionOrNull()?.message ?: "刷新失败"
@@ -469,20 +468,20 @@ class OrdersViewModel @Inject constructor(
                 if (connectionResult) {
                     Log.d(TAG, "API配置有效且连接测试成功")
                     _isConfigured.value = true
-                    _isConfigChecked.value = true
+                    _configChecked.value = true
                     return true
                 } else {
                     Log.d(TAG, "API配置信息完整但连接测试失败，仍然设置为已配置以允许用户查看缓存数据")
                     // 即使连接测试失败，如果配置信息完整，也应该设置为已配置
                     // 这样用户可以查看缓存的订单数据
                     _isConfigured.value = true
-                    _isConfigChecked.value = true
+                    _configChecked.value = true
                     return true
                 }
             } else {
                 Log.d(TAG, "API配置信息不完整: siteUrl=${siteUrl.isNotBlank()}, key=${consumerKey.isNotBlank()}, secret=${consumerSecret.isNotBlank()}")
                 _isConfigured.value = false
-                _isConfigChecked.value = true
+                _configChecked.value = true
                 return false
             }
         } catch (e: Exception) {
@@ -497,11 +496,11 @@ class OrdersViewModel @Inject constructor(
             if (cachedOrders.isNotEmpty()) {
                 Log.d(TAG, "虽然配置检查异常，但有缓存数据，设置为已配置状态")
                 _isConfigured.value = true
-                _isConfigChecked.value = true
+                _configChecked.value = true
                 return true
             } else {
                 _isConfigured.value = false
-                _isConfigChecked.value = true
+                _configChecked.value = true
                 return false
             }
         }
@@ -538,21 +537,20 @@ class OrdersViewModel @Inject constructor(
      */
     private fun mapStatusToChinese(status: String?, toEnglish: Boolean = false): String? {
         if (status == null || status.isEmpty()) return null // 空值时返回null，不发送status参数
-
-        // 拆分为两个单向映射，避免英文被错误映射回中文
-        val zh2en = mapOf(
+        
+        // 状态映射表
+        val statusMap = mapOf(
+            // 中文 to 英文
             "处理中" to "processing",
             "待付款" to "pending",
-            "待处理" to "pending", // 别名
+            "待处理" to "pending", // 添加别名
             "已完成" to "completed",
             "已取消" to "cancelled",
             "已退款" to "refunded",
             "失败" to "failed",
             "暂挂" to "on-hold",
-            "保留" to "on-hold" // 别名
-        )
-
-        val en2zh = mapOf(
+            "保留" to "on-hold", // 添加别名
+            // 英文 to 中文
             "processing" to "处理中",
             "pending" to "待付款",
             "completed" to "已完成",
@@ -561,13 +559,13 @@ class OrdersViewModel @Inject constructor(
             "failed" to "失败",
             "on-hold" to "暂挂"
         )
-
+        
         return if (toEnglish) {
-            // 仅中文 -> 英文，若已是英文则原样返回
-            zh2en[status] ?: status
+            // 从中文转到英文，如果没有匹配则返回原值（可能是英文）
+            statusMap[status] ?: status
         } else {
-            // 仅英文 -> 中文，若已是中文则原样返回
-            en2zh[status] ?: status
+            // 从英文转到中文，如果没有匹配则返回原值
+            statusMap[status] ?: status
         }
     }
     
@@ -576,8 +574,6 @@ class OrdersViewModel @Inject constructor(
             try {
                 Log.d("OrdersViewModel", "【状态筛选】开始按状态筛选: $status")
                 _isLoading.value = true
-                _emptyGuardActive.value = !status.isNullOrEmpty()
-                UiLog.d(TAG, "Filter start -> status='$status', set isLoading=true, emptyGuardActive=${_emptyGuardActive.value}")
                 
                 // 保存当前状态过滤条件(中文状态)
                 _currentStatusFilter.value = status
@@ -586,8 +582,6 @@ class OrdersViewModel @Inject constructor(
                     Log.d("OrdersViewModel", "状态为空，显示所有订单")
                     // 回到无过滤状态
                     _currentStatusFilter.value = null
-                    _emptyGuardActive.value = false
-                    UiLog.d(TAG, "Filter cleared -> observe all, emptyGuardActive=false")
                     observeOrders()
                 } else {
                     // 将中文状态映射为英文状态用于API调用
@@ -603,20 +597,23 @@ class OrdersViewModel @Inject constructor(
                         // 获取刷新结果中的订单
                         val allRefreshedOrders = refreshResult.getOrDefault(emptyList())
                         Log.d("OrdersViewModel", "【状态筛选】刷新获取到 ${allRefreshedOrders.size} 个订单")
-                        // 直接观察数据库该状态的流，避免UI再做一次状态过滤造成竞态
-                        observeFilteredOrders(apiStatus ?: status)
+                        
+                        // 本地进行状态过滤，处理可能的中英文映射
+                        observeFilteredOrders(status)
                     } else {
                         // 处理错误情况
                         val error = refreshResult.exceptionOrNull()
                         Log.e("OrdersViewModel", "【状态筛选】刷新订单失败", error)
                         _errorMessage.value = error?.message ?: "未知错误"
-                        // 出错时关闭加载
+                        // 出错时也要更新UI状态
                         _isLoading.value = false
                     }
                 }
             } catch (e: Exception) {
                 Log.e("OrdersViewModel", "【状态筛选】过滤订单出错", e)
                 _errorMessage.value = e.message
+                _isLoading.value = false
+            } finally {
                 _isLoading.value = false
             }
         }
@@ -1284,27 +1281,13 @@ class OrdersViewModel @Inject constructor(
      * @param status 订单状态，可以是中文或英文
      */
     private fun observeFilteredOrders(status: String) {
-        ordersCollectJob?.cancel()
-        ordersCollectJob = viewModelScope.launch {
+        viewModelScope.launch {
             try {
                 Log.d("OrdersViewModel", "【本地过滤】开始观察状态为 '$status' 的订单")
-                // 启动一个短超时：避免首次收集到空数据时立刻显示空态，给数据库刷新留出时间
-                filterLoadingTimeoutJob?.cancel()
-                filterLoadingTimeoutJob = viewModelScope.launch {
-                    try {
-                        kotlinx.coroutines.delay(1500)
-                    } finally {
-                        // 超时后如果仍为空，则允许显示空态
-                        _isLoading.value = false
-                        _emptyGuardActive.value = false
-                        UiLog.d(TAG, "Filter timeout -> set isLoading=false, emptyGuardActive=false (may render empty state)")
-                    }
-                }
                 
                 orderRepository.getOrdersByStatusFlow(status)
                     .collect { filteredOrders ->
                         Log.d("OrdersViewModel", "【本地过滤】获取到 ${filteredOrders.size} 个状态为 '$status' 的订单")
-                        UiLog.d(TAG, "Flow emit -> status='$status', size=${filteredOrders.size}, isLoading=${_isLoading.value}, emptyGuardActive=${_emptyGuardActive.value}")
                         
                         if (filteredOrders.isEmpty()) {
                             Log.w("OrdersViewModel", "【本地过滤】未找到状态为 '$status' 的订单")
@@ -1313,18 +1296,8 @@ class OrdersViewModel @Inject constructor(
                         
                         // 更新UI
                         _orders.value = filteredOrders
-                        if (filteredOrders.isNotEmpty()) {
-                            // 一旦拿到非空结果，立即结束Loading并取消超时任务
-                            filterLoadingTimeoutJob?.cancel()
-                            _isLoading.value = false
-                            _emptyGuardActive.value = false
-                            UiLog.d(TAG, "Flow non-empty -> set isLoading=false, emptyGuardActive=false")
-                        }
+                        _isLoading.value = false
                     }
-            } catch (e: CancellationException) {
-                // 切换筛选/数据源导致的正常取消，不提示错误
-                UiLog.d(TAG, "本地过滤收集被取消（切换筛选）")
-                throw e
             } catch (e: Exception) {
                 Log.e("OrdersViewModel", "【本地过滤】过滤订单出错", e)
                 _errorMessage.value = e.message

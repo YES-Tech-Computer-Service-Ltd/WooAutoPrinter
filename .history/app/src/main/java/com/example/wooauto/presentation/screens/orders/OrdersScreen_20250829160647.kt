@@ -130,7 +130,6 @@ import com.example.wooauto.presentation.RefreshEvent
 import androidx.compose.ui.unit.Dp
 import com.example.wooauto.presentation.screens.orders.OrderDetailDialog
 import com.example.wooauto.presentation.screens.orders.UnreadOrdersDialog
-import com.example.wooauto.utils.UiLog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -138,12 +137,12 @@ fun OrdersScreen(
     viewModel: OrdersViewModel = hiltViewModel(),
     navController: NavController = rememberNavController()
 ) {
-    UiLog.d("OrdersScreen", "订单屏幕初始化")
+    Log.d("OrdersScreen", "订单屏幕初始化")
     
     // 获取当前路由
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route ?: "unknown"
-    UiLog.d("OrdersScreen", "当前路由: $currentRoute")
+    Log.d("OrdersScreen", "当前路由: $currentRoute")
     
     // 获取当前语言环境
     val locale = LocalAppLocale.current
@@ -156,13 +155,13 @@ fun OrdersScreen(
     val errorApiNotConfigured = stringResource(R.string.error_api_not_configured)
     
     val isConfigured by viewModel.isConfigured.collectAsState()
+    val configChecked by viewModel.configChecked.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val orders by viewModel.orders.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
     val selectedOrder by viewModel.selectedOrder.collectAsState()
     val isRefreshing by viewModel.refreshing.collectAsState()
     val currencySymbol by viewModel.currencySymbol.collectAsState()
-    val emptyGuardActive by viewModel.emptyGuardActive.collectAsState()
     
     // 新增状态，用于控制何时显示UI
     val isInitialized = remember { mutableStateOf(false) }
@@ -201,7 +200,7 @@ fun OrdersScreen(
         val searchJob = eventScope.launch {
             EventBus.searchEvents.collect { event ->
                 if (event.screenRoute == NavigationItem.Orders.route) {
-                    UiLog.d("OrdersScreen", "收到搜索事件：${event.query}")
+                    Log.d("OrdersScreen", "收到搜索事件：${event.query}")
                     searchQuery = event.query
                     // 这里可以添加搜索逻辑
                     // viewModel.searchOrders(event.query)
@@ -213,7 +212,7 @@ fun OrdersScreen(
         val refreshJob = eventScope.launch {
             EventBus.refreshEvents.collect { event ->
                 if (event.screenRoute == NavigationItem.Orders.route) {
-                    UiLog.d("OrdersScreen", "收到刷新事件")
+                    Log.d("OrdersScreen", "收到刷新事件")
                     viewModel.refreshOrders()
                 }
             }
@@ -223,53 +222,53 @@ fun OrdersScreen(
         onDispose {
             searchJob.cancel()
             refreshJob.cancel()
-            UiLog.d("OrdersScreen", "清理事件订阅协程")
+            Log.d("OrdersScreen", "清理事件订阅协程")
         }
     }
     
     // 监听selectedOrder的变化，自动显示订单详情对话框
     LaunchedEffect(selectedOrder?.id) {
-        UiLog.d("OrdersScreen", "LaunchedEffect触发 - selectedOrder?.id: ${selectedOrder?.id}, showOrderDetail: $showOrderDetail")
+        Log.d("OrdersScreen", "LaunchedEffect触发 - selectedOrder?.id: ${selectedOrder?.id}, showOrderDetail: $showOrderDetail")
         selectedOrder?.let { order ->
-            UiLog.d("OrdersScreen", "selectedOrder不为空: ${order.id}, 当前showOrderDetail: $showOrderDetail")
+            Log.d("OrdersScreen", "selectedOrder不为空: ${order.id}, 当前showOrderDetail: $showOrderDetail")
             if (!showOrderDetail) {
-                UiLog.d("OrdersScreen", "检测到selectedOrder变化，显示订单详情对话框: ${order.id}")
+                Log.d("OrdersScreen", "检测到selectedOrder变化，显示订单详情对话框: ${order.id}")
                 showOrderDetail = true
-                UiLog.d("OrdersScreen", "已设置showOrderDetail = true")
+                Log.d("OrdersScreen", "已设置showOrderDetail = true")
             } else {
-                UiLog.d("OrdersScreen", "showOrderDetail已经为true，跳过设置")
+                Log.d("OrdersScreen", "showOrderDetail已经为true，跳过设置")
             }
         } ?: run {
-            UiLog.d("OrdersScreen", "selectedOrder为null")
+            Log.d("OrdersScreen", "selectedOrder为null")
         }
     }
     
     // 添加对selectedOrder的监听日志
     LaunchedEffect(selectedOrder) {
-        UiLog.d("OrdersScreen", "selectedOrder状态变化: ${selectedOrder?.let { "订单ID=${it.id}, 订单号=${it.number}" } ?: "null"}")
+        Log.d("OrdersScreen", "selectedOrder状态变化: ${selectedOrder?.let { "订单ID=${it.id}, 订单号=${it.number}" } ?: "null"}")
     }
     
     // 当进入此屏幕时执行初始化操作 - 简化逻辑，减少重复调用
     LaunchedEffect(key1 = Unit) {
-        UiLog.d("OrdersScreen", "LaunchedEffect 触发，开始初始化流程")
+        Log.d("OrdersScreen", "LaunchedEffect 触发，开始初始化流程")
         
         // 标记初始化完成，避免其他LaunchedEffect重复操作
         isInitialized.value = true
         
         // 直接调用checkApiConfiguration获取配置状态
         val configResult = viewModel.checkApiConfiguration()
-        UiLog.d("OrdersScreen", "API配置检查结果: $configResult")
+        Log.d("OrdersScreen", "API配置检查结果: $configResult")
         
         if (!configResult) {
             // API未配置时显示提示
-            UiLog.d("OrdersScreen", "API未配置，显示提示信息")
+            Log.d("OrdersScreen", "API未配置，显示提示信息")
             coroutineScope.launch {
                 snackbarHostState.showSnackbar(apiNotConfiguredMessage)
             }
         } else {
-            // API已配置，直接按当前选中的状态进行筛选并刷新，确保首屏与筛选一致
-            UiLog.d("OrdersScreen", "API已配置，按默认筛选加载: status='${statusFilter}'")
-            viewModel.filterOrdersByStatus(statusFilter)
+            // API已配置，尝试刷新订单数据
+            Log.d("OrdersScreen", "API已配置，尝试刷新订单数据")
+            viewModel.refreshOrders()
         }
     }
     
@@ -289,10 +288,10 @@ fun OrdersScreen(
         val listener = NavController.OnDestinationChangedListener { _, destination, _ ->
             val currentRoute = destination.route
             if (currentRoute == NavigationItem.Orders.route && isInitialized.value) {
-                UiLog.d("OrdersScreen", "导航回订单页面，检查是否需要刷新")
+                Log.d("OrdersScreen", "导航回订单页面，检查是否需要刷新")
                 // 只有在订单列表为空时才刷新，避免不必要的API调用
                 if (orders.isEmpty() && !isLoading) {
-                    UiLog.d("OrdersScreen", "订单列表为空且未在加载，执行刷新")
+                    Log.d("OrdersScreen", "订单列表为空且未在加载，执行刷新")
                     viewModel.refreshOrders()
                 }
             }
@@ -356,10 +355,10 @@ fun OrdersScreen(
     ) { paddingValues ->
         // 获取系统状态栏和TopBar的组合高度
         val topPadding = paddingValues.calculateTopPadding()
-        UiLog.d("OrdersScreen", "TopBar和状态栏总高度：$topPadding")
+        Log.d("OrdersScreen", "TopBar和状态栏总高度：$topPadding")
         
         // 打印完整的内边距信息用于调试
-        UiLog.d("OrdersScreen", "使用Scaffold提供的内边距")
+        Log.d("OrdersScreen", "使用Scaffold提供的内边距")
         
         // 使用动态调整后的内边距
         Box(
@@ -381,7 +380,15 @@ fun OrdersScreen(
                         Text(text = "正在加载订单数据...", style = MaterialTheme.typography.bodyLarge)
                     }
                 }
-            } else if (orders.isEmpty() && viewModel.isConfigChecked.collectAsState().value && !isConfigured) {
+            } else if (isLoading && orders.isEmpty()) {
+                // 已初始化但正在加载且没有订单数据
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+            } else if (orders.isEmpty() && (!configChecked || !isConfigured)) {
                 // 没有订单且API未配置，使用UnconfiguredView
                 UnconfiguredView(
                     errorMessage = errorMessage ?: errorApiNotConfigured,
@@ -394,6 +401,54 @@ fun OrdersScreen(
                         context.sendBroadcast(intent)
                     }
                 )
+            } else if (orders.isEmpty() && configChecked && isConfigured) {
+                // 已配置但没有订单
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.List,
+                        contentDescription = null,
+                        modifier = Modifier.size(72.dp),
+                        tint = MaterialTheme.colorScheme.secondary
+                    )
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    Text(
+                        text = stringResource(R.string.no_orders_found),
+                        style = MaterialTheme.typography.headlineSmall,
+                        textAlign = TextAlign.Center
+                    )
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    Text(
+                        text = stringResource(R.string.no_orders_message),
+                        style = MaterialTheme.typography.bodyMedium,
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    
+                    Spacer(modifier = Modifier.height(24.dp))
+                    
+                    Button(
+                        onClick = { viewModel.refreshOrders() },
+                        modifier = Modifier.padding(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = null,
+                            modifier = Modifier.size(ButtonDefaults.IconSize)
+                        )
+                        Spacer(modifier = Modifier.width(ButtonDefaults.IconSpacing))
+                        Text(text = stringResource(id = R.string.refresh))
+                    }
+                }
             } else {
                 // 有订单数据，显示订单列表
                 Box(modifier = Modifier.fillMaxSize()) {
@@ -411,9 +466,7 @@ fun OrdersScreen(
                             statusFilter = status
                             viewModel.filterOrdersByStatus(status)
                         },
-                        currencySymbol = currencySymbol,
-                        isLoading = isLoading,
-                        emptyGuardActive = emptyGuardActive
+                        currencySymbol = currencySymbol
                     )
                     
                     // 当正在刷新时，在列表上方显示一个半透明的刷新提示
@@ -531,22 +584,20 @@ private fun OrdersList(
     searchQuery: String,
     onSelectOrder: (Order) -> Unit,
     onStatusSelected: (String) -> Unit,
-    currencySymbol: String = "C$",
-    isLoading: Boolean,
-    emptyGuardActive: Boolean
+    currencySymbol: String = "C$"
 ) {
     val locale = LocalAppLocale.current
     
     // 定义状态选项列表 - 确保与API支持的值一致
     val statusOptions = listOf(
-        "processing" to stringResource(id = R.string.order_status_processing),
-        "completed" to stringResource(id = R.string.order_status_completed),
-        "pending" to stringResource(id = R.string.order_status_pending),
-        "cancelled" to stringResource(id = R.string.order_status_cancelled),
-        "on-hold" to stringResource(id = R.string.order_status_on_hold),
-        "refunded" to stringResource(id = R.string.order_status_refunded),
-        "failed" to stringResource(id = R.string.order_status_failed),
-        "" to stringResource(id = R.string.all_status)
+        "processing" to (if (locale.language == "zh") "处理中" else "Processing"),
+        "completed" to (if (locale.language == "zh") "已完成" else "Completed"),
+        "pending" to (if (locale.language == "zh") "待付款" else "Pending"),
+        "cancelled" to (if (locale.language == "zh") "已取消" else "Cancelled"),
+        "on-hold" to (if (locale.language == "zh") "暂挂" else "On Hold"),
+        "refunded" to (if (locale.language == "zh") "已退款" else "Refunded"),
+        "failed" to (if (locale.language == "zh") "失败" else "Failed"),
+        "" to (if (locale.language == "zh") "全部" else "All")
     )
     
     Column(
@@ -710,30 +761,18 @@ private fun OrdersList(
         }
         
         // 订单列表
-        // 重要：列表不再按状态做本地过滤，避免与 ViewModel 的服务端/数据库筛选产生竞态导致空态闪烁。
-        // 仅在客户端做搜索过滤；状态筛选完全交给 ViewModel。
         val filteredOrders = orders.filter {
-            val queryMatch = searchQuery.isEmpty() ||
-                it.number.contains(searchQuery, ignoreCase = true) ||
+            // 状态过滤
+            val statusMatch = selectedStatus.isEmpty() || it.status == selectedStatus
+            // 搜索过滤
+            val queryMatch = searchQuery.isEmpty() || 
+                it.number.contains(searchQuery, ignoreCase = true) || 
                 it.customerName.contains(searchQuery, ignoreCase = true)
-            queryMatch
+            
+            statusMatch && queryMatch
         }
         
         if (filteredOrders.isEmpty()) {
-            UiLog.d("OrdersScreen", "Empty UI check -> isLoading=$isLoading, emptyGuardActive=$emptyGuardActive, selectedStatus='$selectedStatus', searchQuery='$searchQuery'")
-            // 如果正在加载（包含筛选切换后的首次加载），不要展示“未找到”空状态，优先显示加载
-            if (isLoading || emptyGuardActive) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    contentAlignment = Alignment.Center
-                ) {
-                    UiLog.d("OrdersScreen", "Render Loading instead of Empty")
-                    CircularProgressIndicator()
-                }
-                return@Column
-            }
             // 没有匹配的订单 - 美化空状态展示
             Column(
                 modifier = Modifier

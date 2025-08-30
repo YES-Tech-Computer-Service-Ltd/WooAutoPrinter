@@ -381,7 +381,7 @@ fun OrdersScreen(
                         Text(text = "正在加载订单数据...", style = MaterialTheme.typography.bodyLarge)
                     }
                 }
-            } else if (orders.isEmpty() && viewModel.isConfigChecked.collectAsState().value && !isConfigured) {
+            } else if (orders.isEmpty() && !isConfigured) {
                 // 没有订单且API未配置，使用UnconfiguredView
                 UnconfiguredView(
                     errorMessage = errorMessage ?: errorApiNotConfigured,

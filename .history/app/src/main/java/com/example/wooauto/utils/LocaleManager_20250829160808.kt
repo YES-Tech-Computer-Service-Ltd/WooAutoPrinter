@@ -40,7 +40,7 @@ object LocaleManager {
             val savedLocale = LocaleHelper.loadSavedLocale(context) ?: LocaleHelper.getSystemLocale(context)
             Log.d(TAG, "初始化语言管理器: 加载的语言为 ${savedLocale.language}")
             
-            // 统一入口：直接更新应用语言（避免重复设置导致的竞态）
+            // 统一入口：仅通过 AppCompatDelegate 应用语言并同步内部状态
             updateLocale(savedLocale)
         } catch (e: Exception) {
             Log.e(TAG, "初始化语言管理器失败", e)
@@ -61,11 +61,10 @@ object LocaleManager {
             _currentAppLocale.value = locale
             currentLocale = locale
             
-            // 使用AppCompatDelegate设置应用语言（统一入口）
+            // 使用AppCompatDelegate设置应用语言
             val localeList = androidx.core.os.LocaleListCompat.create(locale)
             AppCompatDelegate.setApplicationLocales(localeList)
-            
-            // 同步默认Locale，确保日期/数字等格式化逻辑一致
+            // 保持默认 Locale 一致，避免格式化语言不一致
             JavaLocale.setDefault(locale)
             
             Log.d(TAG, "语言已更新为: ${locale.language}, ${locale.displayName}")
@@ -81,9 +80,12 @@ object LocaleManager {
      */
     fun setLocale(context: Context, locale: JavaLocale) {
         try {
-            // 统一走 updateLocale，避免重复设置与闪切
-            updateLocale(locale)
-            Log.d(TAG, "已设置应用语言(统一入口): ${locale.language}, ${locale.displayName}")
+            // 仅通过 AppCompatDelegate 设置，不再直接更新 Resources，避免与Activity重建/Compose冲突
+            val localeList = androidx.core.os.LocaleListCompat.create(locale)
+            AppCompatDelegate.setApplicationLocales(localeList)
+            JavaLocale.setDefault(locale)
+            
+            Log.d(TAG, "已设置应用语言: ${locale.language}, ${locale.displayName}")
         } catch (e: Exception) {
             Log.e(TAG, "设置应用语言失败: ${e.message}", e)
         }
@@ -101,11 +103,8 @@ object LocaleManager {
             // 保存语言设置到SharedPreferences
             LocaleHelper.saveLocalePreference(context, locale)
             
-            // 统一设置应用语言
+            // 统一通过 updateLocale 应用
             updateLocale(locale)
-            
-            // 立即刷新UI
-            forceRefreshUI(context)
             
             Log.d(TAG, "语言设置已保存并更新: ${locale.language}")
         } catch (e: Exception) {

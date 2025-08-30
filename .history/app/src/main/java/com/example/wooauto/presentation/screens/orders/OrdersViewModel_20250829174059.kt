@@ -374,27 +374,38 @@ class OrdersViewModel @Inject constructor(
                 
                 val apiConfigured = checkApiConfiguration()
                 if (apiConfigured) {
-                    // 根据当前筛选决定刷新范围
-                    val currentStatus = _currentStatusFilter.value
-                    val apiStatus = mapStatusToChinese(currentStatus, true)
-                    val result = if (currentStatus.isNullOrEmpty()) {
-                        orderRepository.refreshOrders()
-                    } else {
-                        orderRepository.refreshOrders(apiStatus)
-                    }
+                    val result = orderRepository.refreshOrders()
                     if (result.isSuccess) {
                         val refreshedOrders = result.getOrDefault(emptyList())
                         Log.d(TAG, "成功刷新订单数据，获取到 ${refreshedOrders.size} 个订单")
                         
-                        // 刷新后根据当前筛选重新绑定到对应的Flow，避免用全量数据覆盖UI
-                        if (currentStatus.isNullOrEmpty()) {
-                            observeOrders()
+                        // 验证打印状态
+                        val refreshedPrintedMap = refreshedOrders.associateBy({ it.id }, { it.isPrinted })
+                        
+                        // 检查是否有任何打印状态丢失
+                        val lostPrintStatus = currentPrintedMap.filter { it.value && refreshedPrintedMap[it.key] == false }
+                        if (lostPrintStatus.isNotEmpty()) {
+                            Log.e("OrdersViewModel", "【打印状态保护】警告：刷新后丢失了 ${lostPrintStatus.size} 个订单的打印状态")
+                            Log.e("OrdersViewModel", "【打印状态保护】丢失打印状态的订单ID: ${lostPrintStatus.keys}")
+                            
+                            // 修复丢失的打印状态
+                            val correctedOrders = refreshedOrders.map { order ->
+                                if (lostPrintStatus.containsKey(order.id)) {
+                                    order.copy(isPrinted = true)
+                                } else {
+                                    order
+                                }
+                            }
+                            
+                            // 使用修复后的订单列表
+                            _orders.value = correctedOrders
                         } else {
-                            observeFilteredOrders(apiStatus ?: currentStatus)
+                            _orders.value = refreshedOrders
                         }
-                        // 延迟后同步未读状态
-                        delay(300)
-                        loadUnreadOrders()
+                        
+                        // 确保所有订单已正确持久化到数据库后再加载未读订单
+                        delay(300) // 添加短暂延迟确保数据库操作完成
+                        loadUnreadOrders() // 从数据库加载未读订单
                     } else {
                         Log.w(TAG, "刷新订单数据失败: ${result.exceptionOrNull()?.message}")
                         _errorMessage.value = result.exceptionOrNull()?.message ?: "刷新失败"

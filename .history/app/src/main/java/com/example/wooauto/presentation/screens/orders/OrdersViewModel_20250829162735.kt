@@ -63,9 +63,6 @@ class OrdersViewModel @Inject constructor(
 
     private val _isConfigured = MutableStateFlow(false)
     val isConfigured: StateFlow<Boolean> = _isConfigured.asStateFlow()
-    // 配置检查是否完成，用于避免UI误判为“未配置”
-    private val _isConfigChecked = MutableStateFlow(false)
-    val isConfigChecked: StateFlow<Boolean> = _isConfigChecked.asStateFlow()
 
     private val _isLoading = MutableStateFlow(true)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
@@ -284,7 +281,6 @@ class OrdersViewModel @Inject constructor(
                     WooCommerceConfig.isConfigured.collectLatest { configured ->
                         Log.d(TAG, "API配置状态变更: $configured")
                         _isConfigured.value = configured
-                        _isConfigChecked.value = true
                         
                         // 如果配置状态变为已配置，尝试刷新订单
                         if (configured) {
@@ -374,27 +370,38 @@ class OrdersViewModel @Inject constructor(
                 
                 val apiConfigured = checkApiConfiguration()
                 if (apiConfigured) {
-                    // 根据当前筛选决定刷新范围
-                    val currentStatus = _currentStatusFilter.value
-                    val apiStatus = mapStatusToChinese(currentStatus, true)
-                    val result = if (currentStatus.isNullOrEmpty()) {
-                        orderRepository.refreshOrders()
-                    } else {
-                        orderRepository.refreshOrders(apiStatus)
-                    }
+                    val result = orderRepository.refreshOrders()
                     if (result.isSuccess) {
                         val refreshedOrders = result.getOrDefault(emptyList())
                         Log.d(TAG, "成功刷新订单数据，获取到 ${refreshedOrders.size} 个订单")
                         
-                        // 刷新后根据当前筛选重新绑定到对应的Flow，避免用全量数据覆盖UI
-                        if (currentStatus.isNullOrEmpty()) {
-                            observeOrders()
+                        // 验证打印状态
+                        val refreshedPrintedMap = refreshedOrders.associateBy({ it.id }, { it.isPrinted })
+                        
+                        // 检查是否有任何打印状态丢失
+                        val lostPrintStatus = currentPrintedMap.filter { it.value && refreshedPrintedMap[it.key] == false }
+                        if (lostPrintStatus.isNotEmpty()) {
+                            Log.e("OrdersViewModel", "【打印状态保护】警告：刷新后丢失了 ${lostPrintStatus.size} 个订单的打印状态")
+                            Log.e("OrdersViewModel", "【打印状态保护】丢失打印状态的订单ID: ${lostPrintStatus.keys}")
+                            
+                            // 修复丢失的打印状态
+                            val correctedOrders = refreshedOrders.map { order ->
+                                if (lostPrintStatus.containsKey(order.id)) {
+                                    order.copy(isPrinted = true)
+                                } else {
+                                    order
+                                }
+                            }
+                            
+                            // 使用修复后的订单列表
+                            _orders.value = correctedOrders
                         } else {
-                            observeFilteredOrders(apiStatus ?: currentStatus)
+                            _orders.value = refreshedOrders
                         }
-                        // 延迟后同步未读状态
-                        delay(300)
-                        loadUnreadOrders()
+                        
+                        // 确保所有订单已正确持久化到数据库后再加载未读订单
+                        delay(300) // 添加短暂延迟确保数据库操作完成
+                        loadUnreadOrders() // 从数据库加载未读订单
                     } else {
                         Log.w(TAG, "刷新订单数据失败: ${result.exceptionOrNull()?.message}")
                         _errorMessage.value = result.exceptionOrNull()?.message ?: "刷新失败"
@@ -469,20 +476,17 @@ class OrdersViewModel @Inject constructor(
                 if (connectionResult) {
                     Log.d(TAG, "API配置有效且连接测试成功")
                     _isConfigured.value = true
-                    _isConfigChecked.value = true
                     return true
                 } else {
                     Log.d(TAG, "API配置信息完整但连接测试失败，仍然设置为已配置以允许用户查看缓存数据")
                     // 即使连接测试失败，如果配置信息完整，也应该设置为已配置
                     // 这样用户可以查看缓存的订单数据
                     _isConfigured.value = true
-                    _isConfigChecked.value = true
                     return true
                 }
             } else {
                 Log.d(TAG, "API配置信息不完整: siteUrl=${siteUrl.isNotBlank()}, key=${consumerKey.isNotBlank()}, secret=${consumerSecret.isNotBlank()}")
                 _isConfigured.value = false
-                _isConfigChecked.value = true
                 return false
             }
         } catch (e: Exception) {
@@ -497,11 +501,9 @@ class OrdersViewModel @Inject constructor(
             if (cachedOrders.isNotEmpty()) {
                 Log.d(TAG, "虽然配置检查异常，但有缓存数据，设置为已配置状态")
                 _isConfigured.value = true
-                _isConfigChecked.value = true
                 return true
             } else {
                 _isConfigured.value = false
-                _isConfigChecked.value = true
                 return false
             }
         }
@@ -538,21 +540,20 @@ class OrdersViewModel @Inject constructor(
      */
     private fun mapStatusToChinese(status: String?, toEnglish: Boolean = false): String? {
         if (status == null || status.isEmpty()) return null // 空值时返回null，不发送status参数
-
-        // 拆分为两个单向映射，避免英文被错误映射回中文
-        val zh2en = mapOf(
+        
+        // 状态映射表
+        val statusMap = mapOf(
+            // 中文 to 英文
             "处理中" to "processing",
             "待付款" to "pending",
-            "待处理" to "pending", // 别名
+            "待处理" to "pending", // 添加别名
             "已完成" to "completed",
             "已取消" to "cancelled",
             "已退款" to "refunded",
             "失败" to "failed",
             "暂挂" to "on-hold",
-            "保留" to "on-hold" // 别名
-        )
-
-        val en2zh = mapOf(
+            "保留" to "on-hold", // 添加别名
+            // 英文 to 中文
             "processing" to "处理中",
             "pending" to "待付款",
             "completed" to "已完成",
@@ -561,13 +562,13 @@ class OrdersViewModel @Inject constructor(
             "failed" to "失败",
             "on-hold" to "暂挂"
         )
-
+        
         return if (toEnglish) {
-            // 仅中文 -> 英文，若已是英文则原样返回
-            zh2en[status] ?: status
+            // 从中文转到英文，如果没有匹配则返回原值（可能是英文）
+            statusMap[status] ?: status
         } else {
-            // 仅英文 -> 中文，若已是中文则原样返回
-            en2zh[status] ?: status
+            // 从英文转到中文，如果没有匹配则返回原值
+            statusMap[status] ?: status
         }
     }
     

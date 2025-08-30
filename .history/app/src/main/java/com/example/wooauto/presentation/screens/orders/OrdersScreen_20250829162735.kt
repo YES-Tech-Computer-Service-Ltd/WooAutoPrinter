@@ -267,9 +267,9 @@ fun OrdersScreen(
                 snackbarHostState.showSnackbar(apiNotConfiguredMessage)
             }
         } else {
-            // API已配置，直接按当前选中的状态进行筛选并刷新，确保首屏与筛选一致
-            UiLog.d("OrdersScreen", "API已配置，按默认筛选加载: status='${statusFilter}'")
-            viewModel.filterOrdersByStatus(statusFilter)
+            // API已配置，尝试刷新订单数据
+            UiLog.d("OrdersScreen", "API已配置，尝试刷新订单数据")
+            viewModel.refreshOrders()
         }
     }
     
@@ -381,7 +381,7 @@ fun OrdersScreen(
                         Text(text = "正在加载订单数据...", style = MaterialTheme.typography.bodyLarge)
                     }
                 }
-            } else if (orders.isEmpty() && viewModel.isConfigChecked.collectAsState().value && !isConfigured) {
+            } else if (orders.isEmpty() && !isConfigured) {
                 // 没有订单且API未配置，使用UnconfiguredView
                 UnconfiguredView(
                     errorMessage = errorMessage ?: errorApiNotConfigured,

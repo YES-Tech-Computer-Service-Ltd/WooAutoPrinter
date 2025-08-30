@@ -4,6 +4,9 @@
 
     <!-- Navigation -->
     <string name="orders">Orders</string>
+    <string name="keep_screen_on">Keep screen on</string>
+    <string name="keep_screen_on_desc">Prevent screen from turning off while app is running</string>
+    <string name="license_activated">License activated</string>
     <string name="products">Products</string>
     <string name="settings">Settings</string>
 
@@ -369,13 +372,6 @@
     <string name="order_status_on_hold">On Hold</string>
     <string name="order_status_refunded">Refunded</string>
     <string name="order_status_failed">Failed</string>
-
-    <!-- Order Filters -->
-    <string name="all_status">All Status</string>
-
-    <!-- Common actions (for a11y/contentDescription) -->
-    <string name="search">Search</string>
-    <string name="clear">Clear</string>
 
     <!-- Common -->
     <string name="save">Save</string>
