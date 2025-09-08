@@ -275,9 +275,11 @@ class OrderRepositoryImpl @Inject constructor(
                 orderDao.getAllOrders().first()
             }
             val existingOrderMap = existingOrders.associateBy { it.id }
-            
-            // 找出所有已打印的订单ID，确保我们不会丢失打印状态
-            val printedOrderIds = existingOrders.filter { it.isPrinted }.map { it.id }
+
+            // 全局维度：找出数据库中所有已打印的订单ID（与status无关），防止跨状态刷新时丢失打印状态
+            val allPrintedIdsInDb: Set<Long> = try {
+                orderDao.getAllOrders().first().filter { it.isPrinted }.map { it.id }.toSet()
+            } catch (_: Exception) { emptySet() }
             
             // 转换为领域模型并保留已读状态
             val orders = response.map { orderDto -> 
@@ -286,7 +288,7 @@ class OrderRepositoryImpl @Inject constructor(
                 // 首先检查是否在已读列表中
                 if (order.id in readOrderIds) {
                     // 同时检查是否已打印
-                    if (order.id in printedOrderIds) {
+                    if (order.id in allPrintedIdsInDb) {
                         order.copy(isRead = true, isPrinted = true)
                     } else {
                         order.copy(isRead = true)
@@ -298,7 +300,7 @@ class OrderRepositoryImpl @Inject constructor(
                         // 同时保留打印状态和已读状态
                         order.copy(
                             isRead = existingOrder.isRead,
-                            isPrinted = existingOrder.isPrinted
+                            isPrinted = existingOrder.isPrinted || allPrintedIdsInDb.contains(order.id)
                         )
                     } else {
                         // 如果是较旧的订单（超过30天），直接标记为已读
@@ -321,11 +323,11 @@ class OrderRepositoryImpl @Inject constructor(
                     // 保留已读状态和打印状态
                     val isRead = if (entity.isRead || existingEntity.isRead) true else false
                     
-                    // 保留打印状态 - 数据库中的状态优先级高于API
-                    val isPrinted = existingEntity.isPrinted || entity.isPrinted
+                    // 保留打印状态 - 数据库中的状态优先级高于API；全局打印集合兜底
+                    val isPrinted = existingEntity.isPrinted || entity.isPrinted || allPrintedIdsInDb.contains(entity.id)
                     
                     // 特别检查是否在已打印订单列表中，确保状态正确
-                    if (entity.id in printedOrderIds && !isPrinted) {
+                    if (allPrintedIdsInDb.contains(entity.id) && !isPrinted) {
                         entity.copy(isRead = isRead, isPrinted = true)
                     } else {
                         entity.copy(isRead = isRead, isPrinted = isPrinted)
@@ -334,7 +336,7 @@ class OrderRepositoryImpl @Inject constructor(
                     // 新订单，检查是否在已读ID列表中
                     if (entity.id in readOrderIds) {
                         // 同时检查是否已打印
-                        if (entity.id in printedOrderIds) {
+                        if (allPrintedIdsInDb.contains(entity.id)) {
                             entity.copy(isRead = true, isPrinted = true)
                         } else {
                             entity.copy(isRead = true)
@@ -343,7 +345,8 @@ class OrderRepositoryImpl @Inject constructor(
                         // 老订单自动标记为已读
                         entity.copy(isRead = true)
                     } else {
-                        entity
+                        // 未出现在existingMap，但数据库全局记录为已打印时，仍应保留打印状态
+                        if (allPrintedIdsInDb.contains(entity.id)) entity.copy(isPrinted = true) else entity
                     }
                 }
             }
