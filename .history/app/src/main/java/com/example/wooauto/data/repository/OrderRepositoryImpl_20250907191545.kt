@@ -356,29 +356,17 @@ class OrderRepositoryImpl @Inject constructor(
                 orderDao.deleteOrdersByStatus(status)
             }
             
-            // 插入更新后的订单（REPLACE），以数据库为真实来源
+            // 插入更新后的订单
             orderDao.insertOrders(orderEntities)
             
             // 更新缓存
             if (status == null) {
-                // 全量更新缓存：直接使用最新列表
+                // 全量更新缓存
                 cachedOrders = orders
             } else {
                 // 方案A：按状态刷新后，从数据库重建全量缓存，避免旧状态残留
                 val allEntities = orderDao.getAllOrders().first()
                 cachedOrders = OrderMapper.mapEntityListToDomainList(allEntities)
-
-                // 防御性修正：移除缓存中仍标记为请求状态，但未出现在此次API结果中的订单
-                // 这些订单很可能已迁移到其他状态（例如从processing变为completed）
-                val apiIds = orders.map { it.id }.toSet()
-                cachedOrders = cachedOrders.map { o ->
-                    if (o.status == status && !apiIds.contains(o.id)) {
-                        // 从数据库状态已更新，cachedOrders已与DB一致，无需更改对象，只是确保没有旧对象残留
-                        o
-                    } else {
-                        o
-                    }
-                }
             }
             isOrdersCached = true
             _ordersFlow.value = cachedOrders

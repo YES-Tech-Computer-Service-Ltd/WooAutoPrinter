@@ -156,7 +156,6 @@ fun OrdersScreen(
     val errorApiNotConfigured = stringResource(R.string.error_api_not_configured)
     
     val isConfigured by viewModel.isConfigured.collectAsState()
-    val configChecked by viewModel.configChecked.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val orders by viewModel.orders.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
@@ -175,13 +174,7 @@ fun OrdersScreen(
     var searchQuery by remember { mutableStateOf("") }
     var showOrderDetail by remember { mutableStateOf(false) }
     var showUnreadDialog by remember { mutableStateOf(false) }
-    // 与 ViewModel 的 currentStatusFilter 双向保持一致
-    val vmStatus by viewModel.currentStatusFilter.collectAsState()
-    var statusFilter by remember { mutableStateOf(vmStatus ?: "") }
-    LaunchedEffect(vmStatus) {
-        // 当VM内的筛选状态变化时，更新UI本地状态，保持选中Chip正确高亮
-        statusFilter = vmStatus ?: ""
-    }
+    var statusFilter by remember { mutableStateOf("processing") }
     
     // 记录TopBar的实际高度
     var topBarHeight by remember { mutableStateOf(0.dp) }
@@ -324,7 +317,7 @@ fun OrdersScreen(
             "cancelled" to "已取消",
             "refunded" to "已退款",
             "failed" to "失败",
-            "" to "全部订单"
+            "" to "全部状态"
         )
     } else {
         listOf(
@@ -335,7 +328,7 @@ fun OrdersScreen(
             "cancelled" to "Cancelled",
             "refunded" to "Refunded",
             "failed" to "Failed",
-            "" to "All Orders"
+            "" to "All Status"
         )
     }
     
@@ -351,14 +344,7 @@ fun OrdersScreen(
                 },
                 searchPlaceholder = searchOrdersPlaceholder,
                 isRefreshing = isRefreshing,
-                onRefresh = {
-                    val current = viewModel.currentStatusFilter.value
-                    if (!current.isNullOrEmpty()) {
-                        viewModel.filterOrdersByStatus(current)
-                    } else {
-                        viewModel.refreshOrders()
-                    }
-                },
+                onRefresh = { viewModel.refreshOrders() },
                 showRefreshButton = true,
                 locale = locale,
                 additionalActions = {
@@ -379,9 +365,9 @@ fun OrdersScreen(
         Box(
             modifier = Modifier.padding(paddingValues)
         ) {
-            // 统一首屏与刷新加载表现：配置未检查完成或正在加载时，显示整页加载动画
-            if (!isInitialized.value || !configChecked || isLoading) {
-                // 显示加载界面
+            // 先检查是否初始化完成
+            if (!isInitialized.value) {
+                // 显示初始化加载界面
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
@@ -392,10 +378,10 @@ fun OrdersScreen(
                     ) {
                         CircularProgressIndicator()
                         Spacer(modifier = Modifier.height(16.dp))
-                        Text(text = if (locale.language == "zh") "正在加载订单数据..." else "Loading orders...", style = MaterialTheme.typography.bodyLarge)
+                        Text(text = "正在加载订单数据...", style = MaterialTheme.typography.bodyLarge)
                     }
                 }
-            } else if (orders.isEmpty() && !isConfigured && configChecked) {
+            } else if (orders.isEmpty() && !isConfigured && !isLoading) {
                 // 没有订单且API未配置，使用UnconfiguredView
                 UnconfiguredView(
                     errorMessage = errorMessage ?: errorApiNotConfigured,
@@ -422,12 +408,8 @@ fun OrdersScreen(
                             // viewModel.markOrderAsRead(order.id)
                         },
                         onStatusSelected = { status ->
-                            // 当选择“全部状态”时，置空VM筛选并刷新全量
-                            if (status.isEmpty()) {
-                                viewModel.filterOrdersByStatus("")
-                            } else {
-                                viewModel.filterOrdersByStatus(status)
-                            }
+                            statusFilter = status
+                            viewModel.filterOrdersByStatus(status)
                         },
                         currencySymbol = currencySymbol,
                         isLoading = isLoading,
@@ -711,7 +693,20 @@ private fun OrdersList(
                 }
             }
             
-            // 不提供清除筛选按钮，避免误解
+            // 添加清除筛选按钮
+            if (selectedStatus.isNotEmpty()) {
+                IconButton(
+                    onClick = { onStatusSelected("") },
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Clear,
+                        contentDescription = if (locale.language == "zh") "清除筛选" else "Clear filter",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
         }
         
         // 订单列表
@@ -758,40 +753,44 @@ private fun OrdersList(
                 
                 Spacer(modifier = Modifier.height(16.dp))
                 
-                // 主要提示文本（根据筛选状态展示更贴近的文案）
-                val statusLabelZh = when (selectedStatus) {
-                    "processing" -> "处理中"
-                    "pending" -> "待付款"
-                    "on-hold" -> "暂挂"
-                    "completed" -> "已完成"
-                    "cancelled" -> "已取消"
-                    "refunded" -> "已退款"
-                    "failed" -> "失败"
-                    else -> "全部订单"
-                }
-                val statusLabelEn = when (selectedStatus) {
-                    "processing" -> "processing"
-                    "pending" -> "pending"
-                    "on-hold" -> "on-hold"
-                    "completed" -> "completed"
-                    "cancelled" -> "cancelled"
-                    "refunded" -> "refunded"
-                    "failed" -> "failed"
-                    else -> "all orders"
-                }
-                val emptyTip = if (selectedStatus.isNotEmpty()) {
-                    if (locale.language == "zh") "无$statusLabelZh 订单" else "No $statusLabelEn orders"
-                } else {
-                    if (locale.language == "zh") "暂无订单" else "No orders"
-                }
+                // 主要提示文本
                 Text(
-                    text = emptyTip,
+                    text = if (locale.language == "zh") "未找到匹配的订单" else "No matching orders found",
                     style = MaterialTheme.typography.titleMedium,
                     textAlign = TextAlign.Center,
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 
-                // 不再提供“清除筛选”的按钮，避免歧义
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                // 次要提示文本
+                Text(
+                    text = if (locale.language == "zh") "尝试更改筛选条件" else "Try changing your filter criteria",
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                
+                Spacer(modifier = Modifier.height(24.dp))
+                
+                // 清除筛选按钮
+                if (selectedStatus.isNotEmpty() || searchQuery.isNotEmpty()) {
+                    Button(
+                        onClick = { 
+                            // 清除所有筛选条件，恢复到默认视图
+                            onStatusSelected("")
+                        },
+                        shape = RoundedCornerShape(20.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Clear,
+                            contentDescription = null,
+                            modifier = Modifier.size(ButtonDefaults.IconSize)
+                        )
+                        Spacer(modifier = Modifier.width(ButtonDefaults.IconSpacing))
+                        Text(text = if (locale.language == "zh") "清除筛选" else "Clear Filters")
+                    }
+                }
             }
         } else {
             // 添加筛选结果摘要
