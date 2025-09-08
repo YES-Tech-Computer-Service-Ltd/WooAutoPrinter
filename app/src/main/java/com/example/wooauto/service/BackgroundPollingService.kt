@@ -1058,6 +1058,12 @@ class BackgroundPollingService : Service() {
                     if (finalOrder?.isPrinted != true) {
                         Log.w(TAG, "订单 #${order.number} 可能还未被标记为已打印，状态: ${finalOrder?.isPrinted}")
                     }
+                    finalOrder?.let { orderRepository.markOrderAsPrinted(it.id) }
+                    // Stop all sounds after successful print
+                    // Assuming soundManager is a global or accessible object
+                    // If not, you might need to pass it or get it from settingsRepository
+                    // For now, assuming it's available in the context or can be added
+                    // soundManager.stopAllSounds() 
                 } else {
                     Log.e(TAG, "所有打印都失败：订单 #${order.number} 维持未打印状态")
                 }
