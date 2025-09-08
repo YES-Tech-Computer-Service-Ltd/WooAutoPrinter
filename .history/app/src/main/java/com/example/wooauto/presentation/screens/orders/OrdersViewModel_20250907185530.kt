@@ -80,9 +80,8 @@ class OrdersViewModel @Inject constructor(
     val refreshing: StateFlow<Boolean> = _refreshing.asStateFlow()
     
     // 当前选中的状态过滤条件
-    // 以 VM 为单一事实来源，默认展示 processing，可根据需要改为 null 显示全部
-    private val _currentStatusFilter = MutableStateFlow<String?>("processing")
-    val currentStatusFilter: StateFlow<String?> = _currentStatusFilter.asStateFlow()
+    private val _currentStatusFilter = MutableStateFlow<String?>(null)
+    private val currentStatusFilter: StateFlow<String?> = _currentStatusFilter.asStateFlow()
 
     // 导航事件
     private val _navigationEvent = MutableStateFlow<String?>(null)
@@ -107,32 +106,18 @@ class OrdersViewModel @Inject constructor(
     private val _emptyGuardActive = MutableStateFlow(false)
     val emptyGuardActive: StateFlow<Boolean> = _emptyGuardActive.asStateFlow()
 
-    // 配置检查完成标记：用于首屏避免误显示“未配置API”
-    private val _configChecked = MutableStateFlow(false)
-    val configChecked: StateFlow<Boolean> = _configChecked.asStateFlow()
-
     // 广播接收器
     private val ordersUpdateReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             when (intent.action) {
                 ACTION_ORDERS_UPDATED -> {
-                    UiLog.d(TAG, "收到订单更新广播，按当前筛选刷新")
-                    val currentFilter = _currentStatusFilter.value
-                    if (currentFilter.isNullOrEmpty()) {
-                        refreshOrders()
-                    } else {
-                        filterOrdersByStatus(currentFilter)
-                    }
+                    UiLog.d(TAG, "收到订单更新广播，刷新订单列表")
+                    refreshOrders()
                 }
                 ACTION_NEW_ORDERS_RECEIVED -> {
                     val orderCount = intent.getIntExtra(EXTRA_ORDER_COUNT, 0)
-                    UiLog.d(TAG, "收到新订单广播(数量=$orderCount)，按当前筛选刷新")
-                    val currentFilter = _currentStatusFilter.value
-                    if (currentFilter.isNullOrEmpty()) {
-                        refreshOrders()
-                    } else {
-                        filterOrdersByStatus(currentFilter)
-                    }
+                    UiLog.d(TAG, "收到新订单广播，新订单数量: $orderCount，刷新订单列表")
+                    refreshOrders()
                 }
             }
         }
@@ -148,13 +133,8 @@ class OrdersViewModel @Inject constructor(
         // 注册接收刷新订单的广播
         registerRefreshOrdersBroadcastReceiver()
         
-        // 根据当前筛选决定观察全量或按状态，避免首屏短暂显示“全部订单”
-        val initialStatus = _currentStatusFilter.value
-        if (initialStatus.isNullOrEmpty()) {
-            observeOrders()
-        } else {
-            observeFilteredOrders(initialStatus)
-        }
+        // 观察订单数据
+        observeOrders()
         
         // 初始化货币符号
         loadCurrencySymbol()
@@ -262,10 +242,10 @@ class OrdersViewModel @Inject constructor(
                 // 初始设置为加载中
                 _isLoading.value = true
                 
-                // 先检查是否有缓存的订单数据（仅在无筛选时用于首屏占位显示）
+                // 先检查是否有缓存的订单数据
                 val cachedOrders = orderRepository.getCachedOrders()
-                if (cachedOrders.isNotEmpty() && _currentStatusFilter.value.isNullOrEmpty()) {
-                    Log.d(TAG, "存在缓存订单数据 ${cachedOrders.size} 个，临时显示缓存数据（无筛选模式）")
+                if (cachedOrders.isNotEmpty()) {
+                    Log.d(TAG, "存在缓存订单数据 ${cachedOrders.size} 个，临时显示缓存数据")
                     _orders.value = cachedOrders
                     // 如果有缓存数据，提前将isLoading设为false，让用户可以查看缓存数据
                     _isLoading.value = false
@@ -283,7 +263,7 @@ class OrdersViewModel @Inject constructor(
                         if (result.isSuccess) {
                             val orders = result.getOrNull() ?: emptyList()
                             Log.d(TAG, "成功刷新订单数据，获取到 ${orders.size} 个订单")
-                            // 不直接覆盖_orders，交由当前观察的Flow（全量或筛选）来驱动UI
+                            _orders.value = orders
                         } else {
                             Log.w(TAG, "刷新订单数据失败: ${result.exceptionOrNull()?.message}")
                             // 即使刷新失败，如果配置有效，也应该保持配置状态
@@ -300,14 +280,12 @@ class OrdersViewModel @Inject constructor(
                 viewModelScope.launch {
                     WooCommerceConfig.isConfigured.collectLatest { configured ->
                         Log.d(TAG, "API配置状态变更: $configured")
-                        // 只提升为true，不再将已置为true的状态回落为false，避免误提示
+                        _isConfigured.value = configured
+                        
+                        // 如果配置状态变为已配置，尝试刷新订单
                         if (configured) {
-                            val wasConfigured = isConfigured.value
-                            _isConfigured.value = true
-                            if (!wasConfigured) {
-                                Log.d(TAG, "配置状态首次为已配置，尝试刷新订单")
-                                refreshOrders()
-                            }
+                            Log.d(TAG, "配置状态变为已配置，尝试刷新订单")
+                            refreshOrders()
                         }
                     }
                 }
@@ -392,13 +370,7 @@ class OrdersViewModel @Inject constructor(
                 
                 val apiConfigured = checkApiConfiguration()
                 if (apiConfigured) {
-                    val currentFilter = _currentStatusFilter.value
-                    val result = if (currentFilter.isNullOrEmpty()) {
-                        orderRepository.refreshOrders()
-                    } else {
-                        // 按当前筛选状态刷新，避免刷新后全量覆盖筛选视图
-                        orderRepository.refreshOrders(currentFilter)
-                    }
+                    val result = orderRepository.refreshOrders()
                     if (result.isSuccess) {
                         val refreshedOrders = result.getOrDefault(emptyList())
                         Log.d(TAG, "成功刷新订单数据，获取到 ${refreshedOrders.size} 个订单")
@@ -421,14 +393,10 @@ class OrdersViewModel @Inject constructor(
                                 }
                             }
                             
-                            // 使用修复后的订单列表：仅在无筛选时直接赋值，避免覆盖筛选视图
-                            if (_currentStatusFilter.value.isNullOrEmpty()) {
-                                _orders.value = correctedOrders
-                            }
+                            // 使用修复后的订单列表
+                            _orders.value = correctedOrders
                         } else {
-                            if (_currentStatusFilter.value.isNullOrEmpty()) {
-                                _orders.value = refreshedOrders
-                            }
+                            _orders.value = refreshedOrders
                         }
                         
                         // 确保所有订单已正确持久化到数据库后再加载未读订单
@@ -508,20 +476,17 @@ class OrdersViewModel @Inject constructor(
                 if (connectionResult) {
                     Log.d(TAG, "API配置有效且连接测试成功")
                     _isConfigured.value = true
-                    _configChecked.value = true
                     return true
                 } else {
                     Log.d(TAG, "API配置信息完整但连接测试失败，仍然设置为已配置以允许用户查看缓存数据")
                     // 即使连接测试失败，如果配置信息完整，也应该设置为已配置
                     // 这样用户可以查看缓存的订单数据
                     _isConfigured.value = true
-                    _configChecked.value = true
                     return true
                 }
             } else {
                 Log.d(TAG, "API配置信息不完整: siteUrl=${siteUrl.isNotBlank()}, key=${consumerKey.isNotBlank()}, secret=${consumerSecret.isNotBlank()}")
                 _isConfigured.value = false
-                _configChecked.value = true
                 return false
             }
         } catch (e: Exception) {
@@ -536,11 +501,9 @@ class OrdersViewModel @Inject constructor(
             if (cachedOrders.isNotEmpty()) {
                 Log.d(TAG, "虽然配置检查异常，但有缓存数据，设置为已配置状态")
                 _isConfigured.value = true
-                _configChecked.value = true
                 return true
             } else {
                 _isConfigured.value = false
-                _configChecked.value = true
                 return false
             }
         }
@@ -737,7 +700,7 @@ class OrdersViewModel @Inject constructor(
                 }
                 
                 // 调用仓库方法标记为已打印
-                val success = orderRepository.markOrderAsPrinted(orderId)
+                val success = orderRepository.markOrderAsPrinted(orderId, isAutoPrint = false)
                 
                 if (success) {
                     Log.d("OrdersViewModel", "【打印状态修复】成功调用markOrderAsPrinted方法, 开始更新UI状态")

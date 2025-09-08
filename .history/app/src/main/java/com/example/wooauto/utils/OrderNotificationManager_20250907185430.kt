@@ -284,6 +284,8 @@ class OrderNotificationManager @Inject constructor(
             } else {
                 // 没有更多待处理订单，重置处理状态
                 isProcessingBatch.set(false)
+                // Stop sounds after batch processing completes
+                soundManager.stopAllSounds()
             }
         }
     }
@@ -362,7 +364,7 @@ class OrderNotificationManager @Inject constructor(
     /**
      * 标记订单为已打印
      */
-    fun markOrderAsPrinted(orderId: Long, callback: (Order?) -> Unit) {
+    fun markOrderAsPrinted(orderId: Long, callback: (Order?) -> Unit, isAutoPrint: Boolean = false) {
         mainScope.launch {
             try {
                 val success = withContext(Dispatchers.IO) {
@@ -375,8 +377,10 @@ class OrderNotificationManager @Inject constructor(
                         orderRepository.getOrderById(orderId)
                     }
                     callback(updatedOrder)
-                    // Stop all sounds after marking as printed
-                    soundManager.stopAllSounds()
+                    // Stop all sounds only if not auto-print
+                    if (!isAutoPrint) {
+                        soundManager.stopAllSounds()
+                    }
                 } else {
                     Log.e(TAG, "标记订单为已打印失败: $orderId")
                     callback(null)

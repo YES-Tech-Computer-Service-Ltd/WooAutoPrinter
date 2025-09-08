@@ -284,6 +284,8 @@ class OrderNotificationManager @Inject constructor(
             } else {
                 // 没有更多待处理订单，重置处理状态
                 isProcessingBatch.set(false)
+                // Stop sounds after batch processing completes
+                soundManager.stopAllSounds()
             }
         }
     }
