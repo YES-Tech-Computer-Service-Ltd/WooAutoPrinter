@@ -812,21 +812,34 @@ private fun PrinterConfigItem(
                 Column(
                     modifier = Modifier.weight(1f)
                 ) {
-                    Text(
-                        text = printerConfig.name,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = printerConfig.name,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        StatusChip(isConnected = isConnected)
+                    }
                     Spacer(modifier = Modifier.height(4.dp))
                     PrinterInfo(printerConfig)
                 }
                 
                 // 连接按钮
+                val isConnecting = !isConnected && isPrinting
                 Button(
                     onClick = onConnect,
-                    enabled = !isPrinting
+                    enabled = !isPrinting && !isConnecting
                 ) {
-                    if (isPrinting) {
+                    if (isConnecting) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(text = stringResource(id = R.string.connecting_printer))
+                    } else if (isPrinting) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(16.dp),
                             color = MaterialTheme.colorScheme.onPrimary,
@@ -967,6 +980,29 @@ private fun PrinterConfigItem(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun StatusChip(isConnected: Boolean) {
+    val bg = if (isConnected) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+             else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+    val fg = if (isConnected) MaterialTheme.colorScheme.primary
+             else MaterialTheme.colorScheme.onSurfaceVariant
+    val label = if (isConnected) stringResource(id = R.string.connected)
+                else stringResource(id = R.string.disconnect)
+
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(bg)
+            .padding(horizontal = 8.dp, vertical = 2.dp)
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = fg
+        )
     }
 }
 

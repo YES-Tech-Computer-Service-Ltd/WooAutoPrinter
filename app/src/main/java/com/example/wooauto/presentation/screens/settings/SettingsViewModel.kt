@@ -52,6 +52,9 @@ import kotlinx.coroutines.withTimeoutOrNull
 import com.example.wooauto.licensing.EligibilityInfo
 import com.example.wooauto.licensing.EligibilityStatus
 import com.example.wooauto.licensing.EligibilitySource
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 
 /**
  * 定义模板条目的数据类
@@ -210,6 +213,12 @@ class SettingsViewModel @Inject constructor(
     private val _licenseStatusText = MutableStateFlow("")
     val licenseStatusText: StateFlow<String> = _licenseStatusText.asStateFlow()
 
+    // 订阅打印机状态流的Job
+    private var printerStatusJob: Job? = null
+    private var derivedPrinterStatusJob: Job? = null
+    private var connectingTimeoutJob: Job? = null
+    private val _uiStatusOverride = MutableStateFlow<PrinterStatus?>(null)
+
     init {
         Log.d("SettingsViewModel", "初始化ViewModel")
         loadSettings()
@@ -236,6 +245,43 @@ class SettingsViewModel @Inject constructor(
                 }
             }
         }
+
+        // 衍生绑定：始终根据当前打印机配置订阅状态流，避免手工订阅被取消后UI不更新
+        derivedPrinterStatusJob?.cancel()
+        derivedPrinterStatusJob = viewModelScope.launch {
+            currentPrinterConfig.flatMapLatest { cfg ->
+                if (cfg != null) {
+                    printerManager.getPrinterStatusFlow(cfg)
+                } else {
+                    flowOf(PrinterStatus.DISCONNECTED)
+                }
+            }.collect { status ->
+                if (status == PrinterStatus.CONNECTED) {
+                    _uiStatusOverride.value = null
+                }
+                val effective = _uiStatusOverride.value ?: status
+                _printerStatus.value = effective
+            }
+        }
+    }
+
+    private fun startConnectingUiTimeout() {
+        try { connectingTimeoutJob?.cancel() } catch (_: Exception) {}
+        connectingTimeoutJob = viewModelScope.launch {
+            try {
+                delay(30_000)
+                if (_printerStatus.value == PrinterStatus.CONNECTING) {
+                    _uiStatusOverride.value = PrinterStatus.DISCONNECTED
+                    _isConnecting.value = false
+                }
+            } catch (_: Exception) { }
+        }
+    }
+
+    private fun clearConnectingUiTimeout() {
+        try { connectingTimeoutJob?.cancel() } catch (_: Exception) {}
+        connectingTimeoutJob = null
+        _uiStatusOverride.value = null
     }
 
     private fun loadSettings() {
@@ -452,7 +498,18 @@ class SettingsViewModel @Inject constructor(
                 if (defaultPrinter != null) {
                     _currentPrinterConfig.value = defaultPrinter
                     // 获取打印机状态
-                    _printerStatus.value = printerManager.getPrinterStatus(defaultPrinter)
+                    val status = printerManager.getPrinterStatus(defaultPrinter)
+                    _printerStatus.value = status
+                    // 订阅默认打印机的状态流
+                    observePrinterStatus(defaultPrinter)
+                    // 确保系统轮询（打印机）或连接过程被触发（即使设备当前不在线）
+                    if (status != PrinterStatus.CONNECTED) {
+                        viewModelScope.launch {
+                            try {
+                                withTimeoutOrNull(10000) { printerManager.connect(defaultPrinter) }
+                            } catch (_: Exception) { }
+                        }
+                    }
                 }
             } catch (e: Exception) {
                 Log.e("SettingsViewModel", "加载打印机配置失败", e)
@@ -512,6 +569,22 @@ class SettingsViewModel @Inject constructor(
             }
         }
     }
+
+    private fun observePrinterStatus(config: PrinterConfig) {
+        try {
+            printerStatusJob?.cancel()
+        } catch (_: Exception) { }
+
+        printerStatusJob = viewModelScope.launch {
+            try {
+                printerManager.getPrinterStatusFlow(config).collect { status ->
+                    _printerStatus.value = status
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "订阅打印机状态流失败", e)
+            }
+        }
+    }
     
     /**
      * 连接打印机 - 优化版本，避免重复操作
@@ -542,6 +615,7 @@ class SettingsViewModel @Inject constructor(
                 
                 // 更新状态为连接中
                 _printerStatus.value = PrinterStatus.CONNECTING
+                startConnectingUiTimeout()
                 
                 // 使用超时控制连接
                 val connected = withTimeoutOrNull(10000) {
@@ -549,10 +623,22 @@ class SettingsViewModel @Inject constructor(
                 } ?: false
                 
                 if (connected) {
-                    _printerStatus.value = PrinterStatus.CONNECTED
                     _currentPrinterConfig.value = config
-                    Log.d("SettingsViewModel", "成功连接打印机: ${config.name}")
-                    
+                    observePrinterStatus(config)
+
+                    // 连接完成后进行快速连通性校验
+                    val ok = withTimeoutOrNull(4000) { printerManager.testConnection(config) } ?: false
+                    if (ok) {
+                        _printerStatus.value = PrinterStatus.CONNECTED
+                        clearConnectingUiTimeout()
+                        Log.d("SettingsViewModel", "成功连接打印机: ${config.name}")
+                    } else {
+                        _printerStatus.value = PrinterStatus.ERROR
+                        _connectionErrorMessage.value = "连接已建立但通信失败，请检查打印机状态"
+                        clearConnectingUiTimeout()
+                        Log.e("SettingsViewModel", "连接测试失败: ${config.name}")
+                    }
+
                     // 如果是新配置，保存到配置列表
                     if (existingConfig == null) {
                         savePrinterConfig(config)
@@ -560,12 +646,14 @@ class SettingsViewModel @Inject constructor(
                 } else {
                     _printerStatus.value = PrinterStatus.ERROR
                     _connectionErrorMessage.value = "连接失败，请确保打印机已开启并在范围内"
+                    clearConnectingUiTimeout()
                     Log.e("SettingsViewModel", "连接打印机失败: ${config.name}")
                 }
             } catch (e: Exception) {
                 Log.e("SettingsViewModel", "连接打印机异常", e)
                 _printerStatus.value = PrinterStatus.ERROR
                 _connectionErrorMessage.value = "连接异常: ${e.message ?: "未知错误"}"
+                clearConnectingUiTimeout()
             } finally {
                 _isConnecting.value = false
             }
@@ -585,18 +673,32 @@ class SettingsViewModel @Inject constructor(
             
             _isConnecting.value = true
             _connectionErrorMessage.value = null
+            startConnectingUiTimeout()
             
             // 直接调用打印机管理器的连接方法
             val connected = printerManager.connect(config)
             
             // 根据结果更新状态
             if (connected) {
-                _printerStatus.value = PrinterStatus.CONNECTED
                 _currentPrinterConfig.value = config
-                Log.d("SettingsViewModel", "成功连接打印机: ${config.name}")
+                observePrinterStatus(config)
+
+                // 连接完成后进行快速连通性校验
+                val ok = withTimeoutOrNull(4000) { printerManager.testConnection(config) } ?: false
+                if (ok) {
+                    _printerStatus.value = PrinterStatus.CONNECTED
+                    clearConnectingUiTimeout()
+                    Log.d("SettingsViewModel", "成功连接打印机: ${config.name}")
+                } else {
+                    _printerStatus.value = PrinterStatus.ERROR
+                    _connectionErrorMessage.value = "连接已建立但通信失败，请检查打印机状态"
+                    clearConnectingUiTimeout()
+                    Log.e("SettingsViewModel", "连接测试失败: ${config.name}")
+                }
             } else {
                 _printerStatus.value = PrinterStatus.ERROR
                 _connectionErrorMessage.value = "连接失败，请确保打印机已开启并在范围内"
+                clearConnectingUiTimeout()
                 Log.e("SettingsViewModel", "连接打印机失败: ${config.name}")
             }
             
@@ -605,6 +707,7 @@ class SettingsViewModel @Inject constructor(
             Log.e("SettingsViewModel", "连接打印机异常", e)
             _printerStatus.value = PrinterStatus.ERROR
             _connectionErrorMessage.value = "连接异常: ${e.message ?: "未知错误"}"
+            clearConnectingUiTimeout()
             false
         } finally {
             _isConnecting.value = false
@@ -623,6 +726,7 @@ class SettingsViewModel @Inject constructor(
             try {
                 printerManager.disconnect(config)
                 _printerStatus.value = PrinterStatus.DISCONNECTED
+                clearConnectingUiTimeout()
                 Log.d("SettingsViewModel", "已断开打印机连接: ${config.name}")
             } catch (e: Exception) {
                 Log.e("SettingsViewModel", "断开打印机连接失败", e)

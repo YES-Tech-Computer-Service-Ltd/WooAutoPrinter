@@ -170,15 +170,24 @@ fun SettingsScreen(
                                 val currentPrinter = viewModel.currentPrinterConfig.collectAsState().value
                                 val printerStatus = viewModel.printerStatus.collectAsState().value
                                 val defaultLabel = stringResource(R.string.default_printer_label)
-                                
-                                if (currentPrinter != null && printerStatus.name == "CONNECTED") {
-                                    "${currentPrinter.name} - ${currentPrinter.paperWidth}mm"
-                                } else {
-                                    val defaultPrinter = viewModel.printerConfigs.collectAsState().value.find { it.isDefault }
-                                    if (defaultPrinter != null) {
-                                        "${defaultPrinter.name} - ${defaultPrinter.paperWidth}mm ($defaultLabel)"
-                                    } else {
-                                        stringResource(R.string.no_printers_configured_prompt)
+                                val connectedLabel = stringResource(R.string.connected)
+
+                                when {
+                                    currentPrinter != null -> {
+                                        val base = "${currentPrinter.name} - ${currentPrinter.paperWidth}mm"
+                                        if (printerStatus == com.example.wooauto.domain.printer.PrinterStatus.CONNECTED) {
+                                            "$base ($connectedLabel)"
+                                        } else {
+                                            base
+                                        }
+                                    }
+                                    else -> {
+                                        val defaultPrinter = viewModel.printerConfigs.collectAsState().value.find { it.isDefault }
+                                        if (defaultPrinter != null) {
+                                            "${defaultPrinter.name} - ${defaultPrinter.paperWidth}mm ($defaultLabel)"
+                                        } else {
+                                            stringResource(R.string.no_printers_configured_prompt)
+                                        }
                                     }
                                 }
                             },
