@@ -18,9 +18,9 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * 系统轮询管理器
- * - 统一承载所有“非订单类”的周期性检查（网络心跳、看门狗、打印机健康检查）
- * - 内部不直接修改业务状态，只通过 PrinterManager 等领域组件进行状态更新
+ * System Polling Manager
+ * - Centralizes all non-order-related periodic checks (network heartbeat, watchdog, printer health checks)
+ * - Does not directly modify business state; updates status only via domain components such as PrinterManager
  */
 @Singleton
 class SystemPollingManager @Inject constructor(
