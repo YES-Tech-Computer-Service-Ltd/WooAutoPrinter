@@ -57,6 +57,8 @@ import java.io.ByteArrayOutputStream
 import java.util.Date
 import kotlin.math.max
 import kotlinx.coroutines.sync.Mutex
+import java.util.concurrent.Executors
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.sync.withLock
 import com.example.wooauto.utils.ThermalPrinterFormatter
 
@@ -70,6 +72,10 @@ class BluetoothPrinterManager @Inject constructor(
 
     // 创建协程作用域
     private val managerScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    // 专用系统轮询调度器，避免与其他IO任务竞争
+    private val heartbeatDispatcher = Executors.newSingleThreadExecutor { r ->
+        Thread(r, "PrinterHeartbeat").apply { isDaemon = true }
+    }.asCoroutineDispatcher()
 
     // 延迟初始化蓝牙适配器，只在需要时获取
     private var bluetoothAdapter: BluetoothAdapter? = null
@@ -120,8 +126,32 @@ class BluetoothPrinterManager @Inject constructor(
 
     // 添加心跳相关变量
     private var heartbeatJob: Job? = null
+    // 连接状态广播接收器
+    private var connectionStateReceiver: BroadcastReceiver? = null
+
+    private fun ensureHeartbeatRunning(config: PrinterConfig) {
+        val active = heartbeatJob?.isActive == true
+        if (!active) {
+            Log.d(TAG, "系统轮询（打印机）未运行，准备启动")
+            startHeartbeat(config)
+        }
+    }
     private var currentPrinterConfig: PrinterConfig? = null
     private var heartbeatEnabled = true
+    // 当使用外部的系统轮询时，禁用内部心跳循环
+    private var externalPollingEnabled: Boolean = false
+
+    fun setExternalPollingEnabled(enabled: Boolean) {
+        externalPollingEnabled = enabled
+        if (enabled) {
+            // 外部接管后，停止内部心跳
+            stopHeartbeat()
+            Log.d(TAG, "外部系统轮询已启用，内部心跳停止")
+        } else {
+            // 由调用方在需要时重启内部心跳
+            Log.d(TAG, "外部系统轮询已关闭，可恢复内部心跳")
+        }
+    }
 
     // 保存最后一次打印内容，用于重试
     private var lastPrintContent: String? = null
@@ -151,7 +181,7 @@ class BluetoothPrinterManager @Inject constructor(
         private const val MAX_RECONNECT_ATTEMPTS = 2 // 减少重连次数
 
         // 心跳间隔 (毫秒) - 每15秒发送一次心跳，避免蓝牙断连
-        private const val HEARTBEAT_INTERVAL = 15000L
+        private const val HEARTBEAT_INTERVAL = 5000L
 
         // 连接检查间隔 (毫秒) - 每30秒检查一次连接状态
         private const val CONNECTION_CHECK_INTERVAL = 30000L
@@ -320,6 +350,8 @@ class BluetoothPrinterManager @Inject constructor(
             if (adapter == null || !adapter.isEnabled) {
                 Log.e(TAG, "蓝牙未开启或不可用")
                 updatePrinterStatus(config, PrinterStatus.ERROR)
+                // 启动心跳以便后续自动重连
+                startHeartbeat(config)
                 return false
             }
 
@@ -338,6 +370,8 @@ class BluetoothPrinterManager @Inject constructor(
             if (device == null) {
                 Log.e(TAG, "未找到打印机设备: ${config.address}")
                 updatePrinterStatus(config, PrinterStatus.ERROR)
+                // 启动心跳以便后续自动重连（设备稍后可能出现）
+                startHeartbeat(config)
                 return false
             }
 
@@ -427,6 +461,8 @@ class BluetoothPrinterManager @Inject constructor(
             if (!connected) {
                 Log.e(TAG, "所有连接尝试失败，最后一个异常: ${lastException?.message}")
                 updatePrinterStatus(config, PrinterStatus.ERROR)
+                // 启动心跳以便后续自动重连
+                startHeartbeat(config)
                 return false
             }
 
@@ -447,26 +483,33 @@ class BluetoothPrinterManager @Inject constructor(
                 val printer = EscPosPrinter(connection, dpi, paperWidthMm, nbCharPerLine)
                 currentPrinter = printer
 
-                // 启动心跳检测
-                startHeartbeat(config)
-
-                // 更新状态为已连接
+                // 先更新状态为已连接，避免心跳线程抢先读取到旧状态触发误重连
                 updatePrinterStatus(config, PrinterStatus.CONNECTED)
-
                 // 保存当前打印机配置
                 currentPrinterConfig = config
-                
+
+                // 注册蓝牙连接状态监听
+                registerConnectionStateReceiver(config)
+
+                // 启动心跳检测（此时状态已是 CONNECTED）
+                startHeartbeat(config)
+                ensureHeartbeatRunning(config)
+
                 Log.d(TAG, "【打印机连接】连接成功: ${config.name}")
                 return true
             } catch (e: Exception) {
                 Log.e(TAG, "创建打印机实例失败: ${e.message}", e)
                 updatePrinterStatus(config, PrinterStatus.ERROR)
                 connection.disconnect()
+                // 启动心跳以便后续自动重连
+                startHeartbeat(config)
                 return false
             }
         } catch (e: Exception) {
             Log.e(TAG, "连接过程中发生异常: ${e.message}", e)
             updatePrinterStatus(config, PrinterStatus.ERROR)
+            // 启动心跳以便后续自动重连
+            startHeartbeat(config)
             return false
         } finally {
             isConnecting = false
@@ -1794,16 +1837,29 @@ class BluetoothPrinterManager @Inject constructor(
      * 启动心跳机制，防止打印机自动断开连接
      */
     private fun startHeartbeat(config: PrinterConfig) {
-        // 停止现有心跳任务
-        stopHeartbeat()
+        if (externalPollingEnabled) {
+            // 外部系统轮询已接管，仅更新当前配置，避免重复循环
+            currentPrinterConfig = config
+            Log.d(TAG, "外部系统轮询启用，跳过内部系统轮询启动")
+            return
+        }
+        // 若已有相同打印机的心跳在运行，则不重复启动，避免短时间被取消
+        if (heartbeatJob?.isActive == true && currentPrinterConfig?.address == config.address) {
+            return
+        }
+
+        // 对于不同设备，先停止旧的心跳
+        if (heartbeatJob?.isActive == true && currentPrinterConfig?.address != config.address) {
+            stopHeartbeat()
+        }
 
         // 保存当前打印机配置
         currentPrinterConfig = config
 
         // 启动新的心跳任务
-        heartbeatJob = managerScope.launch {
+        heartbeatJob = managerScope.launch(heartbeatDispatcher) {
             try {
-                Log.d(TAG, "启动打印机心跳机制，间隔: ${HEARTBEAT_INTERVAL / 1000}秒")
+                Log.d(TAG, "启动系统轮询（打印机），间隔: ${HEARTBEAT_INTERVAL / 1000}秒")
                 var reconnectAttempts = 0
                 var lastReconnectTime = 0L
                 var lastSuccessfulHeartbeat = System.currentTimeMillis()
@@ -1811,54 +1867,64 @@ class BluetoothPrinterManager @Inject constructor(
                 while (isActive && heartbeatEnabled) {
                     try {
                         val currentTime = System.currentTimeMillis()
-                        
-                        // 1. 检查打印机连接状态
-                        val status = getPrinterStatus(config)
 
-                        if (status == PrinterStatus.CONNECTED && currentConnection != null) {
-                            // 2a. 如果已连接，发送心跳命令
+                        // 1. 优先以连接对象为准判断连接性，避免依赖UI状态造成竞态
+                        val hasConnection = currentConnection != null
+                        val isSocketConnected = try {
+                            val conn = currentConnection
+                            if (conn == null) false else conn.isConnected()
+                        } catch (_: Exception) { false }
+
+                        if (hasConnection) {
+                            if (!isSocketConnected) {
+                                Log.w(TAG, "检测到底层socket未连接，标记为断开")
+                                updatePrinterStatus(config, PrinterStatus.DISCONNECTED)
+                                throw EscPosConnectionException("Socket not connected")
+                            }
+                            // 存在连接对象，主动发心跳验证
+                            var writeOk = false
                             try {
                                 sendHeartbeatCommand()
+                                writeOk = true
                                 lastSuccessfulHeartbeat = currentTime
-                                
-                                // 心跳成功，重置重连尝试次数
+                            } catch (e: Exception) {
+                                Log.e(TAG, "系统轮询写入失败（打印机）: ${e.message}")
+                                updatePrinterStatus(config, PrinterStatus.DISCONNECTED)
+                                throw e
+                            } finally {
+                                // 即使写入成功，也再次小延迟后确认一次连接状态，避免短暂缓存导致的假在线
+                                if (writeOk) {
+                                    delay(150)
+                                    val stillConnected = try { currentConnection?.isConnected() ?: false } catch (_: Exception) { false }
+                                    if (!stillConnected) {
+                                        Log.w(TAG, "写入成功但socket已失效，标记为断开")
+                                        updatePrinterStatus(config, PrinterStatus.DISCONNECTED)
+                                        throw EscPosConnectionException("Socket lost after write")
+                                    }
+                                }
+                                updatePrinterStatus(config, PrinterStatus.CONNECTED)
                                 if (reconnectAttempts > 0) {
-                                    Log.d(TAG, "心跳成功，连接恢复稳定")
+                                    Log.d(TAG, "系统轮询成功，连接恢复稳定")
                                     reconnectAttempts = 0
                                 }
-                            } catch (e: Exception) {
-                                // 心跳发送失败，可能连接已断开
-                                Log.e(TAG, "心跳命令发送失败: ${e.message}")
-                                
-                                // 检查是否连续心跳失败时间过长
-                                val timeSinceLastSuccess = currentTime - lastSuccessfulHeartbeat
-                                if (timeSinceLastSuccess > HEARTBEAT_INTERVAL * 3) {
-                                    Log.w(TAG, "连续心跳失败超过${timeSinceLastSuccess}ms，标记连接为错误状态")
-                                    updatePrinterStatus(config, PrinterStatus.ERROR)
-                                }
-                                throw e // 向上抛出异常以触发重连逻辑
                             }
-                        } else if (status != PrinterStatus.CONNECTED) {
-                            // 2b. 如果未连接，检查是否应该重连
+                        } else {
+                            // 无连接对象时才进入重连逻辑
                             val timeSinceLastReconnect = currentTime - lastReconnectTime
-                            
-                            // 避免频繁重连，至少间隔30秒，并增加更强的重试机制
-                            if (timeSinceLastReconnect > 30000 && reconnectAttempts < MAX_RECONNECT_ATTEMPTS * 2) {
+
+                            val reconnectWindow = 10000L // 打开设备后10秒内就进行一次尝试
+                            if (timeSinceLastReconnect > reconnectWindow && reconnectAttempts < MAX_RECONNECT_ATTEMPTS * 2) {
                                 Log.d(TAG, "打印机未连接，尝试重新连接: ${config.name} (尝试次数: ${reconnectAttempts + 1})")
 
-                                // 增加指数退避重试，避免频繁重连
                                 val backoffDelay = if (reconnectAttempts > 0) {
                                     minOf(RECONNECT_DELAY * (1 shl (reconnectAttempts / 2)), 60000L)
-                                } else {
-                                    0L
-                                }
+                                } else 0L
 
                                 if (backoffDelay > 0) {
                                     Log.d(TAG, "等待${backoffDelay}ms后重连")
                                     delay(backoffDelay)
                                 }
 
-                                // 尝试重新连接
                                 lastReconnectTime = currentTime
                                 val reconnected = reconnectPrinter(config)
 
@@ -1872,7 +1938,6 @@ class BluetoothPrinterManager @Inject constructor(
                                 }
                             } else if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS * 2) {
                                 Log.w(TAG, "已达到最大重连次数，暂停重连尝试")
-                                // 暂停更长时间后重置重连计数
                                 if (timeSinceLastReconnect > 600000) { // 10分钟后重置
                                     reconnectAttempts = 0
                                     Log.d(TAG, "长时间暂停后重置重连计数")
@@ -1880,11 +1945,13 @@ class BluetoothPrinterManager @Inject constructor(
                             }
                         }
                     } catch (e: Exception) {
-                        Log.e(TAG, "打印机心跳异常: ${e.message}")
+                        Log.e(TAG, "系统轮询（打印机）异常: ${e.message}")
                         
                         // 处理连接断开异常
-                        if (e.message?.contains("Broken pipe") == true || 
-                            e.message?.contains("Connection reset") == true ||
+                        if (e.message?.contains("Broken pipe", ignoreCase = true) == true ||
+                            e.message?.contains("Connection reset", ignoreCase = true) == true ||
+                            e.message?.contains("software caused connection abort", ignoreCase = true) == true ||
+                            e.message?.contains("connection timed out", ignoreCase = true) == true ||
                             e is EscPosConnectionException) {
                             updatePrinterStatus(config, PrinterStatus.DISCONNECTED)
                             reconnectAttempts++
@@ -1896,7 +1963,7 @@ class BluetoothPrinterManager @Inject constructor(
                     delay(HEARTBEAT_INTERVAL)
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "心跳任务异常: ${e.message}")
+                Log.e(TAG, "系统轮询任务异常（打印机）: ${e.message}")
             }
         }
     }
@@ -1905,9 +1972,13 @@ class BluetoothPrinterManager @Inject constructor(
      * 停止心跳机制
      */
     private fun stopHeartbeat() {
-        heartbeatJob?.cancel()
+        if (heartbeatJob?.isActive == true) {
+            heartbeatJob?.cancel()
+            Log.d(TAG, "停止打印机心跳机制")
+        }
         heartbeatJob = null
-        Log.d(TAG, "停止打印机心跳机制")
+        // 注销连接状态监听
+        unregisterConnectionStateReceiver()
     }
 
     /**
@@ -1917,17 +1988,89 @@ class BluetoothPrinterManager @Inject constructor(
     private fun sendHeartbeatCommand() {
         try {
             currentConnection?.let { connection ->
-                // 1. 发送一个空白字符作为心跳
-                val nulChar = byteArrayOf(0x00)  // NUL字符，不会导致打印机有实际输出
-                connection.write(nulChar)
-
-                // 2. 或者发送一个初始化命令，不会产生可见输出
-                // val initCommand = byteArrayOf(0x1B, 0x40)  // ESC @
-                // connection.write(initCommand)
+                // 发送一个初始化命令作为心跳（更容易暴露断开）
+                val initCommand = byteArrayOf(0x1B, 0x40)  // ESC @
+                connection.write(initCommand)
             } ?: throw IllegalStateException("打印机未连接")
         } catch (e: Exception) {
             Log.e(TAG, "发送心跳命令失败: ${e.message}", e)
             throw e
+        }
+    }
+
+    private fun registerConnectionStateReceiver(config: PrinterConfig) {
+        try {
+            unregisterConnectionStateReceiver()
+            val filter = IntentFilter().apply {
+                addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED)
+                addAction(BluetoothDevice.ACTION_ACL_DISCONNECT_REQUESTED)
+                addAction(BluetoothDevice.ACTION_ACL_CONNECTED)
+                addAction(BluetoothAdapter.ACTION_STATE_CHANGED)
+            }
+            connectionStateReceiver = object : BroadcastReceiver() {
+                override fun onReceive(ctx: Context?, intent: Intent?) {
+                    val action = intent?.action ?: return
+                    try {
+                        when (action) {
+                            BluetoothDevice.ACTION_ACL_DISCONNECT_REQUESTED,
+                            BluetoothDevice.ACTION_ACL_DISCONNECTED -> {
+                                val device = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                    intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE, BluetoothDevice::class.java)
+                                } else {
+                                    @Suppress("DEPRECATION")
+                                    intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE)
+                                }
+                                if (device?.address == config.address) {
+                                    Log.d(TAG, "接收到设备断开广播，标记为断开")
+                                    updatePrinterStatus(config, PrinterStatus.DISCONNECTED)
+                                } else if (device == null) {
+                                    // 权限不足或系统未附带设备信息，做兜底处理
+                                    if (currentPrinterConfig?.address == config.address && currentConnection != null) {
+                                        Log.d(TAG, "接收到断开广播（无设备信息），兜底标记当前打印机为断开")
+                                        updatePrinterStatus(config, PrinterStatus.DISCONNECTED)
+                                    }
+                                }
+                            }
+                            BluetoothDevice.ACTION_ACL_CONNECTED -> {
+                                val device = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                    intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE, BluetoothDevice::class.java)
+                                } else {
+                                    @Suppress("DEPRECATION")
+                                    intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE)
+                                }
+                                if (device?.address == config.address) {
+                                    Log.d(TAG, "接收到设备已连接广播")
+                                    updatePrinterStatus(config, PrinterStatus.CONNECTED)
+                                }
+                            }
+                            BluetoothAdapter.ACTION_STATE_CHANGED -> {
+                                val state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR)
+                                if (state == BluetoothAdapter.STATE_TURNING_OFF || state == BluetoothAdapter.STATE_OFF) {
+                                    Log.d(TAG, "蓝牙适配器关闭，标记断开")
+                                    updatePrinterStatus(config, PrinterStatus.DISCONNECTED)
+                                }
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "连接状态广播处理异常: ${e.message}")
+                    }
+                }
+            }
+            context.registerReceiver(connectionStateReceiver, filter)
+        } catch (e: Exception) {
+            Log.w(TAG, "注册连接状态广播失败: ${e.message}")
+        }
+    }
+
+    private fun unregisterConnectionStateReceiver() {
+        try {
+            connectionStateReceiver?.let {
+                context.unregisterReceiver(it)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "注销连接状态广播失败: ${e.message}")
+        } finally {
+            connectionStateReceiver = null
         }
     }
 
@@ -2250,6 +2393,9 @@ class BluetoothPrinterManager @Inject constructor(
         if (currentPrinterConfig?.address == address) {
             currentPrinterConfig = config
             _printerStatus.value = status
+            if (status == PrinterStatus.CONNECTED) {
+                ensureHeartbeatRunning(config)
+            }
         }
     }
 

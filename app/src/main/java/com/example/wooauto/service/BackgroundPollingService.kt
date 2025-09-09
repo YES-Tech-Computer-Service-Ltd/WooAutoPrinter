@@ -22,18 +22,15 @@ import com.example.wooauto.domain.repositories.DomainOrderRepository
 import com.example.wooauto.domain.models.Order
 import com.example.wooauto.domain.repositories.DomainSettingRepository
 import com.example.wooauto.domain.printer.PrinterManager
-import com.example.wooauto.domain.templates.TemplateType
+import com.example.wooauto.data.printer.BluetoothPrinterManager
 import com.example.wooauto.domain.printer.PrinterStatus
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.util.*
 import javax.inject.Inject
-import kotlin.collections.HashSet
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import android.net.ConnectivityManager
 import android.net.Network
@@ -41,7 +38,6 @@ import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import android.net.wifi.WifiManager
 import android.os.PowerManager
-import android.provider.Settings
 import com.example.wooauto.utils.PowerManagementUtils
 
 @AndroidEntryPoint
@@ -68,17 +64,14 @@ class BackgroundPollingService : Service() {
         private const val MAX_PROCESSED_IDS = 500 // 最大保留订单ID数量
     }
 
-    @Inject
-    lateinit var orderRepository: DomainOrderRepository
+    @Inject lateinit var orderRepository: DomainOrderRepository
 
-    @Inject
-    lateinit var wooCommerceConfig: WooCommerceConfig
+    @Inject lateinit var wooCommerceConfig: WooCommerceConfig
 
-    @Inject
-    lateinit var printerManager: PrinterManager
+    @Inject lateinit var printerManager: PrinterManager
 
-    @Inject
-    lateinit var settingsRepository: DomainSettingRepository
+    @Inject lateinit var settingsRepository: DomainSettingRepository
+    @Inject lateinit var systemPollingManager: SystemPollingManager
 
     // 使用IO调度器创建协程作用域，减少主线程负担
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
@@ -141,6 +134,24 @@ class BackgroundPollingService : Service() {
         
         // 初始化网络监听器
         initNetworkListener()
+
+        // 启动系统轮询（统一网络/看门狗/打印机健康）
+        try {
+            systemPollingManager.startAll(defaultPrinterProvider = {
+                settingsRepository.getDefaultPrinterConfig()
+            })
+            // 启用外部系统轮询接管打印机健康检查，避免内部心跳重复
+            try {
+                if (printerManager is BluetoothPrinterManager) {
+                    (printerManager as BluetoothPrinterManager).setExternalPollingEnabled(true)
+                    Log.d(TAG, "已启用外部系统轮询接管打印机健康检查")
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "设置外部系统轮询标志失败: ${e.message}")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "启动系统轮询失败: ${e.message}")
+        }
         
         // 延迟初始化，确保应用组件完全加载
         serviceScope.launch {
@@ -307,8 +318,14 @@ class BackgroundPollingService : Service() {
         // 启动定期清理任务
         startPeriodicCleanupTask()
         
-        // 启动轮询看门狗
-        startPollingWatchdog()
+        // 系统轮询：统一启动网络心跳/看门狗/打印机健康检查
+        try {
+            systemPollingManager.startAll(defaultPrinterProvider = {
+                settingsRepository.getDefaultPrinterConfig()
+            })
+        } catch (e: Exception) {
+            Log.e(TAG, "启动系统轮询失败: ${e.message}")
+        }
         
         return START_STICKY
     }
@@ -322,8 +339,8 @@ class BackgroundPollingService : Service() {
         // 取消所有协程任务
         pollingJob?.cancel()
         intervalMonitorJob?.cancel()
-        watchdogJob?.cancel() // 取消看门狗任务
-        networkHeartbeatJob?.cancel() // 取消网络心跳检测
+        // 系统轮询下线
+        try { systemPollingManager.stopAll() } catch (_: Exception) {}
         
         // 取消整个服务协程作用域
         serviceScope.cancel()
@@ -739,8 +756,8 @@ class BackgroundPollingService : Service() {
     }
 
     /**
-     * 检查打印机连接状态并尝试重新连接
-     * 减少与心跳机制的冲突，降低检查频率
+     * 订单轮询：检查打印机连接状态并尝试重新连接（辅助）
+     * 减少与系统轮询（打印机）的冲突，降低检查频率
      */
     private suspend fun checkPrinterConnection() {
         try {
@@ -763,23 +780,23 @@ class BackgroundPollingService : Service() {
                     } ?: false
                     
                     if (connected) {
-                        Log.d(TAG, "后台服务成功重新连接打印机")
+                        Log.d(TAG, "订单轮询：成功重新连接打印机")
                     } else {
-                        Log.e(TAG, "后台服务无法重新连接打印机")
+                        Log.e(TAG, "订单轮询：无法重新连接打印机")
                     }
                 } else if (status == PrinterStatus.CONNECTED) {
-                    // 降低测试频率，避免与心跳冲突
+                    // 降低测试频率，避免与系统轮询（打印机）冲突
                     val minutes = System.currentTimeMillis() / 60000
                     if (minutes % 10L == 0L) { // 改为每10分钟测试一次
-                        Log.d(TAG, "定期检查：打印机连接状态测试")
+                        Log.d(TAG, "订单轮询：定期测试打印机连接")
                         try {
                             val testResult = printerManager.testConnection(printerConfig)
                             if (!testResult) {
-                                Log.w(TAG, "定期检查：打印机测试失败，标记为错误状态")
-                                // 不直接重连，让心跳机制处理
+                                Log.w(TAG, "订单轮询：测试失败，等待系统轮询（打印机）处理")
+                                // 让蓝牙管理器的状态流/心跳去更新状态并处理
                             }
                         } catch (e: Exception) {
-                            Log.e(TAG, "定期检查：测试连接异常", e)
+                            Log.e(TAG, "订单轮询：测试连接异常", e)
                         }
                     }
                 }
