@@ -5,22 +5,16 @@ package com.example.wooauto.domain.printer
  * 定义了支持的打印机品牌和对应的命令语言
  */
 enum class PrinterBrand(
-    val brandId: String,
     val displayName: String,
     val commandLanguage: String,
-    val modelKeywords: List<String>
+    val modelKeywords: String,
+    listOf: List<String>
 ) {
     EPSON(
         "epson",
         "爱普生(EPSON)",
         "ESC/POS",
         listOf("epson", "爱普生")
-    ),
-    STAR(
-        "star",
-        "星星(STAR)",
-        "StarPRNT",
-        listOf("star", "sp100", "tsp100", "starsp", "startp")
     ),
     BIXOLON(
         "bixolon",

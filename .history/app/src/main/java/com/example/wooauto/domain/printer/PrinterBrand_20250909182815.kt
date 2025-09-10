@@ -7,39 +7,35 @@ package com.example.wooauto.domain.printer
 enum class PrinterBrand(
     val displayName: String,
     val commandLanguage: String,
-    val modelKeywords: List<String>
+    val modelKeywords: String,
+    listOf: List<String>
 ) {
     EPSON(
+        "epson",
         "爱普生(EPSON)",
         "ESC/POS",
         listOf("epson", "爱普生")
     ),
-    STAR(
-        "星星(STAR)",
-        "StarPRNT",
-        listOf("star", "sp100", "tsp100", "starsp", "startp")
-    ),
     BIXOLON(
+        "bixolon",
         "佳博(BIXOLON)",
         "BIXOLON",
         listOf("bixolon", "佳博", "srp", "stp")
     ),
     SPRT(
+        "sprt",
         "思普瑞特(SPRT)",
         "ESC/POS",
         listOf("sprt", "思普瑞特")
     ),
     CITIZEN(
+        "citizen",
         "西铁城(CITIZEN)",
         "ESC/POS",
         listOf("citizen", "西铁城", "ct")
     ),
-    GB8030(
-        "GB8030",
-        "ESC/POS",
-        listOf("gb8030", "gb-8030", "8030", "gb")
-    ),
     UNKNOWN(
+        "unknown",
         "未知品牌",
         "ESC/POS", // 默认使用最常见的ESC/POS命令集
         listOf()

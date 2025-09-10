@@ -21,6 +21,7 @@ import com.dantsu.escposprinter.exceptions.EscPosEncodingException
 import com.dantsu.escposprinter.exceptions.EscPosParserException
 import com.example.wooauto.domain.models.Order
 import com.example.wooauto.domain.models.PrinterConfig
+import com.example.wooauto.domain.printer.PrinterBrand
 import com.example.wooauto.domain.printer.PrinterDevice
 import com.example.wooauto.domain.printer.PrinterManager
 import com.example.wooauto.domain.printer.PrinterStatus

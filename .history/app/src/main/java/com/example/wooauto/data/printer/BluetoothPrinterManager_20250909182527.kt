@@ -21,6 +21,7 @@ import com.dantsu.escposprinter.exceptions.EscPosEncodingException
 import com.dantsu.escposprinter.exceptions.EscPosParserException
 import com.example.wooauto.domain.models.Order
 import com.example.wooauto.domain.models.PrinterConfig
+import com.example.wooauto.domain.printer.PrinterBrand
 import com.example.wooauto.domain.printer.PrinterDevice
 import com.example.wooauto.domain.printer.PrinterManager
 import com.example.wooauto.domain.printer.PrinterStatus
@@ -2666,7 +2667,9 @@ class BluetoothPrinterManager @Inject constructor(
                 Pair(byteArrayOf(0x18, 0x1B, 0x40, 0x1B, 0x64, 0x10, 0x1D, 0x56, 0x01), "复合命令1: 清除+初始化+走纸+切纸"),
                 Pair(byteArrayOf(0x1B, 0x40, 0x0A, 0x0A, 0x0A, 0x0A, 0x0A, 0x1D, 0x56, 0x01), "复合命令2: 初始化+5LF+切纸"),
                 
-                
+                // STAR打印机特有
+                Pair(byteArrayOf(0x1B, 0x64, 0x02), "ESC d 2 (STAR打印机)"),
+                Pair(byteArrayOf(0x1B, 0x64, 0x33), "ESC d 3 (STAR变体)")
             )
             
             var commandIndex = 1

@@ -1,6 +1,5 @@
 package com.example.wooauto.domain.models
 
-import com.example.wooauto.domain.printer.PrinterBrand
 import java.io.Serializable
 import java.util.UUID
 
@@ -24,8 +23,7 @@ data class PrinterConfig(
     // 纸张宽度（毫米）
     val paperWidth: Int = PAPER_WIDTH_57MM,
     
-    // 打印机品牌
-    val brand: PrinterBrand = PrinterBrand.UNKNOWN,
+    
     
     // 是否为默认打印机
     val isDefault: Boolean = false,
