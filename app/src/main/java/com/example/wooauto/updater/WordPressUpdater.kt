@@ -32,6 +32,8 @@ import java.net.URL
 import java.util.Date
 import javax.inject.Inject
 import javax.inject.Singleton
+import androidx.core.content.edit
+import androidx.core.net.toUri
 
 /**
  * WordPress更新器实现
@@ -190,9 +192,9 @@ class WordPressUpdater @Inject constructor(
             }
             
             // 更新最后检查时间
-            preferences.edit()
-                .putLong(KEY_LAST_CHECK, System.currentTimeMillis())
-                .apply()
+            preferences.edit {
+                putLong(KEY_LAST_CHECK, System.currentTimeMillis())
+            }
                 
         } catch (e: Exception) {
             Log.e(TAG, "检查更新失败", e)
@@ -253,7 +255,7 @@ class WordPressUpdater @Inject constructor(
                 }
             }
             
-            val request = DownloadManager.Request(Uri.parse(updateInfo.downloadUrl))
+            val request = DownloadManager.Request(updateInfo.downloadUrl.toUri())
                 .setTitle("WooAuto 更新")
                 .setDescription("正在下载版本 ${updateInfo.latestVersion.toVersionString()}")
                 .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)

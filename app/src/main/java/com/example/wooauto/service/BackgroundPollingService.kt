@@ -346,13 +346,11 @@ class BackgroundPollingService : Service() {
         serviceScope.cancel()
         
         // 取消网络监听器注册
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            networkCallback?.let { callback ->
-                connectivityManager?.unregisterNetworkCallback(callback)
-                Log.d(TAG, "网络监听器已注销")
-            }
+        networkCallback?.let { callback ->
+            connectivityManager?.unregisterNetworkCallback(callback)
+            Log.d(TAG, "网络监听器已注销")
         }
-        
+
         // 释放电源锁
         releaseWakeLock()
         releaseWifiLock()
@@ -404,11 +402,7 @@ class BackgroundPollingService : Service() {
             this,
             0,
             Intent(this, MainActivity::class.java),
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                PendingIntent.FLAG_IMMUTABLE
-            } else {
-                0
-            }
+            PendingIntent.FLAG_IMMUTABLE
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
@@ -737,8 +731,6 @@ class BackgroundPollingService : Service() {
                         
                         // 通知UI层刷新数据
                         sendRefreshOrdersBroadcast()
-                    } else {
-                        
                     }
                 } else {
                     // 减少无新订单时的日志输出频率
@@ -840,17 +832,14 @@ class BackgroundPollingService : Service() {
             } else {
                 true // 非首次轮询时，所有未处理订单都视为新订单
             }
-            
-            // 记录订单时间与当前时间的差距
-            val timeDiff = (currentTime - order.dateCreated.time) / 1000 // 秒
-            
-            
+
+
+
             if (isNewOrder && isRecentOrder) {
                 
                 
                 // 获取数据库中的打印状态 - 数据库是打印状态的真实来源
                 val latestOrder = orderRepository.getOrderById(order.id)
-                val isPrintedInDb = latestOrder?.isPrinted ?: false
                 
                 
                 
@@ -863,15 +852,9 @@ class BackgroundPollingService : Service() {
                     order
                 }
                 
-                
-                
-                // 不再根据API和数据库的不一致进行更新，而是始终以数据库为主
-                // 这确保了手动标记的打印状态不会被API覆盖
-                
                 // 发送通知
                 sendNewOrderNotification(finalOrder)
-                
-                // 启用自动打印功能，并添加详细日志
+
                 
                 
                 // 使用最终订单的打印状态判断是否需要打印
@@ -882,12 +865,6 @@ class BackgroundPollingService : Service() {
                     
                     // 调用printOrder方法处理打印
                     printOrder(finalOrder)
-                } else {
-                    if (finalOrder.isPrinted) {
-                        
-                    } else if (finalOrder.status != "processing") {
-                        
-                    }
                 }
                 
                 // 先标记订单通知已显示，然后再添加到已处理集合
@@ -1141,7 +1118,6 @@ class BackgroundPollingService : Service() {
                         // 如果处理队列过大，清理到最大限制的一半
                         if (processedOrderIds.size > MAX_PROCESSED_IDS) {
                             val targetSize = MAX_PROCESSED_IDS / 2
-                            val sizeBefore = processedOrderIds.size
                             
                             while (processedOrderIds.size > targetSize) {
                                 // 移除最旧的元素
@@ -1163,120 +1139,70 @@ class BackgroundPollingService : Service() {
     // 初始化网络监听器
     private fun initNetworkListener() {
         connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-        
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            networkCallback = object : ConnectivityManager.NetworkCallback() {
-                override fun onAvailable(network: Network) {
-                    super.onAvailable(network)
-                    val wasOffline = !isNetworkAvailable
-                    isNetworkAvailable = true
-                    
-                    // 只有在确实从离线状态恢复且当前正在轮询时，才触发一次额外轮询
-                    if (wasOffline && isPollingActive && initialPollingComplete) {
-                        Log.d(TAG, "网络从离线状态恢复，触发一次恢复轮询")
-                        serviceScope.launch {
-                            try {
-                                // 等待网络完全稳定
-                                delay(1000)
-                                // 只执行一次轮询，不发送额外广播
-                                val result = orderRepository.refreshProcessingOrdersForPolling(latestPolledDate)
-                                if (result.isSuccess) {
-                                    val orders = result.getOrDefault(emptyList())
-                                    if (orders.isNotEmpty()) {
-                                        Log.d(TAG, "网络恢复轮询成功，获取了 ${orders.size} 个订单")
-                                        // 只处理新订单，不发送多余广播
-                                        processNewOrders(orders)
-                                    }
-                                }
-                            } catch (e: Exception) {
-                                Log.e(TAG, "网络恢复后轮询失败: ${e.message}")
-                            }
-                        }
-                    } else {
-                        Log.d(TAG, "网络连接已恢复 (无需额外轮询)")
-                    }
-                }
-                
-                override fun onLost(network: Network) {
-                    super.onLost(network)
-                    isNetworkAvailable = false
-                    Log.d(TAG, "网络连接已断开")
-                }
-                
-                override fun onCapabilitiesChanged(network: Network, networkCapabilities: NetworkCapabilities) {
-                    super.onCapabilitiesChanged(network, networkCapabilities)
-                    val hasInternet = networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
-                                     networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
-                    
-                    if (hasInternet != isNetworkAvailable) {
-                        val previousState = isNetworkAvailable
-                        isNetworkAvailable = hasInternet
-                        Log.d(TAG, "网络状态变化: $previousState -> $isNetworkAvailable")
-                        
-                        // 避免频繁的网络质量变化触发轮询
-                        if (hasInternet && !previousState && isPollingActive && initialPollingComplete) {
-                            Log.d(TAG, "网络质量恢复，但不触发额外轮询（由正常轮询周期处理）")
-                        }
-                    }
-                }
-            }
-            
-            val networkRequest = NetworkRequest.Builder()
-                .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-                .addCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
-                .build()
-                
-            connectivityManager?.registerNetworkCallback(networkRequest, networkCallback!!)
-            Log.d(TAG, "网络监听器已注册")
-        } else {
-            Log.d(TAG, "Android版本不支持网络回调，使用传统方式检查网络")
-        }
-    }
 
-    /**
-     * 启动轮询看门狗，定期检查轮询状态
-     */
-    private fun startPollingWatchdog() {
-        if (watchdogJob?.isActive == true) {
-            Log.d(TAG, "轮询看门狗已在运行")
-            return
-        }
-        
-        watchdogJob = serviceScope.launch {
-            try {
-                while (isActive) {
-                    delay(WATCHDOG_CHECK_INTERVAL)
-                    
-                    val currentTime = System.currentTimeMillis()
-                    val timeSinceLastActivity = currentTime - lastPollingActivity
-                    
-                    // 检查轮询是否正常运行
-                    if (!isPollingActive || pollingJob?.isActive != true) {
-                        Log.w(TAG, "【看门狗】检测到轮询停止，尝试重新启动")
+        networkCallback = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                super.onAvailable(network)
+                val wasOffline = !isNetworkAvailable
+                isNetworkAvailable = true
+
+                // 只有在确实从离线状态恢复且当前正在轮询时，才触发一次额外轮询
+                if (wasOffline && isPollingActive && initialPollingComplete) {
+                    Log.d(TAG, "网络从离线状态恢复，触发一次恢复轮询")
+                    serviceScope.launch {
                         try {
-                            startPolling()
-                            Log.d(TAG, "【看门狗】轮询重启完成")
+                            // 等待网络完全稳定
+                            delay(1000)
+                            // 只执行一次轮询，不发送额外广播
+                            val result = orderRepository.refreshProcessingOrdersForPolling(latestPolledDate)
+                            if (result.isSuccess) {
+                                val orders = result.getOrDefault(emptyList())
+                                if (orders.isNotEmpty()) {
+                                    Log.d(TAG, "网络恢复轮询成功，获取了 ${orders.size} 个订单")
+                                    // 只处理新订单，不发送多余广播
+                                    processNewOrders(orders)
+                                }
+                            }
                         } catch (e: Exception) {
-                            Log.e(TAG, "【看门狗】轮询重启失败: ${e.message}", e)
+                            Log.e(TAG, "网络恢复后轮询失败: ${e.message}")
                         }
-                    } else if (timeSinceLastActivity > POLLING_TIMEOUT_THRESHOLD) {
-                        Log.w(TAG, "【看门狗】轮询可能卡住，上次活动: ${timeSinceLastActivity}ms前，尝试重启")
-                        try {
-                            restartPolling()
-                            Log.d(TAG, "【看门狗】轮询重启完成")
-                        } catch (e: Exception) {
-                            Log.e(TAG, "【看门狗】轮询重启失败: ${e.message}", e)
-                        }
-                    } else {
-                        Log.d(TAG, "【看门狗】轮询状态正常，上次活动: ${timeSinceLastActivity}ms前")
+                    }
+                } else {
+                    Log.d(TAG, "网络连接已恢复 (无需额外轮询)")
+                }
+            }
+
+            override fun onLost(network: Network) {
+                super.onLost(network)
+                isNetworkAvailable = false
+                Log.d(TAG, "网络连接已断开")
+            }
+
+            override fun onCapabilitiesChanged(network: Network, networkCapabilities: NetworkCapabilities) {
+                super.onCapabilitiesChanged(network, networkCapabilities)
+                val hasInternet = networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+                                 networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+
+                if (hasInternet != isNetworkAvailable) {
+                    val previousState = isNetworkAvailable
+                    isNetworkAvailable = hasInternet
+                    Log.d(TAG, "网络状态变化: $previousState -> $isNetworkAvailable")
+
+                    // 避免频繁的网络质量变化触发轮询
+                    if (hasInternet && isPollingActive && initialPollingComplete) {
+                        Log.d(TAG, "网络质量恢复，但不触发额外轮询（由正常轮询周期处理）")
                     }
                 }
-            } catch (e: Exception) {
-                Log.e(TAG, "【看门狗】运行异常: ${e.message}", e)
             }
         }
-        
-        Log.d(TAG, "轮询看门狗已启动")
+
+        val networkRequest = NetworkRequest.Builder()
+            .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            .addCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+            .build()
+
+        connectivityManager?.registerNetworkCallback(networkRequest, networkCallback!!)
+        Log.d(TAG, "网络监听器已注册")
     }
 
     /**
@@ -1389,27 +1315,25 @@ class BackgroundPollingService : Service() {
      */
     private fun checkBatteryOptimization() {
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
-                val packageName = packageName
-                
-                if (!pm.isIgnoringBatteryOptimizations(packageName)) {
-                    Log.w(TAG, "【电源管理】应用未被加入电池优化白名单，可能影响后台运行")
-                    
-                    // 检查是否为激进省电策略设备
-                    if (PowerManagementUtils.isAggressivePowerManagementDevice()) {
-                        Log.w(TAG, "【电源管理】检测到激进省电策略设备: ${Build.MANUFACTURER}")
-                        showAdvancedPowerManagementNotification()
-                    } else {
-                        showBatteryOptimizationNotification()
-                    }
+            val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+            val packageName = packageName
+
+            if (!pm.isIgnoringBatteryOptimizations(packageName)) {
+                Log.w(TAG, "【电源管理】应用未被加入电池优化白名单，可能影响后台运行")
+
+                // 检查是否为激进省电策略设备
+                if (PowerManagementUtils.isAggressivePowerManagementDevice()) {
+                    Log.w(TAG, "【电源管理】检测到激进省电策略设备: ${Build.MANUFACTURER}")
+                    showAdvancedPowerManagementNotification()
                 } else {
-                    Log.d(TAG, "【电源管理】应用已被加入电池优化白名单")
+                    showBatteryOptimizationNotification()
                 }
-                
-                // 检查其他省电设置
-                checkAdditionalPowerSavingSettings()
+            } else {
+                Log.d(TAG, "【电源管理】应用已被加入电池优化白名单")
             }
+
+            // 检查其他省电设置
+            checkAdditionalPowerSavingSettings()
         } catch (e: Exception) {
             Log.e(TAG, "【电源管理】检查电池优化状态失败: ${e.message}", e)
         }
@@ -1421,19 +1345,15 @@ class BackgroundPollingService : Service() {
     private fun checkAdditionalPowerSavingSettings() {
         try {
             // 检查省电模式
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                if (PowerManagementUtils.isPowerSaveMode(this)) {
-                    Log.w(TAG, "【电源管理】设备处于省电模式，可能影响后台运行")
-                }
+            if (PowerManagementUtils.isPowerSaveMode(this)) {
+                Log.w(TAG, "【电源管理】设备处于省电模式，可能影响后台运行")
             }
-            
+
             // 检查数据保护模式
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                if (PowerManagementUtils.isDataSaverMode(this)) {
-                    Log.w(TAG, "【电源管理】数据保护模式已开启，可能影响网络同步")
-                }
+            if (PowerManagementUtils.isDataSaverMode(this)) {
+                Log.w(TAG, "【电源管理】数据保护模式已开启，可能影响网络同步")
             }
-            
+
             // 获取并记录建议
             val recommendations = PowerManagementUtils.getPowerSavingRecommendations(this)
             if (recommendations.isNotEmpty()) {
@@ -1582,19 +1502,13 @@ class BackgroundPollingService : Service() {
     private fun checkNetworkConnectivity(): Boolean {
         return try {
             val connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-            
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                val network = connectivityManager.activeNetwork ?: return false
-                val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
-                
-                capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) &&
-                capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
-                capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
-            } else {
-                @Suppress("DEPRECATION")
-                val networkInfo = connectivityManager.activeNetworkInfo
-                networkInfo?.isConnected == true
-            }
+
+            val network = connectivityManager.activeNetwork ?: return false
+            val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
+
+            capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) &&
+            capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+            capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
         } catch (e: Exception) {
             Log.e(TAG, "【网络心跳】检查网络连接状态失败: ${e.message}", e)
             false
