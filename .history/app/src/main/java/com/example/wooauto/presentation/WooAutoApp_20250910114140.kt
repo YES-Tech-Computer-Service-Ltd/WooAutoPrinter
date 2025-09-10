@@ -5,12 +5,12 @@ import android.provider.Settings
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.weight
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
@@ -44,7 +44,6 @@ import com.example.wooauto.licensing.EligibilityStatus
 import com.example.wooauto.licensing.TrialTokenManager
 import com.example.wooauto.presentation.components.WooAppBar
 import com.example.wooauto.presentation.components.WooSideNavigation
-import com.example.wooauto.presentation.navigation.AppNavConfig
 import com.example.wooauto.navigation.NavigationItem
 import com.example.wooauto.presentation.navigation.Screen
 import com.example.wooauto.presentation.screens.orders.OrdersScreen
@@ -72,9 +71,6 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.example.wooauto.presentation.screens.settings.PrinterSettings.PrinterDetailsScreen
 import com.example.wooauto.presentation.screens.settings.PrinterSettings.PrinterSettingsScreen
-import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.ui.graphics.Color
 
 private const val TAG = "WooAutoApp"
 
@@ -142,17 +138,6 @@ fun AppContent() {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
-    // Apply system bars color to align with app primary for a cohesive look
-    val primaryColor = MaterialTheme.colorScheme.primary
-    val isDark = isSystemInDarkTheme()
-    DisposableEffect(primaryColor, isDark) {
-        try {
-            val window = (context as android.app.Activity).window
-            window.statusBarColor = android.graphics.Color.parseColor("#00000000")
-        } catch (_: Throwable) {}
-        onDispose { }
-    }
-
     // 使用currentBackStackEntryAsState获取当前路由
     val navBackStackEntry = navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry.value?.destination?.route ?: "未知路由"
@@ -208,51 +193,45 @@ fun AppContent() {
             currentRoute == Screen.SoundSettings.route ||
             currentRoute == Screen.AutomationSettings.route ||
             currentRoute == Screen.LicenseSettings.route ||
-            currentRoute == Screen.LanguageSettings.route ||
             currentRoute.startsWith("template_")
 
     // 获取系统状态栏高度
     val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
     Row(modifier = Modifier.fillMaxSize()) {
-        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-            val totalWidth = this.maxWidth
-            val leftWidth = if (!isSpecialScreen) (totalWidth * 0.16f).coerceIn(80.dp, 240.dp) else 0.dp
+        if (!isSpecialScreen) {
+            Column(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .widthIn(min = 72.dp, max = 280.dp)
+                    .weight(0.18f)
+            ) {
+                WooSideNavigation(
+                    navController = navController,
+                    contentPadding = WindowInsets.statusBars.asPaddingValues()
+                )
+            }
+        }
 
-            Row(modifier = Modifier.fillMaxSize()) {
-                if (!isSpecialScreen) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .width(leftWidth)
-                    ) {
-                        val sideItems = remember { AppNavConfig.sideNavEntries() }
-                        WooSideNavigation(
-                            navController = navController,
-                            items = sideItems,
-                            contentPadding = WindowInsets.statusBars.asPaddingValues()
-                        )
-                    }
-                }
+        Column(
+            modifier = Modifier
+                .fillMaxHeight()
+                .weight(1f)
+        ) {
+            if (!isSpecialScreen) {
+                WooAppBar(
+                    navController = navController,
+                    onSearch = { query, route ->
+                        coroutineScope.launch { EventBus.emitSearchEvent(query, route) }
+                    },
+                    onRefresh = { route ->
+                        coroutineScope.launch { EventBus.emitRefreshEvent(route) }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
 
-                Column(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .width(totalWidth - leftWidth)
-                ) {
-                    if (!isSpecialScreen) {
-                        WooAppBar(
-                            navController = navController,
-                            onSearch = { query, route ->
-                                coroutineScope.launch { EventBus.emitSearchEvent(query, route) }
-                            },
-                            onRefresh = { route ->
-                                coroutineScope.launch { EventBus.emitRefreshEvent(route) }
-                            }
-                        )
-                    }
-
-                    Box(modifier = Modifier.fillMaxSize()) {
+            Box(modifier = Modifier.fillMaxSize()) {
                 // 如果状态未加载完成，显示加载中，但添加超时逻辑
                 if (!isEligibilityChecked.value) {
                     LaunchedEffect(Unit) {
@@ -388,12 +367,10 @@ fun AppContent() {
                     }
                 }
 
-                        // 标记 NavHost 已初始化
-                        LaunchedEffect(Unit) {
-                            isNavHostInitialized.value = true
-                            Log.d("AppContent", "NavHost initialized")
-                        }
-                    }
+                // 标记 NavHost 已初始化
+                LaunchedEffect(Unit) {
+                    isNavHostInitialized.value = true
+                    Log.d("AppContent", "NavHost initialized")
                 }
             }
         }

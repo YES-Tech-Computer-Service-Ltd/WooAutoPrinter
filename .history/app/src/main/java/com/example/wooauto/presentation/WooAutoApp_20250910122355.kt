@@ -44,7 +44,6 @@ import com.example.wooauto.licensing.EligibilityStatus
 import com.example.wooauto.licensing.TrialTokenManager
 import com.example.wooauto.presentation.components.WooAppBar
 import com.example.wooauto.presentation.components.WooSideNavigation
-import com.example.wooauto.presentation.navigation.AppNavConfig
 import com.example.wooauto.navigation.NavigationItem
 import com.example.wooauto.presentation.navigation.Screen
 import com.example.wooauto.presentation.screens.orders.OrdersScreen
@@ -73,6 +72,7 @@ import androidx.navigation.NavHostController
 import com.example.wooauto.presentation.screens.settings.PrinterSettings.PrinterDetailsScreen
 import com.example.wooauto.presentation.screens.settings.PrinterSettings.PrinterSettingsScreen
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.DynamicColors
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.graphics.Color
 
@@ -226,10 +226,8 @@ fun AppContent() {
                             .fillMaxHeight()
                             .width(leftWidth)
                     ) {
-                        val sideItems = remember { AppNavConfig.sideNavEntries() }
                         WooSideNavigation(
                             navController = navController,
-                            items = sideItems,
                             contentPadding = WindowInsets.statusBars.asPaddingValues()
                         )
                     }

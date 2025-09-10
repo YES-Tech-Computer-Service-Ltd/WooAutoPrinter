@@ -31,7 +31,6 @@ import androidx.compose.runtime.setValue
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.wooauto.presentation.screens.orders.OrdersViewModel
 import com.example.wooauto.presentation.screens.orders.UnreadOrdersDialog
-import com.example.wooauto.presentation.navigation.AppNavConfig
 
 /**
  * 全局顶部栏组件
@@ -55,53 +54,66 @@ fun WooAppBar(
     var showUnreadOrders by remember { mutableStateOf(false) }
     
     // 决定显示哪种顶部栏
-    val spec = AppNavConfig.topBarSpecForRoute(currentRoute)
     when (currentRoute) {
         NavigationItem.Orders.route -> {
             val unreadOrdersText = stringResource(id = R.string.unread_orders)
             WooTopBar(
-                title = stringResource(id = spec.titleResId),
+                title = stringResource(id = R.string.orders),
                 showSearch = false,
                 isRefreshing = false,
                 onRefresh = { },
                 showRefreshButton = false,
                 locale = locale,
                 showTitle = true,
-                titleAlignment = if (spec.alignStart) Alignment.Start else Alignment.CenterHorizontally,
-                showStatusStrip = spec.showStatusStrip,
-                trailingContent = if (spec.showUnreadButton) {
-                    {
-                        IconButton(
-                            onClick = { showUnreadOrders = true },
-                            modifier = Modifier
-                                .size(44.dp)
-                                .padding(end = 2.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Email,
-                                contentDescription = unreadOrdersText,
-                                tint = MaterialTheme.colorScheme.onPrimary,
-                                modifier = Modifier.size(22.dp)
-                            )
-                        }
+                titleAlignment = Alignment.Start,
+                trailingContent = {
+                    IconButton(
+                        onClick = { showUnreadOrders = true },
+                        modifier = Modifier
+                            .size(44.dp)
+                            .padding(end = 2.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Email,
+                            contentDescription = unreadOrdersText,
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.size(22.dp)
+                        )
                     }
-                } else null
+                }
             )
             if (showUnreadOrders) {
                 UnreadOrdersDialog(onDismiss = { showUnreadOrders = false })
             }
         }
-        else -> {
+        NavigationItem.Products.route -> {
             WooTopBar(
-                title = stringResource(id = spec.titleResId),
+                title = stringResource(id = R.string.products),
                 showSearch = false,
                 isRefreshing = false,
                 onRefresh = { },
                 showRefreshButton = false,
                 locale = locale,
                 showTitle = true,
-                titleAlignment = if (spec.alignStart) Alignment.Start else Alignment.CenterHorizontally,
-                showStatusStrip = spec.showStatusStrip
+                titleAlignment = Alignment.Start
+            )
+        }
+        else -> {
+            // 其他页面(如Settings)使用默认顶部栏 - 显示左侧标题
+            val title = when (currentRoute) {
+                NavigationItem.Settings.route -> stringResource(id = R.string.settings)
+                else -> stringResource(id = R.string.app_name)
+            }
+            
+            WooTopBar(
+                title = title,
+                showSearch = false,
+                isRefreshing = false,
+                onRefresh = { },
+                showRefreshButton = false,
+                locale = locale,
+                showTitle = true,
+                titleAlignment = Alignment.Start
             )
         }
     }

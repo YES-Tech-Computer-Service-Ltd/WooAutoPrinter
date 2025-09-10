@@ -44,7 +44,6 @@ import com.example.wooauto.licensing.EligibilityStatus
 import com.example.wooauto.licensing.TrialTokenManager
 import com.example.wooauto.presentation.components.WooAppBar
 import com.example.wooauto.presentation.components.WooSideNavigation
-import com.example.wooauto.presentation.navigation.AppNavConfig
 import com.example.wooauto.navigation.NavigationItem
 import com.example.wooauto.presentation.navigation.Screen
 import com.example.wooauto.presentation.screens.orders.OrdersScreen
@@ -72,9 +71,6 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.example.wooauto.presentation.screens.settings.PrinterSettings.PrinterDetailsScreen
 import com.example.wooauto.presentation.screens.settings.PrinterSettings.PrinterSettingsScreen
-import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.ui.graphics.Color
 
 private const val TAG = "WooAutoApp"
 
@@ -142,17 +138,6 @@ fun AppContent() {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
-    // Apply system bars color to align with app primary for a cohesive look
-    val primaryColor = MaterialTheme.colorScheme.primary
-    val isDark = isSystemInDarkTheme()
-    DisposableEffect(primaryColor, isDark) {
-        try {
-            val window = (context as android.app.Activity).window
-            window.statusBarColor = android.graphics.Color.parseColor("#00000000")
-        } catch (_: Throwable) {}
-        onDispose { }
-    }
-
     // 使用currentBackStackEntryAsState获取当前路由
     val navBackStackEntry = navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry.value?.destination?.route ?: "未知路由"
@@ -217,7 +202,7 @@ fun AppContent() {
     Row(modifier = Modifier.fillMaxSize()) {
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
             val totalWidth = this.maxWidth
-            val leftWidth = if (!isSpecialScreen) (totalWidth * 0.16f).coerceIn(80.dp, 240.dp) else 0.dp
+            val leftWidth = if (!isSpecialScreen) (totalWidth * 0.18f).coerceIn(72.dp, 280.dp) else 0.dp
 
             Row(modifier = Modifier.fillMaxSize()) {
                 if (!isSpecialScreen) {
@@ -226,10 +211,8 @@ fun AppContent() {
                             .fillMaxHeight()
                             .width(leftWidth)
                     ) {
-                        val sideItems = remember { AppNavConfig.sideNavEntries() }
                         WooSideNavigation(
                             navController = navController,
-                            items = sideItems,
                             contentPadding = WindowInsets.statusBars.asPaddingValues()
                         )
                     }

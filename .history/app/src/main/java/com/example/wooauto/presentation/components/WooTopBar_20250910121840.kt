@@ -48,11 +48,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.util.Locale
-import androidx.compose.foundation.layout.Arrangement
-import com.example.wooauto.presentation.components.AppStatusStrip
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.unit.Dp
 
 /**
  * 统一的顶部栏组件，可以根据需要显示标题或搜索框
@@ -70,30 +65,15 @@ fun WooTopBar(
     showRefreshButton: Boolean = true,
     locale: Locale = Locale.getDefault(),
     modifier: Modifier = Modifier,
-    leadingContent: @Composable (() -> Unit)? = null,
-    centerContent: @Composable (() -> Unit)? = null,
-    trailingContent: @Composable (() -> Unit)? = null,
     additionalActions: @Composable (() -> Unit)? = null,
     showTitle: Boolean = true,
-    titleAlignment: Alignment.Horizontal = Alignment.CenterHorizontally,
-    titleStyle: TextStyle? = null,
-    showStatusStrip: Boolean = true,
-    barHeight: Dp? = null
+    titleAlignment: Alignment.Horizontal = Alignment.CenterHorizontally
 ) {
     // 定义纯色背景，不使用透明度
     val primaryColor = MaterialTheme.colorScheme.primary
     
     // 获取系统状态栏高度
     val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    
-    // 自适应高度
-    val configuration = LocalConfiguration.current
-    val defaultBarHeight = when {
-        configuration.screenWidthDp >= 840 -> 48.dp
-        configuration.screenWidthDp >= 600 -> 48.dp
-        else -> 46.dp
-    }
-    val resolvedBarHeight = barHeight ?: defaultBarHeight
     
     // 使用Column而不是Box，这样可以添加底部分隔线
     Column(
@@ -108,13 +88,10 @@ fun WooTopBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = resolvedBarHeight, max = resolvedBarHeight)
-                .padding(horizontal = 12.dp, vertical = 4.dp),
+                .heightIn(min = 56.dp, max = 56.dp)
+                .padding(horizontal = 12.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // 左侧插槽
-            leadingContent?.invoke()
-            
             // 如果显示搜索框
             if (showSearch) {
                 // 搜索框样式
@@ -128,17 +105,15 @@ fun WooTopBar(
                     locale = locale,
                     primaryColor = primaryColor
                 )
-            } else if (centerContent != null) {
-                Box(modifier = Modifier.weight(1f)) { centerContent() }
             } else if (showTitle && title.isNotEmpty()) {
                 // 显示标题
                 Text(
                     text = title,
-                    style = (titleStyle ?: MaterialTheme.typography.titleMedium.copy(
+                    style = MaterialTheme.typography.titleLarge.copy(
                         fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp,
-                        letterSpacing = 0.3.sp
-                    )),
+                        fontSize = 20.sp,
+                        letterSpacing = 0.5.sp
+                    ),
                     color = Color.White,
                     textAlign = when(titleAlignment) {
                         Alignment.Start -> TextAlign.Start
@@ -147,17 +122,15 @@ fun WooTopBar(
                     },
                     modifier = Modifier
                         .weight(1f)
-                        .padding(start = if (titleAlignment == Alignment.Start) 8.dp else 0.dp, top = 1.dp)
+                        .padding(start = if (titleAlignment == Alignment.Start) 8.dp else 0.dp, top = 2.dp)
                 )
             } else {
                 // 空白占位符
                 Spacer(modifier = Modifier.weight(1f))
             }
             
-            // 兼容旧的附加操作
+            // 附加操作按钮
             additionalActions?.invoke()
-            // 右侧插槽
-            trailingContent?.invoke()
 
             // 刷新按钮，只在需要时显示
             if (showRefreshButton) {
@@ -165,13 +138,13 @@ fun WooTopBar(
                     onClick = onRefresh,
                     enabled = !isRefreshing,
                     modifier = Modifier
-                        .size(40.dp)
-                        .padding(end = 0.dp)
+                        .size(44.dp)
+                        .padding(end = 2.dp)
                 ) {
                     if (isRefreshing) {
                         CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp),
-                            strokeWidth = 2.dp,
+                            modifier = Modifier.size(24.dp),
+                            strokeWidth = 2.5.dp,
                             color = Color.White
                         )
                     } else {
@@ -179,14 +152,10 @@ fun WooTopBar(
                             imageVector = Icons.Default.Refresh,
                             contentDescription = androidx.compose.ui.res.stringResource(id = com.example.wooauto.R.string.refresh),
                             tint = Color.White,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(22.dp)
                         )
                     }
                 }
-            }
-            
-            if (showStatusStrip) {
-                AppStatusStrip(modifier = Modifier.padding(start = 6.dp))
             }
         }
         

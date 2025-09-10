@@ -103,7 +103,8 @@ fun SettingsScreen(
     var showLicenseSettingsDialog by remember { mutableStateOf(false) }
     
     Scaffold(
-        snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
+        contentWindowInsets = WindowInsets(left = 0.dp, top = 0.dp, right = 0.dp, bottom = 0.dp)
     ) { paddingValues ->
         Column(
             modifier = Modifier

@@ -340,7 +340,8 @@ fun OrdersScreen(
     }
     
     Scaffold(
-        snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
+        contentWindowInsets = WindowInsets(left = 0.dp, top = 0.dp, right = 0.dp, bottom = 0.dp)
     ) { paddingValues ->
         // 获取系统状态栏和TopBar的组合高度
         val topPadding = paddingValues.calculateTopPadding()

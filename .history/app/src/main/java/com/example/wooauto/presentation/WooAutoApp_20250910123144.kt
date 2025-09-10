@@ -44,7 +44,6 @@ import com.example.wooauto.licensing.EligibilityStatus
 import com.example.wooauto.licensing.TrialTokenManager
 import com.example.wooauto.presentation.components.WooAppBar
 import com.example.wooauto.presentation.components.WooSideNavigation
-import com.example.wooauto.presentation.navigation.AppNavConfig
 import com.example.wooauto.navigation.NavigationItem
 import com.example.wooauto.presentation.navigation.Screen
 import com.example.wooauto.presentation.screens.orders.OrdersScreen
@@ -226,10 +225,8 @@ fun AppContent() {
                             .fillMaxHeight()
                             .width(leftWidth)
                     ) {
-                        val sideItems = remember { AppNavConfig.sideNavEntries() }
                         WooSideNavigation(
                             navController = navController,
-                            items = sideItems,
                             contentPadding = WindowInsets.statusBars.asPaddingValues()
                         )
                     }

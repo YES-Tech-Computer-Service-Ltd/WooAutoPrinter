@@ -31,7 +31,6 @@ import androidx.compose.runtime.setValue
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.wooauto.presentation.screens.orders.OrdersViewModel
 import com.example.wooauto.presentation.screens.orders.UnreadOrdersDialog
-import com.example.wooauto.presentation.navigation.AppNavConfig
 
 /**
  * 全局顶部栏组件
@@ -55,53 +54,71 @@ fun WooAppBar(
     var showUnreadOrders by remember { mutableStateOf(false) }
     
     // 决定显示哪种顶部栏
-    val spec = AppNavConfig.topBarSpecForRoute(currentRoute)
     when (currentRoute) {
         NavigationItem.Orders.route -> {
+            // 改为显示标题，隐藏搜索框（保留功能能力以便后续启用）
             val unreadOrdersText = stringResource(id = R.string.unread_orders)
+            
             WooTopBar(
-                title = stringResource(id = spec.titleResId),
+                title = stringResource(id = R.string.orders),
                 showSearch = false,
                 isRefreshing = false,
                 onRefresh = { },
                 showRefreshButton = false,
                 locale = locale,
                 showTitle = true,
-                titleAlignment = if (spec.alignStart) Alignment.Start else Alignment.CenterHorizontally,
-                showStatusStrip = spec.showStatusStrip,
-                trailingContent = if (spec.showUnreadButton) {
-                    {
-                        IconButton(
-                            onClick = { showUnreadOrders = true },
-                            modifier = Modifier
-                                .size(44.dp)
-                                .padding(end = 2.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Email,
-                                contentDescription = unreadOrdersText,
-                                tint = MaterialTheme.colorScheme.onPrimary,
-                                modifier = Modifier.size(22.dp)
-                            )
-                        }
+                additionalActions = {
+                    // 未读订单按钮保留
+                    IconButton(
+                        onClick = { showUnreadOrders = true },
+                        modifier = Modifier
+                            .size(44.dp)
+                            .padding(end = 2.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Email,
+                            contentDescription = unreadOrdersText,
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.size(22.dp)
+                        )
                     }
-                } else null
+                }
             )
+            
             if (showUnreadOrders) {
-                UnreadOrdersDialog(onDismiss = { showUnreadOrders = false })
+                UnreadOrdersDialog(
+                    onDismiss = { showUnreadOrders = false }
+                )
             }
         }
-        else -> {
+        NavigationItem.Products.route -> {
+            // 改为显示标题，隐藏搜索框（保留功能能力）
             WooTopBar(
-                title = stringResource(id = spec.titleResId),
+                title = stringResource(id = R.string.products),
                 showSearch = false,
                 isRefreshing = false,
                 onRefresh = { },
                 showRefreshButton = false,
                 locale = locale,
-                showTitle = true,
-                titleAlignment = if (spec.alignStart) Alignment.Start else Alignment.CenterHorizontally,
-                showStatusStrip = spec.showStatusStrip
+                showTitle = true
+            )
+        }
+        else -> {
+            // 其他页面(如Settings)使用默认顶部栏 - 显示左侧标题
+            val title = when (currentRoute) {
+                NavigationItem.Settings.route -> stringResource(id = R.string.settings)
+                else -> stringResource(id = R.string.app_name)
+            }
+            
+            WooTopBar(
+                title = title,
+                showSearch = false,
+                isRefreshing = false,
+                onRefresh = { },
+                showRefreshButton = false,
+                locale = locale,
+                showTitle = true, // 启用标题显示
+                titleAlignment = Alignment.Start // 左对齐标题
             )
         }
     }

@@ -380,7 +380,8 @@ private fun ProductsScreenContent(
         // 使用key防止Scaffold不必要的重组
         androidx.compose.runtime.key(products.size) {
                         Scaffold(
-                snackbarHost = { SnackbarHost(snackbarHostState) }
+                snackbarHost = { SnackbarHost(snackbarHostState) },
+                contentWindowInsets = WindowInsets(left = 0.dp, top = 0.dp, right = 0.dp, bottom = 0.dp)
             ) { paddingValues ->
                 // 主要内容区域
                 Box(
