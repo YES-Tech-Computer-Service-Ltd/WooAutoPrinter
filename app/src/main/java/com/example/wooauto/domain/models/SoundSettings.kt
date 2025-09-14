@@ -18,12 +18,20 @@ data class SoundSettings(
     val customSoundUri: String = ""
 ) {
     companion object {
-        // 提示音类型常量 - 全部使用系统声音，兼容安卓7
+        // 提示音类型常量
+        // 系统声音类型（保留兼容）
         const val SOUND_TYPE_DEFAULT = "default"           // 系统默认通知音
         const val SOUND_TYPE_ALARM = "system_alarm"        // 系统闹钟声音 - 最响亮
         const val SOUND_TYPE_RINGTONE = "system_ringtone"  // 系统电话铃声 - 较响亮
         const val SOUND_TYPE_EVENT = "system_event"        // 系统事件声音
         const val SOUND_TYPE_EMAIL = "system_email"        // 系统邮件声音
+        // 内置原始资源类型（res/raw）
+        const val SOUND_TYPE_BUILTIN_CHIME = "builtin_chime"       // 清脆叮咚
+        const val SOUND_TYPE_BUILTIN_BELL = "builtin_bell"         // 清亮铃声
+        const val SOUND_TYPE_BUILTIN_CASH = "builtin_cash"         // 收款提示
+        const val SOUND_TYPE_BUILTIN_TWO_TONE = "builtin_two_tone" // 双音提示
+        const val SOUND_TYPE_BUILTIN_ALERT = "builtin_alert"       // 紧急提醒
+        // 自定义音频
         const val SOUND_TYPE_CUSTOM = "custom"             // 自定义音频文件
         
         // 音量级别定义 - 7个级别对应不同的音量百分比
@@ -35,14 +43,22 @@ data class SoundSettings(
         const val VOLUME_LEVEL_VERY_LOUD = 700  // 很响 (700%)
         const val VOLUME_LEVEL_EXTREME = 1000   // 极响 (1000%)
         
-        // 获取所有可用的提示音类型
+        // 获取所有可用的提示音类型（UI 展示顺序：内置 -> 系统 -> 自定义）
         fun getAllSoundTypes(): List<String> {
             return listOf(
+                // 内置原始资源
+                SOUND_TYPE_BUILTIN_CHIME,
+                SOUND_TYPE_BUILTIN_BELL,
+                SOUND_TYPE_BUILTIN_CASH,
+                SOUND_TYPE_BUILTIN_TWO_TONE,
+                SOUND_TYPE_BUILTIN_ALERT,
+                // 系统声音（保留兼容）
                 SOUND_TYPE_DEFAULT,
                 SOUND_TYPE_ALARM,
                 SOUND_TYPE_RINGTONE,
                 SOUND_TYPE_EVENT,
                 SOUND_TYPE_EMAIL,
+                // 自定义
                 SOUND_TYPE_CUSTOM
             )
         }
@@ -80,14 +96,22 @@ data class SoundSettings(
             return levels.minByOrNull { kotlin.math.abs(it - percentage) } ?: VOLUME_LEVEL_MEDIUM
         }
         
-        // 获取声音类型的显示名称
+        // 获取声音类型的显示名称（作为兜底）
         fun getSoundTypeDisplayName(type: String): String {
             return when (type) {
+                // 内置原始资源
+                SOUND_TYPE_BUILTIN_CHIME -> "清脆叮咚"
+                SOUND_TYPE_BUILTIN_BELL -> "清亮铃声"
+                SOUND_TYPE_BUILTIN_CASH -> "收款提示"
+                SOUND_TYPE_BUILTIN_TWO_TONE -> "双音提示"
+                SOUND_TYPE_BUILTIN_ALERT -> "紧急提醒"
+                // 系统声音
                 SOUND_TYPE_DEFAULT -> "系统默认"
                 SOUND_TYPE_ALARM -> "系统闹钟"
                 SOUND_TYPE_RINGTONE -> "系统铃声"
                 SOUND_TYPE_EVENT -> "系统事件"
                 SOUND_TYPE_EMAIL -> "系统邮件"
+                // 自定义
                 SOUND_TYPE_CUSTOM -> "自定义音频"
                 else -> "系统默认"
             }

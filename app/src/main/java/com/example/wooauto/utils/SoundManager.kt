@@ -156,9 +156,11 @@ class SoundManager @Inject constructor(
     private var enableVibration = true  // 是否启用振动
     private var vibrationIntensity = 2  // 振动强度 (1=轻, 2=中, 3=强)
     
-    // 音频突破限制的增强组件
+    // 音频突破限制的增强组件（为避免多层播放时互相释放，按会话ID管理）
     private var loudnessEnhancer: LoudnessEnhancer? = null
     private var dynamicsProcessing: DynamicsProcessing? = null
+    private val loudnessEnhancersBySession = mutableMapOf<Int, LoudnessEnhancer>()
+    private val dynamicsProcessingBySession = mutableMapOf<Int, DynamicsProcessing>()
     private var audioTrack: AudioTrack? = null
     private val concurrentPlayers = mutableListOf<MediaPlayer>()
     
@@ -173,20 +175,25 @@ class SoundManager @Inject constructor(
      */
     private fun initializeSoundResources() {
         try {
-            // 我们使用系统声音，不需要加载自定义资源
-            Log.d(TAG, "使用系统提供的声音资源")
-            
-            // 尝试预先获取各种系统声音URI备用
+            // 建立内置原始资源映射（res/raw）
+            soundResources.clear()
+            soundResources[SoundSettings.SOUND_TYPE_BUILTIN_CHIME] = R.raw.notify_chime
+            soundResources[SoundSettings.SOUND_TYPE_BUILTIN_BELL] = R.raw.notify_bell
+            soundResources[SoundSettings.SOUND_TYPE_BUILTIN_CASH] = R.raw.notify_cash
+            soundResources[SoundSettings.SOUND_TYPE_BUILTIN_TWO_TONE] = R.raw.notify_two_tone
+            soundResources[SoundSettings.SOUND_TYPE_BUILTIN_ALERT] = R.raw.notify_alert
+
+            // 预取系统默认通知音效URI备用
             try {
                 systemNotificationUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
                 Log.d(TAG, "成功获取系统默认通知音效URI")
             } catch (e: Exception) {
                 Log.e(TAG, "获取系统通知音效URI失败", e)
             }
-            
+
             anySoundLoaded = true
-            Log.d(TAG, "声音资源初始化完成")
-            
+            Log.d(TAG, "声音资源初始化完成（含内置原始资源映射）")
+
         } catch (e: Exception) {
             Log.e(TAG, "初始化声音资源失败", e)
         }
@@ -213,7 +220,7 @@ class SoundManager @Inject constructor(
                 _currentSoundType.value = settings.soundType
                 _soundEnabled.value = settings.soundEnabled
                 _customSoundUri.value = settings.customSoundUri
-                // 同步“接单持续提示”独立设置，确保应用启动后立即生效
+                // 同步"接单持续提示"独立设置，确保应用启动后立即生效
                 try {
                     keepRingingUntilAccept = settingsRepository.getKeepRingingUntilAccept()
                     Log.d(TAG, "[声音设置加载] keepRingingUntilAccept=$keepRingingUntilAccept")
@@ -437,6 +444,22 @@ class SoundManager @Inject constructor(
         try {
             // 根据声音类型使用不同的系统声音ID或URI
             when(type) {
+                // 内置原始资源（res/raw）
+                SoundSettings.SOUND_TYPE_BUILTIN_CHIME,
+                SoundSettings.SOUND_TYPE_BUILTIN_BELL,
+                SoundSettings.SOUND_TYPE_BUILTIN_CASH,
+                SoundSettings.SOUND_TYPE_BUILTIN_TWO_TONE,
+                SoundSettings.SOUND_TYPE_BUILTIN_ALERT -> {
+                    val resId = soundResources[type]
+                    if (resId != null) {
+                        val uri = Uri.parse("android.resource://${context.packageName}/$resId")
+                        Log.d(TAG, "[内置音效] 播放 $type -> resId=$resId, uri=$uri")
+                        playSpecificSound(uri)
+                    } else {
+                        Log.w(TAG, "[内置音效] 未找到资源映射: $type，回退到系统默认通知")
+                        playSystemSound(RingtoneManager.TYPE_NOTIFICATION)
+                    }
+                }
                 SoundSettings.SOUND_TYPE_ALARM -> {
                     Log.d(TAG, "[系统音效] 播放系统闹钟声音")
                     // 使用系统闹钟声音
@@ -683,6 +706,22 @@ class SoundManager @Inject constructor(
         try {
             // 根据声音类型使用不同的系统声音ID或URI
             when(type) {
+                // 内置原始资源（res/raw）
+                SoundSettings.SOUND_TYPE_BUILTIN_CHIME,
+                SoundSettings.SOUND_TYPE_BUILTIN_BELL,
+                SoundSettings.SOUND_TYPE_BUILTIN_CASH,
+                SoundSettings.SOUND_TYPE_BUILTIN_TWO_TONE,
+                SoundSettings.SOUND_TYPE_BUILTIN_ALERT -> {
+                    val resId = soundResources[type]
+                    if (resId != null) {
+                        val uri = Uri.parse("android.resource://${context.packageName}/$resId")
+                        Log.d(TAG, "[测试音效] 内置 $type -> resId=$resId, uri=$uri")
+                        playSpecificSoundOnce(uri)
+                    } else {
+                        Log.w(TAG, "[测试音效] 未找到内置资源映射: $type，回退到系统默认通知")
+                        playSystemSoundOnce(RingtoneManager.TYPE_NOTIFICATION)
+                    }
+                }
                 SoundSettings.SOUND_TYPE_ALARM -> {
                     Log.d(TAG, "[测试音效] 播放系统闹钟声音")
                     playSystemSoundOnce(RingtoneManager.TYPE_ALARM)
@@ -847,7 +886,7 @@ class SoundManager @Inject constructor(
                     setDataSource(context, uri)
                     
                     // 轻微的延迟启动，创造更厚重的音效（减少延迟避免状态冲突）
-                    val delayMs = i * 20L
+                    val delayMs = 0L
                     
                     setOnPreparedListener { mediaPlayer ->
                         CoroutineScope(Dispatchers.Main).launch {
@@ -1047,26 +1086,24 @@ class SoundManager @Inject constructor(
      */
     private fun setupAudioEffects(audioSessionId: Int) {
         try {
-            // 清理之前的效果器
-            loudnessEnhancer?.release()
-            
-            // 音量增强器
+            // 为该会话单独创建或复用增强器，避免释放其他层的实例
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-                loudnessEnhancer = LoudnessEnhancer(audioSessionId).apply {
-                    // 设置极限增益（以毫贝为单位）
-                    val gainMb = when {
-                        _currentVolume.value >= 1000 -> 3000  // 极响：30dB增益
-                        _currentVolume.value >= 750 -> 2500   // 很响：25dB增益
-                        _currentVolume.value >= 500 -> 2000   // 响亮：20dB增益
-                        else -> 1500                          // 中等：15dB增益
-                    }
-                    
-                    setTargetGain(gainMb)
-                    setEnabled(true)
-                    Log.d(TAG, "[音频效果] LoudnessEnhancer 设置增益: ${gainMb}mB")
+                val existing = loudnessEnhancersBySession[audioSessionId]
+                val enhancer = existing ?: LoudnessEnhancer(audioSessionId).also {
+                    loudnessEnhancersBySession[audioSessionId] = it
                 }
+
+                val gainMb = when {
+                    _currentVolume.value >= 1000 -> 3000
+                    _currentVolume.value >= 750 -> 2500
+                    _currentVolume.value >= 500 -> 2000
+                    else -> 1500
+                }
+                try { enhancer.setTargetGain(gainMb) } catch (_: Exception) {}
+                try { enhancer.enabled = true } catch (_: Exception) {}
+                loudnessEnhancer = enhancer
+                Log.d(TAG, "[音频效果] LoudnessEnhancer(session=$audioSessionId) 设置增益: ${gainMb}mB")
             }
-            
         } catch (e: Exception) {
             Log.e(TAG, "[音频效果] 设置音频效果失败", e)
         }
@@ -1078,34 +1115,34 @@ class SoundManager @Inject constructor(
     private fun setupAdvancedAudioEffects(audioSessionId: Int) {
         try {
             setupAudioEffects(audioSessionId)
-            
+
             // 动态范围处理器（Android 9+）
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 try {
-                    dynamicsProcessing?.release()
-                    
                     val config = DynamicsProcessing.Config.Builder(
                         DynamicsProcessing.VARIANT_FAVOR_FREQUENCY_RESOLUTION,
-                        1, // 声道数
-                        true, // 预均衡器启用
-                        1, // 预均衡器频段数
-                        true, // 多频带压缩器启用
-                        1, // 多频带压缩器频段数
-                        true, // 后均衡器启用
-                        1, // 后均衡器频段数
-                        true  // 限幅器启用
+                        1,
+                        true,
+                        1,
+                        true,
+                        1,
+                        true,
+                        1,
+                        true
                     ).build()
-                    
-                    dynamicsProcessing = DynamicsProcessing(0, audioSessionId, config).apply {
-                        setEnabled(true)
-                        Log.d(TAG, "[高级音频效果] DynamicsProcessing 已启用")
+
+                    val existing = dynamicsProcessingBySession[audioSessionId]
+                    val processor = existing ?: DynamicsProcessing(0, audioSessionId, config).also {
+                        dynamicsProcessingBySession[audioSessionId] = it
                     }
-                    
+                    processor.setEnabled(true)
+                    dynamicsProcessing = processor
+                    Log.d(TAG, "[高级音频效果] DynamicsProcessing(session=$audioSessionId) 已启用")
                 } catch (e: Exception) {
                     Log.w(TAG, "[高级音频效果] DynamicsProcessing 设置失败: ${e.message}")
                 }
             }
-            
+
         } catch (e: Exception) {
             Log.e(TAG, "[高级音频效果] 设置高级音频效果失败", e)
         }
@@ -1116,11 +1153,11 @@ class SoundManager @Inject constructor(
      */
     private fun stopAllConcurrentPlayers() {
         Log.d(TAG, "[音频管理] 正在停止 ${concurrentPlayers.size} 个并发播放器")
-        
+
         // 创建副本避免并发修改
         val playersToStop = concurrentPlayers.toList()
         concurrentPlayers.clear()
-        
+
         playersToStop.forEach { player ->
             try {
                 if (player.isPlaying) {
@@ -1132,6 +1169,21 @@ class SoundManager @Inject constructor(
             } catch (e: Exception) {
                 Log.w(TAG, "[音频管理] 停止并发播放器失败: ${e.message}")
             }
+        }
+
+        // 释放所有会话绑定的效果器
+        loudnessEnhancersBySession.values.forEach { enhancer ->
+            try { enhancer.enabled = false } catch (_: Exception) {}
+            try { enhancer.release() } catch (_: Exception) {}
+        }
+        loudnessEnhancersBySession.clear()
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            dynamicsProcessingBySession.values.forEach { dp ->
+                try { dp.setEnabled(false) } catch (_: Exception) {}
+                try { dp.release() } catch (_: Exception) {}
+            }
+            dynamicsProcessingBySession.clear()
         }
     }
     
@@ -1325,29 +1377,43 @@ class SoundManager @Inject constructor(
      */
     private fun cleanupAudioEffects() {
         try {
-            loudnessEnhancer?.let {
-                it.setEnabled(false)
-                it.release()
-                loudnessEnhancer = null
-                Log.d(TAG, "[音频效果] LoudnessEnhancer 已清理")
+            // 优先释放并清空会话映射里的所有效果器（幂等）
+            loudnessEnhancersBySession.values.forEach { enhancer ->
+                try { enhancer.enabled = false } catch (_: Exception) {}
+                try { enhancer.release() } catch (_: Exception) {}
             }
-            
-            dynamicsProcessing?.let {
-                it.setEnabled(false)
-                it.release()
-                dynamicsProcessing = null
-                Log.d(TAG, "[音频效果] DynamicsProcessing 已清理")
-            }
-            
-            audioTrack?.let {
-                if (it.state == AudioTrack.STATE_INITIALIZED) {
-                    it.stop()
-                    it.release()
+            loudnessEnhancersBySession.clear()
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                dynamicsProcessingBySession.values.forEach { dp ->
+                    try { dp.setEnabled(false) } catch (_: Exception) {}
+                    try { dp.release() } catch (_: Exception) {}
                 }
+                dynamicsProcessingBySession.clear()
+            }
+
+            // 同时安全处理可能存在的全局引用（不依赖它们）
+            loudnessEnhancer?.let {
+                try { it.enabled = false } catch (_: Exception) {}
+                try { it.release() } catch (_: Exception) {}
+                loudnessEnhancer = null
+            }
+
+            dynamicsProcessing?.let {
+                try { it.setEnabled(false) } catch (_: Exception) {}
+                try { it.release() } catch (_: Exception) {}
+                dynamicsProcessing = null
+            }
+
+            audioTrack?.let { at ->
+                try {
+                    if (at.state == AudioTrack.STATE_INITIALIZED) { at.stop() }
+                } catch (_: Exception) {}
+                try { at.release() } catch (_: Exception) {}
                 audioTrack = null
-                Log.d(TAG, "[音频效果] AudioTrack 已清理")
             }
             
+            Log.d(TAG, "[音频效果] 已幂等清理所有效果器与音频轨道")
         } catch (e: Exception) {
             Log.e(TAG, "[音频效果] 清理音频效果时出错", e)
         }
@@ -1818,7 +1884,7 @@ class SoundManager @Inject constructor(
                         
                         setDataSource(context, uri)
                         
-                        val delayMs = i * 20L
+                        val delayMs = 0L
                         
                         setOnPreparedListener { mediaPlayer ->
                             CoroutineScope(Dispatchers.Main).launch {

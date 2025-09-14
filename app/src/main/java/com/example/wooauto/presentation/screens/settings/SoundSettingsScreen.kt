@@ -43,6 +43,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import androidx.compose.ui.semantics.Role
 import com.example.wooauto.R
 import com.example.wooauto.domain.models.SoundSettings
 import kotlinx.coroutines.launch
@@ -50,7 +51,7 @@ import java.io.File
 import java.io.FileOutputStream
 
 @Composable
-private fun KeepRingingSwitch(
+fun KeepRingingSwitch(
     enabled: Boolean,
     onEnabledChange: (Boolean) -> Unit,
     isSoundEnabled: Boolean
@@ -70,11 +71,11 @@ private fun KeepRingingSwitch(
             modifier = Modifier.weight(1f)
         ) {
             Text(
-                text = "接单持续提示",
+                text = stringResource(id = R.string.keep_ringing_title),
                 style = MaterialTheme.typography.titleMedium
             )
             Text(
-                text = "新订单到达后，提示音将持续响铃，直到你点击接受订单。",
+                text = stringResource(id = R.string.keep_ringing_desc),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -180,201 +181,146 @@ fun SoundSettingsScreen(
         audioFilePicker.launch(intent)
     }
     
-    Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        bottomBar = {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shadowElevation = 8.dp
-            ) {
-                Button(
-                    onClick = {
-                        coroutineScope.launch {
-                            viewModel.saveSettings()
-                            viewModel.stopSound()
-                            snackbarHostState.showSnackbar(savedMessage)
-                        }
-                        navController.navigateUp()
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Save,
-                        contentDescription = null,
-                        modifier = Modifier.padding(end = 8.dp)
-                    )
-                    Text(stringResource(id = R.string.save_settings))
-                }
+    // 使用统一的设置二级页骨架
+    com.example.wooauto.presentation.components.SettingsSubPageScaffold { _ ->
+        // 顶部摘要
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 4.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            val soundTypeDisplayName = viewModel.getSoundTypeDisplayName(soundType)
+            val volumeFormatted = stringResource(R.string.sound_volume_format, volume.coerceIn(0, 100))
+            val soundTypeFormatted = stringResource(R.string.sound_type_format, soundTypeDisplayName)
+            val statusText = stringResource(R.string.sound_status_format, volumeFormatted, soundTypeFormatted)
+
+            Text(
+                text = statusText,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            if (!soundEnabled) {
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = stringResource(R.string.sound_disabled),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error
+                )
             }
         }
-    ) { padding ->
+
+        // 滚动内容
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(
-                    top = 0.dp,
-                    bottom = padding.calculateBottomPadding(),
-                    start = 0.dp,
-                    end = 0.dp
-                )
+                .verticalScroll(scrollState)
+                .padding(vertical = 4.dp)
         ) {
-            // 外层Column，包含统一的水平内边距
-            Column(
+            // 声音开关
+            SoundEnabledSwitch(
+                enabled = soundEnabled,
+                onEnabledChange = {
+                    coroutineScope.launch { viewModel.setSoundEnabled(it) }
+                }
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // 接单持续提示开关
+            KeepRingingSwitch(
+                enabled = keepRingingUntilAccept,
+                onEnabledChange = { value -> coroutineScope.launch { viewModel.setKeepRingingUntilAccept(value) } },
+                isSoundEnabled = soundEnabled
+            )
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // 音量调节（显示0-100，不改内部含义）
+            Text(
+                text = stringResource(id = R.string.notification_volume),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = stringResource(id = R.string.notification_volume_desc),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // 将0-1000的内部值映射为0-100显示。反向写回时映射回近似档位。
+            val displayVolume = remember(volume) { (volume / 10).coerceIn(0, 100) }
+            Slider(
+                value = displayVolume.toFloat(),
+                onValueChange = { newValue ->
+                    val mapped = (newValue.toInt() * 10).coerceIn(0, 1000)
+                    coroutineScope.launch { viewModel.setVolume(mapped) }
+                },
+                valueRange = 0f..100f,
+                modifier = Modifier.fillMaxWidth(),
+                colors = SliderDefaults.colors(
+                    thumbColor = if (soundEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
+                    activeTrackColor = if (soundEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
+                    inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant
+                ),
+                enabled = soundEnabled
+            )
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // 声音类型
+            Text(
+                text = stringResource(id = R.string.sound_type_title),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = stringResource(id = R.string.sound_type_desc),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            SoundTypeSelector(
+                selectedType = soundType,
+                customSoundUri = customSoundUri,
+                onTypeSelected = { coroutineScope.launch { viewModel.setSoundType(it) } },
+                onSelectCustomSound = { openAudioFilePicker() },
+                enabled = soundEnabled
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 底部保存 / 测试
+            Button(
+                onClick = {
+                    coroutineScope.launch {
+                        viewModel.saveSettings()
+                        viewModel.stopSound()
+                        snackbarHostState.showSnackbar(savedMessage)
+                    }
+                    navController.navigateUp()
+                },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f)
-                    .padding(horizontal = 12.dp, vertical = 0.dp)
+                    .padding(vertical = 8.dp)
             ) {
-                // 增加顶部间距
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                // 顶部标题行，使用与其他页面一致的样式
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    // 返回按钮
-                    IconButton(
-                        onClick = { navController.navigateUp() },
-                        modifier = Modifier.size(40.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(id = R.string.back),
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                    
-                    // 标题
-                    Text(
-                        text = stringResource(id = R.string.notification_settings),
-                        style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-                
-                
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    val soundTypeDisplayName = viewModel.getSoundTypeDisplayName(soundType)
-                    val volumeFormatted = stringResource(R.string.sound_volume_format, volume)
-                    val soundTypeFormatted = stringResource(R.string.sound_type_format, soundTypeDisplayName)
-                    val statusText = stringResource(R.string.sound_status_format, volumeFormatted, soundTypeFormatted)
-                    
-                    Text(
-                        text = statusText,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    
-                    if (!soundEnabled) {
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "(已禁用)",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.error
-                        )
-                    }
-                }
-                
-                // 内容区域
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .verticalScroll(scrollState)
-                        .padding(vertical = 8.dp)
-                ) {
-                    // 声音开关
-                    SoundEnabledSwitch(
-                        enabled = soundEnabled,
-                        onEnabledChange = { 
-                            coroutineScope.launch {
-                                viewModel.setSoundEnabled(it)
-                            }
-                        }
-                    )
+                Icon(imageVector = Icons.Default.Save, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
+                Text(stringResource(id = R.string.save_settings))
+            }
 
-                    Spacer(modifier = Modifier.height(12.dp))
-                    // 接单持续提示开关（独立设置）
-                    KeepRingingSwitch(
-                        enabled = keepRingingUntilAccept,
-                        onEnabledChange = { value: Boolean ->
-                            coroutineScope.launch { viewModel.setKeepRingingUntilAccept(value) }
-                        },
-                        isSoundEnabled = soundEnabled
-                    )
-                    
-                    Spacer(modifier = Modifier.height(24.dp))
-                    
-                    // 音量调节部分
-                    Text(
-                        text = stringResource(id = R.string.notification_volume),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
-                    Text(
-                        text = stringResource(id = R.string.notification_volume_desc),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    
-                    Spacer(modifier = Modifier.height(16.dp))
-                    
-                    VolumeLevelSelector(
-                        value = volume,
-                        onValueChange = { 
-                            coroutineScope.launch {
-                                viewModel.setVolume(it)
-                            }
-                        },
-                        enabled = soundEnabled
-                    )
-                    
-                    Spacer(modifier = Modifier.height(32.dp))
-                    
-                    // 声音类型选择部分
-                    Text(
-                        text = stringResource(id = R.string.sound_type_title),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
-                    Text(
-                        text = stringResource(id = R.string.sound_type_desc),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    
-                    Spacer(modifier = Modifier.height(16.dp))
-                    
-                    SoundTypeSelector(
-                        selectedType = soundType,
-                        customSoundUri = customSoundUri,
-                        onTypeSelected = { 
-                            coroutineScope.launch {
-                                viewModel.setSoundType(it)
-                            }
-                        },
-                        onSelectCustomSound = {
-                            openAudioFilePicker()
-                        },
-                        enabled = soundEnabled
-                    )
-                }
+            OutlinedButton(
+                onClick = { viewModel.playTestSound() },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp),
+                enabled = soundEnabled
+            ) {
+                Icon(imageVector = Icons.AutoMirrored.Filled.VolumeUp, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
+                Text(stringResource(id = R.string.sound_test))
             }
         }
     }
@@ -473,70 +419,19 @@ fun VolumeLevelSelector(
         
         Spacer(modifier = Modifier.height(16.dp))
         
-        // 音量档位选择器
-        val volumeLevels = listOf(
-            0 to stringResource(R.string.volume_level_silent),
-            100 to stringResource(R.string.volume_level_soft), 
-            300 to stringResource(R.string.volume_level_medium),
-            500 to stringResource(R.string.volume_level_loud),
-            750 to stringResource(R.string.volume_level_very_loud),
-            1000 to stringResource(R.string.volume_level_extreme)
-        )
-        
-        // 找到当前值对应的档位索引
-        val currentLevelIndex = volumeLevels.indexOfLast { it.first <= value }.coerceAtLeast(0)
-        
+        // 简化为0-100滑块，不显示过多档位说明
+        val displayVolume = remember(value) { (value / 10).coerceIn(0, 100) }
         Slider(
-            value = currentLevelIndex.toFloat(),
-            onValueChange = { newIndex -> 
-                val selectedLevel = volumeLevels[newIndex.toInt()]
-                onValueChange(selectedLevel.first)
-            },
+            value = displayVolume.toFloat(),
+            onValueChange = { newValue -> onValueChange((newValue.toInt() * 10).coerceIn(0, 1000)) },
             modifier = Modifier.fillMaxWidth(),
             enabled = enabled,
-            valueRange = 0f..(volumeLevels.size - 1).toFloat(),
-            steps = volumeLevels.size - 2, // steps = 档位数量 - 2
+            valueRange = 0f..100f,
             colors = SliderDefaults.colors(
                 thumbColor = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
                 activeTrackColor = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
                 inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant
             )
-        )
-        
-        Spacer(modifier = Modifier.height(8.dp))
-        
-        // 显示档位标记
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            volumeLevels.forEach { (_, levelName) ->
-                Text(
-                    text = levelName,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                )
-            }
-        }
-        
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        // 当前音量级别说明
-        val currentLevel = volumeLevels[currentLevelIndex]
-        Text(
-            text = when (currentLevel.first) {
-                0 -> "🔇 ${stringResource(R.string.volume_level_silent)} - 无声音提示"
-                100 -> "🔈 ${stringResource(R.string.volume_level_soft)} - 适用于安静环境"
-                300 -> "🔉 ${stringResource(R.string.volume_level_medium)} - 适用于一般环境"
-                500 -> "📢 ${stringResource(R.string.volume_level_loud)} - 适用于嘈杂环境"
-                750 -> "🔊 ${stringResource(R.string.volume_level_very_loud)} - 适用于忙碌餐厅"
-                1000 -> "⚠️ ${stringResource(R.string.volume_level_extreme)} - 适用于极度嘈杂环境"
-                else -> "🔊 当前音量级别"
-            },
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontWeight = FontWeight.Medium,
-            modifier = Modifier.fillMaxWidth()
         )
     }
 }
@@ -551,16 +446,25 @@ fun SoundTypeSelector(
 ) {
     // 声音类型列表和对应的字符串资源ID映射
     val soundTypeResources = mapOf(
-        SoundSettings.SOUND_TYPE_DEFAULT to R.string.sound_type_default,
-        SoundSettings.SOUND_TYPE_ALARM to R.string.sound_type_alarm,
-        SoundSettings.SOUND_TYPE_RINGTONE to R.string.sound_type_ringtone,
-        SoundSettings.SOUND_TYPE_EVENT to R.string.sound_type_event,
-        SoundSettings.SOUND_TYPE_EMAIL to R.string.sound_type_email,
+        // 仅展示内置原始资源与自定义
+        SoundSettings.SOUND_TYPE_BUILTIN_CHIME to R.string.builtin_sound_chime,
+        SoundSettings.SOUND_TYPE_BUILTIN_BELL to R.string.builtin_sound_bell,
+        SoundSettings.SOUND_TYPE_BUILTIN_CASH to R.string.builtin_sound_cash,
+        SoundSettings.SOUND_TYPE_BUILTIN_TWO_TONE to R.string.builtin_sound_two_tone,
+        SoundSettings.SOUND_TYPE_BUILTIN_ALERT to R.string.builtin_sound_alert,
         SoundSettings.SOUND_TYPE_CUSTOM to R.string.sound_type_custom
     )
     
     // 所有声音类型平铺展示
-    val allSoundTypes = SoundSettings.getAllSoundTypes()
+    // 仅显示内置 + 自定义（系统类型在UI隐藏，旧值已在存取层做一次性映射）
+    val allSoundTypes = listOf(
+        SoundSettings.SOUND_TYPE_BUILTIN_CHIME,
+        SoundSettings.SOUND_TYPE_BUILTIN_BELL,
+        SoundSettings.SOUND_TYPE_BUILTIN_CASH,
+        SoundSettings.SOUND_TYPE_BUILTIN_TWO_TONE,
+        SoundSettings.SOUND_TYPE_BUILTIN_ALERT,
+        SoundSettings.SOUND_TYPE_CUSTOM
+    )
     
     Column(
         modifier = Modifier.fillMaxWidth()
@@ -585,14 +489,15 @@ fun SoundTypeSelector(
                     .selectable(
                         selected = isSelected,
                         onClick = { onTypeSelected(type) },
-                        enabled = enabled
+                        enabled = enabled,
+                        role = Role.RadioButton
                     )
                     .padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 RadioButton(
                     selected = isSelected,
-                    onClick = { onTypeSelected(type) },
+                    onClick = null,
                     enabled = enabled
                 )
                 
@@ -625,7 +530,7 @@ fun SoundTypeSelector(
                             val file = File(customSoundUri)
                             file.name
                         } else {
-                            "未选择音频文件"
+                            stringResource(id = R.string.no_audio_file_selected)
                         }
                         
                         Text(
@@ -646,7 +551,7 @@ fun SoundTypeSelector(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Upload,
-                            contentDescription = "选择音频文件",
+                            contentDescription = stringResource(id = R.string.select_audio_file),
                             tint = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
                         )
                     }
@@ -918,75 +823,7 @@ fun SoundSettingsDialogContent(
                     
                     Spacer(modifier = Modifier.height(24.dp))
                     
-                    // 极限音量增强说明卡片
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFE3F2FD))
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(16.dp)
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.VolumeUp,
-                                    contentDescription = null,
-                                    tint = Color(0xFF1976D2),
-                                    modifier = Modifier.size(24.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = stringResource(R.string.extreme_volume_title),
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF1976D2)
-                                )
-                            }
-                            
-                            Spacer(modifier = Modifier.height(8.dp))
-                            
-                            Text(
-                                text = stringResource(R.string.extreme_volume_desc),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = Color(0xFF333333)
-                            )
-                            
-                            Spacer(modifier = Modifier.height(8.dp))
-                            
-                            // 技术特性列表
-                            listOf(
-                                R.string.multi_layer_audio,
-                                R.string.audio_enhancement,
-                                R.string.volume_booster
-                            ).forEach { stringRes ->
-                                Row(
-                                    modifier = Modifier.padding(vertical = 1.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = "• ",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = Color(0xFF1976D2)
-                                    )
-                                    Text(
-                                        text = stringResource(stringRes),
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = Color(0xFF555555)
-                                    )
-                                }
-                            }
-                            
-                            Spacer(modifier = Modifier.height(8.dp))
-                            
-                            Text(
-                                text = stringResource(R.string.extreme_volume_note),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Color(0xFF666666),
-                                fontStyle = FontStyle.Italic
-                            )
-                        }
-                    }
+                    // 移除“极限音量增强”说明卡片，保持页面简洁
                 }
                 
                 // 底部操作区域

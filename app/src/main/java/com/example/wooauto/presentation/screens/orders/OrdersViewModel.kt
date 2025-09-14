@@ -38,6 +38,7 @@ import kotlinx.coroutines.withContext
 import java.util.Calendar
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.CancellationException
+import com.example.wooauto.utils.SoundManager
 
 @HiltViewModel
 class OrdersViewModel @Inject constructor(
@@ -46,7 +47,8 @@ class OrdersViewModel @Inject constructor(
     private val printerManager: PrinterManager,
     private val wooCommerceConfig: com.example.wooauto.data.local.WooCommerceConfig,
     @ApplicationContext private val context: Context,
-    val licenseManager: com.example.wooauto.licensing.LicenseManager
+    val licenseManager: com.example.wooauto.licensing.LicenseManager,
+    private val soundManager: SoundManager
 ) : ViewModel() {
 
     companion object {
@@ -692,14 +694,9 @@ class OrdersViewModel @Inject constructor(
                     _selectedOrder.value = result.getOrNull()
                     // 刷新订单，确保使用现有的状态过滤
                     refreshOrders()
-                    // Stop sounds if status changed to completed
+                    // 接单/完成后立即止音
                     if (newStatus == "completed") {
-                        // Assuming soundManager is a global or accessible object
-                        // If not, you might need to inject it or pass it as a parameter
-                        // For now, assuming it's available in the scope or context
-                        // If not, this line will cause a compilation error.
-                        // If you have a soundManager instance, uncomment and use it:
-                        // soundManager.stopAllSounds()
+                        try { soundManager.stopAllSounds() } catch (_: Exception) {}
                     }
                 } else {
                     Log.e(TAG, "乐观更新-更新订单状态失败: ${result.exceptionOrNull()?.message}")
