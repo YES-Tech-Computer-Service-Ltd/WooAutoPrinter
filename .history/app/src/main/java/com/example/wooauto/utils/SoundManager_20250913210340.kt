@@ -693,8 +693,11 @@ class SoundManager @Inject constructor(
         performVibration()
 
         try {
-            // 预览只用单层，避免叠加产生冲突感
-            val layers = 1
+            val layers = when {
+                _currentVolume.value >= 1000 -> 3
+                _currentVolume.value >= 750 -> 2
+                else -> 1
+            }
             val applyEnhancement = _currentVolume.value >= 500
 
             when (type) {

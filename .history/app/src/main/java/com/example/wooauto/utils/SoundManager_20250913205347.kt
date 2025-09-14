@@ -110,6 +110,7 @@ class SoundManager @Inject constructor(
     private val BATCH_NOTIFICATION_DELAY = 500L // 批量通知延迟，单位毫秒
 
     // 防止测试声音连续播放（Legacy已移除，仅保留标志）
+    private var ringtonePlayer: android.media.Ringtone? = null
     private var testSoundPlaying = false
 
     // 接单持续提示设置与状态
@@ -264,20 +265,6 @@ class SoundManager @Inject constructor(
             "[音效播放] 原因: 设置音量测试 - 新音量: $safeVolume, 声音类型: ${_currentSoundType.value}"
         )
         playTestSoundOnce(_currentSoundType.value)
-    }
-
-    /**
-     * 设置通知音量（静默，不触发预览）
-     * @param volume 0-1000
-     */
-    suspend fun setVolumeQuiet(volume: Int) {
-        val safeVolume = when {
-            volume < 0 -> 0
-            volume > 1000 -> 1000
-            else -> volume
-        }
-        _currentVolume.value = safeVolume
-        saveSettings()
     }
 
     /**
@@ -693,8 +680,11 @@ class SoundManager @Inject constructor(
         performVibration()
 
         try {
-            // 预览只用单层，避免叠加产生冲突感
-            val layers = 1
+            val layers = when {
+                _currentVolume.value >= 1000 -> 3
+                _currentVolume.value >= 750 -> 2
+                else -> 1
+            }
             val applyEnhancement = _currentVolume.value >= 500
 
             when (type) {
@@ -1024,7 +1014,9 @@ class SoundManager @Inject constructor(
         }
     }
 
-    /** 旧后端回退（已保留接口，实际不再使用） */
+    /**
+     * 旧后端回退：使用 Ringtone/MediaPlayer 路径
+     */
     private fun legacyStartPlayback(
         uri: Uri,
         playOnce: Boolean,
@@ -1119,7 +1111,7 @@ class SoundManager @Inject constructor(
 
         val exoAttrs = ExoAudioAttributes.Builder()
             .setUsage(C.USAGE_NOTIFICATION_RINGTONE)
-            .setContentType(C.AUDIO_CONTENT_TYPE_SONIFICATION)
+            .setContentType(C.CONTENT_TYPE_SONIFICATION)
             .build()
 
         val layers = layeredCount.coerceAtLeast(1)
@@ -1213,18 +1205,42 @@ class SoundManager @Inject constructor(
 
             // 同时安全处理可能存在的全局引用（不依赖它们）
             loudnessEnhancer?.let {
-                try { it.enabled = false } catch (_: Exception) {}
-                try { it.release() } catch (_: Exception) {}
+                try {
+                    it.enabled = false
+                } catch (_: Exception) {
+                }
+                try {
+                    it.release()
+                } catch (_: Exception) {
+                }
                 loudnessEnhancer = null
             }
 
             dynamicsProcessing?.let {
-                try { it.setEnabled(false) } catch (_: Exception) {}
-                try { it.release() } catch (_: Exception) {}
+                try {
+                    it.setEnabled(false)
+                } catch (_: Exception) {
+                }
+                try {
+                    it.release()
+                } catch (_: Exception) {
+                }
                 dynamicsProcessing = null
             }
 
-            // 已移除 AudioTrack 路径
+            // audioTrack?.let { at -> // audioTrack 已移除
+            //     try {
+            //         if (at.state == AudioTrack.STATE_INITIALIZED) {
+            //             at.stop()
+            //         }
+            //     } catch (_: Exception) {
+            //     }
+            //     try {
+            //         at.release()
+            //     } catch (_: Exception) {
+            //     }
+            //     audioTrack = null
+            // }
 
             Log.d(TAG, "[音频效果] 已幂等清理所有效果器与音频轨道")
         } catch (e: Exception) {
@@ -1582,8 +1598,16 @@ class SoundManager @Inject constructor(
      */
     private fun playStandardSoundOnce(uri: Uri) {
         try {
-            Log.d(TAG, "[测试音效-Exo] 标准播放一次")
-            startExoPlayback(uri, playOnce = true, applyEnhancement = false, layeredCount = 1, triggerRepeat = false)
+            ringtonePlayer = RingtoneManager.getRingtone(context, uri)
+            ringtonePlayer?.play()
+            testSoundPlaying = true
+
+            CoroutineScope(Dispatchers.Main).launch {
+                delay(3000)
+                stopCurrentSound()
+                // 注意：这里不调用 handleRepeatPlay()，因为是单次播放
+            }
+
         } catch (e: Exception) {
             Log.e(TAG, "[测试音效] 标准播放失败", e)
             playFallbackSoundOnce()
@@ -1595,8 +1619,27 @@ class SoundManager @Inject constructor(
      */
     private fun playWithStandardEnhancementOnce(uri: Uri) {
         try {
-            Log.d(TAG, "[测试音效-Exo] 标准增强一次")
-            startExoPlayback(uri, playOnce = true, applyEnhancement = true, layeredCount = 1, triggerRepeat = false)
+            ringtonePlayer = RingtoneManager.getRingtone(context, uri)
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                try {
+                    val volumeGain = (_currentVolume.value / 100f).coerceAtMost(2.5f)
+                    ringtonePlayer?.volume = volumeGain
+                    Log.d(TAG, "[测试音效] 设置音量增益: $volumeGain")
+                } catch (e: Exception) {
+                    Log.w(TAG, "[测试音效] 设置音量失败: ${e.message}")
+                }
+            }
+
+            ringtonePlayer?.play()
+            testSoundPlaying = true
+
+            CoroutineScope(Dispatchers.Main).launch {
+                delay(3000)
+                stopCurrentSound()
+                // 注意：这里不调用 handleRepeatPlay()
+            }
+
         } catch (e: Exception) {
             Log.e(TAG, "[测试音效] 标准增强播放失败", e)
             playStandardSoundOnce(uri)
@@ -1608,8 +1651,112 @@ class SoundManager @Inject constructor(
      */
     private fun playWithAudioEnhancementOnce(uri: Uri) {
         try {
-            Log.d(TAG, "[测试音效-Exo] 音频增强一次")
-            startExoPlayback(uri, playOnce = true, applyEnhancement = true, layeredCount = 1, triggerRepeat = false)
+            Log.d(TAG, "[测试音效] 音频增强播放，目标音量: ${_currentVolume.value}% (仅播放一次)")
+
+            // val player = MediaPlayer().apply { // MediaPlayer 已移除
+            //     setAudioAttributes(
+            //         AudioAttributes.Builder()
+            //             .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+            //             .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            //             .setFlags(AudioAttributes.FLAG_AUDIBILITY_ENFORCED)
+            //             .build()
+            //     )
+
+            //     setDataSource(context, uri)
+
+            //     setOnPreparedListener { mediaPlayer ->
+            //         try {
+            //             mediaPlayer.setVolume(1.0f, 1.0f)
+            //             setupAdvancedAudioEffects(mediaPlayer.audioSessionId)
+            //             mediaPlayer.start()
+            //             Log.d(TAG, "[测试音效] 音频增强播放启动")
+            //         } catch (e: Exception) {
+            //             Log.e(TAG, "[测试音效] 播放器设置失败: ${e.message}")
+            //         }
+            //     }
+
+            //     setOnCompletionListener {
+            //         try {
+            //             this.release()
+            //             testSoundPlaying = false
+            //         } catch (e: Exception) {
+            //             Log.w(TAG, "[测试音效] 播放器释放失败: ${e.message}")
+            //         }
+            //     }
+
+            //     setOnErrorListener { _, what, extra ->
+            //         Log.e(TAG, "[测试音效] MediaPlayer错误: what=$what, extra=$extra")
+            //         testSoundPlaying = false
+            //         true
+            //     }
+
+            //     prepareAsync()
+            // }
+
+            // ringtonePlayer = null
+            // testSoundPlaying = true
+
+            // CoroutineScope(Dispatchers.Main).launch {
+            //     delay(3000)
+            //     try {
+            //         if (player.isPlaying) {
+            //             player.stop()
+            //         }
+            //         player.release()
+            //     } catch (e: Exception) {
+            //         Log.w(TAG, "[测试音效] 停止播放器失败: ${e.message}")
+            //     }
+            //     // 注意：这里不调用 handleRepeatPlay()
+            // }
+
+            // ExoPlayer 播放
+            val player = ExoPlayer.Builder(context).build()
+            player.setAudioAttributes(
+                ExoAudioAttributes.Builder()
+                    .setUsage(C.USAGE_NOTIFICATION_RINGTONE)
+                    .setContentType(C.CONTENT_TYPE_SONIFICATION)
+                    .build()
+            )
+            player.setMediaItem(MediaItem.fromUri(uri))
+            player.volume = 1.0f
+
+            player.addListener(object : Player.Listener {
+                override fun onPlaybackStateChanged(state: Int) {
+                    if (state == Player.STATE_READY) {
+                        try {
+                            setupAdvancedAudioEffects(player.audioSessionId)
+                            player.playWhenReady = true
+                            Log.d(TAG, "[测试音效] 音频增强播放启动")
+                        } catch (e: Exception) {
+                            Log.e(TAG, "[测试音效] 播放器设置失败: ${e.message}")
+                        }
+                    } else if (state == Player.STATE_ENDED) {
+                        try {
+                            player.release()
+                        } catch (e: Exception) {
+                            Log.w(TAG, "[测试音效] 播放器释放失败: ${e.message}")
+                        }
+                        testSoundPlaying = false
+                    }
+                }
+            })
+
+            player.prepare()
+            player.playWhenReady = true
+
+            CoroutineScope(Dispatchers.Main).launch {
+                delay(3000)
+                try {
+                    if (player.isPlaying) {
+                        player.stop()
+                    }
+                    player.release()
+                } catch (e: Exception) {
+                    Log.w(TAG, "[测试音效] 停止播放器失败: ${e.message}")
+                }
+                // 注意：这里不调用 handleRepeatPlay()
+            }
+
         } catch (e: Exception) {
             Log.e(TAG, "[测试音效] 音频增强播放失败", e)
             playStandardSoundOnce(uri)
@@ -1621,13 +1768,129 @@ class SoundManager @Inject constructor(
      */
     private fun playWithMultipleAudioLayersOnce(uri: Uri) {
         try {
-            val layers = when {
+            Log.d(TAG, "[测试音效] 多音频叠加播放，目标音量: ${_currentVolume.value}% (仅播放一次)")
+
+            val layerCount = when {
                 _currentVolume.value >= 1000 -> 3
                 _currentVolume.value >= 750 -> 2
                 else -> 2
             }
-            Log.d(TAG, "[测试音效-Exo] 多层叠加一次 layers=$layers")
-            startExoPlayback(uri, playOnce = true, applyEnhancement = true, layeredCount = layers, triggerRepeat = false)
+
+            // stopAllConcurrentPlayers() // Legacy 移除
+            // Thread.sleep(50) // Legacy 移除
+
+            for (i in 0 until layerCount) {
+                try {
+                    // val player = MediaPlayer().apply { // MediaPlayer 已移除
+                    //     setAudioAttributes(
+                    //         AudioAttributes.Builder()
+                    //             .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+                    //             .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    //             .setFlags(AudioAttributes.FLAG_AUDIBILITY_ENFORCED)
+                    //             .build()
+                    //     )
+
+                    //     setDataSource(context, uri)
+
+                    //     val delayMs = 0L
+
+                    //     setOnPreparedListener { mediaPlayer ->
+                    //         CoroutineScope(Dispatchers.Main).launch {
+                    //             delay(delayMs)
+
+                    //             try {
+                    //                 if (mediaPlayer.isPlaying || !concurrentPlayers.contains(this@apply)) {
+                    //                     Log.w(
+                    //                         TAG,
+                    //                         "[测试音效] MediaPlayer状态异常，跳过第${i + 1}层音频"
+                    //                     )
+                    //                     return@launch
+                    //                 }
+
+                    //                 mediaPlayer.setVolume(1.0f, 1.0f)
+                    //                 setupAudioEffects(mediaPlayer.audioSessionId)
+                    //                 mediaPlayer.start()
+                    //                 Log.d(TAG, "[测试音效] 启动第${i + 1}层音频，延迟: ${delayMs}ms")
+                    //             } catch (e: IllegalStateException) {
+                    //                 Log.e(
+                    //                     TAG,
+                    //                     "[测试音效] MediaPlayer状态错误，第${i + 1}层音频启动失败: ${e.message}"
+                    //                 )
+                    //             } catch (e: Exception) {
+                    //                 Log.e(TAG, "[测试音效] 第${i + 1}层音频启动出错: ${e.message}")
+                    //             }
+                    //         }
+                    //     }
+
+                    //     setOnCompletionListener {
+                    //         try {
+                    //             concurrentPlayers.remove(this)
+                    //             this.release()
+                    //         } catch (e: Exception) {
+                    //             Log.w(TAG, "[测试音效] 播放完成处理失败: ${e.message}")
+                    //         }
+                    //     }
+
+                    //     setOnErrorListener { _, what, extra ->
+                    //         Log.e(
+                    //             TAG,
+                    //             "[测试音效] 第${i + 1}层MediaPlayer错误: what=$what, extra=$extra"
+                    //         )
+                    //         concurrentPlayers.remove(this)
+                    //         true
+                    //     }
+
+                    //     prepareAsync()
+                    // }
+
+                    // concurrentPlayers.add(player) // Legacy 移除
+
+                    // ExoPlayer 播放
+                    val player = ExoPlayer.Builder(context).build()
+                    player.setAudioAttributes(
+                        ExoAudioAttributes.Builder()
+                            .setUsage(C.USAGE_NOTIFICATION_RINGTONE)
+                            .setContentType(C.CONTENT_TYPE_SONIFICATION)
+                            .build()
+                    )
+                    player.setMediaItem(MediaItem.fromUri(uri))
+                    player.volume = 1.0f
+
+                    player.addListener(object : Player.Listener {
+                        override fun onPlaybackStateChanged(state: Int) {
+                            if (state == Player.STATE_READY) {
+                                try {
+                                    setupAudioEffects(player.audioSessionId)
+                                    player.playWhenReady = true
+                                    Log.d(TAG, "[测试音效] 启动第${i + 1}层音频")
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "[测试音效] 第${i + 1}层音频启动出错: ${e.message}")
+                                }
+                            } else if (state == Player.STATE_ENDED) {
+                                try {
+                                    player.release()
+                                } catch (e: Exception) {
+                                    Log.w(TAG, "[测试音效] 第${i + 1}层音频释放失败: ${e.message}")
+                                }
+                            }
+                        }
+                    })
+
+                    player.prepare()
+                    player.playWhenReady = true
+                } catch (e: Exception) {
+                    Log.e(TAG, "[测试音效] 创建第${i + 1}层ExoPlayer失败: ${e.message}")
+                }
+            }
+
+            testSoundPlaying = true
+
+            CoroutineScope(Dispatchers.Main).launch {
+                delay(3500)
+                // stopAllConcurrentPlayers() // Legacy 移除
+                // 注意：这里不调用 handleRepeatPlay()
+            }
+
         } catch (e: Exception) {
             Log.e(TAG, "[测试音效] 多音频叠加播放失败", e)
             playStandardSoundOnce(uri)
@@ -1640,8 +1903,15 @@ class SoundManager @Inject constructor(
     private fun playFallbackSoundOnce() {
         try {
             val fallbackUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-            Log.d(TAG, "[测试音效-Exo] 使用备用系统通知声音一次")
-            startExoPlayback(fallbackUri, playOnce = true, applyEnhancement = false, layeredCount = 1, triggerRepeat = false)
+            ringtonePlayer = RingtoneManager.getRingtone(context, fallbackUri)
+            ringtonePlayer?.play()
+            Log.d(TAG, "[测试音效] 使用备用系统通知声音")
+
+            CoroutineScope(Dispatchers.Main).launch {
+                delay(3000)
+                stopCurrentSound()
+                // 注意：这里不调用 handleRepeatPlay()
+            }
         } catch (e: Exception) {
             Log.e(TAG, "[测试音效] 播放备用声音也失败", e)
         }

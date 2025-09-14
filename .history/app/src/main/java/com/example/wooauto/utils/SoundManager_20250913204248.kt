@@ -1,11 +1,11 @@
 package com.example.wooauto.utils
 
-// 添加突破音量限制的新导入
 import android.content.Context
 import android.media.AudioManager
 import android.media.RingtoneManager
-import android.media.audiofx.DynamicsProcessing
+// 添加突破音量限制的新导入
 import android.media.audiofx.LoudnessEnhancer
+import android.media.audiofx.DynamicsProcessing
 import android.net.Uri
 import android.os.Build
 import android.os.VibrationEffect
@@ -20,6 +20,7 @@ import com.google.android.exoplayer2.C
 import com.google.android.exoplayer2.ExoPlayer
 import com.google.android.exoplayer2.MediaItem
 import com.google.android.exoplayer2.Player
+import com.google.android.exoplayer2.audio.AudioAttributes as ExoAudioAttributes
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -29,7 +30,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
-import com.google.android.exoplayer2.audio.AudioAttributes as ExoAudioAttributes
+import java.io.FileInputStream
+import kotlin.math.max
+import kotlin.math.min
 
 /**
  * 声音管理器 - 极限音量增强版
@@ -43,120 +46,118 @@ class SoundManager @Inject constructor(
 ) {
     companion object {
         private const val TAG = "SoundManager"
-
         // 音频突破增强常量
         private const val MAX_CONCURRENT_SOUNDS = 6  // 最大同时播放音频数量（音频叠加）
         private const val AUDIO_BOOST_MULTIPLIER = 3.0f  // 音频数据预处理放大倍数
         private const val MIN_PLAY_INTERVAL = 500L // 最小播放间隔，防止过度频繁播放
         private const val BATCH_NOTIFICATION_DELAY = 1500L // 批量通知延迟
     }
-
+    
     // 移除声音池 Legacy 实现
-
+    
     // 音频管理器
     private val audioManager: AudioManager by lazy {
         context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     }
-
+    
     // 振动器管理器 - 用于在嘈杂环境下提供触觉反馈
     private val vibrator: Vibrator by lazy {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val vibratorManager =
-                context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
+            val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
             vibratorManager.defaultVibrator
         } else {
             @Suppress("DEPRECATION")
             context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
         }
     }
-
+    
     // 当前音量和声音类型状态
     private val _currentVolume = MutableStateFlow(70)
     val currentVolume: StateFlow<Int> = _currentVolume.asStateFlow()
-
+    
     private val _currentSoundType = MutableStateFlow(SoundSettings.SOUND_TYPE_DEFAULT)
     val currentSoundType: StateFlow<String> = _currentSoundType.asStateFlow()
-
+    
     private val _soundEnabled = MutableStateFlow(true)
     val soundEnabled: StateFlow<Boolean> = _soundEnabled.asStateFlow()
-
+    
     // 自定义声音URI
     private val _customSoundUri = MutableStateFlow("")
     val customSoundUri: StateFlow<String> = _customSoundUri.asStateFlow()
-
+    
     // 声音资源ID映射
     private val soundResources = mutableMapOf<String, Int>()
-
+    
     // 已加载的声音ID映射
     private val loadedSounds = mutableMapOf<String, Int>()
-
+    
     // 系统通知音效
     private var systemNotificationUri: Uri? = null
     private var useSystemSound = false
-
+    
     // 默认音效ID，如果找不到指定的音效，则使用此ID
     private var defaultSoundId = -1
 
     // 表示是否已成功加载任何声音
     private var anySoundLoaded = false
-
+    
     // 防止短时间内重复播放声音
     private var lastPlayTime = 0L
     private val MIN_PLAY_INTERVAL = 1000L // 最小播放间隔，单位毫秒
-
+    
     // 批量通知处理
     private var pendingNotifications = 0
     private val notificationLock = Any()
     private val BATCH_NOTIFICATION_DELAY = 500L // 批量通知延迟，单位毫秒
-
-    // 防止测试声音连续播放（Legacy已移除，仅保留标志）
+    
+    // 防止测试声音连续播放
+    private var ringtonePlayer: android.media.Ringtone? = null
     private var testSoundPlaying = false
-
+    
+    // 播放自定义声音文件
+    private var mediaPlayer: MediaPlayer? = null
     // 接单持续提示设置与状态
     private var keepRingingUntilAccept: Boolean = false
     private var isLoopingForAcceptance: Boolean = false
     private var loopGuardJob: kotlinx.coroutines.Job? = null
     private var ringtoneLoopJob: kotlinx.coroutines.Job? = null
     private var continuousRingingJob: kotlinx.coroutines.Job? = null
-
+    
     // 系统音量管理 - 用于在播放提示音时临时提升音量
     private var originalSystemVolume = -1  // 保存原始音量
     private var isVolumeBoostActive = false  // 是否启用了音量增强
-
+    
     // 音频增强处理 - 用于提高音频响度和清晰度
     private var useAudioEnhancement = true  // 是否启用音频增强
-
+    
     // 重复播放配置 - 用于嘈杂环境下确保提示音被听到
     private var repeatPlayCount = 1  // 重复播放次数 (1=不重复, 2=重复1次, 3=重复2次)
     private var repeatPlayInterval = 1000L  // 重复播放间隔 (毫秒)
     private var currentRepeatCount = 0  // 当前重复计数器
     private var currentPlayingSoundType = ""  // 当前播放的声音类型
-
+    
     // 振动配置 - 用于在嘈杂环境下提供额外的触觉提醒
     private var enableVibration = true  // 是否启用振动
     private var vibrationIntensity = 2  // 振动强度 (1=轻, 2=中, 3=强)
-
+    
     // 音频突破限制的增强组件（为避免多层播放时互相释放，按会话ID管理）
     private var loudnessEnhancer: LoudnessEnhancer? = null
     private var dynamicsProcessing: DynamicsProcessing? = null
     private val loudnessEnhancersBySession = mutableMapOf<Int, LoudnessEnhancer>()
     private val dynamicsProcessingBySession = mutableMapOf<Int, DynamicsProcessing>()
-
-    // Legacy 并发播放器与 AudioTrack 已移除
-    private val concurrentPlayers = mutableListOf<Any>()
-
+    private var audioTrack: AudioTrack? = null
+    private val concurrentPlayers = mutableListOf<MediaPlayer>()
     // ExoPlayer 并发播放器列表
     private val activeExoPlayers = mutableListOf<ExoPlayer>()
-
     // 后端切换（默认启用 ExoPlayer，可按需回退）
     private var useExoBackend: Boolean = true
-
+    
     // 初始化声音资源
     init {
         initializeSoundResources()
         loadSettings()
     }
-
+    
     /**
      * 初始化声音资源映射
      */
@@ -172,8 +173,7 @@ class SoundManager @Inject constructor(
 
             // 预取系统默认通知音效URI备用
             try {
-                systemNotificationUri =
-                    RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+                systemNotificationUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
                 Log.d(TAG, "成功获取系统默认通知音效URI")
             } catch (e: Exception) {
                 Log.e(TAG, "获取系统通知音效URI失败", e)
@@ -186,7 +186,7 @@ class SoundManager @Inject constructor(
             Log.e(TAG, "初始化声音资源失败", e)
         }
     }
-
+    
     /**
      * 预加载所有声音 - 不再需要，因为我们现在使用系统声音
      */
@@ -195,7 +195,7 @@ class SoundManager @Inject constructor(
         anySoundLoaded = true
         Log.d(TAG, "系统声音不需要预加载")
     }
-
+    
     /**
      * 从设置加载声音配置
      */
@@ -215,17 +215,14 @@ class SoundManager @Inject constructor(
                 } catch (e: Exception) {
                     Log.w(TAG, "[声音设置加载] 读取keepRingingUntilAccept失败: ${e.message}")
                 }
-
-                Log.d(
-                    TAG,
-                    "[声音设置加载] 已加载声音设置: 音量=${settings.notificationVolume}, 类型=${settings.soundType}, 启用=${settings.soundEnabled}, 自定义声音=${settings.customSoundUri}"
-                )
+                
+                Log.d(TAG, "[声音设置加载] 已加载声音设置: 音量=${settings.notificationVolume}, 类型=${settings.soundType}, 启用=${settings.soundEnabled}, 自定义声音=${settings.customSoundUri}")
             } catch (e: Exception) {
                 Log.e(TAG, "[声音设置加载] 加载声音设置失败", e)
             }
         }
     }
-
+    
     /**
      * 保存声音设置
      */
@@ -243,7 +240,7 @@ class SoundManager @Inject constructor(
             Log.e(TAG, "保存声音设置失败", e)
         }
     }
-
+    
     /**
      * 设置通知音量
      * @param volume 音量值 (0-1000) - 极大扩展音量范围以适应任何嘈杂环境
@@ -254,32 +251,15 @@ class SoundManager @Inject constructor(
             volume > 1000 -> 1000  // 扩展音量上限到1000%
             else -> volume
         }
-
+        
         _currentVolume.value = safeVolume
         saveSettings()
-
+        
         // 播放测试音效，让用户直接听到音量效果（仅播放一次，不重复）
-        Log.d(
-            TAG,
-            "[音效播放] 原因: 设置音量测试 - 新音量: $safeVolume, 声音类型: ${_currentSoundType.value}"
-        )
+        Log.d(TAG, "[音效播放] 原因: 设置音量测试 - 新音量: $safeVolume, 声音类型: ${_currentSoundType.value}")
         playTestSoundOnce(_currentSoundType.value)
     }
-
-    /**
-     * 设置通知音量（静默，不触发预览）
-     * @param volume 0-1000
-     */
-    suspend fun setVolumeQuiet(volume: Int) {
-        val safeVolume = when {
-            volume < 0 -> 0
-            volume > 1000 -> 1000
-            else -> volume
-        }
-        _currentVolume.value = safeVolume
-        saveSettings()
-    }
-
+    
     /**
      * 设置声音类型
      * @param type 声音类型
@@ -288,16 +268,16 @@ class SoundManager @Inject constructor(
         if (SoundSettings.getAllSoundTypes().contains(type)) {
             // 先停止当前可能正在播放的声音
             stopCurrentSound()
-
+            
             _currentSoundType.value = type
             saveSettings()
-
+            
             // 播放测试音效，让用户直接听到选择的音效（仅播放一次，不重复）
             Log.d(TAG, "[音效播放] 原因: 设置声音类型测试 - 新类型: $type")
             playTestSoundOnce(type)
         }
     }
-
+    
     /**
      * 设置是否启用声音
      * @param enabled 是否启用
@@ -305,7 +285,7 @@ class SoundManager @Inject constructor(
     suspend fun setSoundEnabled(enabled: Boolean) {
         _soundEnabled.value = enabled
         saveSettings()
-
+        
         // 如果启用声音，播放一个测试音效（仅播放一次，不重复）
         if (enabled) {
             Log.d(TAG, "[音效播放] 原因: 启用声音设置测试 - 声音类型: ${_currentSoundType.value}")
@@ -314,7 +294,7 @@ class SoundManager @Inject constructor(
             Log.d(TAG, "[音效设置] 声音已禁用，不播放测试音效")
         }
     }
-
+    
     /**
      * 设置自定义声音URI
      * @param uri 自定义声音URI
@@ -322,29 +302,26 @@ class SoundManager @Inject constructor(
     suspend fun setCustomSoundUri(uri: String) {
         _customSoundUri.value = uri
         saveSettings()
-
+        
         // 如果当前声音类型是自定义，那么播放测试音效（仅播放一次，不重复）
         if (_currentSoundType.value == SoundSettings.SOUND_TYPE_CUSTOM) {
             playTestSoundOnce(_currentSoundType.value)
         }
     }
-
+    
     /**
      * 播放订单提示音
      */
     fun playOrderNotificationSound() {
         synchronized(notificationLock) {
             val currentTime = System.currentTimeMillis()
-
+            
             // 检查是否在短时间内连续播放
             if (currentTime - lastPlayTime < MIN_PLAY_INTERVAL) {
                 // 仅增加待处理通知计数，不立即播放
                 pendingNotifications++
-                Log.d(
-                    TAG,
-                    "[音效播放] 检测到短时间内连续通知，延迟播放，当前待处理通知: $pendingNotifications"
-                )
-
+                Log.d(TAG, "[音效播放] 检测到短时间内连续通知，延迟播放，当前待处理通知: $pendingNotifications")
+                
                 // 如果是第一个待处理通知，启动延迟处理
                 if (pendingNotifications == 1) {
                     CoroutineScope(Dispatchers.Main).launch {
@@ -354,11 +331,11 @@ class SoundManager @Inject constructor(
                 }
                 return
             }
-
+            
             // 正常播放订单通知声音
             lastPlayTime = currentTime
             pendingNotifications = 0
-
+            
             Log.d(TAG, "[音效播放] 原因: 订单通知 - 声音类型: ${_currentSoundType.value}")
             // 根据设置决定是否持续响铃
             if (keepRingingUntilAccept) {
@@ -371,17 +348,14 @@ class SoundManager @Inject constructor(
             Log.d(TAG, "播放订单通知声音: 类型=${_currentSoundType.value}")
         }
     }
-
+    
     /**
      * 处理待处理的批量通知
      */
     private fun processPendingNotifications() {
         synchronized(notificationLock) {
             if (pendingNotifications > 0) {
-                Log.d(
-                    TAG,
-                    "[音效播放] 原因: 批量通知处理 - 处理 $pendingNotifications 个通知，声音类型: ${_currentSoundType.value}"
-                )
+                Log.d(TAG, "[音效播放] 原因: 批量通知处理 - 处理 $pendingNotifications 个通知，声音类型: ${_currentSoundType.value}")
                 // 无论多少个通知，根据设置选择播放模式
                 if (keepRingingUntilAccept) {
                     isLoopingForAcceptance = true
@@ -405,14 +379,13 @@ class SoundManager @Inject constructor(
             while (isLoopingForAcceptance && keepRingingUntilAccept) {
                 try {
                     playSound(type)
-                } catch (_: Exception) {
-                }
+                } catch (_: Exception) {}
                 // 单次播放内部会做3秒左右的播放与重复，这里拉长周期避免重叠
                 delay(4000)
             }
         }
     }
-
+    
     /**
      * 播放指定类型的提示音 - 确保不同类型使用不同的系统声音
      * @param type 声音类型
@@ -431,10 +404,7 @@ class SoundManager @Inject constructor(
         }
         currentRepeatCount = 0  // 重置重复计数器
 
-        Log.d(
-            TAG,
-            "[音效播放] 开始播放声音 - 类型: $type, 音量级别: ${_currentVolume.value}%, 重复次数: $repeatPlayCount"
-        )
+        Log.d(TAG, "[音效播放] 开始播放声音 - 类型: $type, 音量级别: ${_currentVolume.value}%, 重复次数: $repeatPlayCount")
 
         // 记录当前播放的声音类型
         currentPlayingSoundType = type
@@ -455,10 +425,10 @@ class SoundManager @Inject constructor(
 
         // 如果已经有声音在播放，先停止
         stopCurrentSound()
-
+        
         // 立即执行振动提醒 - 与声音同时进行
         performVibration()
-
+        
         try {
             // 根据音量决定分层与增强
             val layers = when {
@@ -479,183 +449,149 @@ class SoundManager @Inject constructor(
                     val resId = soundResources[type]
                     if (resId != null) {
                         val uri = Uri.parse("android.resource://${context.packageName}/$resId")
-                        Log.d(
-                            TAG,
-                            "[播放-内置] type=$type, resId=$resId, layers=$layers, enhance=$applyEnhancement, exo=$useExoBackend"
-                        )
-                        startPlayback(
-                            uri,
-                            playOnce = false,
-                            applyEnhancement = applyEnhancement,
-                            layeredCount = layers,
-                            triggerRepeat = true
-                        )
+                        Log.d(TAG, "[播放-内置] type=$type, resId=$resId, layers=$layers, enhance=$applyEnhancement, exo=$useExoBackend")
+                        startPlayback(uri, playOnce = false, applyEnhancement = applyEnhancement, layeredCount = layers, triggerRepeat = true)
                     } else {
                         Log.w(TAG, "[播放-内置] 未找到资源映射: $type，回退系统默认")
                         val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-                        startPlayback(
-                            uri,
-                            playOnce = false,
-                            applyEnhancement = applyEnhancement,
-                            layeredCount = layers,
-                            triggerRepeat = true
-                        )
+                        startPlayback(uri, playOnce = false, applyEnhancement = applyEnhancement, layeredCount = layers, triggerRepeat = true)
                     }
                 }
                 // 系统 URI（兼容保留）
                 SoundSettings.SOUND_TYPE_ALARM -> {
                     val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-                    Log.d(
-                        TAG,
-                        "[播放-系统] ALARM, layers=$layers, enhance=$applyEnhancement, exo=$useExoBackend"
-                    )
-                    startPlayback(
-                        uri,
-                        playOnce = false,
-                        applyEnhancement = applyEnhancement,
-                        layeredCount = layers,
-                        triggerRepeat = true
-                    )
+                    Log.d(TAG, "[播放-系统] ALARM, layers=$layers, enhance=$applyEnhancement, exo=$useExoBackend")
+                    startPlayback(uri, playOnce = false, applyEnhancement = applyEnhancement, layeredCount = layers, triggerRepeat = true)
                 }
-
                 SoundSettings.SOUND_TYPE_RINGTONE -> {
                     val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
-                    Log.d(
-                        TAG,
-                        "[播放-系统] RINGTONE, layers=$layers, enhance=$applyEnhancement, exo=$useExoBackend"
-                    )
-                    startPlayback(
-                        uri,
-                        playOnce = false,
-                        applyEnhancement = applyEnhancement,
-                        layeredCount = layers,
-                        triggerRepeat = true
-                    )
+                    Log.d(TAG, "[播放-系统] RINGTONE, layers=$layers, enhance=$applyEnhancement, exo=$useExoBackend")
+                    startPlayback(uri, playOnce = false, applyEnhancement = applyEnhancement, layeredCount = layers, triggerRepeat = true)
                 }
-
                 SoundSettings.SOUND_TYPE_DEFAULT -> {
                     val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-                    Log.d(
-                        TAG,
-                        "[播放-系统] DEFAULT, layers=$layers, enhance=$applyEnhancement, exo=$useExoBackend"
-                    )
-                    startPlayback(
-                        uri,
-                        playOnce = false,
-                        applyEnhancement = applyEnhancement,
-                        layeredCount = layers,
-                        triggerRepeat = true
-                    )
+                    Log.d(TAG, "[播放-系统] DEFAULT, layers=$layers, enhance=$applyEnhancement, exo=$useExoBackend")
+                    startPlayback(uri, playOnce = false, applyEnhancement = applyEnhancement, layeredCount = layers, triggerRepeat = true)
                 }
-
                 SoundSettings.SOUND_TYPE_EVENT -> {
                     val uri = Settings.System.DEFAULT_NOTIFICATION_URI
-                    Log.d(
-                        TAG,
-                        "[播放-系统] EVENT(映射通知), layers=$layers, enhance=$applyEnhancement, exo=$useExoBackend"
-                    )
-                    startPlayback(
-                        uri,
-                        playOnce = false,
-                        applyEnhancement = applyEnhancement,
-                        layeredCount = layers,
-                        triggerRepeat = true
-                    )
+                    Log.d(TAG, "[播放-系统] EVENT(映射通知), layers=$layers, enhance=$applyEnhancement, exo=$useExoBackend")
+                    startPlayback(uri, playOnce = false, applyEnhancement = applyEnhancement, layeredCount = layers, triggerRepeat = true)
                 }
-
                 SoundSettings.SOUND_TYPE_EMAIL -> {
                     val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-                    Log.d(
-                        TAG,
-                        "[播放-系统] EMAIL(映射通知), layers=$layers, enhance=$applyEnhancement, exo=$useExoBackend"
-                    )
-                    startPlayback(
-                        uri,
-                        playOnce = false,
-                        applyEnhancement = applyEnhancement,
-                        layeredCount = layers,
-                        triggerRepeat = true
-                    )
+                    Log.d(TAG, "[播放-系统] EMAIL(映射通知), layers=$layers, enhance=$applyEnhancement, exo=$useExoBackend")
+                    startPlayback(uri, playOnce = false, applyEnhancement = applyEnhancement, layeredCount = layers, triggerRepeat = true)
                 }
-
                 SoundSettings.SOUND_TYPE_CUSTOM -> {
                     val path = _customSoundUri.value
                     if (path.isNotEmpty()) {
                         val uri = toResolvableUri(path)
-                        Log.d(
-                            TAG,
-                            "[播放-自定义] uri=$uri, layers=$layers, enhance=$applyEnhancement, exo=$useExoBackend"
-                        )
-                        startPlayback(
-                            uri,
-                            playOnce = false,
-                            applyEnhancement = applyEnhancement,
-                            layeredCount = layers,
-                            triggerRepeat = true
-                        )
+                        Log.d(TAG, "[播放-自定义] uri=$uri, layers=$layers, enhance=$applyEnhancement, exo=$useExoBackend")
+                        startPlayback(uri, playOnce = false, applyEnhancement = applyEnhancement, layeredCount = layers, triggerRepeat = true)
                     } else {
                         val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-                        Log.d(
-                            TAG,
-                            "[播放-自定义] 为空，回退通知，layers=$layers, enhance=$applyEnhancement, exo=$useExoBackend"
-                        )
-                        startPlayback(
-                            uri,
-                            playOnce = false,
-                            applyEnhancement = applyEnhancement,
-                            layeredCount = layers,
-                            triggerRepeat = true
-                        )
+                        Log.d(TAG, "[播放-自定义] 为空，回退通知，layers=$layers, enhance=$applyEnhancement, exo=$useExoBackend")
+                        startPlayback(uri, playOnce = false, applyEnhancement = applyEnhancement, layeredCount = layers, triggerRepeat = true)
                     }
                 }
-
                 else -> {
                     val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-                    Log.d(
-                        TAG,
-                        "[播放] 未知类型回退通知，layers=$layers, enhance=$applyEnhancement, exo=$useExoBackend"
-                    )
-                    startPlayback(
-                        uri,
-                        playOnce = false,
-                        applyEnhancement = applyEnhancement,
-                        layeredCount = layers,
-                        triggerRepeat = true
-                    )
+                    Log.d(TAG, "[播放] 未知类型回退通知，layers=$layers, enhance=$applyEnhancement, exo=$useExoBackend")
+                    startPlayback(uri, playOnce = false, applyEnhancement = applyEnhancement, layeredCount = layers, triggerRepeat = true)
                 }
             }
         } catch (e: Exception) {
             Log.e(TAG, "[播放] 触发失败: ${e.message}", e)
             try {
                 val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-                startPlayback(
-                    uri,
-                    playOnce = false,
-                    applyEnhancement = true,
-                    layeredCount = 1,
-                    triggerRepeat = true
-                )
-            } catch (_: Exception) {
-            }
+                startPlayback(uri, playOnce = false, applyEnhancement = true, layeredCount = 1, triggerRepeat = true)
+            } catch (_: Exception) {}
         }
     }
 
     private fun playLoopingRingtone(type: String) {
         try {
-            // 切换到 Exo 的连续响铃策略：上层控制循环周期
+            // 先停止当前
             stopCurrentSound()
-            isLoopingForAcceptance = true
-            startContinuousRinging(type)
+            // 根据类型选择系统URI
+            val uri = when (type) {
+                SoundSettings.SOUND_TYPE_ALARM -> RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+                SoundSettings.SOUND_TYPE_RINGTONE -> RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
+                SoundSettings.SOUND_TYPE_EVENT -> RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+                SoundSettings.SOUND_TYPE_EMAIL -> RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+                SoundSettings.SOUND_TYPE_CUSTOM -> Uri.parse(_customSoundUri.value)
+                else -> RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+            }
+
+            // 请求音频焦点，降低被系统打断的概率
+            try {
+                @Suppress("DEPRECATION")
+                audioManager.requestAudioFocus(null, AudioManager.STREAM_RING, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
+            } catch (_: Exception) {}
+
+            // 在循环播放场景下也提升系统音量，确保足够响亮
+            try {
+                boostSystemVolume()
+                // 循环模式下，同时提升铃声流音量
+                try {
+                    val ringMax = audioManager.getStreamMaxVolume(AudioManager.STREAM_RING)
+                    val ringCur = audioManager.getStreamVolume(AudioManager.STREAM_RING)
+                    if (ringCur < ringMax) {
+                        audioManager.setStreamVolume(AudioManager.STREAM_RING, ringMax, 0)
+                    }
+                } catch (_: Exception) {}
+            } catch (_: Exception) {}
+            mediaPlayer = MediaPlayer().apply {
+                setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build()
+                )
+                setDataSource(context, uri)
+                isLooping = true
+                setOnPreparedListener { mp ->
+                    try {
+                        // 循环播放场景，强制最大媒体音量，配合系统音量提升
+                        mp.setVolume(1.0f, 1.0f)
+                        // 若可用，附加音频增强效果
+                        try { setupAudioEffects(mp.audioSessionId) } catch (_: Exception) {}
+                        mp.start()
+                        performVibration()
+                    } catch (_: Exception) {}
+                }
+                setOnErrorListener { _, what, extra ->
+                    Log.e(TAG, "[循环铃声] MediaPlayer 错误: what=$what, extra=$extra")
+                    // 回退到Ringtone循环
+                    fallbackLoopWithRingtone(uri)
+                    true
+                }
+                prepareAsync()
+            }
+
+            // 启动保活心跳：若意外停止，则重启播放
+            loopGuardJob?.cancel()
+            loopGuardJob = CoroutineScope(Dispatchers.Main).launch {
+                while (isLoopingForAcceptance && keepRingingUntilAccept) {
+                    try {
+                        if (mediaPlayer == null || mediaPlayer?.isPlaying != true) {
+                            Log.w(TAG, "[循环铃声] 检测到已停止，尝试重启...")
+                            // 重新进入循环播放
+                            playLoopingRingtone(type)
+                            return@launch
+                        }
+                    } catch (_: Exception) {}
+                    delay(3000)
+                }
+            }
         } catch (e: Exception) {
             Log.e(TAG, "[循环铃声] 启动失败: ${e.message}")
             // 回退到单次播放
             try {
                 val uri = when (type) {
                     SoundSettings.SOUND_TYPE_ALARM -> RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-                    SoundSettings.SOUND_TYPE_RINGTONE -> RingtoneManager.getDefaultUri(
-                        RingtoneManager.TYPE_RINGTONE
-                    )
-
+                    SoundSettings.SOUND_TYPE_RINGTONE -> RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
                     SoundSettings.SOUND_TYPE_EVENT -> RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
                     SoundSettings.SOUND_TYPE_EMAIL -> RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
                     SoundSettings.SOUND_TYPE_CUSTOM -> Uri.parse(_customSoundUri.value)
@@ -668,9 +604,29 @@ class SoundManager @Inject constructor(
         }
     }
 
-    private fun fallbackLoopWithRingtone(uri: Uri?) { /* Legacy回退移除，保持空实现 */
+    private fun fallbackLoopWithRingtone(uri: Uri?) {
+        try {
+            stopCurrentSound()
+            if (uri == null) return
+            ringtonePlayer = RingtoneManager.getRingtone(context, uri)
+            // 播放一次并启动循环任务定期重播
+            ringtonePlayer?.play()
+            ringtoneLoopJob?.cancel()
+            ringtoneLoopJob = CoroutineScope(Dispatchers.Main).launch {
+                while (isLoopingForAcceptance && keepRingingUntilAccept) {
+                    delay(3500)
+                    try {
+                        if (ringtonePlayer?.isPlaying != true) {
+                            ringtonePlayer?.play()
+                        }
+                    } catch (_: Exception) {}
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "[循环铃声] Ringtone回退失败: ${e.message}")
+        }
     }
-
+    
     /**
      * 播放测试音效（仅播放一次，不重复）- 用于设置页面的音量/类型测试
      * @param type 声音类型
@@ -681,10 +637,7 @@ class SoundManager @Inject constructor(
             return
         }
 
-        Log.d(
-            TAG,
-            "[测试音效] 开始播放测试音效 - 类型: $type, 音量级别: ${_currentVolume.value}% (仅播放一次)"
-        )
+        Log.d(TAG, "[测试音效] 开始播放测试音效 - 类型: $type, 音量级别: ${_currentVolume.value}% (仅播放一次)")
 
         // 如果已经有声音在播放，先停止
         stopCurrentSound()
@@ -693,8 +646,11 @@ class SoundManager @Inject constructor(
         performVibration()
 
         try {
-            // 预览只用单层，避免叠加产生冲突感
-            val layers = 1
+            val layers = when {
+                _currentVolume.value >= 1000 -> 3
+                _currentVolume.value >= 750 -> 2
+                else -> 1
+            }
             val applyEnhancement = _currentVolume.value >= 500
 
             when (type) {
@@ -706,173 +662,323 @@ class SoundManager @Inject constructor(
                     val resId = soundResources[type]
                     if (resId != null) {
                         val uri = Uri.parse("android.resource://${context.packageName}/$resId")
-                        Log.d(
-                            TAG,
-                            "[测试音效] 内置 type=$type, layers=$layers, enhance=$applyEnhancement, exo=$useExoBackend"
-                        )
-                        startPlayback(
-                            uri,
-                            playOnce = true,
-                            applyEnhancement = applyEnhancement,
-                            layeredCount = layers,
-                            triggerRepeat = false
-                        )
+                        Log.d(TAG, "[测试音效] 内置 type=$type, layers=$layers, enhance=$applyEnhancement, exo=$useExoBackend")
+                        startPlayback(uri, playOnce = true, applyEnhancement = applyEnhancement, layeredCount = layers, triggerRepeat = false)
                     } else {
                         val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-                        startPlayback(
-                            uri,
-                            playOnce = true,
-                            applyEnhancement = applyEnhancement,
-                            layeredCount = layers,
-                            triggerRepeat = false
-                        )
+                        startPlayback(uri, playOnce = true, applyEnhancement = applyEnhancement, layeredCount = layers, triggerRepeat = false)
                     }
                 }
-
                 SoundSettings.SOUND_TYPE_ALARM -> {
                     val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-                    startPlayback(
-                        uri,
-                        playOnce = true,
-                        applyEnhancement = applyEnhancement,
-                        layeredCount = layers,
-                        triggerRepeat = false
-                    )
+                    startPlayback(uri, playOnce = true, applyEnhancement = applyEnhancement, layeredCount = layers, triggerRepeat = false)
                 }
-
                 SoundSettings.SOUND_TYPE_RINGTONE -> {
                     val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
-                    startPlayback(
-                        uri,
-                        playOnce = true,
-                        applyEnhancement = applyEnhancement,
-                        layeredCount = layers,
-                        triggerRepeat = false
-                    )
+                    startPlayback(uri, playOnce = true, applyEnhancement = applyEnhancement, layeredCount = layers, triggerRepeat = false)
                 }
-
                 SoundSettings.SOUND_TYPE_DEFAULT -> {
                     val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-                    startPlayback(
-                        uri,
-                        playOnce = true,
-                        applyEnhancement = applyEnhancement,
-                        layeredCount = layers,
-                        triggerRepeat = false
-                    )
+                    startPlayback(uri, playOnce = true, applyEnhancement = applyEnhancement, layeredCount = layers, triggerRepeat = false)
                 }
-
                 SoundSettings.SOUND_TYPE_EVENT -> {
                     val uri = Settings.System.DEFAULT_NOTIFICATION_URI
-                    startPlayback(
-                        uri,
-                        playOnce = true,
-                        applyEnhancement = applyEnhancement,
-                        layeredCount = layers,
-                        triggerRepeat = false
-                    )
+                    startPlayback(uri, playOnce = true, applyEnhancement = applyEnhancement, layeredCount = layers, triggerRepeat = false)
                 }
-
                 SoundSettings.SOUND_TYPE_EMAIL -> {
                     val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-                    startPlayback(
-                        uri,
-                        playOnce = true,
-                        applyEnhancement = applyEnhancement,
-                        layeredCount = layers,
-                        triggerRepeat = false
-                    )
+                    startPlayback(uri, playOnce = true, applyEnhancement = applyEnhancement, layeredCount = layers, triggerRepeat = false)
                 }
-
                 SoundSettings.SOUND_TYPE_CUSTOM -> {
                     val path = _customSoundUri.value
-                    val uri =
-                        if (path.isNotEmpty()) toResolvableUri(path) else RingtoneManager.getDefaultUri(
-                            RingtoneManager.TYPE_NOTIFICATION
-                        )
-                    startPlayback(
-                        uri,
-                        playOnce = true,
-                        applyEnhancement = applyEnhancement,
-                        layeredCount = layers,
-                        triggerRepeat = false
-                    )
+                    val uri = if (path.isNotEmpty()) toResolvableUri(path) else RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+                    startPlayback(uri, playOnce = true, applyEnhancement = applyEnhancement, layeredCount = layers, triggerRepeat = false)
                 }
-
                 else -> {
                     val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-                    startPlayback(
-                        uri,
-                        playOnce = true,
-                        applyEnhancement = applyEnhancement,
-                        layeredCount = layers,
-                        triggerRepeat = false
-                    )
+                    startPlayback(uri, playOnce = true, applyEnhancement = applyEnhancement, layeredCount = layers, triggerRepeat = false)
                 }
             }
         } catch (e: Exception) {
             Log.e(TAG, "[测试音效] 播放失败: ${e.message}", e)
         }
     }
-
+    
     /**
      * 播放系统声音 - 极限音量增强版
      * @param ringtoneType 铃声类型
      */
     private fun playSystemSound(ringtoneType: Int) {
         try {
-            val uri = RingtoneManager.getDefaultUri(ringtoneType)
-            val layers = when {
-                _currentVolume.value >= 1000 -> 3
-                _currentVolume.value >= 750 -> 2
-                else -> 1
+            Log.d(TAG, "[极限音效] 开始播放极限增强系统声音 - 类型: $ringtoneType, 音量: ${_currentVolume.value}%")
+            
+            // 停止之前的声音
+            stopCurrentSound()
+            
+            // 如果音量超过100%，临时提升系统音量
+            boostSystemVolume()
+            
+            val notificationUri = RingtoneManager.getDefaultUri(ringtoneType)
+            Log.d(TAG, "[极限音效] 获取到系统声音URI: $notificationUri")
+            
+            // 根据音量级别选择播放策略
+            when {
+                _currentVolume.value >= 750 -> {
+                    // 极响/很响级别：使用多音频叠加技术
+                    playWithMultipleAudioLayers(notificationUri)
+                }
+                _currentVolume.value >= 500 -> {
+                    // 响亮级别：使用音频增强技术
+                    playWithAudioEnhancement(notificationUri)
+                }
+                _currentVolume.value >= 250 -> {
+                    // 中等级别：使用标准增强
+                    playWithStandardEnhancement(notificationUri)
+                }
+                else -> {
+                    // 低音量：使用标准播放
+                    playStandardSound(notificationUri)
+                }
             }
-            val enhance = _currentVolume.value >= 500
-            Log.d(TAG, "[系统声音-Exo] type=$ringtoneType, layers=$layers, enhance=$enhance")
-            startExoPlayback(uri, playOnce = false, applyEnhancement = enhance, layeredCount = layers, triggerRepeat = true)
+            
         } catch (e: Exception) {
-            Log.e(TAG, "[系统声音-Exo] 播放失败: ${e.message}")
+            Log.e(TAG, "[极限音效] 播放极限增强声音失败", e)
+            // 回退到标准播放
+            playFallbackSound()
         }
     }
-
+    
     /**
      * 多音频叠加播放 - 突破单音频音量限制
      * 通过同时播放多个相同音频实现音量叠加效果
      */
     private fun playWithMultipleAudioLayers(uri: Uri) {
-        val layerCount = when {
-            _currentVolume.value >= 1000 -> 3
-            _currentVolume.value >= 750 -> 2
-            else -> 2
+        try {
+            Log.d(TAG, "[多音频叠加] 开始多音频叠加播放，目标音量: ${_currentVolume.value}%")
+            
+            // 计算需要的音频层数 - 减少并发数量避免系统负担
+            val layerCount = when {
+                _currentVolume.value >= 1000 -> 3  // 极响：3层叠加（减少负担）
+                _currentVolume.value >= 750 -> 2   // 很响：2层叠加
+                else -> 2                          // 默认：2层叠加
+            }
+            
+            // 清理之前的播放器
+            stopAllConcurrentPlayers()
+            
+            // 等待一小段时间确保清理完成
+            Thread.sleep(50)
+            
+            // 创建多个 MediaPlayer 同时播放
+            for (i in 0 until layerCount) {
+                try {
+                    val player = MediaPlayer().apply {
+                    setAudioAttributes(
+                        AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                            .setFlags(AudioAttributes.FLAG_AUDIBILITY_ENFORCED)
+                            .build()
+                    )
+                    
+                    setDataSource(context, uri)
+                    
+                    // 轻微的延迟启动，创造更厚重的音效（减少延迟避免状态冲突）
+                    val delayMs = 0L
+                    
+                    setOnPreparedListener { mediaPlayer ->
+                        CoroutineScope(Dispatchers.Main).launch {
+                            delay(delayMs)
+                            
+                            try {
+                                // 检查MediaPlayer状态，避免在错误状态下设置音量
+                                if (mediaPlayer.isPlaying || !concurrentPlayers.contains(this@apply)) {
+                                    Log.w(TAG, "[多音频叠加] MediaPlayer状态异常，跳过第${i + 1}层音频")
+                                    return@launch
+                                }
+                                
+                                // 每层音频使用最大音量，通过叠加达到突破效果
+                                mediaPlayer.setVolume(1.0f, 1.0f)
+                                
+                                // 添加音频增强效果
+                                setupAudioEffects(mediaPlayer.audioSessionId)
+                                
+                                mediaPlayer.start()
+                                Log.d(TAG, "[多音频叠加] 启动第${i + 1}层音频，延迟: ${delayMs}ms")
+                            } catch (e: IllegalStateException) {
+                                Log.e(TAG, "[多音频叠加] MediaPlayer状态错误，第${i + 1}层音频启动失败: ${e.message}")
+                            } catch (e: Exception) {
+                                Log.e(TAG, "[多音频叠加] 第${i + 1}层音频启动出错: ${e.message}")
+                            }
+                        }
+                    }
+                    
+                    setOnCompletionListener {
+                        try {
+                            concurrentPlayers.remove(this)
+                            this.release()
+                        } catch (e: Exception) {
+                            Log.w(TAG, "[多音频叠加] 播放完成处理失败: ${e.message}")
+                        }
+                    }
+                    
+                    setOnErrorListener { _, what, extra ->
+                        Log.e(TAG, "[多音频叠加] 第${i + 1}层MediaPlayer错误: what=$what, extra=$extra")
+                        concurrentPlayers.remove(this)
+                        true
+                    }
+                    
+                    prepareAsync()
+                }
+                
+                    concurrentPlayers.add(player)
+                } catch (e: Exception) {
+                    Log.e(TAG, "[多音频叠加] 创建第${i + 1}层MediaPlayer失败: ${e.message}")
+                }
+            }
+            
+            testSoundPlaying = true
+            
+            // 自动停止和重复播放处理
+            CoroutineScope(Dispatchers.Main).launch {
+                delay(3500) // 稍微延长播放时间
+                stopAllConcurrentPlayers()
+                handleRepeatPlay()
+            }
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "[多音频叠加] 多音频叠加播放失败", e)
+            playStandardSound(uri)
         }
-        Log.d(TAG, "[多音频叠加-Exo] layers=$layerCount")
-        startExoPlayback(uri, playOnce = false, applyEnhancement = true, layeredCount = layerCount, triggerRepeat = true)
     }
-
+    
     /**
      * 音频增强播放 - 使用音频处理器增强音量
      */
     private fun playWithAudioEnhancement(uri: Uri) {
-        Log.d(TAG, "[音频增强-Exo]")
-        startExoPlayback(uri, playOnce = false, applyEnhancement = true, layeredCount = 1, triggerRepeat = true)
+        try {
+            Log.d(TAG, "[音频增强] 开始音频增强播放，目标音量: ${_currentVolume.value}%")
+            
+            val player = MediaPlayer().apply {
+                setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .setFlags(AudioAttributes.FLAG_AUDIBILITY_ENFORCED)
+                        .build()
+                )
+                
+                setDataSource(context, uri)
+                
+                setOnPreparedListener { mediaPlayer ->
+                    try {
+                        // 安全设置音量
+                        mediaPlayer.setVolume(1.0f, 1.0f)
+                        
+                        // 设置高级音频增强效果
+                        setupAdvancedAudioEffects(mediaPlayer.audioSessionId)
+                        
+                        mediaPlayer.start()
+                        Log.d(TAG, "[音频增强] 音频增强播放启动")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "[音频增强] 播放器设置失败: ${e.message}")
+                    }
+                }
+                
+                setOnCompletionListener {
+                    try {
+                        this.release()
+                        testSoundPlaying = false
+                    } catch (e: Exception) {
+                        Log.w(TAG, "[音频增强] 播放器释放失败: ${e.message}")
+                    }
+                }
+                
+                setOnErrorListener { _, what, extra ->
+                    Log.e(TAG, "[音频增强] MediaPlayer错误: what=$what, extra=$extra")
+                    testSoundPlaying = false
+                    true
+                }
+                
+                prepareAsync()
+            }
+            
+            ringtonePlayer = null // 不使用 ringtonePlayer，改用 MediaPlayer
+            testSoundPlaying = true
+            
+            // 自动停止和重复播放处理
+            CoroutineScope(Dispatchers.Main).launch {
+                delay(3000)
+                try {
+                    if (player.isPlaying) {
+                        player.stop()
+                    }
+                    player.release()
+                } catch (e: Exception) {
+                    Log.w(TAG, "[音频增强] 停止播放器失败: ${e.message}")
+                }
+                handleRepeatPlay()
+            }
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "[音频增强] 音频增强播放失败", e)
+            playStandardSound(uri)
+        }
     }
-
+    
     /**
      * 标准增强播放
      */
     private fun playWithStandardEnhancement(uri: Uri) {
-        Log.d(TAG, "[标准增强-Exo]")
-        startExoPlayback(uri, playOnce = false, applyEnhancement = true, layeredCount = 1, triggerRepeat = true)
+        try {
+            ringtonePlayer = RingtoneManager.getRingtone(context, uri)
+            
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                try {
+                    val volumeGain = (_currentVolume.value / 100f).coerceAtMost(2.5f)
+                    ringtonePlayer?.volume = volumeGain
+                    Log.d(TAG, "[标准增强] 设置音量增益: $volumeGain")
+                } catch (e: Exception) {
+                    Log.w(TAG, "[标准增强] 设置音量失败: ${e.message}")
+                }
+            }
+            
+            ringtonePlayer?.play()
+            testSoundPlaying = true
+            
+            CoroutineScope(Dispatchers.Main).launch {
+                delay(3000)
+                stopCurrentSound()
+                handleRepeatPlay()
+            }
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "[标准增强] 标准增强播放失败", e)
+            playStandardSound(uri)
+        }
     }
-
+    
     /**
      * 标准播放
      */
     private fun playStandardSound(uri: Uri) {
-        Log.d(TAG, "[标准播放-Exo]")
-        startExoPlayback(uri, playOnce = false, applyEnhancement = false, layeredCount = 1, triggerRepeat = true)
+        try {
+            ringtonePlayer = RingtoneManager.getRingtone(context, uri)
+            ringtonePlayer?.play()
+            testSoundPlaying = true
+            
+            CoroutineScope(Dispatchers.Main).launch {
+                delay(3000)
+                stopCurrentSound()
+                handleRepeatPlay()
+            }
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "[标准播放] 标准播放失败", e)
+            playFallbackSound()
+        }
     }
-
+    
     /**
      * 设置音频增强效果
      */
@@ -891,25 +997,16 @@ class SoundManager @Inject constructor(
                     _currentVolume.value >= 500 -> 2000
                     else -> 1500
                 }
-                try {
-                    enhancer.setTargetGain(gainMb)
-                } catch (_: Exception) {
-                }
-                try {
-                    enhancer.enabled = true
-                } catch (_: Exception) {
-                }
+                try { enhancer.setTargetGain(gainMb) } catch (_: Exception) {}
+                try { enhancer.enabled = true } catch (_: Exception) {}
                 loudnessEnhancer = enhancer
-                Log.d(
-                    TAG,
-                    "[音频效果] LoudnessEnhancer(session=$audioSessionId) 设置增益: ${gainMb}mB"
-                )
+                Log.d(TAG, "[音频效果] LoudnessEnhancer(session=$audioSessionId) 设置增益: ${gainMb}mB")
             }
         } catch (e: Exception) {
             Log.e(TAG, "[音频效果] 设置音频效果失败", e)
         }
     }
-
+    
     /**
      * 设置高级音频增强效果
      */
@@ -948,59 +1045,227 @@ class SoundManager @Inject constructor(
             Log.e(TAG, "[高级音频效果] 设置高级音频效果失败", e)
         }
     }
-
+    
     /**
      * 停止所有并发播放器
      */
-    private fun stopAllConcurrentPlayers() { /* no-op: legacy removed */ }
+    private fun stopAllConcurrentPlayers() {
+        Log.d(TAG, "[音频管理] 正在停止 ${concurrentPlayers.size} 个并发播放器")
 
+        // 创建副本避免并发修改
+        val playersToStop = concurrentPlayers.toList()
+        concurrentPlayers.clear()
+
+        playersToStop.forEach { player ->
+            try {
+                if (player.isPlaying) {
+                    player.stop()
+                    Log.d(TAG, "[音频管理] 停止播放器")
+                }
+                player.release()
+                Log.d(TAG, "[音频管理] 释放播放器")
+            } catch (e: Exception) {
+                Log.w(TAG, "[音频管理] 停止并发播放器失败: ${e.message}")
+            }
+        }
+
+        // 释放所有会话绑定的效果器
+        loudnessEnhancersBySession.values.forEach { enhancer ->
+            try { enhancer.enabled = false } catch (_: Exception) {}
+            try { enhancer.release() } catch (_: Exception) {}
+        }
+        loudnessEnhancersBySession.clear()
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            dynamicsProcessingBySession.values.forEach { dp ->
+                try { dp.setEnabled(false) } catch (_: Exception) {}
+                try { dp.release() } catch (_: Exception) {}
+            }
+            dynamicsProcessingBySession.clear()
+        }
+    }
+    
     /**
      * 播放回退声音
      */
     private fun playFallbackSound() {
-        val fallbackUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-        Log.d(TAG, "[回退播放-Exo]")
-        startExoPlayback(fallbackUri, playOnce = false, applyEnhancement = false, layeredCount = 1, triggerRepeat = true)
+        try {
+            val fallbackUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+            ringtonePlayer = RingtoneManager.getRingtone(context, fallbackUri)
+            ringtonePlayer?.play()
+            Log.d(TAG, "[回退播放] 使用备用系统通知声音")
+            
+            CoroutineScope(Dispatchers.Main).launch {
+                delay(3000)
+                stopCurrentSound()
+                handleRepeatPlay()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "[回退播放] 播放备用声音也失败", e)
+        }
     }
-
+    
     /**
      * 播放指定URI的系统声音 - 极限音量增强版
      */
     private fun playSpecificSound(uri: Uri) {
-        val layers = when {
-            _currentVolume.value >= 1000 -> 3
-            _currentVolume.value >= 750 -> 2
-            else -> 1
+        try {
+            Log.d(TAG, "[特定音效] 开始播放极限增强特定声音: $uri, 音量: ${_currentVolume.value}%")
+            
+            // 停止之前的声音
+            stopCurrentSound()
+            
+            // 如果音量超过100%，临时提升系统音量
+            boostSystemVolume()
+            
+            // 根据音量级别选择播放策略（与 playSystemSound 一致）
+            when {
+                _currentVolume.value >= 750 -> {
+                    // 极响/很响级别：使用多音频叠加技术
+                    playWithMultipleAudioLayers(uri)
+                }
+                _currentVolume.value >= 500 -> {
+                    // 响亮级别：使用音频增强技术
+                    playWithAudioEnhancement(uri)
+                }
+                _currentVolume.value >= 250 -> {
+                    // 中等级别：使用标准增强
+                    playWithStandardEnhancement(uri)
+                }
+                else -> {
+                    // 低音量：使用标准播放
+                    playStandardSound(uri)
+                }
+            }
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "[特定音效] 播放极限增强特定声音失败", e)
+            // 回退到标准播放
+            playFallbackSound()
         }
-        val enhance = _currentVolume.value >= 500
-        Log.d(TAG, "[特定音效-Exo] layers=$layers, enhance=$enhance")
-        startExoPlayback(uri, playOnce = false, applyEnhancement = enhance, layeredCount = layers, triggerRepeat = true)
     }
-
+    
     /**
      * 播放自定义声音文件
      */
     private fun playCustomSound(filePath: String) {
-        val uri = toResolvableUri(filePath)
-        val layers = when {
-            _currentVolume.value >= 1000 -> 3
-            _currentVolume.value >= 750 -> 2
-            else -> 1
+        try {
+            Log.d(TAG, "[自定义音效] 开始播放自定义声音文件: $filePath, 音量: ${_currentVolume.value}%")
+            
+            // 先停止当前声音
+            stopCurrentSound()
+            
+            // 如果音量超过100%，临时提升系统音量
+            boostSystemVolume()
+            
+            // 停止可能正在播放的MediaPlayer
+            mediaPlayer?.release()
+            
+            // 创建新的MediaPlayer
+            mediaPlayer = MediaPlayer().apply {
+                setDataSource(filePath)
+                
+                // 音频增强配置 - 优化通知音频播放
+                setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)  // 使用铃声用法以获得更高音量
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)  // 声音化内容类型
+                        .setFlags(AudioAttributes.FLAG_AUDIBILITY_ENFORCED)  // 强制可听性
+                        .build()
+                )
+                
+                // 支持超过100%的音量增强 - 支持1000%极限音量范围
+                val volumeGain = when {
+                    _currentVolume.value <= 100 -> _currentVolume.value / 100f
+                    else -> {
+                        val baseGain = _currentVolume.value / 100f
+                        val enhancedGain = if (useAudioEnhancement) {
+                            // 音频增强模式：支持1000%极限音量
+                            when {
+                                _currentVolume.value >= 1000 -> (baseGain * 1.0f).coerceAtMost(10.0f) // 极响：最大10倍增益
+                                _currentVolume.value >= 750 -> (baseGain * 0.9f).coerceAtMost(8.0f)  // 很响：最大8倍增益
+                                _currentVolume.value >= 500 -> (baseGain * 0.8f).coerceAtMost(5.0f)  // 响亮：最大5倍增益
+                                _currentVolume.value >= 250 -> (baseGain * 0.7f).coerceAtMost(3.0f)  // 中等：最大3倍增益
+                                else -> (baseGain * 0.6f).coerceAtMost(2.0f)                        // 轻：最大2倍增益
+                            }
+                        } else {
+                            // 非增强模式也支持极高音量
+                            when {
+                                _currentVolume.value >= 1000 -> baseGain.coerceAtMost(8.0f)  // 极响：最大8倍增益
+                                _currentVolume.value >= 750 -> baseGain.coerceAtMost(6.0f)   // 很响：最大6倍增益  
+                                _currentVolume.value >= 500 -> baseGain.coerceAtMost(4.0f)   // 响亮：最大4倍增益
+                                _currentVolume.value >= 250 -> baseGain.coerceAtMost(2.5f)   // 中等：最大2.5倍增益
+                                else -> baseGain.coerceAtMost(2.0f)                          // 轻：最大2倍增益
+                            }
+                        }
+                        enhancedGain
+                    }
+                }
+                setVolume(volumeGain, volumeGain)
+                Log.d(TAG, "[音频增强] 设置音量增益: $volumeGain (原始: ${_currentVolume.value}%, 增强: $useAudioEnhancement)")
+                
+                prepare()
+                start()
+                
+                // 播放完成后释放资源
+                setOnCompletionListener {
+                    it.release()
+                    mediaPlayer = null
+                    restoreSystemVolume()  // 恢复系统音量
+                    Log.d(TAG, "[自定义音效] 自定义声音播放完成，已释放资源")
+                }
+            }
+            
+            testSoundPlaying = true
+            Log.d(TAG, "[自定义音效] 自定义声音文件播放开始: $filePath")
+            
+            // 添加自动停止计时器，防止声音一直循环播放，并处理重复播放
+            CoroutineScope(Dispatchers.Main).launch {
+                delay(3000) // 3秒后自动停止 (缩短等待时间以便重复播放)
+                mediaPlayer?.release()
+                mediaPlayer = null
+                testSoundPlaying = false
+                Log.d(TAG, "[自定义音效] 自定义声音自动停止")
+                
+                // 处理重复播放逻辑
+                handleRepeatPlay()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "[自定义音效] 播放自定义声音文件失败: ${e.message}", e)
+            // 播放备用声音
+            playSystemSound(RingtoneManager.TYPE_NOTIFICATION)
         }
-        val enhance = _currentVolume.value >= 500
-        Log.d(TAG, "[自定义音效-Exo] uri=$uri, layers=$layers, enhance=$enhance")
-        startExoPlayback(uri, playOnce = false, applyEnhancement = enhance, layeredCount = layers, triggerRepeat = true)
     }
-
+    
     /**
      * 停止当前正在播放的声音 - 极限音量增强版
      */
     private fun stopCurrentSound() {
         try {
+            // 停止传统 ringtone 播放器
+            try { ringtonePlayer?.stop() } catch (_: Exception) {}
+            ringtonePlayer = null
+            ringtoneLoopJob?.cancel()
+            ringtoneLoopJob = null
+            
+            // 停止 MediaPlayer
+            mediaPlayer?.stop()
+            mediaPlayer?.release()
+            mediaPlayer = null
+            
+            // 停止所有并发音频播放器
+            stopAllConcurrentPlayers()
+            // 停止所有 ExoPlayer 播放器
             stopAllExoPlayers()
+            
+            // 清理音频增强效果
             cleanupAudioEffects()
+            
             testSoundPlaying = false
+            
+            // 恢复系统音量
             restoreSystemVolume()
+            
             Log.d(TAG, "[音效控制] 所有声音已停止，音频效果已清理")
         } catch (e: Exception) {
             Log.e(TAG, "[音效控制] 停止声音失败", e)
@@ -1024,7 +1289,9 @@ class SoundManager @Inject constructor(
         }
     }
 
-    /** 旧后端回退（已保留接口，实际不再使用） */
+    /**
+     * 旧后端回退：使用 Ringtone/MediaPlayer 路径
+     */
     private fun legacyStartPlayback(
         uri: Uri,
         playOnce: Boolean,
@@ -1034,9 +1301,7 @@ class SoundManager @Inject constructor(
     ) {
         try {
             if (layeredCount >= 2) {
-                if (playOnce) playWithMultipleAudioLayersOnce(uri) else playWithMultipleAudioLayers(
-                    uri
-                )
+                if (playOnce) playWithMultipleAudioLayersOnce(uri) else playWithMultipleAudioLayers(uri)
             } else if (applyEnhancement) {
                 if (playOnce) playWithAudioEnhancementOnce(uri) else playWithAudioEnhancement(uri)
             } else {
@@ -1048,10 +1313,7 @@ class SoundManager @Inject constructor(
             }
         } catch (e: Exception) {
             Log.e(TAG, "[回退播放] 失败: ${e.message}")
-            try {
-                playFallbackSound()
-            } catch (_: Exception) {
-            }
+            try { playFallbackSound() } catch (_: Exception) {}
         }
     }
 
@@ -1071,7 +1333,7 @@ class SoundManager @Inject constructor(
             if (path.startsWith("content://") || path.startsWith("file://")) {
                 Uri.parse(path)
             } else {
-                Uri.fromFile(java.io.File(path))
+                android.net.Uri.fromFile(java.io.File(path))
             }
         } catch (_: Exception) {
             Uri.parse(path)
@@ -1087,12 +1349,10 @@ class SoundManager @Inject constructor(
         activeExoPlayers.toList().forEach { p ->
             try {
                 p.stop()
-            } catch (_: Exception) {
-            }
+            } catch (_: Exception) {}
             try {
                 p.release()
-            } catch (_: Exception) {
-            }
+            } catch (_: Exception) {}
         }
         activeExoPlayers.clear()
     }
@@ -1119,7 +1379,7 @@ class SoundManager @Inject constructor(
 
         val exoAttrs = ExoAudioAttributes.Builder()
             .setUsage(C.USAGE_NOTIFICATION_RINGTONE)
-            .setContentType(C.AUDIO_CONTENT_TYPE_SONIFICATION)
+            .setContentType(C.CONTENT_TYPE_SONIFICATION)
             .build()
 
         val layers = layeredCount.coerceAtLeast(1)
@@ -1150,14 +1410,10 @@ class SoundManager @Inject constructor(
                                     } else {
                                         setupAudioEffects(sessionId)
                                     }
-                                } catch (_: Exception) {
-                                }
+                                } catch (_: Exception) {}
                             }
                         } else if (state == Player.STATE_ENDED) {
-                            try {
-                                player.release()
-                            } catch (_: Exception) {
-                            }
+                            try { player.release() } catch (_: Exception) {}
                             activeExoPlayers.remove(player)
                             finished += 1
                             if (finished >= layers) {
@@ -1178,7 +1434,7 @@ class SoundManager @Inject constructor(
             }
         }
     }
-
+    
     /**
      * 清理音频增强效果
      */
@@ -1186,27 +1442,15 @@ class SoundManager @Inject constructor(
         try {
             // 优先释放并清空会话映射里的所有效果器（幂等）
             loudnessEnhancersBySession.values.forEach { enhancer ->
-                try {
-                    enhancer.enabled = false
-                } catch (_: Exception) {
-                }
-                try {
-                    enhancer.release()
-                } catch (_: Exception) {
-                }
+                try { enhancer.enabled = false } catch (_: Exception) {}
+                try { enhancer.release() } catch (_: Exception) {}
             }
             loudnessEnhancersBySession.clear()
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 dynamicsProcessingBySession.values.forEach { dp ->
-                    try {
-                        dp.setEnabled(false)
-                    } catch (_: Exception) {
-                    }
-                    try {
-                        dp.release()
-                    } catch (_: Exception) {
-                    }
+                    try { dp.setEnabled(false) } catch (_: Exception) {}
+                    try { dp.release() } catch (_: Exception) {}
                 }
                 dynamicsProcessingBySession.clear()
             }
@@ -1224,25 +1468,31 @@ class SoundManager @Inject constructor(
                 dynamicsProcessing = null
             }
 
-            // 已移除 AudioTrack 路径
-
+            audioTrack?.let { at ->
+                try {
+                    if (at.state == AudioTrack.STATE_INITIALIZED) { at.stop() }
+                } catch (_: Exception) {}
+                try { at.release() } catch (_: Exception) {}
+                audioTrack = null
+            }
+            
             Log.d(TAG, "[音频效果] 已幂等清理所有效果器与音频轨道")
         } catch (e: Exception) {
             Log.e(TAG, "[音频效果] 清理音频效果时出错", e)
         }
     }
-
+    
     /**
      * 临时提升系统音量 - 在播放提示音时使用
      */
     private fun boostSystemVolume() {
         try {
             if (isVolumeBoostActive) return  // 避免重复提升
-
+            
             // 获取当前音量
             originalSystemVolume = audioManager.getStreamVolume(AudioManager.STREAM_NOTIFICATION)
             val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_NOTIFICATION)
-
+            
             // 如果应用音量设置超过100%，则提升系统音量 - 支持1000%极限范围
             if (_currentVolume.value > 100) {
                 // 计算基础提升比例 - 支持1000%音量级别
@@ -1254,62 +1504,58 @@ class SoundManager @Inject constructor(
                     _currentVolume.value >= 100 -> 0.5f   // 轻级别：50%提升
                     else -> (_currentVolume.value - 100) / 100f  // 其他：渐进提升
                 }
-
+                
                 // 音频增强模式下使用更积极的提升策略
                 val enhancedBoostRatio = if (useAudioEnhancement) {
                     (boostRatio * 1.1f).coerceAtMost(1.0f)  // 增强模式下额外提升10%
                 } else {
                     boostRatio
                 }
-
-                val targetVolume =
-                    (originalSystemVolume + (maxVolume - originalSystemVolume) * enhancedBoostRatio).toInt()
+                
+                val targetVolume = (originalSystemVolume + (maxVolume - originalSystemVolume) * enhancedBoostRatio).toInt()
                 val boostedVolume = targetVolume.coerceAtMost(maxVolume)
-
+                
                 // 设置提升后的音量
                 audioManager.setStreamVolume(AudioManager.STREAM_NOTIFICATION, boostedVolume, 0)
                 isVolumeBoostActive = true
-
-                Log.d(
-                    TAG,
-                    "[系统音量增强] 原音量: $originalSystemVolume, 提升至: $boostedVolume (应用音量级别: ${_currentVolume.value}%, 提升比例: $enhancedBoostRatio, 增强: $useAudioEnhancement)"
-                )
+                
+                Log.d(TAG, "[系统音量增强] 原音量: $originalSystemVolume, 提升至: $boostedVolume (应用音量级别: ${_currentVolume.value}%, 提升比例: $enhancedBoostRatio, 增强: $useAudioEnhancement)")
             }
         } catch (e: Exception) {
             Log.e(TAG, "[系统音量增强] 提升系统音量失败", e)
         }
     }
-
+    
     /**
      * 恢复原始系统音量
      */
     private fun restoreSystemVolume() {
         try {
             if (!isVolumeBoostActive || originalSystemVolume == -1) return
-
+            
             // 恢复原始音量
             audioManager.setStreamVolume(AudioManager.STREAM_NOTIFICATION, originalSystemVolume, 0)
             isVolumeBoostActive = false
-
+            
             Log.d(TAG, "[系统音量增强] 已恢复原始音量: $originalSystemVolume")
         } catch (e: Exception) {
             Log.e(TAG, "[系统音量增强] 恢复系统音量失败", e)
         }
     }
-
+    
     /**
      * 处理重复播放逻辑
      */
     private fun handleRepeatPlay() {
         currentRepeatCount++
-
+        
         if (currentRepeatCount < repeatPlayCount) {
             // 还需要重复播放
             Log.d(TAG, "[重复播放] 准备第${currentRepeatCount + 1}次播放 (共${repeatPlayCount}次)")
-
+            
             CoroutineScope(Dispatchers.Main).launch {
                 delay(repeatPlayInterval)  // 等待间隔时间
-
+                
                 // 播放下一次 - 使用内部播放方法，避免重新设置重复计数
                 Log.d(TAG, "[重复播放] 开始第${currentRepeatCount + 1}次播放")
                 playInternalSound(currentPlayingSoundType)
@@ -1323,7 +1569,7 @@ class SoundManager @Inject constructor(
             }
         }
     }
-
+    
     /**
      * 执行振动提醒 - 配合音频提示使用
      */
@@ -1332,52 +1578,46 @@ class SoundManager @Inject constructor(
             Log.d(TAG, "[振动提醒] 振动已禁用，跳过振动")
             return
         }
-
+        
         try {
             // 检查设备是否支持振动
             if (!vibrator.hasVibrator()) {
                 Log.d(TAG, "[振动提醒] 设备不支持振动功能")
                 return
             }
-
+            
             // 根据音量级别自动调整振动模式 - 适配1000%音量范围
             val vibrationPattern = when {
                 _currentVolume.value >= 1000 -> {
                     // 极响级别：超级强烈振动 - 最强振动组合
                     longArrayOf(0, 1000, 300, 800, 300, 600, 300, 800, 300, 1000)
                 }
-
                 _currentVolume.value >= 750 -> {
                     // 很响级别：强烈振动模式 - 超长振动组合
                     longArrayOf(0, 800, 300, 600, 200, 400, 200, 600)
                 }
-
                 _currentVolume.value >= 500 -> {
                     // 响亮级别：较强振动模式 - 长振动组合  
                     longArrayOf(0, 600, 250, 500, 200, 400)
                 }
-
                 _currentVolume.value >= 250 -> {
                     // 中等级别：中强振动模式 - 中长振动
                     longArrayOf(0, 400, 200, 400)
                 }
-
                 _currentVolume.value >= 100 -> {
                     // 轻级别：标准振动模式 - 标准振动
                     longArrayOf(0, 300, 150, 300)
                 }
-
                 _currentVolume.value >= 50 -> {
                     // 很轻级别：轻微振动模式 - 短振动
                     longArrayOf(0, 200)
                 }
-
                 else -> {
                     // 静音级别：不振动
                     longArrayOf(0)
                 }
             }
-
+            
             // 根据强度设置振动幅度
             val amplitude = when (vibrationIntensity) {
                 1 -> 80   // 轻
@@ -1385,20 +1625,16 @@ class SoundManager @Inject constructor(
                 3 -> 255  // 强 (最大值)
                 else -> 150
             }
-
+            
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 // Android 8.0+ 使用VibrationEffect
                 // 创建与振动模式长度匹配的振幅数组
                 val amplitudes = IntArray(vibrationPattern.size) { index ->
                     if (index % 2 == 0) 0 else amplitude  // 偶数索引为暂停(0)，奇数索引为振动(amplitude)
                 }
-                val vibrationEffect =
-                    VibrationEffect.createWaveform(vibrationPattern, amplitudes, -1)
+                val vibrationEffect = VibrationEffect.createWaveform(vibrationPattern, amplitudes, -1)
                 vibrator.vibrate(vibrationEffect)
-                Log.d(
-                    TAG,
-                    "[振动提醒] 执行振动 - 模式: ${vibrationPattern.contentToString()}, 强度: $amplitude"
-                )
+                Log.d(TAG, "[振动提醒] 执行振动 - 模式: ${vibrationPattern.contentToString()}, 强度: $amplitude")
             } else {
                 // Android 8.0以下使用传统方法
                 @Suppress("DEPRECATION")
@@ -1409,7 +1645,7 @@ class SoundManager @Inject constructor(
             Log.e(TAG, "[振动提醒] 执行振动失败", e)
         }
     }
-
+    
     /**
      * 释放资源，在应用退出时调用
      */
@@ -1417,11 +1653,12 @@ class SoundManager @Inject constructor(
         try {
             stopCurrentSound()
             restoreSystemVolume()  // 确保恢复系统音量
+            soundPool.release()
         } catch (e: Exception) {
             Log.e(TAG, "释放声音资源失败", e)
         }
     }
-
+    
     /**
      * 停止所有正在播放的声音
      * 对外公开的方法，用于UI层调用
@@ -1446,202 +1683,347 @@ class SoundManager @Inject constructor(
 
     /** 查询当前是否启用接单持续提示 */
     fun isKeepRingingUntilAcceptEnabled(): Boolean = keepRingingUntilAccept
-
+    
     // ================================ 单次播放方法 ================================
-
+    
     /**
      * 播放系统声音（仅播放一次，不重复）
      */
     private fun playSystemSoundOnce(ringtoneType: Int) {
         try {
-            Log.d(
-                TAG,
-                "[测试音效] 播放系统声音 - 类型: $ringtoneType, 音量: ${_currentVolume.value}% (仅播放一次)"
-            )
-
+            Log.d(TAG, "[测试音效] 播放系统声音 - 类型: $ringtoneType, 音量: ${_currentVolume.value}% (仅播放一次)")
+            
             // 停止之前的声音
             stopCurrentSound()
-
+            
             // 如果音量超过100%，临时提升系统音量
             boostSystemVolume()
-
+            
             val notificationUri = RingtoneManager.getDefaultUri(ringtoneType)
             Log.d(TAG, "[测试音效] 获取到系统声音URI: $notificationUri")
-
+            
             // 根据音量级别选择播放策略
             when {
                 _currentVolume.value >= 750 -> {
                     // 极响/很响级别：使用多音频叠加技术
                     playWithMultipleAudioLayersOnce(notificationUri)
                 }
-
                 _currentVolume.value >= 500 -> {
                     // 响亮级别：使用音频增强技术
                     playWithAudioEnhancementOnce(notificationUri)
                 }
-
                 _currentVolume.value >= 250 -> {
                     // 中等级别：使用标准增强
                     playWithStandardEnhancementOnce(notificationUri)
                 }
-
                 else -> {
                     // 低音量：使用标准播放
                     playStandardSoundOnce(notificationUri)
                 }
             }
-
+            
         } catch (e: Exception) {
             Log.e(TAG, "[测试音效] 播放系统声音失败", e)
             playFallbackSoundOnce()
         }
     }
-
+    
     /**
      * 播放指定URI声音（仅播放一次，不重复）
      */
     private fun playSpecificSoundOnce(uri: Uri) {
         try {
-            Log.d(
-                TAG,
-                "[测试音效] 播放特定URI声音: $uri, 音量: ${_currentVolume.value}% (仅播放一次)"
-            )
-
+            Log.d(TAG, "[测试音效] 播放特定URI声音: $uri, 音量: ${_currentVolume.value}% (仅播放一次)")
+            
             // 停止之前的声音
             stopCurrentSound()
-
+            
             // 如果音量超过100%，临时提升系统音量
             boostSystemVolume()
-
+            
             // 根据音量级别选择播放策略
             when {
                 _currentVolume.value >= 750 -> {
                     playWithMultipleAudioLayersOnce(uri)
                 }
-
                 _currentVolume.value >= 500 -> {
                     playWithAudioEnhancementOnce(uri)
                 }
-
                 _currentVolume.value >= 250 -> {
                     playWithStandardEnhancementOnce(uri)
                 }
-
                 else -> {
                     playStandardSoundOnce(uri)
                 }
             }
-
+            
         } catch (e: Exception) {
             Log.e(TAG, "[测试音效] 播放特定URI声音失败", e)
             playFallbackSoundOnce()
         }
     }
-
+    
     /**
      * 播放自定义声音（仅播放一次，不重复）
      */
     private fun playCustomSoundOnce(filePath: String) {
         try {
-            Log.d(
-                TAG,
-                "[测试音效] 播放自定义声音: $filePath, 音量: ${_currentVolume.value}% (仅播放一次)"
-            )
-
+            Log.d(TAG, "[测试音效] 播放自定义声音: $filePath, 音量: ${_currentVolume.value}% (仅播放一次)")
+            
             stopCurrentSound()
             boostSystemVolume()
-
+            
             val uri = Uri.parse(filePath)
-
+            
             when {
                 _currentVolume.value >= 750 -> {
                     playWithMultipleAudioLayersOnce(uri)
                 }
-
                 _currentVolume.value >= 500 -> {
                     playWithAudioEnhancementOnce(uri)
                 }
-
                 _currentVolume.value >= 250 -> {
                     playWithStandardEnhancementOnce(uri)
                 }
-
                 else -> {
                     playStandardSoundOnce(uri)
                 }
             }
-
+            
         } catch (e: Exception) {
             Log.e(TAG, "[测试音效] 播放自定义声音失败", e)
             playFallbackSoundOnce()
         }
     }
-
+    
     /**
      * 标准播放（仅播放一次，不重复）
      */
     private fun playStandardSoundOnce(uri: Uri) {
         try {
-            Log.d(TAG, "[测试音效-Exo] 标准播放一次")
-            startExoPlayback(uri, playOnce = true, applyEnhancement = false, layeredCount = 1, triggerRepeat = false)
+            ringtonePlayer = RingtoneManager.getRingtone(context, uri)
+            ringtonePlayer?.play()
+            testSoundPlaying = true
+            
+            CoroutineScope(Dispatchers.Main).launch {
+                delay(3000)
+                stopCurrentSound()
+                // 注意：这里不调用 handleRepeatPlay()，因为是单次播放
+            }
+            
         } catch (e: Exception) {
             Log.e(TAG, "[测试音效] 标准播放失败", e)
             playFallbackSoundOnce()
         }
     }
-
+    
     /**
      * 标准增强播放（仅播放一次，不重复）
      */
     private fun playWithStandardEnhancementOnce(uri: Uri) {
         try {
-            Log.d(TAG, "[测试音效-Exo] 标准增强一次")
-            startExoPlayback(uri, playOnce = true, applyEnhancement = true, layeredCount = 1, triggerRepeat = false)
+            ringtonePlayer = RingtoneManager.getRingtone(context, uri)
+            
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                try {
+                    val volumeGain = (_currentVolume.value / 100f).coerceAtMost(2.5f)
+                    ringtonePlayer?.volume = volumeGain
+                    Log.d(TAG, "[测试音效] 设置音量增益: $volumeGain")
+                } catch (e: Exception) {
+                    Log.w(TAG, "[测试音效] 设置音量失败: ${e.message}")
+                }
+            }
+            
+            ringtonePlayer?.play()
+            testSoundPlaying = true
+            
+            CoroutineScope(Dispatchers.Main).launch {
+                delay(3000)
+                stopCurrentSound()
+                // 注意：这里不调用 handleRepeatPlay()
+            }
+            
         } catch (e: Exception) {
             Log.e(TAG, "[测试音效] 标准增强播放失败", e)
             playStandardSoundOnce(uri)
         }
     }
-
+    
     /**
      * 音频增强播放（仅播放一次，不重复）
      */
     private fun playWithAudioEnhancementOnce(uri: Uri) {
         try {
-            Log.d(TAG, "[测试音效-Exo] 音频增强一次")
-            startExoPlayback(uri, playOnce = true, applyEnhancement = true, layeredCount = 1, triggerRepeat = false)
+            Log.d(TAG, "[测试音效] 音频增强播放，目标音量: ${_currentVolume.value}% (仅播放一次)")
+            
+            val player = MediaPlayer().apply {
+                setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .setFlags(AudioAttributes.FLAG_AUDIBILITY_ENFORCED)
+                        .build()
+                )
+                
+                setDataSource(context, uri)
+                
+                setOnPreparedListener { mediaPlayer ->
+                    try {
+                        mediaPlayer.setVolume(1.0f, 1.0f)
+                        setupAdvancedAudioEffects(mediaPlayer.audioSessionId)
+                        mediaPlayer.start()
+                        Log.d(TAG, "[测试音效] 音频增强播放启动")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "[测试音效] 播放器设置失败: ${e.message}")
+                    }
+                }
+                
+                setOnCompletionListener {
+                    try {
+                        this.release()
+                        testSoundPlaying = false
+                    } catch (e: Exception) {
+                        Log.w(TAG, "[测试音效] 播放器释放失败: ${e.message}")
+                    }
+                }
+                
+                setOnErrorListener { _, what, extra ->
+                    Log.e(TAG, "[测试音效] MediaPlayer错误: what=$what, extra=$extra")
+                    testSoundPlaying = false
+                    true
+                }
+                
+                prepareAsync()
+            }
+            
+            ringtonePlayer = null
+            testSoundPlaying = true
+            
+            CoroutineScope(Dispatchers.Main).launch {
+                delay(3000)
+                try {
+                    if (player.isPlaying) {
+                        player.stop()
+                    }
+                    player.release()
+                } catch (e: Exception) {
+                    Log.w(TAG, "[测试音效] 停止播放器失败: ${e.message}")
+                }
+                // 注意：这里不调用 handleRepeatPlay()
+            }
+            
         } catch (e: Exception) {
             Log.e(TAG, "[测试音效] 音频增强播放失败", e)
             playStandardSoundOnce(uri)
         }
     }
-
+    
     /**
      * 多音频叠加播放（仅播放一次，不重复）
      */
     private fun playWithMultipleAudioLayersOnce(uri: Uri) {
         try {
-            val layers = when {
+            Log.d(TAG, "[测试音效] 多音频叠加播放，目标音量: ${_currentVolume.value}% (仅播放一次)")
+            
+            val layerCount = when {
                 _currentVolume.value >= 1000 -> 3
                 _currentVolume.value >= 750 -> 2
                 else -> 2
             }
-            Log.d(TAG, "[测试音效-Exo] 多层叠加一次 layers=$layers")
-            startExoPlayback(uri, playOnce = true, applyEnhancement = true, layeredCount = layers, triggerRepeat = false)
+            
+            stopAllConcurrentPlayers()
+            Thread.sleep(50)
+            
+            for (i in 0 until layerCount) {
+                try {
+                    val player = MediaPlayer().apply {
+                        setAudioAttributes(
+                            AudioAttributes.Builder()
+                                .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+                                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                                .setFlags(AudioAttributes.FLAG_AUDIBILITY_ENFORCED)
+                                .build()
+                        )
+                        
+                        setDataSource(context, uri)
+                        
+                        val delayMs = 0L
+                        
+                        setOnPreparedListener { mediaPlayer ->
+                            CoroutineScope(Dispatchers.Main).launch {
+                                delay(delayMs)
+                                
+                                try {
+                                    if (mediaPlayer.isPlaying || !concurrentPlayers.contains(this@apply)) {
+                                        Log.w(TAG, "[测试音效] MediaPlayer状态异常，跳过第${i + 1}层音频")
+                                        return@launch
+                                    }
+                                    
+                                    mediaPlayer.setVolume(1.0f, 1.0f)
+                                    setupAudioEffects(mediaPlayer.audioSessionId)
+                                    mediaPlayer.start()
+                                    Log.d(TAG, "[测试音效] 启动第${i + 1}层音频，延迟: ${delayMs}ms")
+                                } catch (e: IllegalStateException) {
+                                    Log.e(TAG, "[测试音效] MediaPlayer状态错误，第${i + 1}层音频启动失败: ${e.message}")
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "[测试音效] 第${i + 1}层音频启动出错: ${e.message}")
+                                }
+                            }
+                        }
+                        
+                        setOnCompletionListener {
+                            try {
+                                concurrentPlayers.remove(this)
+                                this.release()
+                            } catch (e: Exception) {
+                                Log.w(TAG, "[测试音效] 播放完成处理失败: ${e.message}")
+                            }
+                        }
+                        
+                        setOnErrorListener { _, what, extra ->
+                            Log.e(TAG, "[测试音效] 第${i + 1}层MediaPlayer错误: what=$what, extra=$extra")
+                            concurrentPlayers.remove(this)
+                            true
+                        }
+                        
+                        prepareAsync()
+                    }
+                    
+                    concurrentPlayers.add(player)
+                } catch (e: Exception) {
+                    Log.e(TAG, "[测试音效] 创建第${i + 1}层MediaPlayer失败: ${e.message}")
+                }
+            }
+            
+            testSoundPlaying = true
+            
+            CoroutineScope(Dispatchers.Main).launch {
+                delay(3500)
+                stopAllConcurrentPlayers()
+                // 注意：这里不调用 handleRepeatPlay()
+            }
+            
         } catch (e: Exception) {
             Log.e(TAG, "[测试音效] 多音频叠加播放失败", e)
             playStandardSoundOnce(uri)
         }
     }
-
+    
     /**
      * 播放回退声音（仅播放一次，不重复）
      */
     private fun playFallbackSoundOnce() {
         try {
             val fallbackUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-            Log.d(TAG, "[测试音效-Exo] 使用备用系统通知声音一次")
-            startExoPlayback(fallbackUri, playOnce = true, applyEnhancement = false, layeredCount = 1, triggerRepeat = false)
+            ringtonePlayer = RingtoneManager.getRingtone(context, fallbackUri)
+            ringtonePlayer?.play()
+            Log.d(TAG, "[测试音效] 使用备用系统通知声音")
+            
+            CoroutineScope(Dispatchers.Main).launch {
+                delay(3000)
+                stopCurrentSound()
+                // 注意：这里不调用 handleRepeatPlay()
+            }
         } catch (e: Exception) {
             Log.e(TAG, "[测试音效] 播放备用声音也失败", e)
         }

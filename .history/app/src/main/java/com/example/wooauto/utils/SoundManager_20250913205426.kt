@@ -110,6 +110,7 @@ class SoundManager @Inject constructor(
     private val BATCH_NOTIFICATION_DELAY = 500L // 批量通知延迟，单位毫秒
 
     // 防止测试声音连续播放（Legacy已移除，仅保留标志）
+    private var ringtonePlayer: android.media.Ringtone? = null
     private var testSoundPlaying = false
 
     // 接单持续提示设置与状态
@@ -264,20 +265,6 @@ class SoundManager @Inject constructor(
             "[音效播放] 原因: 设置音量测试 - 新音量: $safeVolume, 声音类型: ${_currentSoundType.value}"
         )
         playTestSoundOnce(_currentSoundType.value)
-    }
-
-    /**
-     * 设置通知音量（静默，不触发预览）
-     * @param volume 0-1000
-     */
-    suspend fun setVolumeQuiet(volume: Int) {
-        val safeVolume = when {
-            volume < 0 -> 0
-            volume > 1000 -> 1000
-            else -> volume
-        }
-        _currentVolume.value = safeVolume
-        saveSettings()
     }
 
     /**
@@ -693,8 +680,11 @@ class SoundManager @Inject constructor(
         performVibration()
 
         try {
-            // 预览只用单层，避免叠加产生冲突感
-            val layers = 1
+            val layers = when {
+                _currentVolume.value >= 1000 -> 3
+                _currentVolume.value >= 750 -> 2
+                else -> 1
+            }
             val applyEnhancement = _currentVolume.value >= 500
 
             when (type) {
@@ -1024,7 +1014,9 @@ class SoundManager @Inject constructor(
         }
     }
 
-    /** 旧后端回退（已保留接口，实际不再使用） */
+    /**
+     * 旧后端回退：使用 Ringtone/MediaPlayer 路径
+     */
     private fun legacyStartPlayback(
         uri: Uri,
         playOnce: Boolean,
@@ -1119,7 +1111,7 @@ class SoundManager @Inject constructor(
 
         val exoAttrs = ExoAudioAttributes.Builder()
             .setUsage(C.USAGE_NOTIFICATION_RINGTONE)
-            .setContentType(C.AUDIO_CONTENT_TYPE_SONIFICATION)
+            .setContentType(C.CONTENT_TYPE_SONIFICATION)
             .build()
 
         val layers = layeredCount.coerceAtLeast(1)
@@ -1213,18 +1205,42 @@ class SoundManager @Inject constructor(
 
             // 同时安全处理可能存在的全局引用（不依赖它们）
             loudnessEnhancer?.let {
-                try { it.enabled = false } catch (_: Exception) {}
-                try { it.release() } catch (_: Exception) {}
+                try {
+                    it.enabled = false
+                } catch (_: Exception) {
+                }
+                try {
+                    it.release()
+                } catch (_: Exception) {
+                }
                 loudnessEnhancer = null
             }
 
             dynamicsProcessing?.let {
-                try { it.setEnabled(false) } catch (_: Exception) {}
-                try { it.release() } catch (_: Exception) {}
+                try {
+                    it.setEnabled(false)
+                } catch (_: Exception) {
+                }
+                try {
+                    it.release()
+                } catch (_: Exception) {
+                }
                 dynamicsProcessing = null
             }
 
-            // 已移除 AudioTrack 路径
+            // audioTrack?.let { at -> // audioTrack 已移除
+            //     try {
+            //         if (at.state == AudioTrack.STATE_INITIALIZED) {
+            //             at.stop()
+            //         }
+            //     } catch (_: Exception) {
+            //     }
+            //     try {
+            //         at.release()
+            //     } catch (_: Exception) {
+            //     }
+            //     audioTrack = null
+            // }
 
             Log.d(TAG, "[音频效果] 已幂等清理所有效果器与音频轨道")
         } catch (e: Exception) {

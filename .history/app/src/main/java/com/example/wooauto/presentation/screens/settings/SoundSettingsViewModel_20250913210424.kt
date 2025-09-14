@@ -129,14 +129,13 @@ class SoundSettingsViewModel @Inject constructor(
         debounceJob = viewModelScope.launch {
             // 先静默保存，避免频繁播放
             soundManager.setVolumeQuiet(volume)
-            kotlinx.coroutines.delay(700)
+            kotlinx.coroutines.delay(500)
             // 仅当当前仍是该值时再播放一次测试音
             val finalVol = _notificationVolume.value
             if (finalVol == volume && _soundEnabled.value) {
                 // 只播放一次，不进入重复逻辑
                 val type = _soundType.value
                 try {
-                    soundManager.stopAllSounds()
                     soundManager.playTestSoundOnce(type)
                 } catch (_: Exception) {}
             }
