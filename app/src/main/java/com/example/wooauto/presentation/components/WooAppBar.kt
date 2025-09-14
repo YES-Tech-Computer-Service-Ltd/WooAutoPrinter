@@ -1,17 +1,13 @@
 package com.example.wooauto.presentation.components
 
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
@@ -29,11 +25,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.setValue
-import androidx.hilt.navigation.compose.hiltViewModel
-import com.example.wooauto.presentation.screens.orders.OrdersViewModel
 import com.example.wooauto.presentation.screens.orders.UnreadOrdersDialog
 import com.example.wooauto.presentation.navigation.AppNavConfig
-import com.example.wooauto.presentation.navigation.SettingsSectionRoutes
 import com.example.wooauto.presentation.navigation.resolveTopBarTitle
 
 /**
@@ -42,9 +35,7 @@ import com.example.wooauto.presentation.navigation.resolveTopBarTitle
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WooAppBar(
-    navController: NavController? = null,
-    onSearch: (query: String, route: String) -> Unit = { _, _ -> },
-    onRefresh: (route: String) -> Unit = { _ -> }
+    navController: NavController? = null
 ) {
     // 获取当前语言环境
     val locale = LocalAppLocale.current
@@ -54,14 +45,10 @@ fun WooAppBar(
     val currentRoute = navBackStackEntry?.destination?.route ?: ""
     
     // 搜索相关状态
-    var searchQuery by remember { mutableStateOf("") }
     var showUnreadOrders by remember { mutableStateOf(false) }
     
     // 决定显示哪种顶部栏
     val spec = AppNavConfig.topBarSpecForRoute(currentRoute)
-    // 使用路由参数（若存在）生成层级标题：settings/{section}/{sub} -> 一级 - 二级
-    val sectionArg = navBackStackEntry?.arguments?.getString("section")
-    val subArg = navBackStackEntry?.arguments?.getString("sub")
     // 交由统一解析器生成动态标题（settings 复合 & 模板名），回退到静态标题
     val resolvedTitle: String? = resolveTopBarTitle(currentRoute, navBackStackEntry?.arguments)
     when (currentRoute) {

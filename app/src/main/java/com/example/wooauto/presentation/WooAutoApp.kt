@@ -1,22 +1,18 @@
 package com.example.wooauto.presentation
 
 import android.os.Build
-import android.provider.Settings
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -27,7 +23,6 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -38,10 +33,6 @@ import androidx.navigation.navArgument
 import android.util.Log
 import androidx.annotation.RequiresApi
 import com.example.wooauto.licensing.LicenseDataStore
-import com.example.wooauto.licensing.LicenseVerificationManager
-import com.example.wooauto.licensing.LicenseManager
-import com.example.wooauto.licensing.EligibilityStatus
-import com.example.wooauto.licensing.TrialTokenManager
 import com.example.wooauto.presentation.components.WooAppBar
 import com.example.wooauto.presentation.components.WooSideNavigation
 import com.example.wooauto.presentation.navigation.AppNavConfig
@@ -58,22 +49,16 @@ import com.example.wooauto.utils.LocaleManager
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.withTimeoutOrNull
-import java.text.SimpleDateFormat
-import java.util.Calendar
-import java.util.Locale
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.ui.unit.dp
-import androidx.navigation.NavHostController
 import com.example.wooauto.presentation.screens.settings.PrinterSettings.PrinterDetailsScreen
 import com.example.wooauto.presentation.screens.settings.PrinterSettings.PrinterSettingsScreen
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.background
 
 private const val TAG = "WooAutoApp"
@@ -249,13 +234,7 @@ fun AppContent() {
                 ) {
                     if (!isSpecialScreen) {
                         WooAppBar(
-                            navController = navController,
-                            onSearch = { query, route ->
-                                coroutineScope.launch { EventBus.emitSearchEvent(query, route) }
-                            },
-                            onRefresh = { route ->
-                                coroutineScope.launch { EventBus.emitRefreshEvent(route) }
-                            }
+                            navController = navController
                         )
                     }
 
