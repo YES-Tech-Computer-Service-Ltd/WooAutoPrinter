@@ -267,20 +267,6 @@ class SoundManager @Inject constructor(
     }
 
     /**
-     * 设置通知音量（静默，不触发预览）
-     * @param volume 0-1000
-     */
-    suspend fun setVolumeQuiet(volume: Int) {
-        val safeVolume = when {
-            volume < 0 -> 0
-            volume > 1000 -> 1000
-            else -> volume
-        }
-        _currentVolume.value = safeVolume
-        saveSettings()
-    }
-
-    /**
      * 设置声音类型
      * @param type 声音类型
      */
@@ -693,8 +679,11 @@ class SoundManager @Inject constructor(
         performVibration()
 
         try {
-            // 预览只用单层，避免叠加产生冲突感
-            val layers = 1
+            val layers = when {
+                _currentVolume.value >= 1000 -> 3
+                _currentVolume.value >= 750 -> 2
+                else -> 1
+            }
             val applyEnhancement = _currentVolume.value >= 500
 
             when (type) {
@@ -1119,7 +1108,7 @@ class SoundManager @Inject constructor(
 
         val exoAttrs = ExoAudioAttributes.Builder()
             .setUsage(C.USAGE_NOTIFICATION_RINGTONE)
-            .setContentType(C.AUDIO_CONTENT_TYPE_SONIFICATION)
+            .setContentType(C.CONTENT_TYPE_SONIFICATION)
             .build()
 
         val layers = layeredCount.coerceAtLeast(1)
