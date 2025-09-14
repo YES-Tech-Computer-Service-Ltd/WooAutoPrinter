@@ -987,16 +987,12 @@ fun LicenseSettingsDialogContent(
                 LicenseInfoRow(
                     icon = Icons.Default.Timer,
                     label = stringResource(R.string.license_start_date),
-                    value = LicenseDataStore.formatDate(savedStartDate)
-                        .takeIf { it.isNotEmpty() }
-                        ?: stringResource(R.string.license_not_set)
+                    value = LicenseDataStore.formatDate(savedStartDate) ?: stringResource(R.string.license_not_set)
                 )
                 LicenseInfoRow(
                     icon = Icons.Default.Timer,
                     label = stringResource(R.string.license_end_date),
-                    value = LicenseDataStore.formatDate(savedEndDate)
-                        .takeIf { it.isNotEmpty() }
-                        ?: stringResource(R.string.license_not_set)
+                    value = LicenseDataStore.formatDate(savedEndDate) ?: stringResource(R.string.license_not_set)
                 )
                 LicenseInfoRow(
                     icon = Icons.Default.Lock,

@@ -6,8 +6,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.VerifiedUser
@@ -40,6 +42,7 @@ import androidx.navigation.NavController
 import com.example.wooauto.R
 import com.example.wooauto.licensing.LicenseDataStore
 import com.example.wooauto.licensing.LicenseValidator
+import com.example.wooauto.licensing.LicenseVerificationManager
 import com.example.wooauto.licensing.LicenseDetailsResult
 import com.example.wooauto.licensing.TrialTokenManager
 import com.example.wooauto.licensing.EligibilityStatus
@@ -60,6 +63,7 @@ fun LicenseInputSection(
     isEditable: Boolean,
     savedLicenseKey: String
 ) {
+    val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
@@ -378,6 +382,8 @@ fun LicenseSettingsDialogContent(
     // 从DataStore获取详细的许可证信息用于显示
     val savedStartDate by LicenseDataStore.getLicenseStartDate(context).collectAsState(initial = null)
     val savedEndDate by LicenseDataStore.getLicenseEndDate(context).collectAsState(initial = null)
+    val licenseEdition by LicenseDataStore.getLicenseEdition(context).collectAsState(initial = "Spire")
+    val capabilities by LicenseDataStore.getCapabilities(context).collectAsState(initial = "cap1, cap2")
     val licensedTo by LicenseDataStore.getLicensedTo(context).collectAsState(initial = "")
     val userEmail by LicenseDataStore.getUserEmail(context).collectAsState(initial = "")
     val licenseKey by LicenseDataStore.getLicenseKey(context).collectAsState(initial = "")
@@ -386,9 +392,12 @@ fun LicenseSettingsDialogContent(
     
     // 基于统一的资格状态判断是否已激活
     val isLicenseActivated = eligibilityInfo?.isLicensed ?: false
+    val isTrialActive = eligibilityInfo?.isTrialActive ?: true
+    val trialDaysRemaining = eligibilityInfo?.trialDaysRemaining ?: 10
 
     // 获取 deviceId 和 appId
     val deviceId = Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID)
+    val appId = "wooauto_app"
 
     // 获取屏幕宽度
     val configuration = LocalConfiguration.current
@@ -397,6 +406,7 @@ fun LicenseSettingsDialogContent(
 
     // 状态：许可证是否已过期
     var isLicenseExpired by remember { mutableStateOf(false) }
+    var hasParseError by remember { mutableStateOf(false) }
     var isManualRefreshing by remember { mutableStateOf(false) }
     var showDeactivateConfirm by remember { mutableStateOf(false) }
 
@@ -473,15 +483,18 @@ fun LicenseSettingsDialogContent(
             try {
                 val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
                 sdf.timeZone = TimeZone.getDefault()
-                val endDateParsed = sdf.parse(savedEndDate!!) ?: Date(0)
+                val endDateParsed = sdf.parse(savedEndDate) ?: Date(0)
                 val currentCalendar = Calendar.getInstance(TimeZone.getDefault())
                 isLicenseExpired = endDateParsed.before(currentCalendar.time)
+                hasParseError = false
             } catch (e: Exception) {
                 Log.e("LicenseSettingsDialog", "解析结束日期时出错: ${e.message}", e)
+                hasParseError = true
                 isLicenseExpired = false
             }
         } else {
             isLicenseExpired = false
+            hasParseError = false
         }
     }
 
@@ -649,6 +662,18 @@ fun LicenseSettingsDialogContent(
             }
  
             Spacer(modifier = Modifier.height(16.dp))
+ 
+            // 如果已激活，提供“停用许可证”操作
+            if (isLicenseActivated) {
+                OutlinedButton(
+                    onClick = { showDeactivateConfirm = true },
+                    modifier = Modifier.align(Alignment.End),
+                    colors = ButtonDefaults.outlinedButtonColors()
+                ) {
+                    Text(text = stringResource(id = R.string.deactivate_license))
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+            }
 
             // 输入框和激活按钮
             if (isSmallScreen) {
@@ -664,22 +689,121 @@ fun LicenseSettingsDialogContent(
                         savedLicenseKey = licenseCode
                     )
                     Spacer(modifier = Modifier.height(20.dp)) // 增加间距
-                    if (isLicenseActivated) {
-                        OutlinedButton(
-                            onClick = { showDeactivateConfirm = true },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(48.dp)
-                        ) {
-                            Text(text = stringResource(id = R.string.deactivate_license))
-                        }
-                    } else {
+                    Button(
+                        onClick = {
+                            coroutineScope.launch {
+                                // 激活许可证的逻辑
+                                try {
+                                    val deviceId = Settings.Secure.getString(
+                                        context.contentResolver,
+                                        Settings.Secure.ANDROID_ID
+                                    )
+                                    val clean = licenseCode.filter { it.isLetterOrDigit() || it == '-' }
+                                    Log.d("LicenseDebug", "Activating license: $clean")
+                                    val result = LicenseValidator.activateLicense(clean, deviceId)
+                                    Log.d(
+                                        "LicenseDebug",
+                                        "Activation result: success=${result.success}, message=${result.message}"
+                                    )
+ 
+                                    if (result.success) {
+                                        when (val details = LicenseValidator.getLicenseDetails(clean)) {
+                                            is LicenseDetailsResult.Success -> {
+                                                val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+                                                sdf.timeZone = TimeZone.getDefault()
+                                                val localStartDate = sdf.format(Calendar.getInstance().time)
+ 
+                                                val calcEnd = LicenseDataStore.calculateEndDate(
+                                                    localStartDate,
+                                                    details.validity
+                                                )
+                                                Log.d("LicenseDebug", "Activation: calcEnd=$calcEnd")
+                                                
+                                                // 清除并保存新的许可证信息
+                                                LicenseDataStore.clearLicenseInfo(context)
+                                                LicenseDataStore.saveLicenseStartDate(context, localStartDate)
+                                                LicenseDataStore.saveLicenseEndDate(context, calcEnd)
+                                                LicenseDataStore.saveLicenseInfo(
+                                                    context,
+                                                    true,
+                                                    calcEnd,
+                                                    clean,
+                                                    details.edition,
+                                                    details.capabilities,
+                                                    details.licensedTo,
+                                                    details.email
+                                                )
+                                                LicenseDataStore.setLicensed(context, true)
+                                                
+                                                // 强制结束试用期
+                                                TrialTokenManager.forceExpireTrial(context)
+                                                Log.d("LicenseSettingsDialog", "试用期已结束")
+                                                
+                                                // 重新验证许可证状态，更新LicenseManager的状态
+                                                val isValid = licenseManager.forceRevalidateAndSync(context)
+                                                Log.d("LicenseSettingsDialog", "许可证激活后统一验证结果: $isValid")
+                                                if (isValid) {
+                                                    // 等待一小段时间确保DataStore数据已更新
+                                                    kotlinx.coroutines.delay(200)
+                                                    snackbarHostState.showSnackbar(
+                                                        context.getString(R.string.license_success, calcEnd)
+                                                    )
+                                                    onLicenseActivated()
+                                                }
+                                            }
+                                            is LicenseDetailsResult.Error -> {
+                                                Log.e("LicenseDebug", "Activation error: ${details.message}")
+                                                snackbarHostState.showSnackbar("Failed to get license details: ${details.message}")
+                                            }
+                                        }
+                                    } else {
+                                        snackbarHostState.showSnackbar("Failed to activate license: ${result.message}")
+                                    }
+                                } catch (e: Exception) {
+                                    Log.e("LicenseSettingsDialog", "Error during activation: ${e.message}", e)
+                                    snackbarHostState.showSnackbar("Error: ${e.message}")
+                                }
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp),
+                        enabled = !isLicenseActivated,
+                        colors = ButtonDefaults.buttonColors(
+                            disabledContainerColor = Color.Gray.copy(alpha = 0.3f),
+                            disabledContentColor = Color.White.copy(alpha = 0.5f)
+                        )
+                    ) {
+                        Text(stringResource(R.string.activate))
+                    }
+                }
+            } else {
+                Column(
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    LicenseInputSection(
+                        onLicenseComplete = { finalKey ->
+                            licenseCode = finalKey
+                        },
+                        isEditable = !isLicenseActivated,
+                        savedLicenseKey = licenseCode
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    // 按钮居中放置
+                    Box(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentAlignment = Alignment.Center
+                    ) {
                         Button(
                             onClick = {
                                 coroutineScope.launch {
-                                    // 激活许可证的逻辑
+                                    // 重复的激活许可证逻辑（与上面相同）
                                     try {
-                                        // 使用外层 deviceId，避免变量名遮蔽
+                                        val deviceId = Settings.Secure.getString(
+                                            context.contentResolver,
+                                            Settings.Secure.ANDROID_ID
+                                        )
                                         val clean = licenseCode.filter { it.isLetterOrDigit() || it == '-' }
                                         Log.d("LicenseDebug", "Activating license: $clean")
                                         val result = LicenseValidator.activateLicense(clean, deviceId)
@@ -687,14 +811,14 @@ fun LicenseSettingsDialogContent(
                                             "LicenseDebug",
                                             "Activation result: success=${result.success}, message=${result.message}"
                                         )
-
+ 
                                         if (result.success) {
                                             when (val details = LicenseValidator.getLicenseDetails(clean)) {
                                                 is LicenseDetailsResult.Success -> {
                                                     val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
                                                     sdf.timeZone = TimeZone.getDefault()
                                                     val localStartDate = sdf.format(Calendar.getInstance().time)
-
+ 
                                                     val calcEnd = LicenseDataStore.calculateEndDate(
                                                         localStartDate,
                                                         details.validity
@@ -748,120 +872,15 @@ fun LicenseSettingsDialogContent(
                                 }
                             },
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .height(48.dp)
+                                .width(120.dp)
+                                .height(48.dp),
+                            enabled = !isLicenseActivated,
+                            colors = ButtonDefaults.buttonColors(
+                                disabledContainerColor = Color.Gray.copy(alpha = 0.3f),
+                                disabledContentColor = Color.White.copy(alpha = 0.5f)
+                            )
                         ) {
                             Text(stringResource(R.string.activate))
-                        }
-                    }
-                }
-            } else {
-                Column(
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    LicenseInputSection(
-                        onLicenseComplete = { finalKey ->
-                            licenseCode = finalKey
-                        },
-                        isEditable = !isLicenseActivated,
-                        savedLicenseKey = licenseCode
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    
-                    // 按钮居中放置
-                    Box(
-                        modifier = Modifier.fillMaxWidth(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (isLicenseActivated) {
-                            OutlinedButton(
-                                onClick = { showDeactivateConfirm = true },
-                                modifier = Modifier
-                                    .width(120.dp)
-                                    .height(48.dp)
-                            ) {
-                                Text(text = stringResource(id = R.string.deactivate_license))
-                            }
-                        } else {
-                            Button(
-                                onClick = {
-                                    coroutineScope.launch {
-                                        // 重复的激活许可证逻辑（与上面相同）
-                                        try {
-                                            // 使用外层 deviceId，避免变量名遮蔽
-                                            val clean = licenseCode.filter { it.isLetterOrDigit() || it == '-' }
-                                            Log.d("LicenseDebug", "Activating license: $clean")
-                                            val result = LicenseValidator.activateLicense(clean, deviceId)
-                                            Log.d(
-                                                "LicenseDebug",
-                                                "Activation result: success=${result.success}, message=${result.message}"
-                                            )
-
-                                            if (result.success) {
-                                                when (val details = LicenseValidator.getLicenseDetails(clean)) {
-                                                    is LicenseDetailsResult.Success -> {
-                                                        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-                                                        sdf.timeZone = TimeZone.getDefault()
-                                                        val localStartDate = sdf.format(Calendar.getInstance().time)
-
-                                                        val calcEnd = LicenseDataStore.calculateEndDate(
-                                                            localStartDate,
-                                                            details.validity
-                                                        )
-                                                        Log.d("LicenseDebug", "Activation: calcEnd=$calcEnd")
-                                                        
-                                                        // 清除并保存新的许可证信息
-                                                        LicenseDataStore.clearLicenseInfo(context)
-                                                        LicenseDataStore.saveLicenseStartDate(context, localStartDate)
-                                                        LicenseDataStore.saveLicenseEndDate(context, calcEnd)
-                                                        LicenseDataStore.saveLicenseInfo(
-                                                            context,
-                                                            true,
-                                                            calcEnd,
-                                                            clean,
-                                                            details.edition,
-                                                            details.capabilities,
-                                                            details.licensedTo,
-                                                            details.email
-                                                        )
-                                                        LicenseDataStore.setLicensed(context, true)
-                                                        
-                                                        // 强制结束试用期
-                                                        TrialTokenManager.forceExpireTrial(context)
-                                                        Log.d("LicenseSettingsDialog", "试用期已结束")
-                                                        
-                                                        // 重新验证许可证状态，更新LicenseManager的状态
-                                                        val isValid = licenseManager.forceRevalidateAndSync(context)
-                                                        Log.d("LicenseSettingsDialog", "许可证激活后统一验证结果: $isValid")
-                                                        if (isValid) {
-                                                            // 等待一小段时间确保DataStore数据已更新
-                                                            kotlinx.coroutines.delay(200)
-                                                            snackbarHostState.showSnackbar(
-                                                                context.getString(R.string.license_success, calcEnd)
-                                                            )
-                                                            onLicenseActivated()
-                                                        }
-                                                    }
-                                                    is LicenseDetailsResult.Error -> {
-                                                        Log.e("LicenseDebug", "Activation error: ${details.message}")
-                                                        snackbarHostState.showSnackbar("Failed to get license details: ${details.message}")
-                                                    }
-                                                }
-                                            } else {
-                                                snackbarHostState.showSnackbar("Failed to activate license: ${result.message}")
-                                            }
-                                        } catch (e: Exception) {
-                                            Log.e("LicenseSettingsDialog", "Error during activation: ${e.message}", e)
-                                            snackbarHostState.showSnackbar("Error: ${e.message}")
-                                        }
-                                    }
-                                },
-                                modifier = Modifier
-                                    .width(120.dp)
-                                    .height(48.dp)
-                            ) {
-                                Text(stringResource(R.string.activate))
-                            }
                         }
                     }
                 }
@@ -987,16 +1006,12 @@ fun LicenseSettingsDialogContent(
                 LicenseInfoRow(
                     icon = Icons.Default.Timer,
                     label = stringResource(R.string.license_start_date),
-                    value = LicenseDataStore.formatDate(savedStartDate)
-                        .takeIf { it.isNotEmpty() }
-                        ?: stringResource(R.string.license_not_set)
+                    value = LicenseDataStore.formatDate(savedStartDate) ?: stringResource(R.string.license_not_set)
                 )
                 LicenseInfoRow(
                     icon = Icons.Default.Timer,
                     label = stringResource(R.string.license_end_date),
-                    value = LicenseDataStore.formatDate(savedEndDate)
-                        .takeIf { it.isNotEmpty() }
-                        ?: stringResource(R.string.license_not_set)
+                    value = LicenseDataStore.formatDate(savedEndDate) ?: stringResource(R.string.license_not_set)
                 )
                 LicenseInfoRow(
                     icon = Icons.Default.Lock,

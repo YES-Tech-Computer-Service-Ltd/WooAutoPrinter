@@ -679,7 +679,10 @@ fun LicenseSettingsDialogContent(
                                 coroutineScope.launch {
                                     // 激活许可证的逻辑
                                     try {
-                                        // 使用外层 deviceId，避免变量名遮蔽
+                                        val deviceId = Settings.Secure.getString(
+                                            context.contentResolver,
+                                            Settings.Secure.ANDROID_ID
+                                        )
                                         val clean = licenseCode.filter { it.isLetterOrDigit() || it == '-' }
                                         Log.d("LicenseDebug", "Activating license: $clean")
                                         val result = LicenseValidator.activateLicense(clean, deviceId)
@@ -788,7 +791,10 @@ fun LicenseSettingsDialogContent(
                                     coroutineScope.launch {
                                         // 重复的激活许可证逻辑（与上面相同）
                                         try {
-                                            // 使用外层 deviceId，避免变量名遮蔽
+                                            val deviceId = Settings.Secure.getString(
+                                                context.contentResolver,
+                                                Settings.Secure.ANDROID_ID
+                                            )
                                             val clean = licenseCode.filter { it.isLetterOrDigit() || it == '-' }
                                             Log.d("LicenseDebug", "Activating license: $clean")
                                             val result = LicenseValidator.activateLicense(clean, deviceId)
@@ -987,16 +993,12 @@ fun LicenseSettingsDialogContent(
                 LicenseInfoRow(
                     icon = Icons.Default.Timer,
                     label = stringResource(R.string.license_start_date),
-                    value = LicenseDataStore.formatDate(savedStartDate)
-                        .takeIf { it.isNotEmpty() }
-                        ?: stringResource(R.string.license_not_set)
+                    value = LicenseDataStore.formatDate(savedStartDate) ?: stringResource(R.string.license_not_set)
                 )
                 LicenseInfoRow(
                     icon = Icons.Default.Timer,
                     label = stringResource(R.string.license_end_date),
-                    value = LicenseDataStore.formatDate(savedEndDate)
-                        .takeIf { it.isNotEmpty() }
-                        ?: stringResource(R.string.license_not_set)
+                    value = LicenseDataStore.formatDate(savedEndDate) ?: stringResource(R.string.license_not_set)
                 )
                 LicenseInfoRow(
                     icon = Icons.Default.Lock,
