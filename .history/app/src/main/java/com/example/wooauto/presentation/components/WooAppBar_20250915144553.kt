@@ -53,7 +53,7 @@ fun WooAppBar(
     val resolvedTitle: String? = resolveTopBarTitle(currentRoute, navBackStackEntry?.arguments)
     when {
         currentRoute == NavigationItem.Orders.route || currentRoute.startsWith("orders/") -> {
-            // Active/History 页面不再显示未读按钮（已由 Active 左栏表示）
+            val unreadOrdersText = stringResource(id = R.string.unread_orders)
             WooTopBar(
                 title = resolvedTitle ?: stringResource(id = spec.titleResId),
                 showSearch = false,
@@ -65,8 +65,27 @@ fun WooAppBar(
                 titleAlignment = if (spec.alignStart) Alignment.Start else Alignment.CenterHorizontally,
                 showStatusStrip = spec.showStatusStrip,
                 leadingContent = null,
-                trailingContent = null
+                trailingContent = if (spec.showUnreadButton) {
+                    {
+                        IconButton(
+                            onClick = { showUnreadOrders = true },
+                            modifier = Modifier
+                                .size(44.dp)
+                                .padding(end = 2.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Email,
+                                contentDescription = unreadOrdersText,
+                                tint = MaterialTheme.colorScheme.onPrimary,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                    }
+                } else null
             )
+            if (showUnreadOrders) {
+                UnreadOrdersDialog(onDismiss = { showUnreadOrders = false })
+            }
         }
         else -> {
             // 仅在非顶级页面显示返回按钮（当前顶级：orders/products/settings 以及 settings/{section}）

@@ -715,7 +715,41 @@ private fun OrdersList(
             .fillMaxSize()
             .padding(horizontal = 8.dp, vertical = 0.dp) // 移除底部padding
     ) {
-        // 顶部已存在固定筛选栏，此处不再重复渲染筛选行
+        // 过滤条：Last X Days、Status、Search
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp)
+                .padding(top = 8.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // 状态下拉
+            StatusDropdown(
+                selectedStatus = selectedStatus,
+                options = statusOptions,
+                onChange = onStatusSelected
+            )
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            // 日期范围下拉
+            DateRangeDropdown(
+                lastDays = lastDays,
+                onChange = onLastDaysChange
+            )
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            // 搜索框靠右并缩短
+            Row(modifier = Modifier.weight(1f), horizontalArrangement = Arrangement.End) {
+                SearchFieldInline(
+                    value = searchQuery,
+                    onChange = onSearchQueryChange,
+                    placeholder = stringResource(id = R.string.search_orders_hint),
+                    widthDp = 360
+                )
+            }
+        }
 
         // 原状态 Chip 保留为备选样式，但默认隐藏（避免重复UI）
         val showLegacyStatusChips = false

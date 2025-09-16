@@ -101,13 +101,6 @@ class OrdersViewModel @Inject constructor(
     private val _currencySymbol = MutableStateFlow("C$")
     val currencySymbol: StateFlow<String> = _currencySymbol.asStateFlow()
 
-    // Active 页面派生流：processing 按已读/未读分桶
-    private val _newProcessingOrders = MutableStateFlow<List<Order>>(emptyList())
-    val newProcessingOrders: StateFlow<List<Order>> = _newProcessingOrders.asStateFlow()
-
-    private val _inProcessingOrders = MutableStateFlow<List<Order>>(emptyList())
-    val inProcessingOrders: StateFlow<List<Order>> = _inProcessingOrders.asStateFlow()
-
     // 仅保留一个活跃的订单流收集，避免同时收集全量与筛选流造成 UI 覆盖/闪烁
     private var ordersCollectJob: Job? = null
     private var filterLoadingTimeoutJob: Job? = null
@@ -1381,25 +1374,6 @@ class OrdersViewModel @Inject constructor(
                 Log.e("OrdersViewModel", "【本地过滤】过滤订单出错", e)
                 _errorMessage.value = e.message
                 _isLoading.value = false
-            }
-        }
-    }
-
-    /**
-     * Active 页面：收集 processing 订单并分桶
-     */
-    fun startProcessingBuckets() {
-        processingBucketsJob?.cancel()
-        processingBucketsJob = viewModelScope.launch {
-            try {
-                orderRepository.getOrdersByStatusFlow("processing").collectLatest { list ->
-                    _newProcessingOrders.value = list.filter { !it.isRead }
-                    _inProcessingOrders.value = list.filter { it.isRead }
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.e(TAG, "观察processing分桶时出错: ${e.message}")
             }
         }
     }

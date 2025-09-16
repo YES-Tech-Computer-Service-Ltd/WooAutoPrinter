@@ -322,7 +322,8 @@ fun AppContent() {
                         Log.d(TAG, "导航到订单子页面: $section")
                         when (section) {
                             "active" -> {
-                                com.example.wooauto.presentation.screens.orders.OrdersActivePlaceholderScreen()
+                                // 先用 OrdersScreen 复用，后续可替换为 Active 专用界面
+                                OrdersScreen(navController = navController)
                             }
                             "history" -> {
                                 OrdersScreen(navController = navController)

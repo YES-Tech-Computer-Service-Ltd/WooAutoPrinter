@@ -1385,25 +1385,6 @@ class OrdersViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Active 页面：收集 processing 订单并分桶
-     */
-    fun startProcessingBuckets() {
-        processingBucketsJob?.cancel()
-        processingBucketsJob = viewModelScope.launch {
-            try {
-                orderRepository.getOrdersByStatusFlow("processing").collectLatest { list ->
-                    _newProcessingOrders.value = list.filter { !it.isRead }
-                    _inProcessingOrders.value = list.filter { it.isRead }
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.e(TAG, "观察processing分桶时出错: ${e.message}")
-            }
-        }
-    }
-
     // 导航到许可证设置页面
     fun navigateToLicenseSettings() {
         _navigationEvent.value = "license_settings"

@@ -140,40 +140,6 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.graphics.Shape
 
 @Composable
-fun StatusDropdown(
-	selectedStatus: String,
-	options: List<Pair<String, String>>,
-	onChange: (String) -> Unit
-) {
-	var expanded by remember { mutableStateOf(false) }
-	val current = options.firstOrNull { it.first == selectedStatus } ?: ("" to "All Status")
-	Box(
-		modifier = Modifier
-			.clip(RoundedCornerShape(16.dp))
-			.background(MaterialTheme.colorScheme.surface)
-			.border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
-			.clickable { expanded = true }
-			.padding(horizontal = 10.dp, vertical = 8.dp)
-	) {
-		Row(verticalAlignment = Alignment.CenterVertically) {
-			Icon(imageVector = Icons.Default.List, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
-			Spacer(modifier = Modifier.size(6.dp))
-			Text(text = current.second, style = MaterialTheme.typography.bodyMedium)
-			Spacer(modifier = Modifier.size(4.dp))
-			Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-		}
-		DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-			options.forEach { (value, label) ->
-				DropdownMenuItem(text = { Text(text = label) }, onClick = {
-					expanded = false
-					onChange(value)
-				})
-			}
-		}
-	}
-}
-
-@Composable
 fun OrdersScreen(
     viewModel: OrdersViewModel = hiltViewModel(),
     navController: NavController = rememberNavController()
@@ -397,91 +363,105 @@ fun OrdersScreen(
         UiLog.d("OrdersScreen", "使用Scaffold提供的内边距")
         
         // 使用动态调整后的内边距
-        Column(modifier = Modifier
-            .fillMaxSize()
-            .padding(paddingValues)) {
-            // 顶部筛选区域（固定不刷新）
-            OrdersFiltersBar(
-                selectedStatus = statusFilter,
-                onStatusSelected = { status ->
-                    if (status.isEmpty()) viewModel.filterOrdersByStatus("") else viewModel.filterOrdersByStatus(status)
-                },
-                lastDays = lastDaysFilter,
-                onLastDaysChange = { lastDaysFilter = it },
-                searchQuery = searchQuery,
-                onSearchChange = { searchQuery = it }
-            )
-            HorizontalDivider(modifier = Modifier.padding(top = 4.dp), thickness = 1.dp)
-
-            // 内容区域（仅此区域显示加载/空态/列表）
-            Box(modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)) {
-                when {
-                    !isInitialized.value || !configChecked || isLoading -> {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                                CircularProgressIndicator()
-                                Spacer(modifier = Modifier.height(16.dp))
-                                Text(text = if (locale.language == "zh") "正在加载订单数据..." else "Loading orders...", style = MaterialTheme.typography.bodyLarge)
-                            }
+        Box(
+            modifier = Modifier.padding(paddingValues)
+        ) {
+            // 统一首屏与刷新加载表现：配置未检查完成或正在加载时，显示整页加载动画
+            if (!isInitialized.value || !configChecked || isLoading) {
+                // 显示加载界面
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        CircularProgressIndicator()
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(text = if (locale.language == "zh") "正在加载订单数据..." else "Loading orders...", style = MaterialTheme.typography.bodyLarge)
+                    }
+                }
+            } else if (orders.isEmpty() && !isConfigured && configChecked) {
+                // 没有订单且API未配置，使用UnconfiguredView
+                UnconfiguredView(
+                    errorMessage = errorMessage ?: errorApiNotConfigured,
+                    onSettingsClick = { 
+                        navController.navigate(NavigationItem.Settings.route) {
+                            launchSingleTop = true
                         }
+                        // 保留广播以自动打开API配置对话框
+                        val intent = Intent("com.example.wooauto.ACTION_OPEN_API_SETTINGS")
+                        context.sendBroadcast(intent)
                     }
-                    orders.isEmpty() && !isConfigured && configChecked -> {
-                        UnconfiguredView(
-                            errorMessage = errorMessage ?: errorApiNotConfigured,
-                            onSettingsClick = {
-                                navController.navigate(NavigationItem.Settings.route) { launchSingleTop = true }
-                                val intent = Intent("com.example.wooauto.ACTION_OPEN_API_SETTINGS")
-                                context.sendBroadcast(intent)
+                )
+            } else {
+                // 有订单数据，显示订单列表
+                Box(modifier = Modifier.fillMaxSize()) {
+                    OrdersList(
+                        orders = orders,
+                        selectedStatus = statusFilter,
+                        searchQuery = searchQuery,
+                        onSearchQueryChange = { searchQuery = it },
+                        lastDays = lastDaysFilter,
+                        onLastDaysChange = { lastDaysFilter = it },
+                        onSelectOrder = { order ->
+                            viewModel.getOrderDetails(order.id)
+                            showOrderDetail = true
+                            // 不要在这里自动标记为已读，让用户手动控制
+                            // viewModel.markOrderAsRead(order.id)
+                        },
+                        onStatusSelected = { status ->
+                            // 当选择“全部状态”时，置空VM筛选并刷新全量
+                            if (status.isEmpty()) {
+                                viewModel.filterOrdersByStatus("")
+                            } else {
+                                viewModel.filterOrdersByStatus(status)
                             }
-                        )
-                    }
-                    else -> {
-                        OrdersList(
-                            orders = orders,
-                            selectedStatus = statusFilter,
-                            searchQuery = searchQuery,
-                            onSearchQueryChange = { searchQuery = it },
-                            lastDays = lastDaysFilter,
-                            onLastDaysChange = { lastDaysFilter = it },
-                            onSelectOrder = { order ->
-                                viewModel.getOrderDetails(order.id)
-                                showOrderDetail = true
-                            },
-                            onStatusSelected = { status ->
-                                if (status.isEmpty()) viewModel.filterOrdersByStatus("") else viewModel.filterOrdersByStatus(status)
-                            },
-                            currencySymbol = currencySymbol,
-                            isLoading = isLoading,
-                            emptyGuardActive = emptyGuardActive
-                        )
-
-                        if (isRefreshing && orders.isNotEmpty()) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp),
-                                contentAlignment = Alignment.TopCenter
+                        },
+                        currencySymbol = currencySymbol,
+                        isLoading = isLoading,
+                        emptyGuardActive = emptyGuardActive
+                    )
+                    
+                    // 当正在刷新时，在列表上方显示一个半透明的刷新提示
+                    if (isRefreshing && orders.isNotEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            contentAlignment = Alignment.TopCenter
+                        ) {
+                            Card(
+                                modifier = Modifier,
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.95f)
+                                ),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                                shape = RoundedCornerShape(20.dp)
                             ) {
-                                Card(
-                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.95f)),
-                                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                                    shape = RoundedCornerShape(20.dp)
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Row(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                                        Spacer(modifier = Modifier.width(12.dp))
-                                        Text(text = if (locale.language == "zh") "正在刷新订单..." else "Refreshing orders...", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                                    }
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(20.dp),
+                                        strokeWidth = 2.dp,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Text(
+                                        text = if (locale.language == "zh") "正在刷新订单..." else "Refreshing orders...",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
                                 }
                             }
                         }
                     }
                 }
             }
-        }
-
+            
             // 订单详情对话框
             if (showOrderDetail && selectedOrder != null) {
                 OrderDetailDialog(
@@ -511,52 +491,6 @@ fun OrdersScreen(
                     onDismiss = { showUnreadDialog = false }
                 )
             }
-        }
-    }
-
-@Composable
-private fun OrdersFiltersBar(
-    selectedStatus: String,
-    onStatusSelected: (String) -> Unit,
-    lastDays: Int?,
-    onLastDaysChange: (Int?) -> Unit,
-    searchQuery: String,
-    onSearchChange: (String) -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // 状态
-        val options = listOf(
-            "" to stringResource(id = R.string.all_status),
-            "processing" to stringResource(id = R.string.order_status_processing),
-            "pending" to stringResource(id = R.string.order_status_pending),
-            "on-hold" to stringResource(id = R.string.order_status_on_hold),
-            "completed" to stringResource(id = R.string.order_status_completed),
-            "cancelled" to stringResource(id = R.string.order_status_cancelled),
-            "refunded" to stringResource(id = R.string.order_status_refunded),
-            "failed" to stringResource(id = R.string.order_status_failed)
-        )
-        StatusDropdown(selectedStatus = selectedStatus, options = options) { value -> onStatusSelected(value) }
-
-        Spacer(modifier = Modifier.width(12.dp))
-
-        // 日期
-        DateRangeDropdown(lastDays = lastDays, onChange = onLastDaysChange)
-
-        Spacer(modifier = Modifier.width(12.dp))
-
-        // 搜索（靠右）
-        Row(modifier = Modifier.weight(1f), horizontalArrangement = Arrangement.End) {
-            SearchFieldInline(
-                value = searchQuery,
-                onChange = onSearchChange,
-                placeholder = stringResource(id = R.string.search_orders_hint),
-                widthDp = 360
-            )
         }
     }
 }
@@ -708,14 +642,80 @@ private fun OrdersList(
         "" to stringResource(id = R.string.all_status)
     )
 
-    // StatusDropdown 已提升为顶层函数
+    @Composable
+    fun StatusDropdown(
+        selectedStatus: String,
+        options: List<Pair<String, String>>,
+        onChange: (String) -> Unit
+    ) {
+        var expanded by remember { mutableStateOf(false) }
+        val current = options.firstOrNull { it.first == selectedStatus } ?: ("" to stringResource(id = R.string.all_status))
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(16.dp))
+                .background(MaterialTheme.colorScheme.surface)
+                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
+                .clickable { expanded = true }
+                .padding(horizontal = 10.dp, vertical = 8.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(imageVector = Icons.Default.List, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(text = current.second, style = MaterialTheme.typography.bodyMedium)
+                Spacer(modifier = Modifier.width(4.dp))
+                Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                options.forEach { (value, label) ->
+                    DropdownMenuItem(text = { Text(text = label) }, onClick = {
+                        expanded = false
+                        onChange(value)
+                    })
+                }
+            }
+        }
+    }
     
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(horizontal = 8.dp, vertical = 0.dp) // 移除底部padding
     ) {
-        // 顶部已存在固定筛选栏，此处不再重复渲染筛选行
+        // 过滤条：Last X Days、Status、Search
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp)
+                .padding(top = 8.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // 状态下拉
+            StatusDropdown(
+                selectedStatus = selectedStatus,
+                options = statusOptions,
+                onChange = onStatusSelected
+            )
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            // 日期范围下拉
+            DateRangeDropdown(
+                lastDays = lastDays,
+                onChange = onLastDaysChange
+            )
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            // 搜索框靠右并缩短
+            Row(modifier = Modifier.weight(1f), horizontalArrangement = Arrangement.End) {
+                SearchFieldInline(
+                    value = searchQuery,
+                    onChange = onSearchQueryChange,
+                    placeholder = stringResource(id = R.string.search_orders_hint),
+                    widthDp = 360
+                )
+            }
+        }
 
         // 原状态 Chip 保留为备选样式，但默认隐藏（避免重复UI）
         val showLegacyStatusChips = false

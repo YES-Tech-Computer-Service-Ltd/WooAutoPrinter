@@ -67,9 +67,7 @@ fun WooSideNavigation(
         stableItems.forEach { item ->
             val visible = item.visible && (item.visibleWhen?.invoke() ?: true)
             if (!visible) return@forEach
-            val selected = currentRoute == item.route ||
-                (currentRoute?.startsWith("settings/") == true && item.route == com.example.wooauto.navigation.NavigationItem.Settings.route) ||
-                (currentRoute?.startsWith("orders/") == true && item.route == com.example.wooauto.navigation.NavigationItem.Orders.route)
+            val selected = currentRoute == item.route || (currentRoute?.startsWith("settings/") == true && item.route == com.example.wooauto.navigation.NavigationItem.Settings.route)
             NavigationDrawerItem(
                 label = { 
                     val apiConfigured by com.example.wooauto.data.local.WooCommerceConfig.isConfigured.collectAsState(initial = true)

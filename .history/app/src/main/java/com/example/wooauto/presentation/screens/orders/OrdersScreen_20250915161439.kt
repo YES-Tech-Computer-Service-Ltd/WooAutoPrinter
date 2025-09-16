@@ -140,40 +140,6 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.graphics.Shape
 
 @Composable
-fun StatusDropdown(
-	selectedStatus: String,
-	options: List<Pair<String, String>>,
-	onChange: (String) -> Unit
-) {
-	var expanded by remember { mutableStateOf(false) }
-	val current = options.firstOrNull { it.first == selectedStatus } ?: ("" to "All Status")
-	Box(
-		modifier = Modifier
-			.clip(RoundedCornerShape(16.dp))
-			.background(MaterialTheme.colorScheme.surface)
-			.border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
-			.clickable { expanded = true }
-			.padding(horizontal = 10.dp, vertical = 8.dp)
-	) {
-		Row(verticalAlignment = Alignment.CenterVertically) {
-			Icon(imageVector = Icons.Default.List, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
-			Spacer(modifier = Modifier.size(6.dp))
-			Text(text = current.second, style = MaterialTheme.typography.bodyMedium)
-			Spacer(modifier = Modifier.size(4.dp))
-			Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-		}
-		DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-			options.forEach { (value, label) ->
-				DropdownMenuItem(text = { Text(text = label) }, onClick = {
-					expanded = false
-					onChange(value)
-				})
-			}
-		}
-	}
-}
-
-@Composable
 fun OrdersScreen(
     viewModel: OrdersViewModel = hiltViewModel(),
     navController: NavController = rememberNavController()
@@ -715,7 +681,41 @@ private fun OrdersList(
             .fillMaxSize()
             .padding(horizontal = 8.dp, vertical = 0.dp) // 移除底部padding
     ) {
-        // 顶部已存在固定筛选栏，此处不再重复渲染筛选行
+        // 过滤条：Last X Days、Status、Search
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp)
+                .padding(top = 8.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // 状态下拉
+            StatusDropdown(
+                selectedStatus = selectedStatus,
+                options = statusOptions,
+                onChange = onStatusSelected
+            )
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            // 日期范围下拉
+            DateRangeDropdown(
+                lastDays = lastDays,
+                onChange = onLastDaysChange
+            )
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            // 搜索框靠右并缩短
+            Row(modifier = Modifier.weight(1f), horizontalArrangement = Arrangement.End) {
+                SearchFieldInline(
+                    value = searchQuery,
+                    onChange = onSearchQueryChange,
+                    placeholder = stringResource(id = R.string.search_orders_hint),
+                    widthDp = 360
+                )
+            }
+        }
 
         // 原状态 Chip 保留为备选样式，但默认隐藏（避免重复UI）
         val showLegacyStatusChips = false
