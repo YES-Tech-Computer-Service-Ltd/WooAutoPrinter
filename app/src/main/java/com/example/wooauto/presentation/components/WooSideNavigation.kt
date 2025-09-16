@@ -139,8 +139,9 @@ fun WooSideNavigation(
                                 ?: if (currentRoute == com.example.wooauto.navigation.NavigationItem.Settings.route) "general" else null
                         }
                         item.route == com.example.wooauto.navigation.NavigationItem.Orders.route -> {
-                            // 当前路由形如 orders/{section}
-                            if (currentRoute?.startsWith("orders/") == true) currentRoute.removePrefix("orders/") else null
+                            // 统一与 Settings 相同的取参方式，避免取到模式串 "{section}"
+                            navController.currentBackStackEntry?.arguments?.getString("section")
+                                ?: if (currentRoute == com.example.wooauto.navigation.NavigationItem.Orders.route) "active" else null
                         }
                         else -> null
                     }

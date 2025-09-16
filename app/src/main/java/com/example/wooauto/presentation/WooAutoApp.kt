@@ -307,8 +307,8 @@ fun AppContent() {
 
                     composable(NavigationItem.Orders.route) {
                         Log.d(TAG, "导航到订单页面")
-                        // 默认跳转到 orders/history 二级页面，以保持现有显示逻辑
-                        navController.navigate(com.example.wooauto.presentation.navigation.Screen.OrdersSection.routeFor("history")) {
+                        // 默认跳转到 orders/active 二级页面
+                        navController.navigate(com.example.wooauto.presentation.navigation.Screen.OrdersSection.routeFor("active")) {
                             launchSingleTop = true
                         }
                     }
@@ -318,7 +318,7 @@ fun AppContent() {
                         route = com.example.wooauto.presentation.navigation.Screen.OrdersSection.route,
                         arguments = listOf(navArgument("section") { type = NavType.StringType })
                     ) { backStackEntry ->
-                        val section = backStackEntry.arguments?.getString("section") ?: "history"
+                        val section = backStackEntry.arguments?.getString("section") ?: "active"
                         Log.d(TAG, "导航到订单子页面: $section")
                         when (section) {
                             "active" -> {

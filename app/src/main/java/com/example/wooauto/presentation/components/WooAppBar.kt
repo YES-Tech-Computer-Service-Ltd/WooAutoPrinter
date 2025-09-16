@@ -22,9 +22,15 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.ui.Alignment
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import com.example.wooauto.presentation.screens.orders.UnreadOrdersDialog
 import com.example.wooauto.presentation.navigation.AppNavConfig
 import com.example.wooauto.presentation.navigation.resolveTopBarTitle
@@ -54,6 +60,17 @@ fun WooAppBar(
     when {
         currentRoute == NavigationItem.Orders.route || currentRoute.startsWith("orders/") -> {
             // Active/History 页面不再显示未读按钮（已由 Active 左栏表示）
+            val trailingPill: (@Composable () -> Unit)? = if (currentRoute.startsWith("orders/")) {
+                val section = currentRoute.removePrefix("orders/")
+                val labelRes = when (section) {
+                    "active" -> R.string.orders_active
+                    "history" -> R.string.orders_history
+                    else -> null
+                }
+                if (labelRes != null) {
+                    { SmallTitlePill(text = stringResource(id = labelRes)) }
+                } else null
+            } else null
             WooTopBar(
                 title = resolvedTitle ?: stringResource(id = spec.titleResId),
                 showSearch = false,
@@ -65,7 +82,7 @@ fun WooAppBar(
                 titleAlignment = if (spec.alignStart) Alignment.Start else Alignment.CenterHorizontally,
                 showStatusStrip = spec.showStatusStrip,
                 leadingContent = null,
-                trailingContent = null
+                trailingContent = trailingPill
             )
         }
         else -> {
@@ -106,6 +123,30 @@ fun WooAppBar(
                 } else null
             )
         }
+    }
+}
+
+@Composable
+private fun SmallTitlePill(text: String) {
+    Box(
+        modifier = Modifier
+            .padding(start = 6.dp)
+            .background(
+                color = Color.White.copy(alpha = 0.18f),
+                shape = RoundedCornerShape(999.dp)
+            )
+            .border(
+                width = 1.dp,
+                color = Color.White.copy(alpha = 0.25f),
+                shape = RoundedCornerShape(999.dp)
+            )
+            .padding(horizontal = 10.dp, vertical = 4.dp)
+    ) {
+        androidx.compose.material3.Text(
+            text = text,
+            color = Color.White,
+            style = androidx.compose.material3.MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold)
+        )
     }
 }
 
