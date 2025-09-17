@@ -1,0 +1,634 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">WooAuto</string>
+
+    <!-- Navigation -->
+    <string name="orders">订单</string>
+    <string name="products">产品</string>
+    <string name="settings">设置</string>
+    <string name="back">返回</string>
+
+    <!-- Bottom Navigation -->
+    <string name="nav_orders">订单</string>
+    <string name="nav_products">产品</string>
+    <string name="nav_settings">设置</string>
+
+    <!-- Orders -->
+    <string name="order_details">订单详情</string>
+    <string name="search_orders">搜索订单</string>
+    <string name="order_number">订单号: %1$s</string>
+    <string name="order_date">日期: %1$s</string>
+    <string name="customer_name">客户: %1$s</string>
+    <string name="order_amount">金额: %1$s</string>
+    <string name="order_status">状态: %1$s</string>
+    <string name="mark_as_complete">标记为完成</string>
+    <string name="mark_as_completed">标记为已完成</string>
+    <string name="print_order">打印订单</string>
+    <string name="close">关闭</string>
+    <string name="print_all_unprinted">打印全部未打印订单</string>
+    <string name="no_orders_found">未找到订单</string>
+    <string name="new_order_received">收到新订单</string>
+    <string name="order_id">订单ID: %1$s</string>
+    <string name="contact_info">联系方式: %1$s</string>
+    <string name="not_provided">未提供</string>
+    <string name="printed_status">打印状态</string>
+    <string name="printed_yes">已打印</string>
+    <string name="printed_no">未打印</string>
+    <string name="delivery_fee_text">外卖费</string>
+    <string name="tip_amount">小费</string>
+    
+    <!-- Order Detail Dialog -->
+    <string name="billing_address">账单地址</string>
+    <string name="order_note">备注</string>
+    <string name="delivery_order">外卖订单</string>
+    <string name="pickup_order">自取订单</string>
+    <string name="delivery_address">配送地址</string>
+    <string name="pickup_location">自取地点</string>
+    <string name="product_list">商品列表</string>
+    <string name="price_details">价格明细</string>
+    <string name="subtotal">小计</string>
+    <string name="discount">折扣</string>
+    <string name="tax">税费</string>
+    <string name="tax_pst">PST (%1$s%%)</string>
+    <string name="tax_gst">GST (%1$s%%)</string>
+    <string name="total">总计</string>
+    <string name="status">状态</string>
+    <string name="mark_as_printed">标记为已打印</string>
+    <string name="select_print_template">选择打印模板</string>
+    <string name="change_order_status">更改订单状态</string>
+    <string name="reprint">重新打印</string>
+    <string name="no_product_info">无商品信息</string>
+    <string name="in_store_pickup">店内自取</string>
+    <string name="no_orders_message">目前暂无订单</string>
+    
+    <!-- Print Template -->
+    <string name="full_details_template">完整订单详情 - 包含所有订单信息</string>
+    <string name="delivery_template">配送信息 - 突出显示配送信息和菜品</string>
+    <string name="kitchen_template">厨房订单 - 仅包含菜品和下单时间</string>
+    <string name="template_full_details">完整订单</string>
+    <string name="template_delivery">配送单</string>
+    <string name="template_kitchen">厨房单</string>
+
+    <!-- Print Templates Screen -->
+    <string name="create_new_template">创建新模板</string>
+    <string name="template_name_prompt">请为您的自定义模板命名：</string>
+    <string name="template_name_label">模板名称</string>
+    <string name="template_name_placeholder">例如：我的自定义模板</string>
+    <string name="create">创建</string>
+    <string name="delete_template_title">删除模板</string>
+    <string name="delete_template_message">确定要删除模板 \"%1$s\" 吗？\n\n此操作无法撤销。</string>
+    <string name="template_full_details_name">完整订单详情</string>
+    <string name="template_full_details_desc">包含所有客户和商品详细信息的完整订单信息</string>
+    <string name="template_delivery_name">配送收据</string>
+    <string name="template_delivery_desc">包含客户地址和订单商品的配送信息</string>
+    <string name="template_kitchen_name">厨房订单</string>
+    <string name="template_kitchen_desc">简化的厨房订单，仅显示商品和时间</string>
+    <string name="custom_template_desc">自定义模板 - %1$d 个已启用字段</string>
+    <string name="edit_template">编辑模板</string>
+    <string name="delete_custom_template">删除自定义模板</string>
+
+    <!-- Products -->
+    <string name="product_details">产品详情</string>
+    <string name="search_products">搜索产品</string>
+    <string name="categories">分类</string>
+    <string name="all_categories">所有分类</string>
+    <string name="product_name">名称: %1$s</string>
+    <string name="regular_price">常规价格: %1$s</string>
+    <string name="sale_price">促销价格: %1$s</string>
+    <string name="stock_quantity">库存: %1$d</string>
+    <string name="product_status">状态: %1$s</string>
+    <string name="product_category">分类: %1$s</string>
+    <string name="product_list_title">产品列表</string>
+    <string name="stock_status_in_stock">有库存</string>
+    <string name="stock_status_out_of_stock">无库存</string>
+    <string name="save_changes">保存更改</string>
+    <string name="no_products_found">未找到产品</string>
+    <string name="loading_products">正在加载产品…</string>
+    <string name="switching_category">正在切换分类…</string>
+    <string name="loading_message">稍等片刻，正在从您的WooCommerce商店获取最新数据</string>
+
+    <!-- Preview Content -->
+    <string name="preview_store_name">店铺名称</string>
+    <string name="preview_store_address">店铺地址</string>
+    <string name="preview_store_phone">店铺电话</string>
+    <string name="preview_order_number">订单号码</string>
+    <string name="preview_order_date">订单日期</string>
+    <string name="preview_customer_name">顾客名字</string>
+    <string name="preview_customer_phone">顾客电话</string>
+    <string name="preview_delivery_address">配送地址</string>
+    <string name="preview_subtotal">小计</string>
+    <string name="preview_tax">税</string>
+    <string name="preview_total">总计</string>
+    <string name="preview_payment_method">付款方式</string>
+    <string name="preview_order_notes">订单备注</string>
+
+    <!-- Settings -->
+    <string name="website_setup">网站设置</string>
+    <string name="printer_setup">打印机设置</string>
+    <string name="sound_setup">声音设置</string>
+    <string name="app_settings">应用设置</string>
+    <string name="api_configuration">API配置</string>
+    <string name="automation_tasks">自动化任务</string>
+    <string name="auto_print_settings_title">自动打印设置</string>
+    <string name="status_enabled">已启用</string>
+    <string name="status_disabled">已禁用</string>
+    <string name="no_template_selected">未选择模板</string>
+
+    <!-- Website Setup -->
+    <string name="website_url">网站 URL</string>
+    <string name="api_key">API 密钥</string>
+    <string name="api_secret">API 密钥密文</string>
+    <string name="polling_interval">轮询间隔 (秒)</string>
+    <string name="test_connection">测试连接</string>
+    <string name="connection_successful">连接成功</string>
+    <string name="connection_failed">连接失败</string>
+    <string name="plugin_selection">订单插件选择</string>
+    <string name="plugin_woocommerce_food">WooCommerce Food</string>
+    <string name="use_woocommerce_food">使用WooCommerce Food插件</string>
+    <string name="api_test_success">API 连接成功！</string>
+
+    <!-- Printer Setup -->
+    <string name="add_printer">添加打印机</string>
+    <string name="bluetooth_printer">蓝牙打印机</string>
+    <string name="network_printer">网络打印机</string>
+    <string name="printer_name">打印机名称</string>
+    <string name="printer_address">打印机地址</string>
+    <string name="printer_port">打印机端口</string>
+    <string name="printer_model">打印机型号</string>
+    <string name="scan_printers">扫描打印机</string>
+    <string name="auto_print">自动打印</string>
+    <string name="enable_auto_print_for_printer">为此打印机启用自动打印</string>
+    <string name="copies">份数</string>
+    <string name="print_template">打印模板</string>
+    <string name="preview_template">预览模板</string>
+    <string name="paper_size">纸张尺寸</string>
+    <string name="size_57mm">57毫米</string>
+    <string name="size_80mm">80毫米</string>
+    <string name="size_letter">信纸</string>
+    <string name="default_printer">默认打印机</string>
+    <string name="backup_printer">备用打印机</string>
+    <string name="printer_status">打印机状态</string>
+    <string name="test_print">测试打印</string>
+    <string name="printed">已打印</string>
+    <string name="printer_settings_title">打印机设置</string>
+    <string name="printer_templates">打印模板</string>
+    <string name="printer_templates_desc">自定义订单打印格式和内容</string>
+    <string name="no_printers">暂无打印机</string>
+    <string name="add_printer_hint">点击下方按钮添加打印机</string>
+    <string name="delete_printer">删除打印机</string>
+    <string name="delete_printer_confirm">确定要删除打印机 \'%1$s\' 吗？此操作无法撤销。</string>
+    <string name="delete">删除</string>
+    <string name="bluetooth_devices">蓝牙设备</string>
+    <string name="scanning_bluetooth">正在扫描蓝牙设备…</string>
+    <string name="no_bluetooth_devices">未找到蓝牙设备</string>
+    <string name="select_bluetooth_device">选择一个蓝牙设备连接</string>
+    <string name="bluetooth_tip">提示: 请确保打印机已开启并处于可发现状态。对于Android 7设备，可能需要先在系统蓝牙设置中配对打印机。</string>
+    <string name="no_bluetooth_tip">没有找到蓝牙设备，请确保设备已开启并处于可发现状态，然后重新扫描</string>
+    <string name="device_paired">已配对</string>
+    <string name="connected">已连接</string>
+    <string name="stop_scanning">停止扫描</string>
+    <string name="connect">连接</string>
+    <string name="disconnect">断开</string>
+    <string name="rescan">重新扫描</string>
+    <string name="printer_address_label">地址: %1$s</string>
+    <string name="printer_brand_label">品牌: %1$s (%2$s)</string>
+    <string name="printer_paper_width">纸张宽度: %1$smm</string>
+    <string name="edit">编辑</string>
+    <string name="test_print_action">测试打印</string>
+    <string name="set_as_default">设为默认打印机</string>
+    <string name="auto_print_new_orders">自动打印新订单</string>
+    <string name="is_default_printer">默认打印机</string>
+    <string name="printer_connected_success">打印机连接成功</string>
+    <string name="printer_disconnected">已断开打印机连接</string>
+    <string name="printer_connection_failed">打印机连接失败</string>
+    <string name="connecting_printer">正在连接打印机…</string>
+    <string name="test_print_success">测试打印成功</string>
+    <string name="test_print_failed">测试打印失败，请检查打印机连接</string>
+    <string name="printer_error">打印机错误: %1$s</string>
+    <string name="printer_deleted">打印机已删除</string>
+    <string name="set_as_default_success">已设置为默认打印机</string>
+
+    <!-- Sound Setup -->
+    <string name="sound_type">声音类型</string>
+    <string name="system_sound">系统声音</string>
+    <string name="custom_sound">自定义声音</string>
+    <string name="custom_text">自定义文本</string>
+    <string name="select_sound_file">选择声音文件</string>
+    <string name="volume">音量</string>
+    <string name="play_count">播放次数</string>
+    <string name="test_sound">测试声音</string>
+    <string name="male_voice">男声</string>
+    <string name="female_voice">女声</string>
+    <string name="sound_settings">声音设置</string>
+    <string name="sound_settings_saved">声音设置已保存</string>
+    <string name="save_settings">保存设置</string>
+    <string name="notification_volume">通知音量</string>
+    <string name="notification_volume_desc">调整提示音量大小，不影响系统音量</string>
+    <string name="enable_sound">启用声音</string>
+    <string name="enable_sound_desc">控制是否播放新订单提示音</string>
+    <string name="sound_type_title">提示音类型</string>
+    <string name="sound_type_desc">选择新订单提示音</string>
+    <string name="volume_min">0%</string>
+    <string name="volume_max">300%</string>
+    
+    <!-- 音量档位名称 -->
+    <string name="volume_level_silent">静音</string>
+    <string name="volume_level_soft">轻声</string>
+    <string name="volume_level_medium">中等</string>
+    <string name="volume_level_loud">响亮</string>
+    <string name="volume_level_very_loud">很响</string>
+    <string name="volume_level_extreme">极响</string>
+    <!-- Sound Types -->
+    <string name="sound_type_custom">自定义音频文件</string>
+
+    <string name="select_audio_file">选择音频文件</string>
+    
+    <!-- Template Preview -->
+    <string name="template_full_order_details">完整订单详情</string>
+    <string name="template_delivery_receipt">外卖单据</string>
+    <string name="template_kitchen_order">厨房订单</string>
+    <string name="template_new_custom">新建自定义模板</string>
+    <string name="template_custom">自定义模板</string>
+    <string name="template_unknown">未知模板</string>
+    
+    <!-- Template Settings -->
+    <string name="template_tab_preview">预览</string>
+    <string name="template_tab_settings">设置</string>
+    <string name="template_reset_default">恢复默认</string>
+    <string name="template_save">保存</string>
+    <string name="template_back">返回</string>
+    <string name="template_close">关闭</string>
+    
+    <!-- Paper Width -->
+    <string name="paper_width_preview">预览宽度: %1$s 热敏纸</string>
+
+    
+    <!-- Template Configuration -->
+    <string name="template_receipt_content">小票内容</string>
+    <string name="template_select_elements">选择要在小票模板中显示的元素:</string>
+    <string name="template_store_info">商店信息</string>
+    <string name="template_store_info_required">请先在设置 → 商店设置中配置商店信息</string>
+    <string name="template_store_name">商店名称</string>
+    <string name="template_store_address">商店地址</string>
+    <string name="template_store_phone">商店电话</string>
+    <string name="template_order_info">订单信息</string>
+    <string name="template_order_number">订单编号</string>
+    <string name="template_order_date_time">订单日期时间</string>
+    <string name="template_customer_info">客户信息</string>
+    <string name="template_customer_name">客户姓名</string>
+    <string name="template_customer_phone">客户电话</string>
+    <string name="template_delivery_info">配送信息</string>
+    <string name="template_order_content">订单内容</string>
+    <string name="template_order_items">订单商品</string>
+    <string name="template_item_prices">商品价格</string>
+    <string name="template_enable_items_first">请先启用订单商品</string>
+    <string name="template_order_notes">订单备注</string>
+    <string name="template_order_totals">订单合计</string>
+    <string name="template_payment_info">支付信息</string>
+    <string name="template_footer">页脚</string>
+    <string name="template_info">模板信息</string>
+    <string name="template_id_label">模板ID: %1$s</string>
+    <string name="template_type_label">模板类型: %1$s</string>
+    <string name="template_enabled_fields">已启用字段: %1$d</string>
+    <string name="template_store_info_required_title">需要商店信息</string>
+    <string name="template_store_info_required_message">请在设置 → 商店设置中配置您的商店名称和联系详情，以启用商店信息显示。</string>
+    
+    <!-- Footer Editor -->
+    <string name="template_footer_custom">自定义页脚文本</string>
+    <string name="template_footer_placeholder">输入自定义页脚文本（支持多行）</string>
+    <string name="template_footer_tip">提示: 使用换行符创建多行。留空则隐藏页脚。</string>
+    
+    <!-- Automation Settings -->
+    <string name="auto_print_template_full_details">完整订单详情</string>
+    <string name="auto_print_template_delivery">外卖单据</string>
+    <string name="auto_print_template_kitchen">厨房订单</string>
+    <string name="automatic_printing_desc">收到新订单时自动打印</string>
+    
+    <!-- ViewModel Messages -->
+    <string name="error_init_config_failed">初始化配置失败: %1$s</string>
+    <string name="error_load_config_failed">加载配置失败: %1$s</string>
+    <string name="error_save_config_failed">保存配置失败: %1$s</string>
+    <string name="error_reset_config_failed">重置配置失败: %1$s</string>
+    <string name="error_delete_config_failed">删除配置失败: %1$s</string>
+    <string name="error_copy_config_failed">复制配置失败: %1$s</string>
+    <string name="error_copy_source_not_found">复制配置失败: 源配置不存在</string>
+    <string name="success_config_saved">配置已保存</string>
+    <string name="success_config_reset">已重置为默认配置</string>
+    <string name="success_config_deleted">配置已删除</string>
+    <string name="success_config_copied">配置已复制</string>
+    
+    <!-- Product Detail -->
+    <string name="product_id_label">ID: %1$d</string>
+    <string name="product_label_colon">%1$s:</string>
+    <string name="audio_file_selected">音频文件已选择</string>
+    <string name="audio_file_select_error">选择音频文件失败</string>
+
+    <!-- App Settings -->
+    <string name="language">语言(Language)</string>
+    <string name="english">English</string>
+    <string name="chinese">中文</string>
+    <string name="language_changed">语言已更改</string>
+    <string name="auto_close_notification">自动关闭通知 (秒)</string>
+
+    <!-- Setup Wizard -->
+    <string name="setup_wizard">设置向导</string>
+    <string name="welcome">欢迎使用 WooAuto</string>
+    <string name="setup_intro">让我们设置您的应用</string>
+    <string name="next">下一步</string>
+    <string name="finish">完成</string>
+    <string name="skip">跳过</string>
+
+    <!-- Error Messages -->
+    <string name="error_connection">连接错误</string>
+    <string name="error_printer">打印机错误</string>
+    <string name="error_permission">权限被拒绝</string>
+    <string name="error_general">出现错误</string>
+    <string name="error_api_not_configured">未配置WooCommerce API</string>
+    <string name="error_loading_products">获取产品数据失败</string>
+    <string name="go_to_settings">前往设置</string>
+    <string name="check_settings">检查设置</string>
+
+    <!-- Order Status -->
+    <string name="order_status_pending">待处理</string>
+    <string name="order_status_processing">处理中</string>
+    <string name="order_status_completed">已完成</string>
+    <string name="order_status_cancelled">已取消</string>
+    <string name="order_status_on_hold">保留</string>
+    <string name="order_status_refunded">已退款</string>
+    <string name="order_status_failed">失败</string>
+
+    <!-- Sound Types -->
+    <string name="sound_type_default">系统默认通知音</string>
+    <string name="sound_type_alarm">系统闹钟声音（最响亮）</string>
+    <string name="sound_type_ringtone">系统电话铃声（较响亮）</string>
+    <string name="sound_type_event">系统事件提示音</string>
+    <string name="sound_type_email">系统邮件提示音</string>
+    <string name="sound_test">测试声音</string>
+
+
+    <!-- Common -->
+    <string name="save">保存</string>
+    <string name="cancel">取消</string>
+    <string name="confirm">确认</string>
+    <string name="loading">加载中…</string>
+    <string name="error">错误</string>
+    <string name="success">成功</string>
+    <string name="retry">重试</string>
+    <string name="refresh">刷新</string>
+
+    <string name="delivery_method">配送方式</string>
+    <string name="delivery_date">配送日期</string>
+    <string name="delivery_time">配送时间</string>
+    <string name="delivery_fee">配送费</string>
+    <string name="tip">小费</string>
+    <string name="order_summary">订单摘要</string>
+    <string name="delivery">配送</string>
+    <string name="pickup">自取</string>
+    <string name="delivery_details">配送详情</string>
+    <string name="fee_details">费用详情</string>
+    <string name="pickup_time">自取时间</string>
+
+    <!-- New additions from the code block -->
+    <string name="about">关于</string>
+    <string name="version">版本</string>
+    <string name="error_network">网络错误</string>
+    <string name="error_server">服务器错误</string>
+
+
+    <!-- API Settings -->
+    <string name="website_url_placeholder">例如：https://yourstore.com</string>
+    <string name="api_key_placeholder">例如：ck_XXXXXXXXXXXXXXXXXXXXXXXXXXXX</string>
+    <string name="api_secret_placeholder">例如：cs_XXXXXXXXXXXXXXXXXXXXXXXXXXXX</string>
+    <string name="save_and_test">保存并测试</string>
+    <string name="testing_connection">测试连接中…</string>
+    <string name="fill_all_fields">请填写所有必填字段</string>
+    <string name="scan_qr_code_prompt">扫描 WooCommerce 站点 URL 二维码</string>
+    <string name="scan_successful">扫描成功</string>
+
+    <!-- Automation Settings -->
+    <string name="automatic_order_processing">自动接单</string>
+    <string name="automatic_order_processing_desc">新订单自动接收处理</string>
+    <string name="automatic_printing">自动打印</string>
+    <string name="select_default_template">选择默认打印模板</string>
+    <string name="inventory_alerts">库存提醒</string>
+    <string name="inventory_alerts_desc">库存低时获得通知</string>
+    <string name="daily_backup">每日备份</string>
+    <string name="daily_backup_desc">自动每天备份数据</string>
+    <string name="order_processing">订单处理</string>
+    <string name="print_templates">打印模板</string>
+    <string name="other_automation">其他自动化</string>
+    <string name="settings_saved">设置已保存</string>
+
+    <string name="scan_qr_code">扫描二维码</string>
+    <string name="connection_test_success">连接测试成功！</string>
+    <string name="connection_test_failed">连接测试失败</string>
+    <string name="scan_woocommerce_site_url_qr">扫描WooCommerce站点URL二维码</string>
+    <string name="please_fill_all_required_fields">请填写所有必填字段</string>
+
+    <!-- API Configuration Check -->
+    <string name="checking_api_configuration">正在检查API配置…</string>
+    <string name="api_config_required">需要配置API</string>
+    <string name="api_config_message">您的WooCommerce API未正确配置。请检查您的设置。</string>
+    <string name="go_to_api_settings">前往API设置</string>
+
+    <string name="unread_orders">未读订单</string>
+    <string name="unread_orders_count">未读订单: %d</string>
+    <string name="mark_all_as_read">完全标记为已读</string>
+    <string name="no_unread_orders">暂无未读订单</string>
+
+    <!-- Printer Details Screen -->
+    <string name="configure_printer">配置打印机</string>
+    <string name="setup_printer">设置打印机</string>
+    <string name="edit_printer">编辑打印机</string>
+    <string name="select_bluetooth_printer">选择蓝牙打印机</string>
+    <string name="select_printer_instruction">请从下列设备中选择您的打印机，选择后可进行详细设置</string>
+    <string name="scanning_devices">扫描中…</string>
+    <string name="refresh_device_list">刷新设备列表</string>
+    <string name="no_device_found">未找到蓝牙设备</string>
+    <string name="ensure_bluetooth_paired">请确保蓝牙已开启并已与打印机配对</string>
+    <string name="paired">已配对</string>
+    <string name="select">选择</string>
+    <string name="request_bluetooth_location_permission">请求蓝牙和位置权限</string>
+    <string name="printer_configuration">打印机配置</string>
+    <string name="paper_width_setting">纸张宽度设置</string>
+    <string name="paper_width">纸张宽度</string>
+    <string name="select_paper_width">选择纸张宽度</string>
+    <string name="paper_width_58mm">58mm (50mm有效宽度)</string>
+    <string name="paper_width_80mm">80mm (72mm有效宽度)</string>
+    <string name="printer_options">打印机选项</string>
+    <string name="save_printer_config">保存打印机配置</string>
+    <string name="please_enter_name_address">请填写打印机名称和地址</string>
+    <string name="printer_config_saved">打印机配置已保存</string>
+    <string name="ensure_printer_on">提示: 请确保打印机已开启并处于可发现状态。对于Android 7设备，可能需要先在系统蓝牙设置中配对打印机。</string>
+    <string name="printer_config">打印机配置</string>
+    <string name="paper_width_setup">纸张宽度设置</string>
+    <string name="set_default_printer">设为默认打印机</string>
+    <string name="request_bluetooth_location_permissions">请求蓝牙和位置权限</string>
+    <string name="auto_cut_paper">自动切纸</string>
+
+    <!-- 更新版本相关字符串资源 -->
+    <string name="checking_for_updates">正在检查更新…</string>
+    <string name="update_available">发现新版本: %1$s</string>
+    <string name="latest_version">最新版本: %1$s</string>
+    <string name="current_version">当前版本: %1$s</string>
+    <string name="no_update_available">您使用的是最新版本。</string>
+    <string name="version_is_latest">当前已是最新版本</string>
+    <string name="version_needs_update">需要更新到最新版 %1$s</string>
+    <string name="about_version_info">版本 %1$s (%2$s)</string>
+
+    <!-- API Status Notifications -->
+    <string name="api_notification_not_configured">WooCommerce API未配置，请先配置API</string>
+
+    <!-- License Settings -->
+    <string name="license_success">证书激活成功！有效期至: %1$s</string>
+    <string name="activate">激活</string>
+    <string name="license_required">需要证书</string>
+    <string name="license_required_message">请先完成证书认证以查看订单详情</string>
+    <string name="activate_license">激活证书</string>
+    
+    <!-- License Info Labels -->
+    <string name="license_start_date">生效日期</string>
+    <string name="license_end_date">过期日期</string>
+    <string name="license_type">许可类型</string>
+    <string name="license_registered_user">注册用户</string>
+    <string name="license_user_email">用户邮箱</string>
+    <string name="license_device_id">设备ID</string>
+    <string name="license_not_set">未设置</string>
+    <string name="license_trial_start">试用开始</string>
+    <string name="license_trial_end">试用结束</string>
+
+    <!-- 对齐翻译内容-->
+    <string name="search_products_hint">搜索产品…</string>
+
+    <string name="sku">库存编号</string>
+
+    <string name="api_info_updated_from_qr">已通过二维码更新API信息</string>
+    <string name="scan_cancelled">扫描已取消</string>
+    <string name="qr_code_scanner_permission_denied">二维码扫描权限被拒绝。</string>
+    <string name="feature_coming_soon">此功能即将推出！</string>
+    <string name="api_configured">已配置</string>
+    <string name="api_not_configured">未配置</string>
+    <string name="printer_settings">打印机设置</string>
+    <string name="store_settings">店铺设置</string>
+    <string name="license_settings">许可设置</string>
+    <string name="auto_update">自动更新</string>
+    <string name="unknown_error">未知错误</string>
+    <string name="api_config_saved">API 配置已保存。</string>
+    <string name="save_failed">保存失败。</string>
+    <string name="invalid_url_format">无效的URL格式。</string>
+    <string name="required_field">此字段为必填项。</string>
+    <string name="test_connection_message">正在测试连接，请稍候…</string>
+    <string name="cancel_scan">取消扫描</string>
+    <string name="open_camera_failed">打开相机进行QR扫描失败。</string>
+    <string name="error_parsing_qr_code">解析二维码数据时出错。</string>
+    <string name="auto_print_settings">自动打印设置</string>
+    <string name="enable_auto_print">启用自动打印</string>
+    <string name="default_print_template">默认打印模板</string>
+    <string name="no_templates_available">暂无可用模板</string>
+    <string name="app_version">应用版本: %1$s</string>
+    <string name="version_info_error">获取版本信息失败</string>
+    <string name="update_check_failed">检查更新失败。</string>
+    <string name="download_update">下载更新</string>
+    <string name="downloading_update">正在下载更新…</string>
+    <string name="download_complete">下载完成。重启应用以安装。</string>
+    <string name="download_failed">下载失败。</string>
+    <string name="install_update">安装更新</string>
+    <string name="update_notification_channel_name">应用更新</string>
+    <string name="update_notification_channel_desc">应用更新和下载进度通知。</string>
+    <string name="download_pending">等待下载…</string>
+    <string name="download_running">正在下载: %1$d%%</string>
+    <string name="update_ready_to_install">更新已准备好安装</string>
+    <string name="tap_to_install">点击以安装已下载的更新。</string>
+    <string name="download_and_install_update">下载并安装更新</string>
+    <string name="sound_volume_format">音量: %1$d%%</string>
+    <string name="sound_type_format">提示音: %1$s</string>
+    <string name="sound_status_format">%1$s - %2$s</string>
+    <string name="sound_disabled">已禁用</string>
+    
+    <!-- 极限音量增强功能 -->
+    <string name="extreme_volume_title">极限音量增强</string>
+    <string name="extreme_volume_desc">突破系统限制的高级音频技术</string>
+    <string name="multi_layer_audio">多层音频叠加</string>
+    <string name="audio_enhancement">音频增强处理</string>
+    <string name="volume_booster">音量助推器</string>
+    <string name="extreme_volume_note">专为餐厅等极度嘈杂环境设计</string>
+
+    <!-- License Status -->
+    <string name="license_status_valid">证书已验证 - 有效期至 %1$s</string>
+    <string name="license_status_trial">试用期 - 剩余 %1$d 天</string>
+    <string name="license_status_expired">证书已过期</string>
+    <string name="license_status_unverified">证书未激活</string>
+    <string name="license_status_verifying">证书验证中...</string>
+
+    <!-- New template settings -->
+    <string name="template_settings">模板设置</string>
+    <string name="template_settings_desc">自定义收据打印模板</string>
+    
+    <string name="fetching_version_info">正在获取版本信息…</string>
+
+    <string name="add_printer_icon_desc">添加打印机</string>
+    <string name="no_printers_configured_prompt">目前没有配置打印机</string>
+    <string name="tap_here_to_add_new_printer">点击此处添加新打印机</string>
+
+    <string name="printer_settings_button">打印机设置</string>
+    <string name="test_print_button">测试打印</string>
+    <string name="chinese_test_print_button">中文测试</string>
+    <string name="delete_printer_button">删除打印机</string>
+    <string name="default_printer_label">默认</string>
+
+    <!-- Order Detail Dialog Labels -->
+    <string name="order_number_label">订单号</string>
+    <string name="order_date_label">下单时间</string>
+    <string name="customer_name_label">客户姓名</string>
+    <string name="contact_info_label">联系方式</string>
+
+    <!-- Store Settings -->
+    <string name="store_settings_desc">配置店铺信息和货币单位</string>
+    <string name="store_name">店铺名称</string>
+    <string name="store_name_hint">请输入店铺名称</string>
+    <string name="store_address">店铺地址</string>
+    <string name="store_address_hint">请输入店铺地址</string>
+    <string name="store_phone">联系电话</string>
+    <string name="store_phone_hint">请输入联系电话</string>
+    <string name="currency_symbol">货币符号</string>
+    <string name="currency_symbol_hint">请选择货币符号</string>
+
+    <!-- Currency Options -->
+    <string name="currency_cny">人民币</string>
+    <string name="currency_usd">美元</string>
+    <string name="currency_cad">加拿大元</string>
+    <string name="currency_eur">欧元</string>
+    <string name="currency_gbp">英镑</string>
+    <string name="currency_jpy">日元</string>
+    <string name="currency_krw">韩元</string>
+    <string name="currency_inr">印度卢比</string>
+    <string name="currency_rub">俄罗斯卢布</string>
+    <string name="currency_uah">乌克兰格里夫纳</string>
+
+    <string name="printer_basic_info">打印机信息</string>
+    <string name="set_as_default_printer">设置为默认打印机</string>
+    <string name="confirm_device_selection">确认打印机</string>
+    <string name="device_selection_confirmation">你确定选择这台打印设备吗？</string>
+
+    <!-- New Order Popup -->
+    <string name="multiple_orders_hint">提示：可能有多个新订单，这里只显示最新的一个</string>
+    <string name="order_amount_label">订单金额：</string>
+    <string name="items_count_label">商品数量：</string>
+    <string name="items_count_value">%d件商品</string>
+    <string name="order_status_label">订单状态：</string>
+    <string name="view_details">查看详情</string>
+
+    <!-- License Input Section -->
+    <string name="license_input_title">输入许可证密钥</string>
+    <string name="license_input_description">请输入四组数字或字母，每组4位</string>
+    <string name="license_key_label">许可证密钥</string>
+    <string name="license_format_hint">格式：XXXX-XXXX-XXXX-XXXX</string>
+    <string name="license_clipboard_detected">检测到剪贴板中的许可证密钥</string>
+    <string name="license_activated_key">已激活的许可证密钥</string>
+    
+    <!-- Trial Expiry Messages -->
+    <string name="trial_thank_you_title">感谢您试用 WooAuto！</string>
+    <string name="trial_expired_message">您的试用期已结束。升级到专业版以继续享受完整功能，包括自动打印、无限订单处理和优先技术支持。</string>
+    <string name="pro_version_benefits">💡 专业版特权：无限制使用所有功能</string>
+
+</resources>

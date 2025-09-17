@@ -1,16 +1,18 @@
 package com.example.wooauto.presentation
 
 import android.os.Build
-import android.provider.Settings
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -21,7 +23,6 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -32,18 +33,14 @@ import androidx.navigation.navArgument
 import android.util.Log
 import androidx.annotation.RequiresApi
 import com.example.wooauto.licensing.LicenseDataStore
-import com.example.wooauto.licensing.LicenseVerificationManager
-import com.example.wooauto.licensing.LicenseManager
-import com.example.wooauto.licensing.EligibilityStatus
-import com.example.wooauto.licensing.TrialTokenManager
 import com.example.wooauto.presentation.components.WooAppBar
-import com.example.wooauto.presentation.components.WooBottomNavigation
+import com.example.wooauto.presentation.components.WooSideNavigation
+import com.example.wooauto.presentation.navigation.AppNavConfig
 import com.example.wooauto.navigation.NavigationItem
 import com.example.wooauto.presentation.navigation.Screen
 import com.example.wooauto.presentation.screens.orders.OrdersScreen
 import com.example.wooauto.presentation.screens.products.ProductsScreen
 import com.example.wooauto.presentation.screens.settings.*
-import com.example.wooauto.presentation.screens.settings.PrintTemplatesScreen
 import com.example.wooauto.presentation.screens.templatePreview.TemplatePreviewScreen
 import com.example.wooauto.presentation.screens.settings.LicenseSettingsScreen
 import com.example.wooauto.presentation.theme.WooAutoTheme
@@ -52,19 +49,17 @@ import com.example.wooauto.utils.LocaleManager
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.withTimeoutOrNull
-import java.text.SimpleDateFormat
-import java.util.Calendar
-import java.util.Locale
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.ui.unit.dp
-import androidx.navigation.NavHostController
 import com.example.wooauto.presentation.screens.settings.PrinterSettings.PrinterDetailsScreen
 import com.example.wooauto.presentation.screens.settings.PrinterSettings.PrinterSettingsScreen
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.background
 
 private const val TAG = "WooAutoApp"
 
@@ -132,6 +127,17 @@ fun AppContent() {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
+    // Apply system bars color to align with app primary for a cohesive look
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val isDark = isSystemInDarkTheme()
+    DisposableEffect(primaryColor, isDark) {
+        try {
+            val window = (context as android.app.Activity).window
+            window.statusBarColor = android.graphics.Color.parseColor("#00000000")
+        } catch (_: Throwable) {}
+        onDispose { }
+    }
+
     // 使用currentBackStackEntryAsState获取当前路由
     val navBackStackEntry = navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry.value?.destination?.route ?: "未知路由"
@@ -187,188 +193,258 @@ fun AppContent() {
             currentRoute == Screen.SoundSettings.route ||
             currentRoute == Screen.AutomationSettings.route ||
             currentRoute == Screen.LicenseSettings.route ||
-            currentRoute.startsWith("template_")
+            currentRoute == Screen.LanguageSettings.route
 
     // 获取系统状态栏高度
     val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
-    Scaffold(
-        // 仅在不是特殊屏幕时显示顶部导航栏
-        topBar = {
-            if (!isSpecialScreen) {
-                WooAppBar(
-                    navController = navController,
-                    onSearch = { query, route ->
-                        // 使用协程作用域发送搜索事件
-                        coroutineScope.launch {
-                            EventBus.emitSearchEvent(query, route)
-                        }
-                    },
-                    onRefresh = { route ->
-                        // 使用协程作用域发送刷新事件
-                        coroutineScope.launch {
-                            EventBus.emitRefreshEvent(route)
+    Row(modifier = Modifier.fillMaxSize()) {
+        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+            val totalWidth = this.maxWidth
+            val leftWidth = if (!isSpecialScreen) (totalWidth * 0.16f).coerceIn(80.dp, 240.dp) else 0.dp
+            val dividerWidth = if (!isSpecialScreen) 1.dp else 0.dp
+
+            Row(modifier = Modifier.fillMaxSize()) {
+                if (!isSpecialScreen) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .width(leftWidth)
+                    ) {
+                        val sideItems = remember { AppNavConfig.sideNavEntries() }
+                        WooSideNavigation(
+                            navController = navController,
+                            items = sideItems,
+                            contentPadding = WindowInsets.statusBars.asPaddingValues()
+                        )
+                    }
+                    // 垂直分隔线（侧栏与内容区之间）
+                    Box(
+                        modifier = Modifier
+                            .width(dividerWidth)
+                            .fillMaxHeight()
+                            .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                    )
+                }
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .width(totalWidth - leftWidth - dividerWidth)
+                ) {
+                    if (!isSpecialScreen) {
+                        WooAppBar(
+                            navController = navController
+                        )
+                    }
+
+                    Box(modifier = Modifier.fillMaxSize()) {
+                // 如果状态未加载完成，显示加载中，但添加超时逻辑
+                if (!isEligibilityChecked.value) {
+                    LaunchedEffect(Unit) {
+                        delay(10000)
+                        if (!isEligibilityChecked.value) {
+                            Log.w("AppContent", "资格检查超时，强制完成")
+                            isEligibilityChecked.value = true
                         }
                     }
-                )
-            }
-        },
-        // 使用windowInsets设置来适应系统状态栏
-        contentWindowInsets = WindowInsets(
-            left = 0.dp,
-            top = statusBarHeight,
-            right = 0.dp,
-            bottom = 0.dp
-        ),
-        bottomBar = {
-            // 确保底部导航栏能够正确响应导航变化
-            // 仅在标准页面（非特殊设置页面）上显示底部导航栏
-            if (!isSpecialScreen) {
-                WooBottomNavigation(navController = navController)
-            }
-        }
-    ) { paddingValues ->
-        // 如果状态未加载完成，显示加载中，但添加超时逻辑
-        if (!isEligibilityChecked.value) {
-            LaunchedEffect(Unit) {
-                delay(10000) // 最多等待 10 秒
-                if (!isEligibilityChecked.value) {
-                    Log.w("AppContent", "资格检查超时，强制完成")
-                    isEligibilityChecked.value = true
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator()
+                    }
                 }
-            }
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator()
-            }
-        }
 
-        // 安全获取默认起始路由
-        val startDestination = try {
-            NavigationItem.getDefaultRoute()
-        } catch (e: Exception) {
-            Log.e(TAG, "获取默认路由失败，使用硬编码路由: ${e.message}", e)
-            NavigationItem.Orders.route  // 硬编码回退路由
-        }
+                // 安全获取默认起始路由
+                val startDestination = try {
+                    NavigationItem.getDefaultRoute()
+                } catch (e: Exception) {
+                    Log.e(TAG, "获取默认路由失败，使用硬编码路由: ${e.message}", e)
+                    NavigationItem.Orders.route
+                }
 
-        // 渲染 NavHost
-        NavHost(
-            navController = navController,
-            startDestination = startDestination,
-            modifier = Modifier.padding(
-                // 如果是特殊屏幕，添加顶部内边距；否则WooTopBar已经处理
-                top = if (isSpecialScreen) statusBarHeight else 0.dp,
-                bottom = paddingValues.calculateBottomPadding(),
-                start = paddingValues.calculateLeftPadding(LocalLayoutDirection.current),
-                end = paddingValues.calculateRightPadding(LocalLayoutDirection.current)
-            )
-        ) {
-            // 许可设置页面
-            composable(Screen.LicenseSettings.route) {
-                LicenseSettingsScreen(
+                // 渲染 NavHost
+                NavHost(
                     navController = navController,
-                    onLicenseActivated = {
-                        coroutineScope.launch {
-                            try {
-                                Log.d("AppContent", "License activated, updating states")
-                                LicenseDataStore.setLicensed(context, true)
-                                isEligibilityChecked.value = true
-                                hasEligibility.value = true
-                                val savedLicensed = LicenseDataStore.isLicensed(context).first()
-                                Log.d("AppContent", "Post-activation state - isLicensed: $savedLicensed")
-                                if (savedLicensed) {
-                                    Log.d("AppContent", "States updated successfully, navigating to OrdersScreen")
-                                    navController.navigate(NavigationItem.Orders.route) {
-                                        popUpTo(0) { inclusive = true }
-                                        launchSingleTop = true
+                    startDestination = startDestination,
+                    modifier = Modifier.padding(
+                        top = if (isSpecialScreen) statusBarHeight else 0.dp,
+                        start = 0.dp,
+                        end = 0.dp,
+                        bottom = 0.dp
+                    )
+                ) {
+                    // 许可设置页面
+                    composable(Screen.LicenseSettings.route) {
+                        LicenseSettingsScreen(
+                            navController = navController,
+                            onLicenseActivated = {
+                                coroutineScope.launch {
+                                    try {
+                                        Log.d("AppContent", "License activated, updating states")
+                                        LicenseDataStore.setLicensed(context, true)
+                                        isEligibilityChecked.value = true
+                                        hasEligibility.value = true
+                                        val savedLicensed = LicenseDataStore.isLicensed(context).first()
+                                        Log.d("AppContent", "Post-activation state - isLicensed: $savedLicensed")
+                                        if (savedLicensed) {
+                                            Log.d("AppContent", "States updated successfully, navigating to OrdersScreen")
+                                            navController.navigate(NavigationItem.Orders.route) {
+                                                popUpTo(0) { inclusive = true }
+                                                launchSingleTop = true
+                                            }
+                                        } else {
+                                            Log.e("AppContent", "State update failed - isLicensed: $savedLicensed")
+                                        }
+                                    } catch (e: Exception) {
+                                        Log.e("AppContent", "Failed to update states after activation: ${e.message}", e)
                                     }
-                                } else {
-                                    Log.e("AppContent", "State update failed - isLicensed: $savedLicensed")
                                 }
-                            } catch (e: Exception) {
-                                Log.e("AppContent", "Failed to update states after activation: ${e.message}", e)
+                            }
+                        )
+                    }
+
+                    composable(NavigationItem.Orders.route) {
+                        Log.d(TAG, "导航到订单页面")
+                        // 默认跳转到 orders/active 二级页面
+                        navController.navigate(com.example.wooauto.presentation.navigation.Screen.OrdersSection.routeFor("active")) {
+                            launchSingleTop = true
+                        }
+                    }
+
+                    // Orders 子路由：orders/{section}
+                    composable(
+                        route = com.example.wooauto.presentation.navigation.Screen.OrdersSection.route,
+                        arguments = listOf(navArgument("section") { type = NavType.StringType })
+                    ) { backStackEntry ->
+                        val section = backStackEntry.arguments?.getString("section") ?: "active"
+                        Log.d(TAG, "导航到订单子页面: $section")
+                        when (section) {
+                            "active" -> {
+                                com.example.wooauto.presentation.screens.orders.OrdersActivePlaceholderScreen()
+                            }
+                            "history" -> {
+                                OrdersScreen(navController = navController)
+                            }
+                            else -> {
+                                OrdersScreen(navController = navController)
                             }
                         }
                     }
-                )
+
+                    composable(NavigationItem.Products.route) {
+                        Log.d(TAG, "导航到产品页面")
+                        ProductsScreen(navController = navController)
+                    }
+
+                    composable(NavigationItem.Settings.route) {
+                        Log.d(TAG, "导航到设置页面")
+                        SettingsScreen(navController = navController)
+                    }
+                    // Settings 子路由：settings/{section}
+                    composable(route = com.example.wooauto.presentation.navigation.SettingsSectionRoutes.pattern,
+                        arguments = listOf(navArgument("section") { type = NavType.StringType })
+                    ) { backStackEntry ->
+                        val section = backStackEntry.arguments?.getString("section") ?: "general"
+                        Log.d(TAG, "导航到设置子页面: $section")
+                        SettingsScreen(navController = navController)
+                    }
+
+                    // Settings 二级子路由：settings/{section}/{sub}
+                    composable(
+                        route = com.example.wooauto.presentation.navigation.SettingsSubPageRoutes.pattern,
+                        arguments = listOf(
+                            navArgument("section") { type = NavType.StringType },
+                            navArgument("sub") { type = NavType.StringType }
+                        )
+                    ) { backStackEntry ->
+                        val section = backStackEntry.arguments?.getString("section") ?: "general"
+                        val sub = backStackEntry.arguments?.getString("sub") ?: ""
+                        Log.d(TAG, "导航到设置二级页面: $section/$sub")
+                        when("$section/$sub") {
+                            "general/language" -> {
+                                LanguageSettingsScreen()
+                            }
+                            "general/display" -> {
+                                com.example.wooauto.presentation.screens.settings.DisplaySettingsScreen()
+                            }
+                            "general/store" -> {
+                                com.example.wooauto.presentation.screens.settings.StoreSettingsScreen()
+                            }
+                            "notification/sound" -> {
+                                // 通知设置作为二级页
+                                SoundSettingsScreen(navController = navController)
+                            }
+                            "printing/templates" -> {
+                                // 打印模板列表与预览，作为设置二级页
+                                PrintTemplatesInnerScreen(navController = navController)
+                            }
+                            else -> {
+                                // 默认回退到该 section 的主屏
+                                SettingsScreen(navController = navController)
+                            }
+                        }
+                    }
+
+                    // 打印机设置页面
+                    composable(Screen.PrinterSettings.route) {
+                        Log.d(TAG, "导航到打印机设置页面")
+                        PrinterSettingsScreen(
+                            navController = navController,
+                            onClose = { navController.popBackStack() }
+                        )
+                    }
+
+                    // 打印机详情页面
+                    composable(
+                        route = Screen.PrinterDetails.route,
+                        arguments = listOf(navArgument("printerId") { type = NavType.StringType })
+                    ) {
+                        val printerId = it.arguments?.getString("printerId") ?: "new"
+                        Log.d(TAG, "导航到打印机详情页面")
+                        PrinterDetailsScreen(
+                            navController = navController,
+                            printerId = printerId
+                        )
+                    }
+
+                    // 打印模板页面（旧：已由 settings/printing/templates 二级路由替代）
+
+                    // 模板预览页面
+                    composable(
+                        route = Screen.TemplatePreview.route,
+                        arguments = listOf(navArgument("templateId") { type = NavType.StringType })
+                    ) {
+                        val templateId = it.arguments?.getString("templateId") ?: "default"
+                        Log.d(TAG, "导航到模板预览页面: $templateId")
+                        TemplatePreviewScreen(
+                            navController = navController,
+                            templateId = templateId
+                        )
+                    }
+
+                    // 声音设置页面
+                    composable(Screen.SoundSettings.route) {
+                        Log.d(TAG, "导航到声音设置页面")
+                        SoundSettingsScreen(navController = navController)
+                    }
+
+                    // 语言设置页面
+                    composable(Screen.LanguageSettings.route) {
+                        Log.d(TAG, "导航到语言设置页面")
+                        LanguageSettingsScreen()
+                    }
+                }
+
+                        // 标记 NavHost 已初始化
+                        LaunchedEffect(Unit) {
+                            isNavHostInitialized.value = true
+                            Log.d("AppContent", "NavHost initialized")
+                        }
+                    }
+                }
             }
-
-            composable(NavigationItem.Orders.route) {
-                Log.d(TAG, "导航到订单页面")
-                OrdersScreen(navController = navController)
-            }
-
-            composable(NavigationItem.Products.route) {
-                Log.d(TAG, "导航到产品页面")
-                ProductsScreen(navController = navController)
-            }
-
-            composable(NavigationItem.Settings.route) {
-                Log.d(TAG, "导航到设置页面")
-                SettingsScreen(navController = navController)
-            }
-
-            // 打印机设置页面
-            composable(Screen.PrinterSettings.route) {
-                Log.d(TAG, "导航到打印机设置页面")
-                PrinterSettingsScreen(
-                    navController = navController,
-                    onClose = { navController.popBackStack() }
-                )
-            }
-
-            // 打印机详情页面
-            composable(
-                route = Screen.PrinterDetails.route,
-                arguments = listOf(navArgument("printerId") { type = NavType.StringType })
-            ) {
-                val printerId = it.arguments?.getString("printerId") ?: "new"
-                Log.d(TAG, "导航到打印机详情页面")
-                PrinterDetailsScreen(
-                    navController = navController,
-                    printerId = printerId
-                )
-            }
-
-            // 打印模板页面
-            composable(Screen.PrintTemplates.route) {
-                Log.d(TAG, "导航到打印模板页面")
-                PrintTemplatesScreen(navController = navController)
-            }
-
-            // 模板预览页面
-            composable(
-                route = Screen.TemplatePreview.route,
-                arguments = listOf(navArgument("templateId") { type = NavType.StringType })
-            ) {
-                val templateId = it.arguments?.getString("templateId") ?: "default"
-                Log.d(TAG, "导航到模板预览页面: $templateId")
-                TemplatePreviewScreen(
-                    navController = navController,
-                    templateId = templateId
-                )
-            }
-
-            // 声音设置页面
-            composable(Screen.SoundSettings.route) {
-                Log.d(TAG, "导航到声音设置页面")
-                SoundSettingsScreen(navController = navController)
-            }
-
-            // 语言设置页面
-            composable(Screen.LanguageSettings.route) {
-                Log.d(TAG, "导航到语言设置页面")
-                LanguageSettingsScreen()
-            }
-
-        }
-
-        // 标记 NavHost 已初始化
-        LaunchedEffect(Unit) {
-            isNavHostInitialized.value = true
-            Log.d("AppContent", "NavHost initialized")
         }
     }
 

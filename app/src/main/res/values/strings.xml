@@ -6,6 +6,14 @@
     <string name="orders">Orders</string>
     <string name="products">Products</string>
     <string name="settings">Settings</string>
+    <string name="orders_active">Active</string>
+    <string name="orders_history">History</string>
+
+    <!-- Settings Submenus -->
+    <string name="general">General</string>
+    <string name="printing">Printing</string>
+    <string name="notification">Notification</string>
+
 
     <!-- Bottom Navigation -->
     <string name="nav_orders">Orders</string>
@@ -15,6 +23,7 @@
     <!-- Orders -->
     <string name="order_details">Order Details</string>
     <string name="search_orders">Search Orders</string>
+    <string name="search_orders_hint" translatable="false">Search Orders...</string>
     <string name="order_number">Order #%s</string>
     <string name="order_date">Date: %s</string>
     <string name="customer_name">Customer: %s</string>
@@ -54,7 +63,18 @@
     <string name="tax_gst">GST (%1$s%%)</string>
     <string name="total">Total</string>
     <string name="status">Status</string>
+    <string name="last_7_days">Last 7 Days</string>
+    <string name="last_30_days">Last 30 Days</string>
+    <string name="last_90_days">Last 90 Days</string>
+    <string name="all_time">All time</string>
+    <string name="filter_last_days">Last days</string>
     <string name="mark_as_printed">Mark as Printed</string>
+    <string name="start_processing">Start processing</string>
+    <string name="last_1_day">Last 1 Day</string>
+    <string name="start_processing_bilingual">Start processing</string>
+    <string name="close_bilingual">Close</string>
+    <string name="new_order_channel_name">New Orders</string>
+    <string name="new_order_channel_desc">Alerts and sounds for incoming orders</string>
     <string name="select_print_template">Select Print Template</string>
     <string name="change_order_status">Change Order Status</string>
     <string name="reprint">Reprint</string>
@@ -167,12 +187,12 @@
     <string name="delete_printer">Delete Printer</string>
     <string name="delete_printer_confirm">Are you sure you want to delete printer \u0027%1$s\u0027? This action cannot be undone.</string>
     <string name="delete">Delete</string>
-    <string name="bluetooth_devices">Bluetooth Devices</string>
-    <string name="scanning_bluetooth">Scanning for Bluetooth devices…</string>
-    <string name="no_bluetooth_devices">No Bluetooth devices found</string>
-    <string name="select_bluetooth_device">Select a Bluetooth device to connect</string>
-    <string name="bluetooth_tip">Tip: Make sure the printer is turned on and discoverable. For Android 7 devices, you may need to pair the printer in system Bluetooth settings first.</string>
-    <string name="no_bluetooth_tip">No Bluetooth devices found. Make sure the device is turned on and discoverable, then scan again</string>
+    <string name="bluetooth_devices">Bluetooth devices</string>
+    <string name="scanning_bluetooth">Scanning…</string>
+    <string name="no_bluetooth_devices">No devices found</string>
+    <string name="select_bluetooth_device">Select a device</string>
+    <string name="bluetooth_tip" translatable="false"></string>
+    <string name="no_bluetooth_tip" translatable="false"></string>
     <string name="device_paired">Paired</string>
     <string name="connected">Connected</string>
     <string name="stop_scanning">Stop Scanning</string>
@@ -212,13 +232,17 @@
     <string name="sound_settings_saved">Sound settings saved</string>
     <string name="save_settings">Save Settings</string>
     <string name="notification_volume">Notification Volume</string>
-    <string name="notification_volume_desc">Adjust notification sound volume without affecting system volume</string>
+    <string name="notification_volume_desc">Adjust the in-app notification volume. System volume is unaffected.</string>
     <string name="enable_sound">Enable Sound</string>
     <string name="enable_sound_desc">Control whether to play notification sound for new orders</string>
     <string name="sound_type_title">Notification Sound Type</string>
-    <string name="sound_type_desc">Select sound for new order notifications</string>
+    <string name="sound_type_desc">Choose a sound for new order notifications</string>
     <string name="volume_min">0%</string>
-    <string name="volume_max">300%</string>
+    <string name="volume_max">100%</string>
+
+    <!-- Notification: keep ringing switch -->
+    <string name="keep_ringing_title">Keep ringing until accepted</string>
+    <string name="keep_ringing_desc">Keep playing the alert until you accept the order</string>
     
     <!-- Volume Level Names -->
     <string name="volume_level_silent">Silent</string>
@@ -229,6 +253,12 @@
     <string name="volume_level_extreme">Extreme</string>
     <!-- Sound Types -->
     <string name="sound_type_default">system default</string>
+    <!-- Built-in raw sounds -->
+    <string name="builtin_sound_chime">Chime</string>
+    <string name="builtin_sound_bell">Bell</string>
+    <string name="builtin_sound_cash">Cash register</string>
+    <string name="builtin_sound_two_tone">Two-tone</string>
+    <string name="builtin_sound_alert">Alert</string>
 
     <!-- Template Preview -->
     <string name="template_full_order_details">Full Order Details</string>
@@ -335,13 +365,21 @@
     <string name="select_audio_file">select audio file</string>
     <string name="audio_file_selected">Audio file selected</string>
     <string name="audio_file_select_error">Failed to select audio file</string>
+    <string name="no_audio_file_selected">No audio file selected</string>
 
     <!-- App Settings -->
     <string name="language">Language（语言）</string>
     <string name="english">English</string>
     <string name="chinese">中文</string>
     <string name="language_changed">Language changed</string>
+    <string name="language_setting_desc">Choose the app language. Changes apply instantly.</string>
     <string name="auto_close_notification">Auto Close Notification (seconds)</string>
+    <string name="keep_screen_on_title">Stay awake</string>
+    <string name="keep_screen_on_desc">Prevent sleep while using the app</string>
+    <string name="display_settings">Display</string>
+    <string name="display_setting_desc">Adjust in-app screen behavior. Changes apply instantly.</string>
+    <string name="screen_brightness">Screen brightness</string>
+    <string name="follow_system">Follow system</string>
 
     <!-- Setup Wizard -->
     <string name="setup_wizard">Setup Wizard</string>
@@ -399,6 +437,10 @@
 
     <!-- New additions from the code block -->
     <string name="about">About</string>
+    <string name="deactivate_license">Deactivate License</string>
+    <string name="deactivate_license_title">Deactivate license?</string>
+    <string name="deactivate_license_message">This will remove the current license and reset trial locally. You can activate a new license later.</string>
+    <string name="license_deactivated">License has been deactivated</string>
     <string name="version">Version</string>
     <string name="error_network">Network Error</string>
     <string name="error_server">Server Error</string>
@@ -412,9 +454,15 @@
     <string name="auto_update">Auto Update</string>
 
     <!-- API Configuration Messages -->
-    <string name="website_url_placeholder">For example：https://yourstore.com</string>
-    <string name="api_key_placeholder">WooCommerce Consumer Key</string>
-    <string name="api_secret_placeholder">WooCommerce Consumer Secret</string>
+    <string name="website_url_placeholder">e.g. https://yourstore.com</string>
+    <string name="api_key_placeholder">e.g. ck_XXXXXXXXXXXXXXXXXXXXXXXXXXXX</string>
+    <string name="api_secret_placeholder">e.g. cs_XXXXXXXXXXXXXXXXXXXXXXXXXXXX</string>
+    <string name="ok">OK</string>
+    <!-- Removed duplicate 'cancel' -->
+    <string name="use_fixed">Use corrected</string>
+    <string name="keep_original">Keep original</string>
+    <string name="url_fix_title">URL input correction</string>
+    <string name="url_fix_message">We detected an issue in your URL. Suggested fix:\n%1$s\nDo you want to apply this correction?</string>
     <string name="fill_all_fields">Please fill all the fields</string>
     <string name="save_and_test">save</string>
     <string name="testing_connection">testing the connection</string>
@@ -623,6 +671,12 @@
     <string name="order_status_label">Order Status:</string>
     <string name="view_details">View Details</string>
 
+    <!-- Active batch actions -->
+    <string name="start_all">Start all</string>
+    <string name="complete_all">Complete all</string>
+    <string name="confirm_start_all_title">Confirm to start all new orders?</string>
+    <string name="confirm_complete_all_title">Confirm to mark all processing orders as completed?</string>
+
     <!-- License Input Section -->
     <string name="license_input_title">Enter License Key</string>
     <string name="license_input_description">Please enter four groups of digits or letters, 4 characters each</string>
@@ -635,5 +689,10 @@
     <string name="trial_thank_you_title">Thank you for trying WooAuto!</string>
     <string name="trial_expired_message">Your trial period has ended. Upgrade to Pro to continue enjoying full features, including automatic printing, unlimited order processing, and priority technical support.</string>
     <string name="pro_version_benefits">💡 Pro Version Benefits: Unrestricted access to all features</string>
+
+    <!-- Temporary test dialog trigger -->
+    <string name="open_test_dialog">Open Test Dialog</string>
+    <string name="test_dialog_title">Sample Dialog</string>
+    <string name="test_dialog_message">This is a sample modal for visual check. You can customize title, message and buttons.</string>
 
 </resources>

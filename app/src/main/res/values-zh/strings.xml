@@ -6,6 +6,10 @@
     <string name="orders">订单</string>
     <string name="products">产品</string>
     <string name="settings">设置</string>
+    <!-- Settings Submenu -->
+    <string name="general">常规</string>
+    <string name="printing">打印</string>
+    <string name="notification">通知</string>
     <string name="back">返回</string>
 
     <!-- Bottom Navigation -->
@@ -179,11 +183,11 @@
     <string name="delete_printer_confirm">确定要删除打印机 \'%1$s\' 吗？此操作无法撤销。</string>
     <string name="delete">删除</string>
     <string name="bluetooth_devices">蓝牙设备</string>
-    <string name="scanning_bluetooth">正在扫描蓝牙设备…</string>
-    <string name="no_bluetooth_devices">未找到蓝牙设备</string>
-    <string name="select_bluetooth_device">选择一个蓝牙设备连接</string>
-    <string name="bluetooth_tip">提示: 请确保打印机已开启并处于可发现状态。对于Android 7设备，可能需要先在系统蓝牙设置中配对打印机。</string>
-    <string name="no_bluetooth_tip">没有找到蓝牙设备，请确保设备已开启并处于可发现状态，然后重新扫描</string>
+    <string name="scanning_bluetooth">正在扫描…</string>
+    <string name="no_bluetooth_devices">未找到设备</string>
+    <string name="select_bluetooth_device">选择一个设备</string>
+    <string name="bluetooth_tip" translatable="false"></string>
+    <string name="no_bluetooth_tip" translatable="false"></string>
     <string name="device_paired">已配对</string>
     <string name="connected">已连接</string>
     <string name="stop_scanning">停止扫描</string>
@@ -223,13 +227,17 @@
     <string name="sound_settings_saved">声音设置已保存</string>
     <string name="save_settings">保存设置</string>
     <string name="notification_volume">通知音量</string>
-    <string name="notification_volume_desc">调整提示音量大小，不影响系统音量</string>
+    <string name="notification_volume_desc">调整应用内通知音量，不影响系统音量</string>
     <string name="enable_sound">启用声音</string>
     <string name="enable_sound_desc">控制是否播放新订单提示音</string>
     <string name="sound_type_title">提示音类型</string>
     <string name="sound_type_desc">选择新订单提示音</string>
     <string name="volume_min">0%</string>
-    <string name="volume_max">300%</string>
+    <string name="volume_max">100%</string>
+
+    <!-- Notification: keep ringing switch -->
+    <string name="keep_ringing_title">持续响铃直至接单</string>
+    <string name="keep_ringing_desc">新订单到达后持续播放提示，直到你点击接受</string>
     
     <!-- 音量档位名称 -->
     <string name="volume_level_silent">静音</string>
@@ -322,13 +330,21 @@
     <string name="product_label_colon">%1$s:</string>
     <string name="audio_file_selected">音频文件已选择</string>
     <string name="audio_file_select_error">选择音频文件失败</string>
+    <string name="no_audio_file_selected">未选择音频文件</string>
 
     <!-- App Settings -->
     <string name="language">语言(Language)</string>
     <string name="english">English</string>
     <string name="chinese">中文</string>
     <string name="language_changed">语言已更改</string>
+    <string name="language_setting_desc">选择应用显示语言，变更后立即生效。</string>
     <string name="auto_close_notification">自动关闭通知 (秒)</string>
+    <string name="keep_screen_on_title">保持常亮</string>
+    <string name="keep_screen_on_desc">应用使用时，防止屏幕自动熄灭</string>
+    <string name="display_settings">屏幕设置</string>
+    <string name="display_setting_desc">调整应用内的屏幕表现，变更后立即生效。</string>
+    <string name="screen_brightness">屏幕亮度</string>
+    <string name="follow_system">跟随系统</string>
 
     <!-- Setup Wizard -->
     <string name="setup_wizard">设置向导</string>
@@ -359,16 +375,21 @@
 
     <!-- Sound Types -->
     <string name="sound_type_default">系统默认通知音</string>
-    <string name="sound_type_alarm">系统闹钟声音（最响亮）</string>
-    <string name="sound_type_ringtone">系统电话铃声（较响亮）</string>
+    <string name="sound_type_alarm">系统闹钟声音</string>
+    <string name="sound_type_ringtone">系统电话铃声</string>
     <string name="sound_type_event">系统事件提示音</string>
     <string name="sound_type_email">系统邮件提示音</string>
     <string name="sound_test">测试声音</string>
+    <!-- 内置原始资源显示名 -->
+    <string name="builtin_sound_chime">清脆叮咚</string>
+    <string name="builtin_sound_bell">清亮铃声</string>
+    <string name="builtin_sound_cash">收款提示</string>
+    <string name="builtin_sound_two_tone">双音提示</string>
+    <string name="builtin_sound_alert">紧急提醒</string>
 
 
     <!-- Common -->
     <string name="save">保存</string>
-    <string name="cancel">取消</string>
     <string name="confirm">确认</string>
     <string name="loading">加载中…</string>
     <string name="error">错误</string>
@@ -390,15 +411,25 @@
 
     <!-- New additions from the code block -->
     <string name="about">关于</string>
+    <string name="deactivate_license">停用许可证</string>
+    <string name="deactivate_license_title">要停用当前许可证吗？</string>
+    <string name="deactivate_license_message">这将移除当前许可证并在本地重置试用期。你可以稍后激活新的许可证。</string>
+    <string name="license_deactivated">许可证已停用</string>
     <string name="version">版本</string>
     <string name="error_network">网络错误</string>
     <string name="error_server">服务器错误</string>
 
 
     <!-- API Settings -->
-    <string name="website_url_placeholder">https://your-site.com</string>
-    <string name="api_key_placeholder">如：ck_1234…</string>
-    <string name="api_secret_placeholder">如：cs_5678…</string>
+    <string name="website_url_placeholder">例如：https://网站名.com</string>
+    <string name="api_key_placeholder">例如：ck_XXXXXXXXXXXXXXXXXXXXXXXXXXXX</string>
+    <string name="api_secret_placeholder">例如：cs_XXXXXXXXXXXXXXXXXXXXXXXXXXXX</string>
+    <string name="ok">确定</string>
+    <string name="cancel">取消</string>
+    <string name="use_fixed">使用修复后的</string>
+    <string name="keep_original">保留原输入</string>
+    <string name="url_fix_title">URL 输入修正</string>
+    <string name="url_fix_message">检测到您的 URL 存在格式问题，建议修正为：\n%1$s\n是否应用该修正？</string>
     <string name="save_and_test">保存并测试</string>
     <string name="testing_connection">测试连接中…</string>
     <string name="fill_all_fields">请填写所有必填字段</string>
@@ -522,7 +553,6 @@
     <string name="open_camera_failed">打开相机进行QR扫描失败。</string>
     <string name="error_parsing_qr_code">解析二维码数据时出错。</string>
     <string name="auto_print_settings">自动打印设置</string>
-    <string name="enable_auto_print">启用自动打印</string>
     <string name="default_print_template">默认打印模板</string>
     <string name="no_templates_available">暂无可用模板</string>
     <string name="app_version">应用版本: %1$s</string>
@@ -617,6 +647,12 @@
     <string name="items_count_value">%d件商品</string>
     <string name="order_status_label">订单状态：</string>
     <string name="view_details">查看详情</string>
+
+    <!-- Active 批量操作 -->
+    <string name="start_all">全部开始</string>
+    <string name="complete_all">全部完成</string>
+    <string name="confirm_start_all_title">确认将所有新订单设为处理中？</string>
+    <string name="confirm_complete_all_title">确认将所有处理中订单标记为已完成？</string>
 
     <!-- License Input Section -->
     <string name="license_input_title">输入许可证密钥</string>

@@ -1,17 +1,13 @@
 package com.example.wooauto.presentation.components
 
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
@@ -22,15 +18,22 @@ import com.example.wooauto.presentation.theme.WooAutoTheme
 import com.example.wooauto.utils.LocalAppLocale
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.ui.Alignment
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.setValue
-import androidx.hilt.navigation.compose.hiltViewModel
-import com.example.wooauto.presentation.screens.orders.OrdersViewModel
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import com.example.wooauto.presentation.screens.orders.UnreadOrdersDialog
+import com.example.wooauto.presentation.navigation.AppNavConfig
+import com.example.wooauto.presentation.navigation.resolveTopBarTitle
 
 /**
  * 全局顶部栏组件
@@ -38,9 +41,7 @@ import com.example.wooauto.presentation.screens.orders.UnreadOrdersDialog
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WooAppBar(
-    navController: NavController? = null,
-    onSearch: (query: String, route: String) -> Unit = { _, _ -> },
-    onRefresh: (route: String) -> Unit = { _ -> }
+    navController: NavController? = null
 ) {
     // 获取当前语言环境
     val locale = LocalAppLocale.current
@@ -50,95 +51,102 @@ fun WooAppBar(
     val currentRoute = navBackStackEntry?.destination?.route ?: ""
     
     // 搜索相关状态
-    var searchQuery by remember { mutableStateOf("") }
     var showUnreadOrders by remember { mutableStateOf(false) }
     
     // 决定显示哪种顶部栏
-    when (currentRoute) {
-        NavigationItem.Orders.route -> {
-            // 订单页面特有的顶部栏 - 只显示搜索框和未读订单按钮，不显示标题
-            val searchOrdersPlaceholder = stringResource(id = R.string.search_orders)
-            val unreadOrdersText = stringResource(id = R.string.unread_orders)
-            
-            WooTopBar(
-                title = "", // 空标题，不显示
-                showSearch = true, // 显示搜索框
-                searchQuery = searchQuery,
-                onSearchQueryChange = { query -> 
-                    searchQuery = query 
-                    onSearch(query, NavigationItem.Orders.route)
-                },
-                searchPlaceholder = searchOrdersPlaceholder,
-                isRefreshing = false,
-                onRefresh = { 
-                    onRefresh(NavigationItem.Orders.route)
-                },
-                locale = locale,
-                showTitle = false, // 禁用标题显示
-                additionalActions = {
-                    // 未读订单按钮
-                    IconButton(
-                        onClick = { showUnreadOrders = true },
-                        modifier = Modifier
-                            .size(44.dp)
-                            .padding(end = 2.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Email,
-                            contentDescription = unreadOrdersText,
-                            tint = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.size(22.dp)
-                        )
-                    }
+    val spec = AppNavConfig.topBarSpecForRoute(currentRoute)
+    // 交由统一解析器生成动态标题（settings 复合 & 模板名），回退到静态标题
+    val resolvedTitle: String? = resolveTopBarTitle(currentRoute, navBackStackEntry?.arguments)
+    when {
+        currentRoute == NavigationItem.Orders.route || currentRoute.startsWith("orders/") -> {
+            // Active/History 页面不再显示未读按钮（已由 Active 左栏表示）
+            val trailingPill: (@Composable () -> Unit)? = if (currentRoute.startsWith("orders/")) {
+                val section = currentRoute.removePrefix("orders/")
+                val labelRes = when (section) {
+                    "active" -> R.string.orders_active
+                    "history" -> R.string.orders_history
+                    else -> null
                 }
-            )
-            
-            // 显示未读订单对话框
-            if (showUnreadOrders) {
-                UnreadOrdersDialog(
-                    onDismiss = { showUnreadOrders = false }
-                )
-            }
-        }
-        NavigationItem.Products.route -> {
-            // 产品页面特有的顶部栏 - 只显示搜索框，不显示标题
-            val searchProductsPlaceholder = stringResource(id = R.string.search_products)
-            
+                if (labelRes != null) {
+                    { SmallTitlePill(text = stringResource(id = labelRes)) }
+                } else null
+            } else null
             WooTopBar(
-                title = "", // 空标题，不显示
-                showSearch = true,
-                searchQuery = searchQuery,
-                onSearchQueryChange = { query -> 
-                    searchQuery = query
-                    onSearch(query, NavigationItem.Products.route)
-                },
-                searchPlaceholder = searchProductsPlaceholder,
-                isRefreshing = false,
-                onRefresh = { 
-                    onRefresh(NavigationItem.Products.route)
-                },
-                locale = locale,
-                showTitle = false // 禁用标题显示
-            )
-        }
-        else -> {
-            // 其他页面(如Settings)使用默认顶部栏 - 显示左侧标题
-            val title = when (currentRoute) {
-                NavigationItem.Settings.route -> stringResource(id = R.string.settings)
-                else -> stringResource(id = R.string.app_name)
-            }
-            
-            WooTopBar(
-                title = title,
+                title = resolvedTitle ?: stringResource(id = spec.titleResId),
                 showSearch = false,
                 isRefreshing = false,
                 onRefresh = { },
                 showRefreshButton = false,
                 locale = locale,
-                showTitle = true, // 启用标题显示
-                titleAlignment = Alignment.Start // 左对齐标题
+                showTitle = true,
+                titleAlignment = if (spec.alignStart) Alignment.Start else Alignment.CenterHorizontally,
+                showStatusStrip = spec.showStatusStrip,
+                leadingContent = null,
+                trailingContent = trailingPill
             )
         }
+        else -> {
+            // 仅在非顶级页面显示返回按钮（当前顶级：orders/products/settings 以及 settings/{section}）
+            val showBack = run {
+                when {
+                    currentRoute == NavigationItem.Orders.route -> false
+                    currentRoute == NavigationItem.Products.route -> false
+                    currentRoute == NavigationItem.Settings.route -> false
+                    currentRoute.startsWith("settings/") -> {
+                        val parts = currentRoute.removePrefix("settings/").split('/')
+                        // settings/{section} -> 无返回；settings/{section}/{sub} -> 显示返回
+                        parts.size >= 2
+                    }
+                    else -> true
+                }
+            }
+            WooTopBar(
+                title = resolvedTitle ?: stringResource(id = spec.titleResId),
+                showSearch = false,
+                isRefreshing = false,
+                onRefresh = { },
+                showRefreshButton = false,
+                locale = locale,
+                showTitle = true,
+                titleAlignment = if (spec.alignStart) Alignment.Start else Alignment.CenterHorizontally,
+                showStatusStrip = spec.showStatusStrip,
+                leadingContent = if (showBack) {
+                    {
+                        IconButton(onClick = { navController?.popBackStack() }) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = stringResource(id = R.string.template_back),
+                                tint = MaterialTheme.colorScheme.onPrimary
+                            )
+                        }
+                    }
+                } else null
+            )
+        }
+    }
+}
+
+@Composable
+private fun SmallTitlePill(text: String) {
+    Box(
+        modifier = Modifier
+            .padding(start = 6.dp)
+            .background(
+                color = Color.White.copy(alpha = 0.18f),
+                shape = RoundedCornerShape(999.dp)
+            )
+            .border(
+                width = 1.dp,
+                color = Color.White.copy(alpha = 0.25f),
+                shape = RoundedCornerShape(999.dp)
+            )
+            .padding(horizontal = 10.dp, vertical = 4.dp)
+    ) {
+        androidx.compose.material3.Text(
+            text = text,
+            color = Color.White,
+            style = androidx.compose.material3.MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold)
+        )
     }
 }
 
