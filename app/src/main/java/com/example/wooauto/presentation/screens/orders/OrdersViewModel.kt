@@ -763,8 +763,8 @@ class OrdersViewModel @Inject constructor(
     fun batchStartProcessingForNewOrders() {
         viewModelScope.launch {
             try {
-                // 基于当前列表筛选：processing + 未读
-                val targets = _orders.value.filter { it.status == "processing" && !it.isRead }
+                // 使用分桶流：processing + 未读（Active 页面）
+                val targets = _newProcessingOrders.value
                 if (targets.size < 2) return@launch
 
                 // 进入轻微加载态，避免用户重复点击
@@ -806,8 +806,8 @@ class OrdersViewModel @Inject constructor(
     fun batchCompleteProcessingOrders() {
         viewModelScope.launch {
             try {
-                // 基于当前列表筛选：processing + 已读
-                val targets = _orders.value.filter { it.status == "processing" && it.isRead }
+                // 使用分桶流：processing + 已读（Active 页面）
+                val targets = _inProcessingOrders.value
                 if (targets.size < 2) return@launch
 
                 _isLoading.value = true
