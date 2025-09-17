@@ -8,6 +8,8 @@
     <string name="settings">Settings</string>
     <string name="orders_active">Active</string>
     <string name="orders_history">History</string>
+    <string name="orders_new">New orders</string>
+    <string name="orders_in_processing">In processing</string>
 
     <!-- Settings Submenus -->
     <string name="general">General</string>
