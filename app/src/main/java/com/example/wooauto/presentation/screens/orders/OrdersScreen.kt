@@ -213,12 +213,28 @@ fun OrdersScreen(
     val isInitialized = remember { mutableStateOf(false) }
     
     val snackbarHostState = remember { SnackbarHostState() }
+    LaunchedEffect(Unit) {
+        viewModel.snackbarEvents.collect { ev ->
+            val statusLabel = when (ev.newStatus) {
+                "processing" -> context.getString(R.string.order_status_processing)
+                "completed" -> context.getString(R.string.order_status_completed)
+                "pending" -> context.getString(R.string.order_status_pending)
+                "on-hold" -> context.getString(R.string.order_status_on_hold)
+                "cancelled" -> context.getString(R.string.order_status_cancelled)
+                "refunded" -> context.getString(R.string.order_status_refunded)
+                "failed" -> context.getString(R.string.order_status_failed)
+                else -> ev.newStatus
+            }
+            val msg = "#${ev.orderNumber} → ${statusLabel}"
+            snackbarHostState.showSnackbar(msg)
+        }
+    }
     val coroutineScope = rememberCoroutineScope()
     
     // 搜索相关状态
     var searchQuery by remember { mutableStateOf("") }
-    // 最近天数筛选（null 表示全部）
-    var lastDaysFilter by remember(ordersSection) { mutableStateOf<Int?>(7) }
+    // 最近天数筛选（null 表示全部），默认改为1天
+    var lastDaysFilter by remember(ordersSection) { mutableStateOf<Int?>(1) }
     var showOrderDetail by remember { mutableStateOf(false) }
     var showUnreadDialog by remember { mutableStateOf(false) }
     // 与 ViewModel 的 currentStatusFilter 双向保持一致
@@ -490,6 +506,7 @@ fun OrdersScreen(
                         showOrderDetail = false
                         viewModel.clearSelectedOrder()
                     },
+                    mode = com.example.wooauto.presentation.screens.orders.DetailMode.AUTO,
                     onStatusChange = { orderId, newStatus ->
                         // 调用状态变更逻辑
                         viewModel.updateOrderStatus(orderId, newStatus)
@@ -498,10 +515,7 @@ fun OrdersScreen(
                         // 直接调用标记为已打印的方法，不需要调用打印逻辑
                         viewModel.markOrderAsPrinted(orderId)
                     },
-                    onMarkAsRead = { orderId ->
-                        // 当用户查看完订单详情并关闭对话框时，标记为已读
-                        viewModel.markOrderAsRead(orderId)
-                    }
+                    onMarkAsRead = null
                 )
             }
             
@@ -567,6 +581,7 @@ private fun DateRangeDropdown(
     onChange: (Int?) -> Unit
 ) {
     val options: List<Pair<Int?, String>> = listOf(
+        1 to stringResource(id = R.string.last_1_day),
         7 to stringResource(id = R.string.last_7_days),
         30 to stringResource(id = R.string.last_30_days),
         90 to stringResource(id = R.string.last_90_days),

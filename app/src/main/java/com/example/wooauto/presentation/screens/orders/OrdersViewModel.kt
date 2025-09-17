@@ -25,6 +25,9 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -77,9 +80,19 @@ class OrdersViewModel @Inject constructor(
     
     private val _selectedOrder = MutableStateFlow<Order?>(null)
     val selectedOrder: StateFlow<Order?> = _selectedOrder.asStateFlow()
+
+    // 详情对话框模式：用来消除 UI 内部判断分支
+    enum class OrderDetailMode { AUTO, NEW, PROCESSING }
+    private val _selectedDetailMode = MutableStateFlow(OrderDetailMode.AUTO)
+    val selectedDetailMode: StateFlow<OrderDetailMode> = _selectedDetailMode.asStateFlow()
     
     private val _refreshing = MutableStateFlow(false)
     val refreshing: StateFlow<Boolean> = _refreshing.asStateFlow()
+
+    // 轻提示事件（一次性事件）——在 UI 侧根据本地化资源拼装文案
+    data class SnackbarEvent(val orderNumber: String, val newStatus: String)
+    private val _snackbarEvents = MutableSharedFlow<SnackbarEvent>(extraBufferCapacity = 8)
+    val snackbarEvents: SharedFlow<SnackbarEvent> = _snackbarEvents.asSharedFlow()
     
     // 当前选中的状态过滤条件
     // 以 VM 为单一事实来源，默认展示 processing，可根据需要改为 null 显示全部
@@ -198,19 +211,11 @@ class OrdersViewModel @Inject constructor(
                 // 验证未读订单有效性
                 val verifyResult = verifyUnreadOrdersValid()
                 if (!verifyResult) {
-                    Log.d(TAG, "发现无效未读订单，重置所有未读状态")
-                    resetAllUnreadStatus()
-                    
-                    // 延迟执行发送广播通知UI更新
-                    delay(300)
-                    val updateIntent = Intent(ACTION_ORDERS_UPDATED)
-                    LocalBroadcastManager.getInstance(context).sendBroadcast(updateIntent)
-                } else {
-                    // 正常加载未读订单
-                    Log.d(TAG, "未读订单验证通过，正常加载未读订单")
-                    delay(300)
-                    loadUnreadOrders()
+                    Log.w(TAG, "未读订单验证未通过：仅清理无效项，不再重置全部未读状态")
                 }
+                // 无论验证结果如何，统一按数据库当前状态加载未读订单
+                delay(300)
+                loadUnreadOrders()
             } catch (e: Exception) {
                 Log.e(TAG, "启动时加载未读订单出错", e)
                 // 确保未读计数为0
@@ -682,6 +687,25 @@ class OrdersViewModel @Inject constructor(
             }
         }
     }
+
+    fun openOrderDetails(orderId: Long, mode: OrderDetailMode = OrderDetailMode.AUTO) {
+        _selectedDetailMode.value = mode
+        getOrderDetails(orderId)
+    }
+
+    /**
+     * 从 Active 卡片的“Start processing”快捷按钮触发：
+     * 需要避免弹出详情，因此先切到非 AUTO 模式再更新状态。
+     */
+    fun startProcessingFromCard(orderId: Long) {
+        _selectedDetailMode.value = OrderDetailMode.NEW
+        viewModelScope.launch {
+            try {
+                markOrderAsRead(orderId)
+            } catch (_: Exception) {}
+            updateOrderStatus(orderId, "processing")
+        }
+    }
     
     fun updateOrderStatus(orderId: Long, newStatus: String) {
         // 记录旧状态
@@ -689,7 +713,9 @@ class OrdersViewModel @Inject constructor(
         val oldStatus = oldOrder?.status
 
         // 1. 乐观更新本地状态
-        _selectedOrder.value = _selectedOrder.value?.takeIf { it.id == orderId }?.copy(status = newStatus)
+        if (_selectedDetailMode.value == OrderDetailMode.AUTO) {
+            _selectedOrder.value = _selectedOrder.value?.takeIf { it.id == orderId }?.copy(status = newStatus)
+        }
         _orders.value = _orders.value.map { if (it.id == orderId) it.copy(status = newStatus) else it }
 
         // 2. 异步请求后端
@@ -699,24 +725,36 @@ class OrdersViewModel @Inject constructor(
                 val result = orderRepository.updateOrderStatus(orderId, newStatus)
                 if (result.isSuccess) {
                     Log.d(TAG, "乐观更新-成功更新订单状态")
-                    _selectedOrder.value = result.getOrNull()
+                    if (_selectedDetailMode.value == OrderDetailMode.AUTO) {
+                        _selectedOrder.value = result.getOrNull()
+                    } else {
+                        _selectedOrder.value = null
+                        _selectedDetailMode.value = OrderDetailMode.AUTO
+                    }
                     // 刷新订单，确保使用现有的状态过滤
                     refreshOrders()
                     // 接单/完成后立即止音
                     if (newStatus == "completed") {
                         try { soundManager.stopAllSounds() } catch (_: Exception) {}
                     }
+                    // 发送 Snackbar 事件（UI 侧再本地化 newStatus）
+                    val num = oldOrder?.number ?: orderId.toString()
+                    _snackbarEvents.tryEmit(SnackbarEvent(num, newStatus))
                 } else {
                     Log.e(TAG, "乐观更新-更新订单状态失败: ${result.exceptionOrNull()?.message}")
                     // 失败回滚
-                    _selectedOrder.value = _selectedOrder.value?.takeIf { it.id == orderId }?.copy(status = oldStatus ?: newStatus)
+                    if (_selectedDetailMode.value == OrderDetailMode.AUTO) {
+                        _selectedOrder.value = _selectedOrder.value?.takeIf { it.id == orderId }?.copy(status = oldStatus ?: newStatus)
+                    }
                     _orders.value = _orders.value.map { if (it.id == orderId) it.copy(status = oldStatus ?: newStatus) else it }
                     _errorMessage.value = "订单状态更新失败: ${result.exceptionOrNull()?.message ?: ""}"
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "乐观更新-更新订单状态时出错: ${e.message}")
                 // 失败回滚
-                _selectedOrder.value = _selectedOrder.value?.takeIf { it.id == orderId }?.copy(status = oldStatus ?: newStatus)
+                if (_selectedDetailMode.value == OrderDetailMode.AUTO) {
+                    _selectedOrder.value = _selectedOrder.value?.takeIf { it.id == orderId }?.copy(status = oldStatus ?: newStatus)
+                }
                 _orders.value = _orders.value.map { if (it.id == orderId) it.copy(status = oldStatus ?: newStatus) else it }
                 _errorMessage.value = "订单状态更新失败: ${e.message ?: "未知错误"}"
             }
@@ -1392,10 +1430,8 @@ class OrdersViewModel @Inject constructor(
         processingBucketsJob?.cancel()
         processingBucketsJob = viewModelScope.launch {
             try {
-                orderRepository.getOrdersByStatusFlow("processing").collectLatest { list ->
-                    _newProcessingOrders.value = list.filter { !it.isRead }
-                    _inProcessingOrders.value = list.filter { it.isRead }
-                }
+                launch { orderRepository.getNewProcessingOrdersFlow().collectLatest { _newProcessingOrders.value = it } }
+                launch { orderRepository.getInProcessingOrdersFlow().collectLatest { _inProcessingOrders.value = it } }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

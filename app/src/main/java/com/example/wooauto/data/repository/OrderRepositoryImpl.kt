@@ -153,6 +153,22 @@ class OrderRepositoryImpl @Inject constructor(
         return _orderByIdFlow[orderId]!!.asStateFlow()
     }
 
+    override fun getNewProcessingOrdersFlow(): Flow<List<Order>> {
+        return orderDao.getNewProcessingOrders().map { entities ->
+            OrderMapper.mapEntityListToDomainList(entities)
+        }
+    }
+
+    override fun getInProcessingOrdersFlow(): Flow<List<Order>> {
+        return orderDao.getInProcessingOrders().map { entities ->
+            OrderMapper.mapEntityListToDomainList(entities)
+        }
+    }
+
+    override fun getNewProcessingCountFlow(): Flow<Int> {
+        return orderDao.getNewProcessingCount()
+    }
+
     override suspend fun updateOrderStatus(orderId: Long, newStatus: String): Result<Order> = withContext(Dispatchers.IO) {
 //        Log.d("OrderRepositoryImpl", "更新订单状态: $orderId -> $newStatus")
         

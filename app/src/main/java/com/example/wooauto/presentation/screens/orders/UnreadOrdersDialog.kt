@@ -242,9 +242,7 @@ fun UnreadOrdersDialog(
             onMarkAsPrinted = { orderId ->
                 viewModel.markOrderAsPrinted(orderId)
             },
-            onMarkAsRead = { orderId ->
-                viewModel.markOrderAsRead(orderId)
-            }
+            onMarkAsRead = null
         )
     }
 }

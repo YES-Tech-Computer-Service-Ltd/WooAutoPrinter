@@ -69,6 +69,12 @@
     <string name="all_time">All time</string>
     <string name="filter_last_days">Last days</string>
     <string name="mark_as_printed">Mark as Printed</string>
+    <string name="start_processing">Start processing</string>
+    <string name="last_1_day">Last 1 Day</string>
+    <string name="start_processing_bilingual">Start processing</string>
+    <string name="close_bilingual">Close</string>
+    <string name="new_order_channel_name">New Orders</string>
+    <string name="new_order_channel_desc">Alerts and sounds for incoming orders</string>
     <string name="select_print_template">Select Print Template</string>
     <string name="change_order_status">Change Order Status</string>
     <string name="reprint">Reprint</string>
