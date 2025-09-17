@@ -39,6 +39,7 @@ import android.net.NetworkRequest
 import android.net.wifi.WifiManager
 import android.os.PowerManager
 import com.example.wooauto.utils.PowerManagementUtils
+import com.example.wooauto.utils.SoundManager
 
 @AndroidEntryPoint
 class BackgroundPollingService : Service() {
@@ -46,6 +47,7 @@ class BackgroundPollingService : Service() {
     companion object {
         private const val NOTIFICATION_ID = 1001
         private const val CHANNEL_ID = "woo_auto_polling_channel"
+        private const val NEW_ORDER_CHANNEL_ID = "woo_auto_new_order_channel"
         private const val TAG = "BackgroundPollingService"
         
         // 广播Action常量
@@ -72,6 +74,7 @@ class BackgroundPollingService : Service() {
 
     @Inject lateinit var settingsRepository: DomainSettingRepository
     @Inject lateinit var systemPollingManager: SystemPollingManager
+    @Inject lateinit var soundManager: SoundManager
 
     // 使用IO调度器创建协程作用域，减少主线程负担
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
@@ -371,6 +374,18 @@ class BackgroundPollingService : Service() {
             }
             val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             notificationManager.createNotificationChannel(channel)
+
+            // 新订单高优先级通知渠道：确保弹出与声音
+            val newOrderChannel = NotificationChannel(
+                NEW_ORDER_CHANNEL_ID,
+                getString(R.string.new_order_channel_name),
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = getString(R.string.new_order_channel_desc)
+                enableVibration(true)
+                enableLights(true)
+            }
+            notificationManager.createNotificationChannel(newOrderChannel)
         }
     }
 
@@ -915,21 +930,39 @@ class BackgroundPollingService : Service() {
 
     private fun sendNewOrderNotification(order: Order) {
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        
-        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+        val pendingIntent = PendingIntent.getActivity(
+            this,
+            0,
+            Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val notification = NotificationCompat.Builder(this, NEW_ORDER_CHANNEL_ID)
             .setContentTitle(getString(R.string.new_order_received))
             .setContentText(getString(R.string.order_amount, order.total))
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setDefaults(NotificationCompat.DEFAULT_ALL)
             .setAutoCancel(true)
+            .setContentIntent(pendingIntent)
             .build()
-        
+        Log.d(TAG, "[Notify] 系统新订单通知 id=${order.id} amount=${order.total}")
         notificationManager.notify(order.id.toInt(), notification)
         
         // 在此处可以发送广播，通知应用内的UI组件显示弹窗
-        val intent = Intent("com.example.wooauto.NEW_ORDER_RECEIVED")
+        // 显式限定包名，避免部分ROM对隐式广播的限制
+        val intent = Intent("com.example.wooauto.NEW_ORDER_RECEIVED").apply {
+            `package` = packageName
+        }
         intent.putExtra("orderId", order.id)
+        Log.d(TAG, "[Broadcast] 发送 NEW_ORDER_RECEIVED id=${order.id}")
+        // 全局广播（同进程也可达）
         sendBroadcast(intent)
+        // 本地广播（兼容部分设备的限制策略）
+        try {
+            Log.d(TAG, "[Broadcast] LocalBroadcast NEW_ORDER_RECEIVED id=${order.id}")
+            LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
+        } catch (_: Exception) {}
     }
 
     private fun printOrder(order: Order) {

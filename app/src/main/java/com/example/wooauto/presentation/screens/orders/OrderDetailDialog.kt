@@ -44,11 +44,15 @@ import com.example.wooauto.presentation.screens.templatePreview.TemplateConfigVi
 /**
  * 订单详情对话框
  */
+// 模板模式：AUTO 按订单状态自动判断；NEW/PROCESSING 为显式模式
+enum class DetailMode { AUTO, NEW, PROCESSING }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OrderDetailDialog(
     order: Order,
     onDismiss: () -> Unit,
+    mode: DetailMode = DetailMode.AUTO,
     onStatusChange: (Long, String) -> Unit,
     onMarkAsPrinted: (Long) -> Unit,
     onMarkAsRead: ((Long) -> Unit)? = null
@@ -70,11 +74,8 @@ fun OrderDetailDialog(
     // 使用当前的订单信息（如果有更新）或者传入的订单
     val displayOrder = currentOrder ?: order
     
-    // 创建一个包装的onDismiss函数，在关闭对话框时标记为已读
+    // 创建一个包装的onDismiss函数：不再自动标记为已读
     val wrappedOnDismiss = {
-        // 如果提供了标记已读的回调，则在关闭时调用
-        onMarkAsRead?.invoke(displayOrder.id)
-        // 然后调用原始的关闭回调
         onDismiss()
     }
     
@@ -801,7 +802,7 @@ fun OrderDetailDialog(
                         .padding(16.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)
                 ) {
-                    // 主操作：打印
+                    // 主操作：打印（最左）
                     Button(
                         onClick = { showTemplateOptions = true },
                         modifier = Modifier.weight(1f),
@@ -815,34 +816,80 @@ fun OrderDetailDialog(
                         Spacer(Modifier.width(6.dp))
                         Text(if (displayOrder.isPrinted) stringResource(R.string.reprint) else stringResource(R.string.print_order))
                     }
-                    // 次操作：更改订单状态或直接完成订单
-                    OutlinedButton(
-                        onClick = { 
-                            if (displayOrder.status == "processing") {
-                                // 对于processing状态的订单，直接标记为完成
-                                onStatusChange(displayOrder.id, "completed")
-                            } else {
-                                // 其他状态显示状态选择对话框
-                                showStatusOptions = true
+                    // 中间按钮：优先根据模板模式渲染，其次回退到自动判断
+                    when (mode) {
+                        DetailMode.NEW -> {
+                            OutlinedButton(
+                                onClick = {
+                                    onMarkAsRead?.invoke(displayOrder.id)
+                                    if (displayOrder.status != "processing") {
+                                        onStatusChange(displayOrder.id, "processing")
+                                    }
+                                    wrappedOnDismiss()
+                                },
+                                modifier = Modifier.weight(1f),
+                                enabled = hasEligibility
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CheckCircle,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Text(stringResource(R.string.start_processing))
                             }
-                        },
-                        modifier = Modifier.weight(1f),
-                        enabled = hasEligibility
-                    ) {
-                        Icon(
-                            imageVector = if (displayOrder.status == "processing") Icons.Default.CheckCircle else Icons.Default.Edit,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        Text(
-                            if (displayOrder.status == "processing") 
-                                stringResource(R.string.mark_as_completed) 
-                            else 
-                                stringResource(R.string.change_order_status)
-                        )
+                        }
+                        DetailMode.PROCESSING -> {
+                            OutlinedButton(
+                                onClick = {
+                                    onStatusChange(displayOrder.id, "completed")
+                                    wrappedOnDismiss()
+                                },
+                                modifier = Modifier.weight(1f),
+                                enabled = hasEligibility
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CheckCircle,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Text(stringResource(R.string.mark_as_completed))
+                            }
+                        }
+                        DetailMode.AUTO -> {
+                            if (displayOrder.status == "processing") {
+                                OutlinedButton(
+                                    onClick = { onStatusChange(displayOrder.id, "completed") },
+                                    modifier = Modifier.weight(1f),
+                                    enabled = hasEligibility
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.CheckCircle,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(stringResource(R.string.mark_as_completed))
+                                }
+                            } else {
+                                OutlinedButton(
+                                    onClick = { showStatusOptions = true },
+                                    modifier = Modifier.weight(1f),
+                                    enabled = hasEligibility
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Edit,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(stringResource(R.string.change_order_status))
+                                }
+                            }
+                        }
                     }
-                    // 关闭按钮
+                    // 最右：关闭
                     OutlinedButton(
                         onClick = wrappedOnDismiss,
                         modifier = Modifier.weight(1f),

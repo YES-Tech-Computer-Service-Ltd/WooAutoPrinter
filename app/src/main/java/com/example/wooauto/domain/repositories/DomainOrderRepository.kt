@@ -123,6 +123,21 @@ interface DomainOrderRepository {
     fun getOrderByIdFlow(orderId: Long): Flow<Order?>
 
     /**
+     * processing + 未读 的订单流（New orders）
+     */
+    fun getNewProcessingOrdersFlow(): Flow<List<Order>>
+
+    /**
+     * processing + 已读 的订单流（In processing）
+     */
+    fun getInProcessingOrdersFlow(): Flow<List<Order>>
+
+    /**
+     * New orders 计数（processing + 未读）
+     */
+    fun getNewProcessingCountFlow(): Flow<Int>
+
+    /**
      * 获取缓存的订单数据（不触发API请求）
      * @return 本地缓存的订单列表
      */

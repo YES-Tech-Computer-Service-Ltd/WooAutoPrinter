@@ -128,4 +128,22 @@ interface OrderDao {
      */
     @Query("SELECT id FROM orders WHERE isRead = 1")
     suspend fun getReadOrderIds(): List<Long>
+
+    /**
+     * processing + 未读 的订单列表（New orders）
+     */
+    @Query("SELECT * FROM orders WHERE status = 'processing' AND isRead = 0 ORDER BY dateCreated DESC")
+    fun getNewProcessingOrders(): Flow<List<OrderEntity>>
+
+    /**
+     * processing + 已读 的订单列表（In processing）
+     */
+    @Query("SELECT * FROM orders WHERE status = 'processing' AND isRead = 1 ORDER BY dateCreated DESC")
+    fun getInProcessingOrders(): Flow<List<OrderEntity>>
+
+    /**
+     * New orders 计数（processing + 未读）
+     */
+    @Query("SELECT COUNT(*) FROM orders WHERE status = 'processing' AND isRead = 0")
+    fun getNewProcessingCount(): Flow<Int>
 } 
