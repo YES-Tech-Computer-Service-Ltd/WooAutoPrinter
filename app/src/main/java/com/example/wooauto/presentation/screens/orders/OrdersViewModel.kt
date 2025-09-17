@@ -95,8 +95,8 @@ class OrdersViewModel @Inject constructor(
     val snackbarEvents: SharedFlow<SnackbarEvent> = _snackbarEvents.asSharedFlow()
     
     // 当前选中的状态过滤条件
-    // 以 VM 为单一事实来源，默认展示 processing，可根据需要改为 null 显示全部
-    private val _currentStatusFilter = MutableStateFlow<String?>("processing")
+    // 默认显示全部（History 期望默认“All Status”），Active 页自身有独立UI分桶
+    private val _currentStatusFilter = MutableStateFlow<String?>(null)
     val currentStatusFilter: StateFlow<String?> = _currentStatusFilter.asStateFlow()
 
     // 导航事件
@@ -172,12 +172,7 @@ class OrdersViewModel @Inject constructor(
         registerRefreshOrdersBroadcastReceiver()
         
         // 根据当前筛选决定观察全量或按状态，避免首屏短暂显示“全部订单”
-        val initialStatus = _currentStatusFilter.value
-        if (initialStatus.isNullOrEmpty()) {
-            observeOrders()
-        } else {
-            observeFilteredOrders(initialStatus)
-        }
+        observeOrders()
         
         // 初始化货币符号
         loadCurrencySymbol()
@@ -757,6 +752,84 @@ class OrdersViewModel @Inject constructor(
                 }
                 _orders.value = _orders.value.map { if (it.id == orderId) it.copy(status = oldStatus ?: newStatus) else it }
                 _errorMessage.value = "订单状态更新失败: ${e.message ?: "未知错误"}"
+            }
+        }
+    }
+
+    /**
+     * 批量开始处理：对“新订单”(processing + 未读) 批量标记为处理中并设为已读
+     * 仅当数量≥2时执行
+     */
+    fun batchStartProcessingForNewOrders() {
+        viewModelScope.launch {
+            try {
+                // 基于当前列表筛选：processing + 未读
+                val targets = _orders.value.filter { it.status == "processing" && !it.isRead }
+                if (targets.size < 2) return@launch
+
+                // 进入轻微加载态，避免用户重复点击
+                _isLoading.value = true
+
+                // 先批量调用仓库，避免逐单触发多次全量刷新
+                withContext(Dispatchers.IO) {
+                    targets.forEach { order ->
+                        try {
+                            orderRepository.markOrderAsRead(order.id)
+                        } catch (_: Exception) {}
+                        try {
+                            orderRepository.updateOrderStatus(order.id, "processing")
+                        } catch (_: Exception) {}
+                    }
+                }
+
+                // 统一刷新一次
+                refreshOrders()
+
+                // 接单后停止声音
+                try { soundManager.stopAllSounds() } catch (_: Exception) {}
+
+                // 轻提示汇总
+                try { _snackbarEvents.tryEmit(SnackbarEvent("${targets.size}", "processing")) } catch (_: Exception) {}
+            } catch (e: Exception) {
+                Log.e(TAG, "批量开始处理失败: ${e.message}", e)
+                _errorMessage.value = e.localizedMessage ?: "批量开始处理失败"
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    /**
+     * 批量完成：对“处理中”(processing + 已读) 订单批量标记为已完成
+     * 仅当数量≥2时执行
+     */
+    fun batchCompleteProcessingOrders() {
+        viewModelScope.launch {
+            try {
+                // 基于当前列表筛选：processing + 已读
+                val targets = _orders.value.filter { it.status == "processing" && it.isRead }
+                if (targets.size < 2) return@launch
+
+                _isLoading.value = true
+
+                withContext(Dispatchers.IO) {
+                    targets.forEach { order ->
+                        try { orderRepository.markOrderAsRead(order.id) } catch (_: Exception) {}
+                        try { orderRepository.updateOrderStatus(order.id, "completed") } catch (_: Exception) {}
+                    }
+                }
+
+                refreshOrders()
+
+                // 完成后停止声音
+                try { soundManager.stopAllSounds() } catch (_: Exception) {}
+
+                try { _snackbarEvents.tryEmit(SnackbarEvent("${targets.size}", "completed")) } catch (_: Exception) {}
+            } catch (e: Exception) {
+                Log.e(TAG, "批量完成处理失败: ${e.message}", e)
+                _errorMessage.value = e.localizedMessage ?: "批量完成失败"
+            } finally {
+                _isLoading.value = false
             }
         }
     }

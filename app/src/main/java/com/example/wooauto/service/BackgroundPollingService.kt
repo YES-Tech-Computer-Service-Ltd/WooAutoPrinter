@@ -851,51 +851,40 @@ class BackgroundPollingService : Service() {
 
 
             if (isNewOrder && isRecentOrder) {
-                
-                
-                // 获取数据库中的打印状态 - 数据库是打印状态的真实来源
+                // 获取数据库中的最新状态（打印/已读），数据库是这些状态的真实来源
                 val latestOrder = orderRepository.getOrderById(order.id)
-                
-                
-                
-                // 创建最终处理的订单对象，以数据库打印状态为准
-                val finalOrder = if (latestOrder != null) {
-                    // 使用数据库订单，但保留API订单的其他字段
-                    order.copy(isPrinted = latestOrder.isPrinted)
-                } else {
-                    // 如果数据库中没有此订单，使用API订单状态
-                    order
-                }
-                
-                // 发送通知
-                sendNewOrderNotification(finalOrder)
+                val effectiveIsPrinted = latestOrder?.isPrinted ?: order.isPrinted
+                val effectiveIsRead = latestOrder?.isRead ?: order.isRead
 
-                
-                
-                // 使用最终订单的打印状态判断是否需要打印
+                // 以数据库状态为准构造最终订单对象（保留API其他字段）
+                val finalOrder = order.copy(
+                    isPrinted = effectiveIsPrinted,
+                    isRead = effectiveIsRead
+                )
+
+                // 决定是否需要系统提醒（仅对未读的新订单提醒）
+                val shouldNotify = !finalOrder.isRead
+
+                // 自动打印逻辑保持不变：满足条件即打印
                 val shouldPrint = !finalOrder.isPrinted && finalOrder.status == "processing"
-                
-                
                 if (shouldPrint) {
-                    
-                    // 调用printOrder方法处理打印
                     printOrder(finalOrder)
                 }
-                
-                // 先标记订单通知已显示，然后再添加到已处理集合
-                orderRepository.markOrderNotificationShown(finalOrder.id)
-                
-                // 添加到已处理集合
+
+                // 仅当需要提醒时才发送系统通知与弹窗广播，并标记通知已显示
+                if (shouldNotify) {
+                    sendNewOrderNotification(finalOrder)
+                    orderRepository.markOrderNotificationShown(finalOrder.id)
+                    newOrderCount++
+                }
+
+                // 无论是否提醒，都加入已处理集合，避免重复处理
                 synchronized(processedOrderIds) {
                     processedOrderIds.add(finalOrder.id)
-                    
-                    // 维护LRU缓存大小
                     if (processedOrderIds.size > MAX_PROCESSED_IDS) {
                         removeOldestProcessedId()
                     }
                 }
-                
-                newOrderCount++
             } else {
                 if (!isNewOrder) {
                     skippedAlreadyProcessed++

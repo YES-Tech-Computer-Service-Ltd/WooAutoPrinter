@@ -138,8 +138,8 @@ class OrderNotificationManager @Inject constructor(
                     orderRepository.getOrders("processing")
                 }
                 
-                // 只保留ID信息，减少内存占用
-                val ordersToLoad = existingOrders.take(MAX_PROCESSED_ORDER_IDS)
+                // 仅预加载【已读】的 processing 订单，避免启动时屏蔽未读新订单的提醒
+                val ordersToLoad = existingOrders.filter { it.isRead }.take(MAX_PROCESSED_ORDER_IDS)
                 processedOrderIds.addAll(ordersToLoad.map { it.id })
                 
                 Log.d(TAG, "预加载了 ${processedOrderIds.size} 个已有订单ID，防止重复通知")

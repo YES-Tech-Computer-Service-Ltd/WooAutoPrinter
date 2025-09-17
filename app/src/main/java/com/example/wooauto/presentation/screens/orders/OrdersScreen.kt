@@ -146,7 +146,7 @@ fun StatusDropdown(
 	onChange: (String) -> Unit
 ) {
 	var expanded by remember { mutableStateOf(false) }
-	val current = options.firstOrNull { it.first == selectedStatus } ?: ("" to "All Status")
+    val current = options.firstOrNull { it.first == selectedStatus } ?: ("" to stringResource(id = com.example.wooauto.R.string.all_status))
 	Box(
 		modifier = Modifier
 			.clip(RoundedCornerShape(16.dp))
@@ -454,6 +454,75 @@ fun OrdersScreen(
                         )
                     }
                     else -> {
+                        // Active 批量操作：当在 processing 视图且满足数量条件时显示
+                        val newCount = if (statusFilter == "processing") orders.count { it.status == "processing" && !it.isRead } else 0
+                        val inProcCount = if (statusFilter == "processing") orders.count { it.status == "processing" && it.isRead } else 0
+                        var confirmAction by remember { mutableStateOf<String?>(null) }
+                        if (statusFilter == "processing" && (newCount >= 2 || inProcCount >= 2)) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                OutlinedButton(
+                                    onClick = { confirmAction = "start_processing" },
+                                    enabled = newCount >= 2
+                                ) {
+                                    Icon(imageVector = Icons.Default.CheckCircle, contentDescription = null)
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(text = if (locale.language == "zh") "一键开始处理(新)" else "Start all (new)")
+                                }
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Button(
+                                    onClick = { confirmAction = "complete" },
+                                    enabled = inProcCount >= 2,
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                                ) {
+                                    Icon(imageVector = Icons.Default.CheckCircle, contentDescription = null)
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(text = if (locale.language == "zh") "一键完成(处理中)" else "Mark completed (processing)")
+                                }
+                            }
+                            if (confirmAction != null) {
+                                Dialog(
+                                    onDismissRequest = { confirmAction = null },
+                                    properties = DialogProperties(dismissOnBackPress = true, dismissOnClickOutside = true)
+                                ) {
+                                    Card(shape = RoundedCornerShape(16.dp)) {
+                                        Column(modifier = Modifier.padding(20.dp)) {
+                                            val isStart = confirmAction == "start_processing"
+                                            Text(
+                                                text = if (isStart) {
+                                                    if (locale.language == "zh") "确认将所有新订单设为处理中？（数量≥2）" else "Confirm to start all new orders as processing?"
+                                                } else {
+                                                    if (locale.language == "zh") "确认将所有处理中订单标记为已完成？（数量≥2）" else "Confirm to mark all processing orders as completed?"
+                                                },
+                                                style = MaterialTheme.typography.titleMedium
+                                            )
+                                            Spacer(modifier = Modifier.height(16.dp))
+                                            Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
+                                                OutlinedButton(onClick = { confirmAction = null }) {
+                                                    Text(text = if (locale.language == "zh") "取消" else "Cancel")
+                                                }
+                                                Spacer(modifier = Modifier.width(12.dp))
+                                                Button(onClick = {
+                                                    if (confirmAction == "start_processing") {
+                                                        viewModel.batchStartProcessingForNewOrders()
+                                                    } else {
+                                                        viewModel.batchCompleteProcessingOrders()
+                                                    }
+                                                    confirmAction = null
+                                                }) {
+                                                    Text(text = if (locale.language == "zh") "确认" else "Confirm")
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
                         OrdersList(
                             orders = orders,
                             selectedStatus = statusFilter,

@@ -648,6 +648,12 @@
     <string name="order_status_label">订单状态：</string>
     <string name="view_details">查看详情</string>
 
+    <!-- Active 批量操作 -->
+    <string name="start_all">全部开始</string>
+    <string name="complete_all">全部完成</string>
+    <string name="confirm_start_all_title">确认将所有新订单设为处理中？</string>
+    <string name="confirm_complete_all_title">确认将所有处理中订单标记为已完成？</string>
+
     <!-- License Input Section -->
     <string name="license_input_title">输入许可证密钥</string>
     <string name="license_input_description">请输入四组数字或字母，每组4位</string>

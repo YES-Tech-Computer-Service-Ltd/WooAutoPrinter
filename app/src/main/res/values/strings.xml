@@ -671,6 +671,12 @@
     <string name="order_status_label">Order Status:</string>
     <string name="view_details">View Details</string>
 
+    <!-- Active batch actions -->
+    <string name="start_all">Start all</string>
+    <string name="complete_all">Complete all</string>
+    <string name="confirm_start_all_title">Confirm to start all new orders?</string>
+    <string name="confirm_complete_all_title">Confirm to mark all processing orders as completed?</string>
+
     <!-- License Input Section -->
     <string name="license_input_title">Enter License Key</string>
     <string name="license_input_description">Please enter four groups of digits or letters, 4 characters each</string>
