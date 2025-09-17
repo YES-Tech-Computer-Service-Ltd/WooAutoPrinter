@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -64,7 +65,7 @@ fun OrdersActivePlaceholderScreen(
     androidx.compose.material3.Scaffold(
         snackbarHost = { androidx.compose.material3.SnackbarHost(hostState = snackbarHostState) }
     ) { pad ->
-        Box(
+        BoxWithConstraints(
             modifier = Modifier
 				.fillMaxSize()
 				.padding(pad)
@@ -72,11 +73,12 @@ fun OrdersActivePlaceholderScreen(
         ) {
             val spacing = 8.dp
             val dividerWidth = 1.dp
+            val sectionWidth = (maxWidth - spacing - dividerWidth - spacing) / 2
             Row(modifier = Modifier.fillMaxSize()) {
                 Column(
                     modifier = Modifier
 						.fillMaxHeight()
-						.weight(1f)
+						.width(sectionWidth)
                 ) {
                     SectionHeader(title = "New orders", count = newList.size)
                     LazyColumn(modifier = Modifier.fillMaxSize()) {
@@ -108,7 +110,7 @@ fun OrdersActivePlaceholderScreen(
                 Column(
                     modifier = Modifier
 						.fillMaxHeight()
-						.weight(1f)
+						.width(sectionWidth)
                 ) {
                     SectionHeader(title = "In processing", count = inProcList.size)
                     LazyColumn(modifier = Modifier.fillMaxSize()) {
@@ -275,8 +277,9 @@ fun OrdersActivePlaceholderScreen(
                     } else {
                         Spacer(modifier = Modifier.width(0.dp))
                     }
-					TextButton(onClick = onOpenDetails) { Text(text = "Details") }
-				}
-			}
-		}
-	}
+                    TextButton(onClick = onOpenDetails) { Text(text = "Details") }
+                }
+            }
+        }
+    }
+}
