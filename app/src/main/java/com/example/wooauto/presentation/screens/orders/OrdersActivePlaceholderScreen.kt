@@ -86,7 +86,7 @@ fun OrdersActivePlaceholderScreen(
 						.fillMaxHeight()
 						.weight(1f)
                 ) {
-                    SectionHeader(title = "New orders", count = newList.size, actions = {
+                    SectionHeader(title = stringResource(id = com.example.wooauto.R.string.orders_new), count = newList.size, actions = {
                         if (newList.size >= 2) {
                             TextButton(onClick = { showStartAllConfirm = true }) {
                                 Text(text = stringResource(id = com.example.wooauto.R.string.start_all))
@@ -124,7 +124,7 @@ fun OrdersActivePlaceholderScreen(
 						.fillMaxHeight()
 						.weight(1f)
                 ) {
-                    SectionHeader(title = "In processing", count = inProcList.size, actions = {
+                    SectionHeader(title = stringResource(id = com.example.wooauto.R.string.orders_in_processing), count = inProcList.size, actions = {
                         if (inProcList.size >= 2) {
                             TextButton(onClick = { showCompleteAllConfirm = true }) {
                                 Text(text = stringResource(id = com.example.wooauto.R.string.complete_all))

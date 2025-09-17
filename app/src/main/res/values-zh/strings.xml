@@ -16,6 +16,10 @@
     <string name="nav_orders">订单</string>
     <string name="nav_products">产品</string>
     <string name="nav_settings">设置</string>
+    <string name="orders_active">进行中</string>
+    <string name="orders_history">历史</string>
+    <string name="orders_new">新订单</string>
+    <string name="orders_in_processing">处理中</string>
 
     <!-- Orders -->
     <string name="order_details">订单详情</string>
