@@ -29,6 +29,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import com.example.wooauto.data.remote.WooCommerceApi
 import com.example.wooauto.data.remote.impl.WooCommerceApiImpl
+import com.example.wooauto.data.remote.WooCommerceApiFactory
+import com.example.wooauto.data.remote.WooCommerceApiFactoryImpl
 import com.example.wooauto.data.remote.metadata.MetadataProcessorFactory
 import okhttp3.Protocol
 import com.example.wooauto.data.remote.interceptors.SSLErrorInterceptor
@@ -289,6 +291,15 @@ class NetworkModule {
         @Singleton
         fun provideConnectionResetHandler(): ConnectionResetHandler {
             return ConnectionResetHandler()
+        }
+
+        /**
+         * 提供 WooCommerceApiFactory（用于按配置创建/复用 API 实例）
+         */
+        @Provides
+        @Singleton
+        fun provideWooCommerceApiFactory(): WooCommerceApiFactory {
+            return WooCommerceApiFactoryImpl()
         }
     }
 } 
