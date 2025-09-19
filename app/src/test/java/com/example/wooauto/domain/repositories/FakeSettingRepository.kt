@@ -71,6 +71,9 @@ class FakeSettingRepository : DomainSettingRepository {
     
     // 屏幕常亮设置
     private val _keepScreenOn = MutableStateFlow(false)
+    
+    // 应用内亮度设置（null 表示跟随系统）
+    private val _appBrightnessPercent = MutableStateFlow<Int?>(null)
 
     override suspend fun getWooCommerceConfig(): WooCommerceConfig {
         return WooCommerceConfig(
@@ -358,6 +361,17 @@ class FakeSettingRepository : DomainSettingRepository {
     
     override suspend fun setKeepScreenOn(keepOn: Boolean) {
         _keepScreenOn.value = keepOn
+    }
+    
+    // 应用内亮度实现
+    override fun getAppBrightnessFlow(): Flow<Int?> = _appBrightnessPercent.asStateFlow()
+    
+    override suspend fun setAppBrightness(percent: Int) {
+        _appBrightnessPercent.value = percent.coerceIn(5, 100)
+    }
+    
+    override suspend fun clearAppBrightness() {
+        _appBrightnessPercent.value = null
     }
     
     // 模板打印份数设置
