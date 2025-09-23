@@ -149,7 +149,7 @@ fun OrdersScreen(
     // 提前获取需要使用的字符串资源
     val apiNotConfiguredMessage = stringResource(R.string.api_notification_not_configured)
     val ordersTitle = stringResource(id = R.string.orders)
-    val searchOrdersPlaceholder = if (locale.language == "zh") "搜索订单..." else "Search orders..."
+    val searchOrdersPlaceholder = stringResource(id = R.string.search_orders_hint)
     // 读取 orders/{section}，用于控制默认状态和过滤条显示
     val ordersSection = remember(currentRoute) {
         if (currentRoute.startsWith("orders/")) currentRoute.removePrefix("orders/") else "history"
