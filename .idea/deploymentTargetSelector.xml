@@ -18,7 +18,7 @@
             </Target>
             <Target type="DEFAULT_BOOT">
               <handle>
-                <DeviceId pluginId="PhysicalDevice" identifier="serial=QPTAOC800000925" />
+                <DeviceId pluginId="LocalEmulator" identifier="path=C:\Users\wuche\.android\avd\Medium_Phone.avd" />
               </handle>
             </Target>
           </targets>

@@ -76,27 +76,13 @@ data class PrinterConfig(
         // 纸张宽度
         const val PAPER_WIDTH_57MM = 58
         const val PAPER_WIDTH_80MM = 80
-        
-        // 字体大小
-        const val FONT_SIZE_SMALL = 0
+
         const val FONT_SIZE_NORMAL = 1
-        const val FONT_SIZE_LARGE = 2
-        
-        // 打印浓度
-        const val PRINT_DENSITY_LIGHT = 0
+
         const val PRINT_DENSITY_NORMAL = 1
-        const val PRINT_DENSITY_DARK = 2
-        
-        // 打印速度
-        const val PRINT_SPEED_SLOW = 0
+
         const val PRINT_SPEED_NORMAL = 1
-        const val PRINT_SPEED_FAST = 2
-        
-        // 默认打印机配置键
-        const val KEY_DEFAULT_PRINTER = "default_printer_config"
-        
-        // 打印机连接状态键
-        const val KEY_PRINTER_CONNECTED = "printer_connected"
+
     }
     
     /**
