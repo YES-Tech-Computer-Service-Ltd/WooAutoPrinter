@@ -85,6 +85,10 @@ class BackgroundPollingService : Service() {
     // 使用LRU方式管理处理过的订单ID，减少内存占用
     private val processedOrderIds = LinkedHashSet<Long>(MAX_PROCESSED_IDS)
     
+    // 短期幂等：记录(订单ID|模板ID)最近一次自动打印时间，抑制短时间内重复出纸
+    private val recentTemplatePrints = LinkedHashMap<String, Long>()
+    private val IDEMP_WINDOW_MS = 60 * 1000L
+    
     // 轮询控制参数
     private var currentPollingInterval = DEFAULT_POLLING_INTERVAL
     private var isAppInForeground = false // 追踪应用是否在前台
@@ -1039,22 +1043,40 @@ class BackgroundPollingService : Service() {
                 // 遍历每个模板并打印相应份数
                 for ((templateId, copies) in templatePrintCopies) {
                     if (copies > 0) {
-                        
+                        // 幂等检查：在60秒窗口内避免对同一(订单, 模板)重复触发自动打印
+                        val idempotentKey = "${order.id}|$templateId"
+                        val nowTs = System.currentTimeMillis()
+                        val blocked = synchronized(recentTemplatePrints) {
+                            val lastTs = recentTemplatePrints[idempotentKey]
+                            lastTs != null && (nowTs - lastTs) < IDEMP_WINDOW_MS
+                        }
+                        if (blocked) {
+                            Log.d(TAG, "【自动打印调试】幂等窗口生效，跳过重复模板打印: order=${order.id}, template=$templateId")
+                            continue
+                        }
+                        // 标记本模板开始打印时间（窗口内阻止再次触发）
+                        synchronized(recentTemplatePrints) {
+                            recentTemplatePrints[idempotentKey] = nowTs
+                        }
                         
                         // 打印指定份数
                         for (i in 1..copies) {
-                            
-                            
-                            // 使用超时机制避免打印操作挂起
-                            val printResult = withTimeoutOrNull(30000) { // 30秒超时
+                            // 使用超时机制避免打印操作挂起（延长至60秒，降低误判失败）
+                            val resultOrNull: Boolean? = withTimeoutOrNull(60000) {
                                 printerManager.printOrderWithTemplate(order, printerConfig, templateId)
-                            } ?: false
-                            
-                            if (printResult) {
-                                
-                                anyPrintSuccess = true
-                            } else {
-                                Log.e(TAG, "【自动打印调试】❌ 第 $i 份打印失败 (模板: $templateId)")
+                            }
+                            when (resultOrNull) {
+                                true -> {
+                                    anyPrintSuccess = true
+                                }
+                                null -> {
+                                    Log.e(TAG, "【自动打印调试】⌛ 打印超时，终止当前模板后续份数: 模板=$templateId 第${i}份")
+                                    // 超时：中断当前模板的剩余副本，避免重复出纸
+                                    break
+                                }
+                                else -> {
+                                    Log.e(TAG, "【自动打印调试】❌ 第 $i 份打印失败 (模板: $templateId)")
+                                }
                             }
                             
                             // 如果不是最后一份，稍微延迟避免打印机过载
