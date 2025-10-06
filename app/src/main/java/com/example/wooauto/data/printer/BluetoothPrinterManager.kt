@@ -1215,9 +1215,10 @@ class BluetoothPrinterManager @Inject constructor(
             Log.d(TAG, "【打印机状态】开始使用模板打印订单 #${order.number}，当前打印机 ${config.name} 状态: $printerStatus")
 
             var retryCount = 0
-            while (retryCount < 3) {
+            val maxRetries = 1 // 降低重试次数，避免重复出纸
+            while (retryCount < maxRetries) {
                 try {
-                    Log.d(TAG, "准备使用模板打印订单: ${order.number} (尝试 ${retryCount + 1}/3)")
+                    Log.d(TAG, "准备使用模板打印订单: ${order.number} (尝试 ${retryCount + 1}/$maxRetries)")
 
                     // 1. 检查并确保连接
                     if (!ensurePrinterConnected(config)) {
@@ -1261,22 +1262,23 @@ class BluetoothPrinterManager @Inject constructor(
                         // 成功打印后处理订单状态
                         return@withContext handleSuccessfulPrint(order)
                     } else {
-                        Log.e(TAG, "使用模板打印内容失败，尝试重试...")
-                        retryCount++
-                        delay(1000)
+                        Log.e(TAG, "使用模板打印内容失败(可能已出纸)，不再对同模板进行自动重试")
+                        return@withContext false
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "使用模板打印订单异常: ${e.message}", e)
 
-                    // 对于连接断开的异常，尝试重新连接
-                    if (e.message?.contains("Broken pipe") == true ||
+                    // 对于可能已写入但抛错的连接异常，避免再次自动重试以防重复出纸
+                    if (e.message?.contains("Broken pipe", ignoreCase = true) == true ||
                         e is EscPosConnectionException
                     ) {
-                        handleConnectionError(config)
+                        Log.w(TAG, "检测到连接异常(可能已出纸)，不再自动重试当前模板")
+                        return@withContext false
                     }
 
+                    // 其他异常仅做一次轻量重试
                     retryCount++
-                    delay(1000)
+                    delay(500)
                 }
             }
 
