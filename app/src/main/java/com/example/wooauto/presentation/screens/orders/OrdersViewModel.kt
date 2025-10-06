@@ -1035,6 +1035,116 @@ class OrdersViewModel @Inject constructor(
     }
 
     /**
+     * 多模板打印：根据设置中的每个模板份数，依次打印所选模板
+     */
+    // 兼容旧入口：仅有模板ID列表时，退化为每个模板1份
+    fun printOrderWithTemplates(orderId: Long, templateIds: List<String>) {
+        viewModelScope.launch {
+            try {
+                if (templateIds.isEmpty()) return@launch
+
+                // 获取订单
+                val order = orderRepository.getOrderById(orderId) ?: return@launch
+                // 打印机配置
+                val printerConfig = settingRepository.getDefaultPrinterConfig() ?: return@launch
+
+                // 手动打印标志
+                settingRepository.setTemporaryManualPrintFlag(true)
+
+                // 读取模板份数设置
+                val copiesMap = try {
+                    settingRepository.getTemplatePrintCopies()
+                } catch (e: Exception) {
+                    emptyMap()
+                }
+
+                var anySuccess = false
+
+                // 逐模板打印
+                for (templateId in templateIds) {
+                    // 设置默认模板类型（向后兼容）与自定义模板ID
+                    val templateType = when (templateId) {
+                        "full_details" -> TemplateType.FULL_DETAILS
+                        "delivery" -> TemplateType.DELIVERY
+                        "kitchen" -> TemplateType.KITCHEN
+                        else -> TemplateType.FULL_DETAILS
+                    }
+                    try {
+                        settingRepository.saveDefaultTemplateType(templateType)
+                        if (templateId.startsWith("custom_")) {
+                            settingRepository.saveCustomTemplateId(templateId)
+                        } else {
+                            settingRepository.saveCustomTemplateId("")
+                        }
+                    } catch (_: Exception) {}
+
+                    val copies = (copiesMap[templateId] ?: 1).coerceAtLeast(1)
+                    repeat(copies) {
+                        val ok = printerManager.printOrderWithTemplate(order, printerConfig, templateId)
+                        if (ok) anySuccess = true
+                        // 简单节流，避免打印机过载
+                        delay(200)
+                    }
+                }
+
+                if (anySuccess) {
+                    // 标记一次已打印并刷新当前选中订单
+                    markOrderAsPrinted(orderId)
+                    delay(200)
+                    orderRepository.getOrderById(orderId)?.let { _selectedOrder.value = it }
+                }
+            } catch (e: Exception) {
+                Log.e("OrdersViewModel", "多模板打印时出错: ${e.message}", e)
+            }
+        }
+    }
+
+    /**
+     * 多模板打印（手动）：直接按传入的模板份数字典进行打印
+     */
+    fun printOrderWithTemplates(orderId: Long, templateCopies: Map<String, Int>) {
+        viewModelScope.launch {
+            try {
+                if (templateCopies.isEmpty()) return@launch
+
+                val order = orderRepository.getOrderById(orderId) ?: return@launch
+                val printerConfig = settingRepository.getDefaultPrinterConfig() ?: return@launch
+
+                settingRepository.setTemporaryManualPrintFlag(true)
+
+                var anySuccess = false
+                for ((templateId, copiesRaw) in templateCopies) {
+                    val templateType = when (templateId) {
+                        "full_details" -> TemplateType.FULL_DETAILS
+                        "delivery" -> TemplateType.DELIVERY
+                        "kitchen" -> TemplateType.KITCHEN
+                        else -> TemplateType.FULL_DETAILS
+                    }
+                    try {
+                        settingRepository.saveDefaultTemplateType(templateType)
+                        if (templateId.startsWith("custom_")) settingRepository.saveCustomTemplateId(templateId) else settingRepository.saveCustomTemplateId("")
+                    } catch (_: Exception) {}
+
+                    val copies = copiesRaw.coerceAtLeast(1)
+                    repeat(copies) {
+                        val ok = printerManager.printOrderWithTemplate(order, printerConfig, templateId)
+                        if (ok) anySuccess = true
+                        delay(200)
+                    }
+                }
+
+                if (anySuccess) {
+                    markOrderAsPrinted(orderId)
+                    delay(200)
+                    orderRepository.getOrderById(orderId)?.let { _selectedOrder.value = it }
+                }
+            } catch (e: Exception) {
+                Log.e("OrdersViewModel", "多模板手动打印时出错: ${e.message}", e)
+            }
+        }
+    }
+
+    /**
      * 打印订单
      * @param orderId 订单ID
      * @param templateType 模板类型，如果为null则使用默认模板

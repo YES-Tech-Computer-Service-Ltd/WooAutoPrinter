@@ -926,17 +926,9 @@ fun OrderDetailDialog(
     if (showTemplateOptions && (hasEligibility)) {
         TemplateSelectorDialog(
             onDismiss = { showTemplateOptions = false },
-            onTemplateSelected = { templateId ->
-                // 记录打印前的状态
-//                Log.d("OrderDetailDialog", "【打印状态修复】准备打印订单: ${displayOrder.id}, 当前打印状态: ${displayOrder.isPrinted}, 使用模板: $templateId")
-                
-                // 使用新的方法直接传递模板ID
-                viewModel.printOrderWithTemplate(displayOrder.id, templateId)
-                
-                // 记录打印后的状态
-//                Log.d("OrderDetailDialog", "【打印状态修复】已提交打印请求，等待状态变更")
-                
-                // 关闭模板选择对话框
+            onConfirm = { selectedCopies ->
+                // 多模板打印（手动）：按用户在弹窗中设置的份数逐一打印
+                viewModel.printOrderWithTemplates(displayOrder.id, selectedCopies)
                 showTemplateOptions = false
             }
         )
@@ -1066,7 +1058,7 @@ fun StatusChangeDialog(
 @Composable
 fun TemplateSelectorDialog(
     onDismiss: () -> Unit,
-    onTemplateSelected: (String) -> Unit  // 改为接受模板ID而不是TemplateType
+    onConfirm: (Map<String, Int>) -> Unit
 ) {
     val templateConfigViewModel: TemplateConfigViewModel = hiltViewModel()
     val allConfigs by templateConfigViewModel.allConfigs.collectAsState()
@@ -1099,6 +1091,10 @@ fun TemplateSelectorDialog(
         defaultTemplates + customTemplates
     }
     
+    // 选择集合与份数字典（仅用于本次手动打印，不持久化）
+    var selectedTemplateIds by remember { mutableStateOf(setOf<String>()) }
+    var copyCounts by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
+    
     Dialog(onDismissRequest = onDismiss) {
         Card(
             modifier = Modifier
@@ -1129,29 +1125,65 @@ fun TemplateSelectorDialog(
                     }
                 } else {
                     templateOptions.forEachIndexed { index, (templateId, description, icon) ->
+                        val checked = selectedTemplateIds.contains(templateId)
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
-                                    onTemplateSelected(templateId)
+                                    selectedTemplateIds = selectedTemplateIds.toMutableSet().apply {
+                                        if (contains(templateId)) remove(templateId) else add(templateId)
+                                    }
+                                    // 默认份数：首次选中时设为1
+                                    if (!checked && !copyCounts.containsKey(templateId)) {
+                                        copyCounts = copyCounts.toMutableMap().apply { put(templateId, 1) }
+                                    }
                                 }
                                 .padding(vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+                            Checkbox(
+                                checked = checked,
+                                onCheckedChange = {
+                                    selectedTemplateIds = selectedTemplateIds.toMutableSet().apply {
+                                        if (checked) remove(templateId) else add(templateId)
+                                    }
+                                    if (!checked && !copyCounts.containsKey(templateId)) {
+                                        copyCounts = copyCounts.toMutableMap().apply { put(templateId, 1) }
+                                    }
+                                }
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
                             Icon(
                                 imageVector = icon,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary
                             )
-                            
                             Spacer(modifier = Modifier.width(16.dp))
-                            
                             Text(
                                 text = description,
                                 style = MaterialTheme.typography.bodyLarge
                             )
+                            Spacer(modifier = Modifier.weight(1f))
+                            // 份数步进器（禁用态时降低透明度）
+                            val current = (copyCounts[templateId] ?: 1).coerceAtLeast(1)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                IconButton(
+                                    onClick = {
+                                        val next = (current - 1).coerceAtLeast(1)
+                                        copyCounts = copyCounts.toMutableMap().apply { put(templateId, next) }
+                                    },
+                                    enabled = checked
+                                ) { Icon(imageVector = Icons.Default.RemoveCircleOutline, contentDescription = null) }
+                                Text(text = current.toString(), color = if (checked) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+                                IconButton(
+                                    onClick = {
+                                        val next = (current + 1).coerceAtMost(99)
+                                        copyCounts = copyCounts.toMutableMap().apply { put(templateId, next) }
+                                    },
+                                    enabled = checked
+                                ) { Icon(imageVector = Icons.Default.AddCircleOutline, contentDescription = null) }
+                            }
                         }
-                        
                         if (index < templateOptions.size - 1) {
                             HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                         }
@@ -1159,12 +1191,27 @@ fun TemplateSelectorDialog(
                 }
                 
                 Spacer(modifier = Modifier.height(8.dp))
-                
-                Button(
-                    onClick = onDismiss,
-                    modifier = Modifier.align(Alignment.End)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(stringResource(R.string.cancel))
+                    Button(
+                        onClick = {
+                            // 仅提交被选中的模板及其份数，份数最少1
+                            val payload = selectedTemplateIds.associateWith { id -> (copyCounts[id] ?: 1).coerceAtLeast(1) }
+                            onConfirm(payload)
+                        },
+                        enabled = selectedTemplateIds.isNotEmpty()
+                    ) {
+                        // 复用“打印订单”文案
+                        Text(text = stringResource(id = R.string.print_order))
+                    }
+                    Button(
+                        onClick = onDismiss
+                    ) {
+                        Text(stringResource(R.string.cancel))
+                    }
                 }
             }
         }
