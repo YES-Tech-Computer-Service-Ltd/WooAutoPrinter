@@ -1,6 +1,7 @@
 package com.example.wooauto.data.remote.metadata
 
 import android.util.Log
+import com.example.wooauto.utils.UiLog
 
 /**
  * 元数据处理器工厂
@@ -20,7 +21,7 @@ object MetadataProcessorFactory {
         if (!isInitialized) {
             synchronized(this) {
                 if (!isInitialized) {
-                    Log.d("MetadataProcessorFactory", "初始化元数据处理器工厂")
+                    UiLog.d("MetadataProcessorFactory", "初始化元数据处理器工厂")
                     
                     // 注册WooFood处理器
                     registry.registerProcessor(WooFoodMetadataProcessor())
@@ -29,7 +30,7 @@ object MetadataProcessorFactory {
                     
                     isInitialized = true
                     
-                    Log.d("MetadataProcessorFactory", "元数据处理器初始化完成")
+                    UiLog.d("MetadataProcessorFactory", "元数据处理器初始化完成")
                 }
             }
         }
@@ -43,7 +44,7 @@ object MetadataProcessorFactory {
      * @return 对应的元数据处理器
      */
     fun createProcessorForPlugin(pluginType: String): MetadataProcessor {
-        Log.d("MetadataProcessorFactory", "为插件类型创建处理器: $pluginType")
+        UiLog.d("MetadataProcessorFactory", "为插件类型创建处理器: $pluginType")
         
         return when (pluginType.lowercase()) {
             "woofood" -> WooFoodMetadataProcessor()
@@ -61,7 +62,7 @@ object MetadataProcessorFactory {
         // WooFood相关的键
         val woofoodKeys = listOf("exwfood_", "_woofood_", "CKB OR S/S PK", "_exoptions")
         if (woofoodKeys.any { key.contains(it) }) {
-            Log.d("MetadataProcessorFactory", "检测到WooFood元数据键: $key")
+            UiLog.d("MetadataProcessorFactory", "检测到WooFood元数据键: $key")
             return WooFoodMetadataProcessor()
         }
         

@@ -11,6 +11,7 @@ import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Log
+import com.example.wooauto.utils.UiLog
 import androidx.core.app.ActivityCompat
 import com.dantsu.escposprinter.EscPosPrinter
 import com.dantsu.escposprinter.connection.bluetooth.BluetoothConnection
@@ -95,7 +96,7 @@ class BluetoothPrinterManager @Inject constructor(
                     BluetoothAdapter.getDefaultAdapter()
                 }
                 bluetoothInitialized = true
-                Log.d(TAG, "【蓝牙初始化】蓝牙适配器初始化完成")
+                UiLog.d(TAG, "【蓝牙初始化】蓝牙适配器初始化完成")
             } catch (e: Exception) {
                 Log.e(TAG, "【蓝牙初始化】蓝牙适配器初始化失败: ${e.message}")
                 bluetoothAdapter = null
@@ -131,7 +132,7 @@ class BluetoothPrinterManager @Inject constructor(
     private fun ensureHeartbeatRunning(config: PrinterConfig) {
         val active = heartbeatJob?.isActive == true
         if (!active) {
-            Log.d(TAG, "系统轮询（打印机）未运行，准备启动")
+            UiLog.d(TAG, "系统轮询（打印机）未运行，准备启动")
             startHeartbeat(config)
         }
     }
@@ -145,10 +146,10 @@ class BluetoothPrinterManager @Inject constructor(
         if (enabled) {
             // 外部接管后，停止内部心跳
             stopHeartbeat()
-            Log.d(TAG, "外部系统轮询已启用，内部心跳停止")
+            UiLog.d(TAG, "外部系统轮询已启用，内部心跳停止")
         } else {
             // 由调用方在需要时重启内部心跳
-            Log.d(TAG, "外部系统轮询已关闭，可恢复内部心跳")
+            UiLog.d(TAG, "外部系统轮询已关闭，可恢复内部心跳")
         }
     }
 
@@ -342,7 +343,7 @@ class BluetoothPrinterManager @Inject constructor(
             }
             
             isConnecting = true
-            Log.d(TAG, "【打印机连接】开始连接打印机: ${config.name} (${config.address})")
+            UiLog.d(TAG, "【打印机连接】开始连接打印机: ${config.name} (${config.address})")
 
             // 检查蓝牙适配器状态
             val adapter = getBluetoothAdapter()
@@ -440,7 +441,7 @@ class BluetoothPrinterManager @Inject constructor(
                     } ?: false
 
                     if (connected) {
-                        Log.d(TAG, "连接成功")
+                        UiLog.d(TAG, "连接成功")
                         break
                     } else {
                         Log.w(TAG, "连接尝试 $attempt 失败")
@@ -494,7 +495,7 @@ class BluetoothPrinterManager @Inject constructor(
                 startHeartbeat(config)
                 ensureHeartbeatRunning(config)
 
-                Log.d(TAG, "【打印机连接】连接成功: ${config.name}")
+                UiLog.d(TAG, "【打印机连接】连接成功: ${config.name}")
                 return true
             } catch (e: Exception) {
                 Log.e(TAG, "创建打印机实例失败: ${e.message}", e)
@@ -837,7 +838,7 @@ class BluetoothPrinterManager @Inject constructor(
                 try {
                     delay(SCAN_TIMEOUT)
                     if (isScanning) {
-                        Log.d(TAG, "蓝牙扫描超时，停止扫描")
+                    UiLog.d(TAG, "蓝牙扫描超时，停止扫描")
                         stopDiscovery()
                     }
                 } catch (e: Exception) {
@@ -1065,7 +1066,7 @@ class BluetoothPrinterManager @Inject constructor(
                 //     Log.e(TAG, "无法连接到打印机，测试失败")
                 //     return false
                 // }
-                Log.d(TAG, "打印机未连接，测试连接失败")
+            UiLog.d(TAG, "打印机未连接，测试连接失败")
                 return false
             }
 
@@ -1107,9 +1108,9 @@ class BluetoothPrinterManager @Inject constructor(
      * @return 格式化后的打印内容
      */
     private fun generateOrderContent(order: Order, config: PrinterConfig, templateId: String): String {
-        Log.d(TAG, "开始生成打印内容: 订单 ${order.number}, 模板: $templateId")
+        UiLog.d(TAG, "开始生成打印内容: 订单 ${order.number}, 模板: $templateId")
         val content = templateManager.generateOrderPrintContent(order, config, templateId)
-        Log.d(TAG, "生成打印内容完成，准备发送打印数据")
+        UiLog.d(TAG, "生成打印内容完成，准备发送打印数据")
         return content
     }
 
@@ -1119,13 +1120,13 @@ class BluetoothPrinterManager @Inject constructor(
      */
     private suspend fun handleConnectionError(config: PrinterConfig) {
         try {
-            Log.d(TAG, "检测到连接断开，标记为断开并同步重连")
+            UiLog.d(TAG, "检测到连接断开，标记为断开并同步重连")
             // 先立即标记断开，避免后续逻辑误判为已连接
             updatePrinterStatus(config, PrinterStatus.DISCONNECTED)
 
             // 同步等待重连完成，减少竞态
             val reconnected = reconnectPrinter(config)
-            Log.d(TAG, "同步重连结果: $reconnected")
+            UiLog.d(TAG, "同步重连结果: $reconnected")
         } catch (re: Exception) {
             Log.e(TAG, "重新连接打印机失败: ${re.message}")
         }
@@ -1137,29 +1138,29 @@ class BluetoothPrinterManager @Inject constructor(
      * @return 是否成功处理
      */
     private suspend fun handleSuccessfulPrint(order: Order): Boolean {
-        Log.d(TAG, "打印成功，检查订单 ${order.id} 当前打印状态")
+        UiLog.d(TAG, "打印成功，检查订单 ${order.id} 当前打印状态")
 
         // 获取最新的订单信息
         val latestOrder = orderRepository.getOrderById(order.id)
 
         // 只有在订单未被标记为已打印时才进行标记
         if (latestOrder != null && !latestOrder.isPrinted) {
-            Log.d(TAG, "标记订单 ${order.id} 为已打印")
+            UiLog.d(TAG, "标记订单 ${order.id} 为已打印")
             val markResult = orderRepository.markOrderAsPrinted(order.id)
             if (markResult) {
-                Log.d(TAG, "成功标记订单 ${order.id} 为已打印")
+                UiLog.d(TAG, "成功标记订单 ${order.id} 为已打印")
             } else {
                 Log.e(TAG, "标记订单 ${order.id} 为已打印-失败")
             }
         } else {
-            Log.d(TAG, "订单 ${order.id} 已被标记为已打印，跳过重复标记")
+            UiLog.d(TAG, "订单 ${order.id} 已被标记为已打印，跳过重复标记")
         }
 
         return true
     }
 
     override suspend fun autoPrintNewOrder(order: Order): Boolean {
-        Log.d(TAG, "========== 开始自动打印订单 #${order.number} ==========")
+        UiLog.d(TAG, "========== 开始自动打印订单 #${order.number} ==========")
         try {
             // 1. 检查订单状态
             if (!validateOrderForPrinting(order)) {
@@ -1184,7 +1185,7 @@ class BluetoothPrinterManager @Inject constructor(
             // 5. 检查自动打印设置 - 只需要检查全局设置
             val globalAutoPrintEnabled = settingRepository.getAutoPrintEnabled()
             if (!globalAutoPrintEnabled) {
-                Log.d(TAG, "全局自动打印功能未开启")
+            UiLog.d(TAG, "全局自动打印功能未开启")
                 return false
             }
 
@@ -1208,16 +1209,16 @@ class BluetoothPrinterManager @Inject constructor(
     
     override suspend fun printOrderWithTemplate(order: Order, config: PrinterConfig, templateId: String): Boolean =
         withContext(Dispatchers.IO) {
-            Log.d(TAG, "使用模板打印订单: #${order.number}, 模板ID: $templateId")
+            UiLog.d(TAG, "使用模板打印订单: #${order.number}, 模板ID: $templateId")
             
             // 添加打印前的详细状态日志
             val printerStatus = getPrinterStatus(config)
-            Log.d(TAG, "【打印机状态】开始使用模板打印订单 #${order.number}，当前打印机 ${config.name} 状态: $printerStatus")
+            UiLog.d(TAG, "【打印机状态】开始使用模板打印订单 #${order.number}，当前打印机 ${config.name} 状态: $printerStatus")
 
             var retryCount = 0
             while (retryCount < 3) {
                 try {
-                    Log.d(TAG, "准备使用模板打印订单: ${order.number} (尝试 ${retryCount + 1}/3)")
+                    UiLog.d(TAG, "准备使用模板打印订单: ${order.number} (尝试 ${retryCount + 1}/3)")
 
                     // 1. 检查并确保连接
                     if (!ensurePrinterConnected(config)) {
@@ -1229,7 +1230,7 @@ class BluetoothPrinterManager @Inject constructor(
 
                     // 1.5 打印订单前专门清理缓存
                     try {
-                        Log.d(TAG, "【打印订单】订单#${order.number} - 使用模板$templateId 打印前清理缓存")
+                    UiLog.d(TAG, "【打印订单】订单#${order.number} - 使用模板$templateId 打印前清理缓存")
                         
                         // 初始化打印机
                         val initCommand = byteArrayOf(0x1B, 0x40)  // ESC @
@@ -1329,11 +1330,11 @@ class BluetoothPrinterManager @Inject constructor(
     suspend fun ensurePrinterConnected(config: PrinterConfig): Boolean {
         // 检查打印机状态
         val status = getPrinterStatus(config)
-        Log.d(TAG, "【打印机状态】确保打印机连接 - 当前状态: $status，打印机: ${config.name}")
+        UiLog.d(TAG, "【打印机状态】确保打印机连接 - 当前状态: $status，打印机: ${config.name}")
 
         // 如果未连接，使用标准连接方法
         if (status != PrinterStatus.CONNECTED) {
-            Log.d(TAG, "【打印机状态】打印机未连接，调用标准连接方法")
+            UiLog.d(TAG, "【打印机状态】打印机未连接，调用标准连接方法")
             return connect(config)
         }
 
@@ -1417,7 +1418,7 @@ class BluetoothPrinterManager @Inject constructor(
             // 打印机在连接时已经初始化完成
             
             // 分块打印内容，解决缓冲区溢出问题
-            Log.d(TAG, "开始分块打印内容（总长度: ${contentWithExtra.length}字符）")
+            UiLog.d(TAG, "开始分块打印内容（总长度: ${contentWithExtra.length}字符）")
             return chunkedPrintingProcess(contentWithExtra, config)
             
             // TODO: 后续可以添加设置选项来切换打印模式
@@ -1429,7 +1430,7 @@ class BluetoothPrinterManager @Inject constructor(
 
             // 如果是解析错误，尝试使用更简单的内容再试一次
             if (e is StringIndexOutOfBoundsException) {
-                Log.d(TAG, "检测到解析错误，尝试使用简化内容")
+                UiLog.d(TAG, "检测到解析错误，尝试使用简化内容")
 
                 // 使用更简单的内容格式重试
                 val simpleContent = createSimpleContent()
@@ -1457,7 +1458,7 @@ class BluetoothPrinterManager @Inject constructor(
      * 确保打印内容有适当的结尾，添加特殊触发打印字符
      */
     private fun ensureProperEnding(content: String): String {
-        Log.d(TAG, "【打印机】确保内容适当结尾")
+        UiLog.d(TAG, "【打印机】确保内容适当结尾")
         
         // 确保内容以换行结束
         val contentWithNewLine = if (content.endsWith("\n")) content else "$content\n"
@@ -1466,7 +1467,7 @@ class BluetoothPrinterManager @Inject constructor(
         // 仅添加一个换行符和切纸命令，不添加多余的走纸
         val triggerSequence = "\u001D\u0056\u0001"  // GS V 1 - 部分切纸命令
         
-        Log.d(TAG, "【打印机】添加最小必要的结尾序列")
+        UiLog.d(TAG, "【打印机】添加最小必要的结尾序列")
         
         return contentWithNewLine + triggerSequence
     }
@@ -1483,38 +1484,38 @@ class BluetoothPrinterManager @Inject constructor(
             // 将内容按行分割
             val lines = content.split("\n")
             val totalLines = lines.size
-            Log.d(TAG, "分块打印，总行数: $totalLines")
+            UiLog.d(TAG, "分块打印，总行数: $totalLines")
             
             // 检查整个内容是否包含中文字符，决定使用统一的处理方式
             val hasChineseContent = containsChineseCharacters(content)
-            Log.d(TAG, "【编码策略】整个订单包含中文: $hasChineseContent")
+            UiLog.d(TAG, "【编码策略】整个订单包含中文: $hasChineseContent")
             
             if (hasChineseContent) {
                 // 如果订单包含中文，整个订单都使用GBK编码处理
-                Log.d(TAG, "【统一中文处理】整个订单使用GBK编码处理")
+                UiLog.d(TAG, "【统一中文处理】整个订单使用GBK编码处理")
                 val startTime = System.currentTimeMillis()
                 sendContentWithGBKEncoding(content)
                 val endTime = System.currentTimeMillis()
-                Log.d(TAG, "【统一中文处理】完整订单GBK处理完成，耗时: ${endTime - startTime}ms")
+                UiLog.d(TAG, "【统一中文处理】完整订单GBK处理完成，耗时: ${endTime - startTime}ms")
 
                 // 添加ESC/POS触发器 - 发送一个空的英文打印任务，确保部分机型立即处理缓存
-                Log.d(TAG, "【中文触发器】发送ESC/POS触发任务")
+                UiLog.d(TAG, "【中文触发器】发送ESC/POS触发任务")
                 try {
                     currentPrinter?.printFormattedText(" \n")
                     delay(100)
-                    Log.d(TAG, "【中文触发器】ESC/POS触发任务完成")
+                    UiLog.d(TAG, "【中文触发器】ESC/POS触发任务完成")
                 } catch (e: Exception) {
                     Log.e(TAG, "【中文触发器】发送触发任务失败: ${e.message}")
                 }
             } else {
                 // 如果订单不包含中文，先尝试整块发送；失败则回退为分块发送
-                Log.d(TAG, "【统一英文处理】整个订单使用ESC/POS库处理")
+                UiLog.d(TAG, "【统一英文处理】整个订单使用ESC/POS库处理")
                 val startTime = System.currentTimeMillis()
                 try {
                     val mapped = mapEnlargeTagsForDantSu(content)
                     currentPrinter?.printFormattedText(mapped)
                     val endTime = System.currentTimeMillis()
-                    Log.d(TAG, "【统一英文处理】完整订单ESC/POS处理完成，耗时: ${endTime - startTime}ms")
+                    UiLog.d(TAG, "【统一英文处理】完整订单ESC/POS处理完成，耗时: ${endTime - startTime}ms")
                 } catch (e: Exception) {
                     Log.e(TAG, "【统一英文处理】整块发送失败: ${e.message}，尝试分块发送")
                     // 若为连接类错误，先同步重连，再按小块发送
@@ -1557,12 +1558,12 @@ class BluetoothPrinterManager @Inject constructor(
             delay(100) // 减少等待时间
             
             // 最后清除缓冲区，但不再单独发送切纸命令
-            Log.d(TAG, "所有内容打印完成，刷新缓冲区")
+            UiLog.d(TAG, "所有内容打印完成，刷新缓冲区")
             
             try {
                 // 添加虚拟微型打印任务，触发硬件执行上一个打印任务中的切纸命令
                 try {
-                    Log.d(TAG, "【打印机】添加虚拟打印任务触发切纸执行")
+                    UiLog.d(TAG, "【打印机】添加虚拟打印任务触发切纸执行")
                     
                     // 1. 初始化打印机
                     currentConnection?.write(byteArrayOf(0x1B, 0x40))  // ESC @
@@ -1572,7 +1573,7 @@ class BluetoothPrinterManager @Inject constructor(
                     currentConnection?.write(byteArrayOf(0x1B, 0x64, 0x01))  // ESC d 1
                     Thread.sleep(50)
                     
-                    Log.d(TAG, "【打印机】虚拟打印任务完成")
+                    UiLog.d(TAG, "【打印机】虚拟打印任务完成")
                 } catch (e: Exception) {
                     // 忽略错误继续执行
                     Log.e(TAG, "【打印机】虚拟打印任务失败: ${e.message}")
@@ -1671,7 +1672,7 @@ class BluetoothPrinterManager @Inject constructor(
                     success = printOrder(order, job.printerConfig)
                     if (success) break
                     delay(1000)
-                    Log.d(TAG, "重试打印订单: ${job.orderId}, 尝试次数: $i")
+                    UiLog.d(TAG, "重试打印订单: ${job.orderId}, 尝试次数: $i")
                 }
 
                 if (!success) {
@@ -1687,7 +1688,7 @@ class BluetoothPrinterManager @Inject constructor(
                 // 打印多份
                 for (i in 1 until job.copies) {
                     if (printOrder(order, job.printerConfig)) {
-                        Log.d(TAG, "打印订单副本 ${i + 1}/${job.copies}: ${job.orderId}")
+                        UiLog.d(TAG, "打印订单副本 ${i + 1}/${job.copies}: ${job.orderId}")
                     }
                 }
 

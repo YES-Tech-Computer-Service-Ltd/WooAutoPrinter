@@ -95,7 +95,7 @@ class OrdersViewModel @Inject constructor(
     val snackbarEvents: SharedFlow<SnackbarEvent> = _snackbarEvents.asSharedFlow()
     
     // 当前选中的状态过滤条件
-    // 默认显示全部（History 期望默认“All Status”），Active 页自身有独立UI分桶
+    // 默认显示全部（History 期望默认"All Status"），Active 页自身有独立UI分桶
     private val _currentStatusFilter = MutableStateFlow<String?>(null)
     val currentStatusFilter: StateFlow<String?> = _currentStatusFilter.asStateFlow()
 
@@ -126,11 +126,11 @@ class OrdersViewModel @Inject constructor(
     private var filterLoadingTimeoutJob: Job? = null
     private var processingBucketsJob: Job? = null
 
-    // 空态防抖：筛选切换后短时间内不展示“未找到匹配订单”
+    // 空态防抖：筛选切换后短时间内不展示"未找到匹配订单"
     private val _emptyGuardActive = MutableStateFlow(false)
     val emptyGuardActive: StateFlow<Boolean> = _emptyGuardActive.asStateFlow()
 
-    // 配置检查完成标记：用于首屏避免误显示“未配置API”
+    // 配置检查完成标记：用于首屏避免误显示"未配置API"
     private val _configChecked = MutableStateFlow(false)
     val configChecked: StateFlow<Boolean> = _configChecked.asStateFlow()
 
@@ -171,7 +171,7 @@ class OrdersViewModel @Inject constructor(
         // 注册接收刷新订单的广播
         registerRefreshOrdersBroadcastReceiver()
         
-        // 根据当前筛选决定观察全量或按状态，避免首屏短暂显示“全部订单”
+        // 根据当前筛选决定观察全量或按状态，避免首屏短暂显示"全部订单"
         observeOrders()
         
         // 初始化货币符号
@@ -480,78 +480,56 @@ class OrdersViewModel @Inject constructor(
      */
     suspend fun checkApiConfiguration(): Boolean {
         return try {
-            Log.d(TAG, "正在直接检查API配置状态")
+            // Debug log removed
             
             // 首先检查许可证状态
             val isLicensed = licenseManager.hasEligibility
-            Log.d(TAG, "许可证状态检查结果: $isLicensed")
+            // Debug log removed
             
             if (!isLicensed) {
-                Log.d(TAG, "许可证无效，但允许配置继续进行（试用期或验证异常）")
+                // Debug log removed
                 // 注释掉许可证检查阻止配置，因为许可证管理器在验证异常时应该允许使用
-                // _isConfigured.value = false
-                // return false
             }
             
-            // 使用注入的实例检查API配置
-            val siteUrl = wooCommerceConfig.siteUrl.first()
-            val consumerKey = wooCommerceConfig.consumerKey.first()
-            val consumerSecret = wooCommerceConfig.consumerSecret.first()
+            // 检查基本配置信息是否完整
+            val siteUrl = config?.siteUrl ?: ""
+            val consumerKey = config?.consumerKey ?: ""
+            val consumerSecret = config?.consumerSecret ?: ""
+            // Debug log removed
             
-            Log.d(TAG, "API配置信息检查: URL长度=${siteUrl.length}, Key长度=${consumerKey.length}, Secret长度=${consumerSecret.length}")
-            
-            // 检查配置是否有效
             val isValid = siteUrl.isNotBlank() && consumerKey.isNotBlank() && consumerSecret.isNotBlank()
-            
             if (isValid) {
-                Log.d(TAG, "API配置信息完整，开始测试连接...")
+                // Debug log removed
                 // 测试API连接
                 val connectionResult = try {
-                    withContext(Dispatchers.IO) {
-                        orderRepository.testConnection()
-                    }
+                    orderRepository.testConnection()
                 } catch (e: Exception) {
-                    Log.e(TAG, "API连接测试异常: ${e.message}")
                     false
                 }
                 
                 if (connectionResult) {
-                    Log.d(TAG, "API配置有效且连接测试成功")
+                    // Debug log removed
                     _isConfigured.value = true
-                    _configChecked.value = true
-                    return true
+                    true
                 } else {
-                    Log.d(TAG, "API配置信息完整但连接测试失败，仍然设置为已配置以允许用户查看缓存数据")
+                    // Debug log removed
                     // 即使连接测试失败，如果配置信息完整，也应该设置为已配置
-                    // 这样用户可以查看缓存的订单数据
                     _isConfigured.value = true
-                    _configChecked.value = true
-                    return true
+                    false
                 }
             } else {
-                Log.d(TAG, "API配置信息不完整: siteUrl=${siteUrl.isNotBlank()}, key=${consumerKey.isNotBlank()}, secret=${consumerSecret.isNotBlank()}")
+                // Debug log removed
                 _isConfigured.value = false
-                _configChecked.value = true
-                return false
+                false
             }
         } catch (e: Exception) {
-            Log.e(TAG, "检查API配置状态发生异常: ${e.message}", e)
-            // 异常时不直接设置为false，先检查是否有缓存数据
-            val cachedOrders = try {
-                orderRepository.getCachedOrders()
-            } catch (ex: Exception) {
-                emptyList()
-            }
-            
+            Log.e(TAG, "检查API配置时发生异常: ${e.message}", e)
             if (cachedOrders.isNotEmpty()) {
-                Log.d(TAG, "虽然配置检查异常，但有缓存数据，设置为已配置状态")
+                // Debug log removed
                 _isConfigured.value = true
-                _configChecked.value = true
-                return true
+                true
             } else {
-                _isConfigured.value = false
-                _configChecked.value = true
-                return false
+                false
             }
         }
     }
@@ -689,7 +667,7 @@ class OrdersViewModel @Inject constructor(
     }
 
     /**
-     * 从 Active 卡片的“Start processing”快捷按钮触发：
+     * 从 Active 卡片的"Start processing"快捷按钮触发：
      * 需要避免弹出详情，因此先切到非 AUTO 模式再更新状态。
      */
     fun startProcessingFromCard(orderId: Long) {
@@ -757,7 +735,7 @@ class OrdersViewModel @Inject constructor(
     }
 
     /**
-     * 批量开始处理：对“新订单”(processing + 未读) 批量标记为处理中并设为已读
+     * 批量开始处理：对"新订单"(processing + 未读) 批量标记为处理中并设为已读
      * 仅当数量≥2时执行
      */
     fun batchStartProcessingForNewOrders() {
@@ -800,7 +778,7 @@ class OrdersViewModel @Inject constructor(
     }
 
     /**
-     * 批量完成：对“处理中”(processing + 已读) 订单批量标记为已完成
+     * 批量完成：对"处理中"(processing + 已读) 订单批量标记为已完成
      * 仅当数量≥2时执行
      */
     fun batchCompleteProcessingOrders() {

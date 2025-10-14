@@ -81,7 +81,7 @@ fun SettingsScreen(
     
     // 进入设置页面时重新验证证书状态
     LaunchedEffect(Unit) {
-        Log.d("SettingsScreen", "进入设置页面，重新检查证书状态")
+        com.example.wooauto.utils.UiLog.d("SettingsScreen", "进入设置页面，重新检查证书状态")
         viewModel.revalidateLicenseStatus()
     }
     
@@ -145,7 +145,7 @@ fun SettingsScreen(
                                         ) else stringResource(R.string.api_not_configured),
                             icon = Icons.Filled.Cloud,
                             onClick = {
-                                Log.d("设置导航", "点击了API配置项")
+                                com.example.wooauto.utils.UiLog.d("设置导航", "点击了API配置项")
                                 showWebsiteSettingsDialog = true
                             }
                         )
@@ -162,7 +162,7 @@ fun SettingsScreen(
                             isLocked = !hasEligibility,
                             onClick = {
                                 if (hasEligibility) {
-                                                Log.d("设置导航", "点击了店铺信息设置项")
+                                                com.example.wooauto.utils.UiLog.d("设置导航", "点击了店铺信息设置项")
                                                 navController.navigate("settings/general/store")
                                 } else {
                                     coroutineScope.launch {
@@ -186,7 +186,7 @@ fun SettingsScreen(
                                             id = R.string.chinese
                                         ) else stringResource(id = R.string.english),
                             onClick = {
-                                            Log.d("设置", "点击了语言设置")
+                                            com.example.wooauto.utils.UiLog.d("设置", "点击了语言设置")
                                             // 改为跳转到设置下的二级页面，保留左侧侧栏与全局TopBar
                                             navController.navigate("settings/general/language")
                             }

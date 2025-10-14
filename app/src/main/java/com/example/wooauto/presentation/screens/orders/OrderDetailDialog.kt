@@ -1,6 +1,5 @@
 package com.example.wooauto.presentation.screens.orders
 
-import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -89,7 +88,7 @@ fun OrderDetailDialog(
     val printStatusText = if (displayOrder.isPrinted) stringResource(R.string.printed_yes) else stringResource(R.string.printed_no)
     val printStatusColor = if (displayOrder.isPrinted) Color(0xFF4CAF50) else Color(0xFFE53935)
     
-    Log.d("OrderDetailDialog", "显示订单详情，订单ID: ${displayOrder.id}, 打印状态: ${displayOrder.isPrinted}")
+    // Debug log removed to reduce noise
     
     Dialog(
         onDismissRequest = wrappedOnDismiss,
@@ -432,11 +431,7 @@ fun OrderDetailDialog(
                         // 是否是外卖订单
                         val isDelivery = displayOrder.woofoodInfo?.isDelivery ?: false
                         
-                        // 记录所有费用行，方便调试
-                        Log.d("OrderDetailDialog", "【UI查找前】订单#${displayOrder.number} 费用行数量: ${displayOrder.feeLines.size}")
-                        displayOrder.feeLines.forEach { feeLine ->
-                            Log.d("OrderDetailDialog", "【UI查找前】费用行: '${feeLine.name}' = ${feeLine.total}")
-                        }
+                        // Debug logs removed
                         
                         // 更全面的配送费名称匹配
                         val deliveryFeeLine = displayOrder.feeLines.find { 
@@ -459,9 +454,7 @@ fun OrderDetailDialog(
                             it.name.contains("appreciation", ignoreCase = true)
                         }
                         
-                        // 记录匹配结果
-                        Log.d("OrderDetailDialog", "【UI匹配结果】配送费行: ${deliveryFeeLine?.name ?: "未找到"}, 金额: ${deliveryFeeLine?.total ?: "0.00"}")
-                        Log.d("OrderDetailDialog", "【UI匹配结果】小费行: ${tipLine?.name ?: "未找到"}, 金额: ${tipLine?.total ?: "0.00"}")
+                        // Debug logs removed
                         
                         // 获取配送费和小费的值
                         var deliveryFee = "0.00"
@@ -470,30 +463,28 @@ fun OrderDetailDialog(
                         // 首先尝试从feeLines直接获取配送费
                         if (deliveryFeeLine != null) {
                             deliveryFee = deliveryFeeLine.total
-                            Log.d("OrderDetailDialog", "【UI】从feeLines获取配送费: $deliveryFee (${deliveryFeeLine.name})")
+                            // Debug log removed
                         }
                         
                         // 首先尝试从feeLines直接获取小费
                         if (tipLine != null) {
                             tip = tipLine.total
-                            Log.d("OrderDetailDialog", "【UI】从feeLines获取小费: $tip (${tipLine.name})")
+                            // Debug log removed
                         }
                         
                         // 如果feeLines中没有找到配送费，但woofoodInfo中有，使用woofoodInfo中的值
                         if (deliveryFee == "0.00" && displayOrder.woofoodInfo?.deliveryFee != null && displayOrder.woofoodInfo.deliveryFee != "0.00") {
                             deliveryFee = displayOrder.woofoodInfo.deliveryFee
-                            Log.d("OrderDetailDialog", "【UI】从woofoodInfo获取配送费: $deliveryFee")
+                            // Debug log removed
                         }
                         
                         // 如果feeLines中没有找到小费，但woofoodInfo中有，使用woofoodInfo中的值
                         if (tip == "0.00" && displayOrder.woofoodInfo?.tip != null && displayOrder.woofoodInfo.tip != "0.00") {
                             tip = displayOrder.woofoodInfo.tip
-                            Log.d("OrderDetailDialog", "【UI】从woofoodInfo获取小费: $tip")
+                            // Debug log removed
                         }
                         
-                        // 添加详细日志，显示订单详情对话框中的数据状态
-                        Log.d("OrderDetailDialog", "【UI最终数据】订单#${displayOrder.number} - 是否外卖: $isDelivery, 最终配送费: $deliveryFee, 最终小费: $tip")
-                        Log.d("OrderDetailDialog", "【UI数据源】woofoodInfo值 - 配送费: ${displayOrder.woofoodInfo?.deliveryFee}, 小费: ${displayOrder.woofoodInfo?.tip}")
+                        // Debug logs removed
                         
                         // 如果是外卖订单，始终显示配送费行（即使金额为0）
                         if (isDelivery) {
@@ -556,15 +547,7 @@ fun OrderDetailDialog(
                             }
                         }
                         
-                        // 记录一下所有税费行，方便调试
-                        if (displayOrder.taxLines.isNotEmpty()) {
-                            Log.d("OrderDetailDialog", "税费行数量: ${displayOrder.taxLines.size}")
-                            displayOrder.taxLines.forEach { taxLine ->
-                                Log.d("OrderDetailDialog", "税费: ${taxLine.label} (${taxLine.ratePercent}%) = ¥${taxLine.taxTotal}")
-                            }
-                        } else {
-                            Log.d("OrderDetailDialog", "无税费行信息")
-                        }
+                        // Debug logs removed
                         
                         // 遍历税费行，分别显示PST和GST
                         displayOrder.taxLines.forEach { taxLine ->

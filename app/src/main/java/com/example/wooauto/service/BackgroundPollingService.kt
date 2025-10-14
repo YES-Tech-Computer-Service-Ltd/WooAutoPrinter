@@ -12,6 +12,7 @@ import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
+import com.example.wooauto.utils.UiLog
 import com.example.wooauto.BuildConfig
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
@@ -126,7 +127,7 @@ class BackgroundPollingService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        Log.d(TAG, "【服务初始化】后台轮询服务开始初始化")
+        UiLog.d(TAG, "【服务初始化】后台轮询服务开始初始化")
         
         // 创建通知渠道并启动前台服务
         createNotificationChannel()
@@ -147,7 +148,7 @@ class BackgroundPollingService : Service() {
             try {
                 if (printerManager is BluetoothPrinterManager) {
                     (printerManager as BluetoothPrinterManager).setExternalPollingEnabled(true)
-                    Log.d(TAG, "已启用外部系统轮询接管打印机健康检查")
+            UiLog.d(TAG, "已启用外部系统轮询接管打印机健康检查")
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "设置外部系统轮询标志失败: ${e.message}")
@@ -162,7 +163,7 @@ class BackgroundPollingService : Service() {
                 // 等待应用完成基础初始化
                 delay(2000) // 给应用2秒时间完成基础初始化
                 
-                Log.d(TAG, "【服务初始化】开始读取轮询配置")
+                UiLog.d(TAG, "【服务初始化】开始读取轮询配置")
                 
                 // 读取保存的轮询间隔设置
                 currentPollingInterval = withTimeoutOrNull(5000) {
@@ -173,12 +174,12 @@ class BackgroundPollingService : Service() {
                     currentPollingInterval = DEFAULT_POLLING_INTERVAL
                 }
                 
-                Log.d(TAG, "【服务初始化】轮询间隔配置完成: ${currentPollingInterval}秒")
+                UiLog.d(TAG, "【服务初始化】轮询间隔配置完成: ${currentPollingInterval}秒")
                 
                 // 注册前台状态监听器
                 registerForegroundStateReceiver()
                 
-                Log.d(TAG, "【服务初始化】后台服务初始化完成")
+                UiLog.d(TAG, "【服务初始化】后台服务初始化完成")
             } catch (e: Exception) {
                 Log.e(TAG, "【服务初始化】初始化失败: ${e.message}", e)
                 currentPollingInterval = DEFAULT_POLLING_INTERVAL
@@ -192,7 +193,7 @@ class BackgroundPollingService : Service() {
             }
         }
         
-        Log.d(TAG, "服务创建完成")
+        UiLog.d(TAG, "服务创建完成")
     }
     
     /**
@@ -214,35 +215,35 @@ class BackgroundPollingService : Service() {
                         when (intent?.action) {
                             "android.intent.action.SCREEN_ON" -> {
                                 // 屏幕点亮，可能在前台
-                                Log.d(TAG, "屏幕点亮，设置前台状态为true")
+                                UiLog.d(TAG, "屏幕点亮，设置前台状态为true")
                                 isAppInForeground = true
                                 adjustPollingInterval()
                             }
                             "android.intent.action.SCREEN_OFF" -> {
                                 // 屏幕关闭，一定在后台
-                                Log.d(TAG, "屏幕关闭，设置前台状态为false，轮询将继续运行")
+                                UiLog.d(TAG, "屏幕关闭，设置前台状态为false，轮询将继续运行")
                                 isAppInForeground = false
                                 
                                 // 息屏时加强网络保持措施
-                                Log.d(TAG, "【息屏处理】屏幕关闭，加强网络保持措施")
+                                UiLog.d(TAG, "【息屏处理】屏幕关闭，加强网络保持措施")
                                 serviceScope.launch {
                                     try {
                                         // 重新获取所有锁，确保在息屏状态下保持最强的网络保持
                                         delay(1000) // 等待系统稳定
                                         
-                                        Log.d(TAG, "【息屏处理】重新获取电源和网络锁")
+                                        UiLog.d(TAG, "【息屏处理】重新获取电源和网络锁")
                                         acquireWakeLock()
                                         acquireWifiLock()
                                         acquireHighPerfWifiLock()
                                         
                                         // 检查WiFi状态
                                         val wifiState = wifiManager?.wifiState
-                                        Log.d(TAG, "【息屏处理】息屏后WiFi状态: $wifiState")
+                                        UiLog.d(TAG, "【息屏处理】息屏后WiFi状态: $wifiState")
                                         
                                         // 等待5秒后进行网络连接检查
                                         delay(5000)
                                         val isConnected = checkNetworkConnectivity()
-                                        Log.d(TAG, "【息屏处理】息屏5秒后网络状态: $isConnected")
+                                        UiLog.d(TAG, "【息屏处理】息屏5秒后网络状态: $isConnected")
                                         
                                         if (!isConnected) {
                                             Log.w(TAG, "【息屏处理】息屏后检测到网络断开，立即处理")
@@ -257,7 +258,7 @@ class BackgroundPollingService : Service() {
                             }
                             "android.intent.action.USER_PRESENT" -> {
                                 // 用户解锁屏幕，确定在前台
-                                Log.d(TAG, "用户解锁屏幕，确认前台状态为true")
+                                UiLog.d(TAG, "用户解锁屏幕，确认前台状态为true")
                                 isAppInForeground = true
                                 adjustPollingInterval()
                             }
@@ -268,7 +269,7 @@ class BackgroundPollingService : Service() {
                 ContextCompat.RECEIVER_NOT_EXPORTED
             )
             
-            Log.d(TAG, "已注册前台状态监听器")
+            UiLog.d(TAG, "已注册前台状态监听器")
         } catch (e: Exception) {
             Log.e(TAG, "注册前台状态监听器失败: ${e.message}", e)
         }
@@ -312,7 +313,7 @@ class BackgroundPollingService : Service() {
         val shouldRestartPolling = intent?.getBooleanExtra(EXTRA_RESTART_POLLING, false) ?: false
         
         if (shouldRestartPolling) {
-            Log.d(TAG, "收到重启轮询请求")
+            UiLog.d(TAG, "收到重启轮询请求")
             restartPolling()
         } else {
             startPolling()
@@ -334,7 +335,7 @@ class BackgroundPollingService : Service() {
     }
 
     override fun onDestroy() {
-        Log.d(TAG, "【服务销毁】开始清理资源")
+        UiLog.d(TAG, "【服务销毁】开始清理资源")
         
         // 标记轮询为非活动状态
         isPollingActive = false
@@ -351,7 +352,7 @@ class BackgroundPollingService : Service() {
         // 取消网络监听器注册
         networkCallback?.let { callback ->
             connectivityManager?.unregisterNetworkCallback(callback)
-            Log.d(TAG, "网络监听器已注销")
+            UiLog.d(TAG, "网络监听器已注销")
         }
 
         // 释放电源锁
@@ -359,7 +360,7 @@ class BackgroundPollingService : Service() {
         releaseWifiLock()
         releaseHighPerfWifiLock() // 释放高性能WiFi锁
         
-        Log.d(TAG, "【服务销毁】资源清理完成")
+        UiLog.d(TAG, "【服务销毁】资源清理完成")
         super.onDestroy()
     }
 
@@ -396,16 +397,16 @@ class BackgroundPollingService : Service() {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 try {
                     startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
-                    Log.d(TAG, "前台服务启动成功 (带类型)")
+                    UiLog.d(TAG, "前台服务启动成功 (带类型)")
                 } catch (e: Exception) {
                     // 如果带类型启动失败，尝试不带类型启动
                     Log.w(TAG, "带类型启动前台服务失败，尝试不带类型启动: ${e.message}")
                     startForeground(NOTIFICATION_ID, notification)
-                    Log.d(TAG, "前台服务启动成功 (不带类型)")
+                    UiLog.d(TAG, "前台服务启动成功 (不带类型)")
                 }
             } else {
                 startForeground(NOTIFICATION_ID, notification)
-                Log.d(TAG, "前台服务启动成功 (Android 9及以下)")
+                UiLog.d(TAG, "前台服务启动成功 (Android 9及以下)")
             }
         } catch (e: Exception) {
             Log.e(TAG, "前台服务启动失败: ${e.message}", e)
@@ -437,23 +438,23 @@ class BackgroundPollingService : Service() {
         serviceScope.launch {
             try {
                 restartMutex.withLock {
-                    Log.d(TAG, "重启轮询任务 (已加锁)")
+                    UiLog.d(TAG, "重启轮询任务 (已加锁)")
                     
                     // 标记轮询为非活动状态，停止当前轮询循环
                     isPollingActive = false
-                    Log.d(TAG, "已标记轮询为非活动状态")
+                    UiLog.d(TAG, "已标记轮询为非活动状态")
                     
                     // 等待当前轮询循环自然结束
                     try {
                         val pollingJobToWait = pollingJob
                         if (pollingJobToWait?.isActive == true) {
-                            Log.d(TAG, "等待当前轮询任务结束...")
+                            UiLog.d(TAG, "等待当前轮询任务结束...")
                             withTimeoutOrNull(5000) { // 最多等待5秒
                                 pollingJobToWait.join()
                             }
-                            Log.d(TAG, "当前轮询任务已结束")
+                            UiLog.d(TAG, "当前轮询任务已结束")
                         } else {
-                            Log.d(TAG, "当前轮询任务已停止或不存在")
+                            UiLog.d(TAG, "当前轮询任务已停止或不存在")
                         }
                     } catch (e: Exception) {
                         Log.w(TAG, "等待轮询任务结束异常: ${e.message}")
@@ -465,11 +466,11 @@ class BackgroundPollingService : Service() {
                     try {
                         val intervalJobToWait = intervalMonitorJob
                         if (intervalJobToWait?.isActive == true) {
-                            Log.d(TAG, "等待间隔监听任务结束...")
+                            UiLog.d(TAG, "等待间隔监听任务结束...")
                             withTimeoutOrNull(2000) { // 最多等待2秒
                                 intervalJobToWait.join()
                             }
-                            Log.d(TAG, "间隔监听任务已结束")
+                            UiLog.d(TAG, "间隔监听任务已结束")
                         }
                     } catch (e: Exception) {
                         Log.w(TAG, "等待间隔监听任务结束异常: ${e.message}")
@@ -482,16 +483,16 @@ class BackgroundPollingService : Service() {
                     
                     // 重置状态标志
                     initialPollingComplete = false
-                    Log.d(TAG, "重置轮询状态标志")
+                    UiLog.d(TAG, "重置轮询状态标志")
                     
                     // 启动新的轮询任务
-                    Log.d(TAG, "启动新的轮询任务")
+                    UiLog.d(TAG, "启动新的轮询任务")
                     startPolling()
                     
                     // 验证轮询是否成功启动
                     delay(1000) // 等待1秒让轮询启动
                     if (isPollingActive && pollingJob?.isActive == true) {
-                        Log.d(TAG, "轮询重启成功")
+                        UiLog.d(TAG, "轮询重启成功")
                     } else {
                         Log.w(TAG, "轮询重启可能失败，尝试再次启动")
                         startPolling()
@@ -521,7 +522,7 @@ class BackgroundPollingService : Service() {
         
         try {
             isPollingActive = true
-            Log.d(TAG, "开始启动轮询任务")
+            UiLog.d(TAG, "开始启动轮询任务")
             
             // 启动独立的间隔监听任务（避免重复创建）
             startIntervalMonitor()
@@ -543,7 +544,7 @@ class BackgroundPollingService : Service() {
                     var useInitialInterval = !initialPollingComplete
                     
                     if (useInitialInterval) {
-                        Log.d(TAG, "使用初始快速轮询间隔: ${INITIAL_POLLING_INTERVAL}秒")
+                        UiLog.d(TAG, "使用初始快速轮询间隔: ${INITIAL_POLLING_INTERVAL}秒")
                     }
                     
                     // 首先获取一次当前轮询间隔
@@ -552,14 +553,14 @@ class BackgroundPollingService : Service() {
                             currentPollingInterval = withTimeoutOrNull(3000) {
                                 wooCommerceConfig.pollingInterval.first()
                             } ?: DEFAULT_POLLING_INTERVAL
-                            Log.d(TAG, "初始化轮询间隔: ${currentPollingInterval}秒")
+                            UiLog.d(TAG, "初始化轮询间隔: ${currentPollingInterval}秒")
                         }
                     } catch (e: Exception) {
                         Log.e(TAG, "获取初始轮询间隔失败，使用默认值: ${DEFAULT_POLLING_INTERVAL}秒", e)
                         currentPollingInterval = DEFAULT_POLLING_INTERVAL
                     }
                     
-                    Log.d(TAG, "轮询主循环启动")
+                UiLog.d(TAG, "轮询主循环启动")
                     
                     try {
                         // 主轮询循环
@@ -581,7 +582,7 @@ class BackgroundPollingService : Service() {
                                 // 检查配置有效性
                                 val isValid = checkConfigurationValid()
                                 if (isValid) {
-                                    Log.d(TAG, "开始执行轮询周期，间隔: ${effectiveInterval}秒 (前台状态: $isAppInForeground)")
+                                    UiLog.d(TAG, "开始执行轮询周期，间隔: ${effectiveInterval}秒 (前台状态: $isAppInForeground)")
                                     
                                     // 记录轮询开始时间
                                     val pollStartTime = System.currentTimeMillis()
@@ -598,31 +599,31 @@ class BackgroundPollingService : Service() {
                                     if (useInitialInterval) {
                                         useInitialInterval = false
                                         initialPollingComplete = true
-                                        Log.d(TAG, "初始快速轮询完成，切换到正常轮询间隔: ${currentPollingInterval}秒")
+                                        UiLog.d(TAG, "初始快速轮询完成，切换到正常轮询间隔: ${currentPollingInterval}秒")
                                     }
                                     
                                     // 计算轮询执行时间
                                     val pollExecutionTime = System.currentTimeMillis() - pollStartTime
-                                    Log.d(TAG, "轮询执行耗时: ${pollExecutionTime}ms")
+                                    UiLog.d(TAG, "轮询执行耗时: ${pollExecutionTime}ms")
                                     
                                     // 计算需要等待的时间，确保按照用户设置的间隔精确轮询
                                     val waitTime = (effectiveInterval * 1000L) - pollExecutionTime
                                     if (waitTime > 0) {
-                                        Log.d(TAG, "等待下次轮询: ${waitTime}ms")
+                                        UiLog.d(TAG, "等待下次轮询: ${waitTime}ms")
                                         delay(waitTime)
                                     } else {
                                         Log.w(TAG, "轮询执行时间超过间隔设置，无需等待立即开始下次轮询")
                                         delay(100) // 短暂等待以避免CPU占用过高
                                     }
                                 } else {
-                                    Log.d(TAG, "配置未完成，跳过轮询，等待${effectiveInterval}秒后重试")
+                                    UiLog.d(TAG, "配置未完成，跳过轮询，等待${effectiveInterval}秒后重试")
                                     delay(effectiveInterval * 1000L)
                                 }
                             } catch (e: Exception) {
                                 Log.e(TAG, "轮询周期执行出错: ${e.message}", e)
                                 // 如果是取消异常，直接退出循环
                                 if (e is kotlinx.coroutines.CancellationException) {
-                                    Log.d(TAG, "轮询任务被取消，正常退出")
+                                UiLog.d(TAG, "轮询任务被取消，正常退出")
                                     break
                                 }
                                 // 其他异常继续轮询，但等待指定间隔
@@ -631,13 +632,13 @@ class BackgroundPollingService : Service() {
                         }
                     } finally {
                         isPollingActive = false
-                        Log.d(TAG, "轮询主循环结束，isActive: $isActive, isPollingActive: $isPollingActive")
+                        UiLog.d(TAG, "轮询主循环结束，isActive: $isActive, isPollingActive: $isPollingActive")
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "轮询任务外层异常: ${e.message}", e)
                     isPollingActive = false
                 } finally {
-                    Log.d(TAG, "轮询任务结束")
+                    UiLog.d(TAG, "轮询任务结束")
                 }
             }
             
@@ -648,7 +649,7 @@ class BackgroundPollingService : Service() {
                     Log.w(TAG, "轮询任务启动失败或立即停止")
                     isPollingActive = false
                 } else {
-                    Log.d(TAG, "轮询任务启动验证成功")
+                    UiLog.d(TAG, "轮询任务启动验证成功")
                 }
             }
             
@@ -663,7 +664,7 @@ class BackgroundPollingService : Service() {
      */
     private fun startIntervalMonitor() {
         if (intervalMonitorJob?.isActive == true) {
-            Log.d(TAG, "间隔监听任务已在运行，跳过重复启动")
+            UiLog.d(TAG, "间隔监听任务已在运行，跳过重复启动")
             return
         }
         
@@ -672,11 +673,11 @@ class BackgroundPollingService : Service() {
                 wooCommerceConfig.pollingInterval.collect { newInterval ->
                     // 直接更新间隔值，不重启轮询任务
                     if (newInterval != currentPollingInterval && initialPollingComplete) {
-                        Log.d(TAG, "检测到轮询间隔变更: ${currentPollingInterval}秒 -> ${newInterval}秒，下次轮询周期生效")
+                        UiLog.d(TAG, "检测到轮询间隔变更: ${currentPollingInterval}秒 -> ${newInterval}秒，下次轮询周期生效")
                         currentPollingInterval = newInterval
                     } else if (newInterval != currentPollingInterval) {
                         // 如果还未完成初始轮询，只更新间隔值
-                        Log.d(TAG, "更新轮询间隔: ${currentPollingInterval}秒 -> ${newInterval}秒")
+                        UiLog.d(TAG, "更新轮询间隔: ${currentPollingInterval}秒 -> ${newInterval}秒")
                         currentPollingInterval = newInterval
                     }
                 }
@@ -776,7 +777,7 @@ class BackgroundPollingService : Service() {
                 
                 // 只在状态为ERROR时进行重连，让心跳机制处理DISCONNECTED状态
                 if (status == PrinterStatus.ERROR) {
-                    Log.d(TAG, "打印机状态错误，尝试重新连接...")
+                    UiLog.d(TAG, "打印机状态错误，尝试重新连接...")
                     
                     // 延迟一点时间再连接，防止与心跳机制冲突
                     delay(1000)
@@ -787,7 +788,7 @@ class BackgroundPollingService : Service() {
                     } ?: false
                     
                     if (connected) {
-                        Log.d(TAG, "订单轮询：成功重新连接打印机")
+                        UiLog.d(TAG, "订单轮询：成功重新连接打印机")
                     } else {
                         Log.e(TAG, "订单轮询：无法重新连接打印机")
                     }
@@ -795,7 +796,7 @@ class BackgroundPollingService : Service() {
                     // 降低测试频率，避免与系统轮询（打印机）冲突
                     val minutes = System.currentTimeMillis() / 60000
                     if (minutes % 10L == 0L) { // 改为每10分钟测试一次
-                        Log.d(TAG, "订单轮询：定期测试打印机连接")
+                        UiLog.d(TAG, "订单轮询：定期测试打印机连接")
                         try {
                             val testResult = printerManager.testConnection(printerConfig)
                             if (!testResult) {
@@ -809,7 +810,7 @@ class BackgroundPollingService : Service() {
                 }
                 // DISCONNECTED状态由心跳机制处理，避免重复处理
             } else {
-                Log.d(TAG, "没有配置默认打印机")
+                UiLog.d(TAG, "没有配置默认打印机")
             }
         } catch (e: Exception) {
             Log.e(TAG, "检查打印机连接状态失败", e)
@@ -895,7 +896,7 @@ class BackgroundPollingService : Service() {
         }
         // 本轮汇总日志，避免逐条输出造成噪音
         if (skippedAlreadyProcessed + skippedNotRecent > 0) {
-            Log.d(
+            UiLog.d(
                 TAG,
                 "本轮订单处理：新订单=${newOrderCount}, 跳过-已处理=${skippedAlreadyProcessed}, 跳过-非最近=${skippedNotRecent}, 总数=${orders.size}"
             )
@@ -935,7 +936,7 @@ class BackgroundPollingService : Service() {
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
             .build()
-        Log.d(TAG, "[Notify] 系统新订单通知 id=${order.id} amount=${order.total}")
+        UiLog.d(TAG, "[Notify] 系统新订单通知 id=${order.id} amount=${order.total}")
         notificationManager.notify(order.id.toInt(), notification)
         
         // 在此处可以发送广播，通知应用内的UI组件显示弹窗
@@ -944,12 +945,12 @@ class BackgroundPollingService : Service() {
             `package` = packageName
         }
         intent.putExtra("orderId", order.id)
-        Log.d(TAG, "[Broadcast] 发送 NEW_ORDER_RECEIVED id=${order.id}")
+        UiLog.d(TAG, "[Broadcast] 发送 NEW_ORDER_RECEIVED id=${order.id}")
         // 全局广播（同进程也可达）
         sendBroadcast(intent)
         // 本地广播（兼容部分设备的限制策略）
         try {
-            Log.d(TAG, "[Broadcast] LocalBroadcast NEW_ORDER_RECEIVED id=${order.id}")
+            UiLog.d(TAG, "[Broadcast] LocalBroadcast NEW_ORDER_RECEIVED id=${order.id}")
             LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
         } catch (_: Exception) {}
     }
@@ -1000,7 +1001,7 @@ class BackgroundPollingService : Service() {
                     return@launch
                 }
                 
-                Log.d(TAG, "【自动打印调试】打印模板设置: $templatePrintCopies")
+                UiLog.d(TAG, "【自动打印调试】打印模板设置: $templatePrintCopies")
                 
                 // 检查打印机是否已连接，如果未连接则先尝试连接
                 val printerStatus = printerManager.getPrinterStatus(printerConfig)
@@ -1027,7 +1028,7 @@ class BackgroundPollingService : Service() {
                 
                 
                 if (updatedOrder?.isPrinted == true) {
-                    Log.d(TAG, "【自动打印调试】订单在轮询间隔内已被标记为已打印，跳过打印: #${order.number}")
+                    UiLog.d(TAG, "【自动打印调试】订单在轮询间隔内已被标记为已打印，跳过打印: #${order.number}")
                     return@launch
                 }
                 
@@ -1095,7 +1096,7 @@ class BackgroundPollingService : Service() {
      * 通知前端界面刷新订单列表（无论是否有新订单）
      */
     private fun sendOrdersUpdatedBroadcast() {
-        Log.d(TAG, "发送订单更新广播")
+        UiLog.d(TAG, "发送订单更新广播")
         val intent = Intent(ACTION_ORDERS_UPDATED)
         sendBroadcast(intent)
     }
@@ -1105,7 +1106,7 @@ class BackgroundPollingService : Service() {
      * 通知前端有新订单到达
      */
     private fun sendNewOrdersBroadcast(count: Int) {
-        Log.d(TAG, "发送新订单广播，订单数量: $count")
+        UiLog.d(TAG, "发送新订单广播，订单数量: $count")
         val intent = Intent(ACTION_NEW_ORDERS_RECEIVED)
         intent.putExtra(EXTRA_ORDER_COUNT, count)
         sendBroadcast(intent)
@@ -1119,7 +1120,7 @@ class BackgroundPollingService : Service() {
         try {
             val intent = Intent("com.example.wooauto.REFRESH_ORDERS")
             LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
-            Log.d(TAG, "已发送刷新订单广播")
+            UiLog.d(TAG, "已发送刷新订单广播")
         } catch (e: Exception) {
             Log.e(TAG, "发送刷新订单广播失败: ${e.message}", e)
         }
@@ -1170,7 +1171,7 @@ class BackgroundPollingService : Service() {
 
                 // 只有在确实从离线状态恢复且当前正在轮询时，才触发一次额外轮询
                 if (wasOffline && isPollingActive && initialPollingComplete) {
-                    Log.d(TAG, "网络从离线状态恢复，触发一次恢复轮询")
+                UiLog.d(TAG, "网络从离线状态恢复，触发一次恢复轮询")
                     serviceScope.launch {
                         try {
                             // 等待网络完全稳定

@@ -2,6 +2,7 @@ package com.example.wooauto.licensing
 
 import android.content.Context
 import android.util.Log
+import com.example.wooauto.utils.UiLog
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import kotlinx.coroutines.CoroutineScope
@@ -101,7 +102,7 @@ class LicenseManager @Inject constructor() {
     ) {
         coroutineScope.launch(Dispatchers.IO) {
             try {
-                Log.d("LicenseManager", "开始后台验证许可证")
+                UiLog.d("LicenseManager", "开始后台验证许可证")
                 
                 // 更新状态为验证中，但仍保持可用
                 updateStatus(
@@ -138,7 +139,7 @@ class LicenseManager @Inject constructor() {
                 val trialValid = checkTrialStatusSafely(context, deviceId, appId)
                 
                 if (trialValid) {
-                    Log.d("LicenseManager", "试用期有效，允许使用")
+                    UiLog.d("LicenseManager", "试用期有效，允许使用")
                     updateStatus(
                         LicenseStatus.TRIAL,
                         message = "试用期有效"
@@ -207,7 +208,7 @@ class LicenseManager @Inject constructor() {
             
             // 如果本地有完整的许可证信息，且licensedTo不为空，说明许可证已经成功激活过
             if (!localStartDate.isNullOrEmpty() && !localEndDate.isNullOrEmpty() && !licensedTo.isNullOrEmpty()) {
-                Log.d("LicenseManager", "发现本地完整许可证信息，优先使用本地状态")
+                UiLog.d("LicenseManager", "发现本地完整许可证信息，优先使用本地状态")
                 
                 // 对于已激活的许可证，检查endDate是否合理
                 try {
@@ -220,7 +221,7 @@ class LicenseManager @Inject constructor() {
                         val isValid = endDate.time > currentTime
                         
                         if (isValid) {
-                            Log.d("LicenseManager", "本地许可证仍有效，无需远程验证")
+                            UiLog.d("LicenseManager", "本地许可证仍有效，无需远程验证")
                             updateStatus(
                                 LicenseStatus.VALID,
                                 activationDate = localStartDate,
@@ -272,7 +273,7 @@ class LicenseManager @Inject constructor() {
                                     details.email
                                 )
                                 
-                                Log.d("LicenseManager", "已重新计算并同步许可证信息: endDate=$newEndDate, licensedTo=${details.licensedTo}")
+                                UiLog.d("LicenseManager", "已重新计算并同步许可证信息: endDate=$newEndDate, licensedTo=${details.licensedTo}")
                             } catch (e: Exception) {
                                 Log.e("LicenseManager", "同步用户信息到DataStore失败: ${e.message}")
                             }
@@ -340,7 +341,7 @@ class LicenseManager @Inject constructor() {
         val eligibility = calculateEligibilityStatus(newLicenseInfo)
         _eligibilityInfo.postValue(eligibility)
         
-        Log.d("LicenseManager", "🔄 状态更新: LicenseStatus=${status}, EligibilityStatus=${eligibility.status}, isLicensed=${eligibility.isLicensed}")
+        UiLog.d("LicenseManager", "🔄 状态更新: LicenseStatus=${status}, EligibilityStatus=${eligibility.status}, isLicensed=${eligibility.isLicensed}")
     }
     
     /**
@@ -435,7 +436,7 @@ class LicenseManager @Inject constructor() {
             val appId = context.packageName
             val remainingDays = TrialTokenManager.getRemainingDays(context, deviceId, appId)
             
-            Log.d("LicenseManager", "同步试用期信息: remainingDays=$remainingDays")
+            UiLog.d("LicenseManager", "同步试用期信息: remainingDays=$remainingDays")
             
             // 强制更新为试用期状态，不依赖当前的source
             val updatedEligibility = EligibilityInfo(
@@ -448,7 +449,7 @@ class LicenseManager @Inject constructor() {
             )
             _eligibilityInfo.postValue(updatedEligibility)
             
-            Log.d("LicenseManager", "试用期状态已同步: status=${updatedEligibility.status}, days=$remainingDays")
+            UiLog.d("LicenseManager", "试用期状态已同步: status=${updatedEligibility.status}, days=$remainingDays")
         } catch (e: Exception) {
             Log.e("LicenseManager", "同步试用期信息失败: ${e.message}")
             
@@ -504,7 +505,7 @@ class LicenseManager @Inject constructor() {
     suspend fun forceRevalidateAndSync(context: Context): Boolean {
         return withContext(Dispatchers.IO) {
             try {
-                Log.d("LicenseManager", "开始强制重新验证和同步所有状态")
+                UiLog.d("LicenseManager", "开始强制重新验证和同步所有状态")
                 
                 // 🔧 修复错误的许可证日期问题
                 fixIncorrectLicenseEndDate(context)
@@ -523,14 +524,14 @@ class LicenseManager @Inject constructor() {
                 val isLicensedLocally = LicenseDataStore.isLicensed(context).first()
                 val licenseKey = LicenseDataStore.getLicenseKey(context).first()
                 
-                Log.d("LicenseManager", "本地许可证状态: licensed=$isLicensedLocally, key=${licenseKey.take(8)}...")
+                UiLog.d("LicenseManager", "本地许可证状态: licensed=$isLicensedLocally, key=${licenseKey.take(8)}...")
                 
                 // 2. 如果有许可证，验证许可证
                 if (isLicensedLocally && licenseKey.isNotEmpty()) {
                     val licenseValid = validateLicenseInBackground(licenseKey, deviceId, context)
                     
                     if (licenseValid) {
-                        Log.d("LicenseManager", "许可证验证成功")
+                        UiLog.d("LicenseManager", "许可证验证成功")
                         return@withContext true
                     } else {
                         Log.w("LicenseManager", "许可证验证失败，检查试用期")
@@ -549,14 +550,14 @@ class LicenseManager @Inject constructor() {
                     }
                 } else 0
                 
-                Log.d("LicenseManager", "试用期状态: valid=$trialValid, days=$trialDays")
+                UiLog.d("LicenseManager", "试用期状态: valid=$trialValid, days=$trialDays")
                 
                 // 4. 根据结果设置最终状态
                 if (trialValid && trialDays > 0) {
                     // 试用期有效
                     updateStatus(LicenseStatus.TRIAL, message = "试用期有效")
                     syncTrialInfoToEligibility(context)
-                    Log.d("LicenseManager", "使用试用期，允许使用")
+                    UiLog.d("LicenseManager", "使用试用期，允许使用")
                     return@withContext true
                 } else {
                     // 只有在试用期明确无效且天数为0时才锁定
@@ -568,7 +569,7 @@ class LicenseManager @Inject constructor() {
                     } else {
                         // 其他情况默认允许使用
                         updateStatus(LicenseStatus.TRIAL, message = "默认试用期有效")
-                        Log.d("LicenseManager", "状态不确定，默认允许使用")
+                        UiLog.d("LicenseManager", "状态不确定，默认允许使用")
                         return@withContext true
                     }
                 }
@@ -649,19 +650,19 @@ class LicenseManager @Inject constructor() {
                             if (details is LicenseDetailsResult.Success) {
                                 val correctedEndDate = LicenseDataStore.calculateEndDate(startDate, details.validity)
                                 LicenseDataStore.saveLicenseEndDate(context, correctedEndDate)
-                                Log.d("LicenseManager", "已修复许可证结束日期: $endDate -> $correctedEndDate (validity=${details.validity}天)")
+                                UiLog.d("LicenseManager", "已修复许可证结束日期: $endDate -> $correctedEndDate (validity=${details.validity}天)")
                             } else {
                                 Log.w("LicenseManager", "无法获取许可证详情，使用默认修复策略")
                                 // 使用默认30天作为备用（基于日志显示的valid=30）
                                 val correctedEndDate = LicenseDataStore.calculateEndDate(startDate, 30)
                                 LicenseDataStore.saveLicenseEndDate(context, correctedEndDate)
-                                Log.d("LicenseManager", "已使用默认30天修复许可证结束日期: $endDate -> $correctedEndDate")
+                                UiLog.d("LicenseManager", "已使用默认30天修复许可证结束日期: $endDate -> $correctedEndDate")
                             }
                         } catch (e: Exception) {
                             Log.e("LicenseManager", "修复许可证日期时获取详情失败: ${e.message}")
                         }
                     } else {
-                        Log.d("LicenseManager", "许可证日期检查正常: $endDate")
+                        UiLog.d("LicenseManager", "许可证日期检查正常: $endDate")
                     }
                 }
             }

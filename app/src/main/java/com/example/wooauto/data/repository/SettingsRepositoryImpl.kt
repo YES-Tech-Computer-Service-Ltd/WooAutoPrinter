@@ -2,6 +2,7 @@ package com.example.wooauto.data.repository
 
 import android.content.Context
 import android.util.Log
+import com.example.wooauto.utils.UiLog
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
@@ -143,7 +144,7 @@ class SettingsRepositoryImpl @Inject constructor(
             try {
                 // 使用本地配置类更新状态
                 wooCommerceConfig.isConfiguredFlow.first()
-                Log.d("SettingsRepositoryImpl", "初始化完成，配置状态已更新")
+                UiLog.d("SettingsRepositoryImpl", "初始化完成，配置状态已更新")
             } catch (e: Exception) {
                 Log.e("SettingsRepositoryImpl", "初始化检查配置失败", e)
             }
@@ -152,19 +153,19 @@ class SettingsRepositoryImpl @Inject constructor(
 
     // WooCommerce 配置相关方法 - 使用统一的配置类
     override suspend fun getWooCommerceConfig(): WooCommerceConfig {
-        Log.d("SettingsRepositoryImpl", "获取WooCommerce配置")
+        UiLog.d("SettingsRepositoryImpl", "获取WooCommerce配置")
         // 从本地配置转换为远程配置
         return wooCommerceConfig.toRemoteConfig()
     }
 
     override suspend fun saveWooCommerceConfig(config: WooCommerceConfig) {
-        Log.d("SettingsRepositoryImpl", "保存WooCommerce配置: $config")
+        UiLog.d("SettingsRepositoryImpl", "保存WooCommerce配置: $config")
         // 保存远程配置到本地配置
         wooCommerceConfig.saveRemoteConfig(config)
     }
 
     override suspend fun clearWooCommerceConfig() {
-        Log.d("SettingsRepositoryImpl", "清除WooCommerce配置")
+        UiLog.d("SettingsRepositoryImpl", "清除WooCommerce配置")
         // 使用空配置覆盖现有配置
         val emptyConfig = WooCommerceConfig("", "", "", 30, false)
         wooCommerceConfig.saveRemoteConfig(emptyConfig)
@@ -634,7 +635,7 @@ class SettingsRepositoryImpl @Inject constructor(
                 dataStore.edit { settings ->
                     settings[PreferencesKeys.SOUND_TYPE] = SoundSettings.SOUND_TYPE_BUILTIN_CHIME
                 }
-                Log.d("SettingsRepositoryImpl", "Migrated legacy sound_type '$current' -> '${SoundSettings.SOUND_TYPE_BUILTIN_CHIME}'")
+                UiLog.d("SettingsRepositoryImpl", "Migrated legacy sound_type '$current' -> '${SoundSettings.SOUND_TYPE_BUILTIN_CHIME}'")
             } catch (e: Exception) {
                 Log.w("SettingsRepositoryImpl", "Failed to migrate sound_type: ${e.message}")
             }

@@ -5,6 +5,7 @@ import android.content.Intent
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import com.example.wooauto.utils.UiLog
 import androidx.multidex.MultiDexApplication
 import androidx.work.Configuration
 import androidx.work.WorkManager
@@ -63,7 +64,7 @@ class WooAutoApplication : MultiDexApplication(), Configuration.Provider {
     override fun onCreate() {
         super.onCreate()
         
-        Log.d("WooAutoApplication", "【应用初始化】开始初始化WooAuto应用")
+        UiLog.d("WooAutoApplication", "【应用初始化】开始初始化WooAuto应用")
         try {
             // 提前初始化应用语言，确保首帧即使用已保存语言
             com.example.wooauto.utils.LocaleManager.initialize(applicationContext)
@@ -90,7 +91,7 @@ class WooAutoApplication : MultiDexApplication(), Configuration.Provider {
                 // 并行进行原有的初始化任务
                 performLegacyInitialization()
                 
-                Log.d("WooAutoApplication", "【应用初始化】主要初始化流程完成")
+                UiLog.d("WooAutoApplication", "【应用初始化】主要初始化流程完成")
             } catch (e: Exception) {
                 Log.e("WooAutoApplication", "【应用初始化】初始化失败", e)
             }
@@ -131,7 +132,7 @@ class WooAutoApplication : MultiDexApplication(), Configuration.Provider {
                 synchronized(initializationLock) {
                     isInitialized = true
                 }
-                Log.d("WooAutoApplication", "【应用初始化】应用初始化完成")
+                UiLog.d("WooAutoApplication", "【应用初始化】应用初始化完成")
             } catch (e: Exception) {
                 Log.e("WooAutoApplication", "【应用初始化】初始化过程中发生异常", e)
             }
@@ -142,7 +143,7 @@ class WooAutoApplication : MultiDexApplication(), Configuration.Provider {
      * 阶段1：初始化基础组件
      */
     private fun initializeBasicComponents() {
-        Log.d("WooAutoApplication", "【应用初始化】阶段1：初始化基础组件")
+        UiLog.d("WooAutoApplication", "【应用初始化】阶段1：初始化基础组件")
         
         // 初始化日志系统
         initializeLogging()
@@ -150,59 +151,59 @@ class WooAutoApplication : MultiDexApplication(), Configuration.Provider {
         // 初始化数据库相关组件
         initializeDatabase()
         
-        Log.d("WooAutoApplication", "【应用初始化】阶段1完成")
+        UiLog.d("WooAutoApplication", "【应用初始化】阶段1完成")
     }
     
     /**
      * 阶段2：准备权限相关组件（不立即初始化）
      */
     private fun preparePermissionDependentComponents() {
-        Log.d("WooAutoApplication", "【应用初始化】阶段2：准备权限相关组件")
+        UiLog.d("WooAutoApplication", "【应用初始化】阶段2：准备权限相关组件")
         
         // 只是准备，不立即初始化蓝牙
         // 实际初始化会在权限授予后进行
         
-        Log.d("WooAutoApplication", "【应用初始化】阶段2完成")
+        UiLog.d("WooAutoApplication", "【应用初始化】阶段2完成")
     }
     
     /**
      * 阶段3：加载配置
      */
     private suspend fun loadConfigurations() {
-        Log.d("WooAutoApplication", "【应用初始化】阶段3：加载配置")
+        UiLog.d("WooAutoApplication", "【应用初始化】阶段3：加载配置")
         
         try {
             // 预加载关键配置，避免在需要时才加载
             // 这里可以注入ConfigRepository来预加载配置
             
-            Log.d("WooAutoApplication", "【应用初始化】配置加载完成")
+            UiLog.d("WooAutoApplication", "【应用初始化】配置加载完成")
         } catch (e: Exception) {
             Log.e("WooAutoApplication", "【应用初始化】配置加载失败", e)
         }
         
-        Log.d("WooAutoApplication", "【应用初始化】阶段3完成")
+        UiLog.d("WooAutoApplication", "【应用初始化】阶段3完成")
     }
     
     /**
      * 阶段4：准备服务（不立即启动）
      */
     private fun prepareServices() {
-        Log.d("WooAutoApplication", "【应用初始化】阶段4：准备服务")
+        UiLog.d("WooAutoApplication", "【应用初始化】阶段4：准备服务")
         
         // 只是准备服务，不立即启动
         // 服务的启动会在适当的时机进行
         
-        Log.d("WooAutoApplication", "【应用初始化】阶段4完成")
+        UiLog.d("WooAutoApplication", "【应用初始化】阶段4完成")
     }
     
     private fun initializeLogging() {
         // 初始化日志配置
-        Log.d("WooAutoApplication", "【应用初始化】日志系统初始化完成")
+        UiLog.d("WooAutoApplication", "【应用初始化】日志系统初始化完成")
     }
     
     private fun initializeDatabase() {
         // 数据库初始化会由Room和Hilt自动处理
-        Log.d("WooAutoApplication", "【应用初始化】数据库组件准备完成")
+        UiLog.d("WooAutoApplication", "【应用初始化】数据库组件准备完成")
     }
     
     /**
@@ -227,7 +228,7 @@ class WooAutoApplication : MultiDexApplication(), Configuration.Provider {
     private fun initializeWorkManager() {
         try {
             WorkManager.initialize(this, workManagerConfiguration)
-            Log.d("WooAutoApplication", "【应用初始化】WorkManager初始化完成")
+            UiLog.d("WooAutoApplication", "【应用初始化】WorkManager初始化完成")
         } catch (e: Exception) {
             Log.e("WooAutoApplication", "【应用初始化】WorkManager初始化失败: ${e.message}", e)
         }
@@ -249,7 +250,7 @@ class WooAutoApplication : MultiDexApplication(), Configuration.Provider {
                 notificationJob.await()
                 licenseJob.await()
                 
-                Log.d("WooAutoApplication", "【应用初始化】遗留初始化任务完成")
+                UiLog.d("WooAutoApplication", "【应用初始化】遗留初始化任务完成")
             }
         } catch (e: Exception) {
             Log.e("WooAutoApplication", "【应用初始化】遗留初始化任务失败: ${e.message}", e)
@@ -261,7 +262,7 @@ class WooAutoApplication : MultiDexApplication(), Configuration.Provider {
         
         // 注销订单通知管理器
         orderNotificationManager.unregisterReceiver()
-        Log.d("WooAutoApplication", "应用程序终止")
+        UiLog.d("WooAutoApplication", "应用程序终止")
     }
     
     /**
@@ -271,7 +272,7 @@ class WooAutoApplication : MultiDexApplication(), Configuration.Provider {
         try {
             // 注册订单通知接收器
             orderNotificationManager.registerReceiver()
-            Log.d("WooAutoApplication", "订单通知管理器初始化完成")
+            UiLog.d("WooAutoApplication", "订单通知管理器初始化完成")
         } catch (e: Exception) {
             Log.e("WooAutoApplication", "初始化订单通知管理器时出错: ${e.message}", e)
         }
@@ -282,13 +283,13 @@ class WooAutoApplication : MultiDexApplication(), Configuration.Provider {
      */
     private fun initializeMetadataProcessors() {
         try {
-            Log.d("WooAutoApplication", "初始化元数据处理系统")
+            UiLog.d("WooAutoApplication", "初始化元数据处理系统")
             
             // 使用懒加载模式，只创建注册表而不立即初始化所有处理器
             MetadataProcessorFactory.createDefaultRegistry()
             
             // 注册表初始化推迟到首次使用时，减少启动负担
-            Log.d("WooAutoApplication", "元数据处理系统初始化完成")
+            UiLog.d("WooAutoApplication", "元数据处理系统初始化完成")
         } catch (e: Exception) {
             Log.e("WooAutoApplication", "初始化元数据处理系统时出错: ${e.message}", e)
         }
@@ -299,17 +300,17 @@ class WooAutoApplication : MultiDexApplication(), Configuration.Provider {
      */
     private fun initializeLicenseManager() {
         try {
-            Log.d("WooAutoApplication", "初始化证书管理器")
+            UiLog.d("WooAutoApplication", "初始化证书管理器")
             
             // 初始化旧版本的LicenseVerificationManager的静态实例访问点
             if (::licenseVerificationManager.isInitialized) {
                 LicenseVerificationManager.initialize(licenseVerificationManager)
-                Log.d("WooAutoApplication", "已初始化LicenseVerificationManager单例访问点")
+                UiLog.d("WooAutoApplication", "已初始化LicenseVerificationManager单例访问点")
             }
             
             // 执行首次证书验证
             licenseManager.verifyLicense(this, applicationScope) { isValid ->
-                Log.d("WooAutoApplication", "证书验证结果: $isValid")
+                UiLog.d("WooAutoApplication", "证书验证结果: $isValid")
                 
                 // 证书无效时的处理可以放在这里
                 if (!isValid) {
@@ -317,7 +318,7 @@ class WooAutoApplication : MultiDexApplication(), Configuration.Provider {
                 }
             }
             
-            Log.d("WooAutoApplication", "证书管理器初始化完成")
+            UiLog.d("WooAutoApplication", "证书管理器初始化完成")
         } catch (e: Exception) {
             Log.e("WooAutoApplication", "初始化证书管理器时出错: ${e.message}", e)
         }
@@ -329,7 +330,7 @@ class WooAutoApplication : MultiDexApplication(), Configuration.Provider {
             try {
                 // 确保wooCommerceConfig已经被初始化
                 if (::wooCommerceConfig.isInitialized) {
-                    Log.d("WooAutoApplication", "依赖注入已完成，正在检查配置")
+                    UiLog.d("WooAutoApplication", "依赖注入已完成，正在检查配置")
                     // 检查配置是否有效
                     val isConfigValid = checkConfigurationValid()
                     if (isConfigValid) {
@@ -343,7 +344,7 @@ class WooAutoApplication : MultiDexApplication(), Configuration.Provider {
                             startLicenseMonitoring()
                         }
                     } else {
-                        Log.d("WooAutoApplication", "配置未完成，不启动服务")
+                        UiLog.d("WooAutoApplication", "配置未完成，不启动服务")
                     }
                 } else {
                     Log.e("WooAutoApplication", "wooCommerceConfig 未初始化")
@@ -394,7 +395,7 @@ class WooAutoApplication : MultiDexApplication(), Configuration.Provider {
             
             val isValid = siteUrl.isNotBlank() && consumerKey.isNotBlank() && consumerSecret.isNotBlank()
             if (isValid) {
-                Log.d("WooAutoApplication", "WooCommerce配置有效")
+                UiLog.d("WooAutoApplication", "WooCommerce配置有效")
             } else {
                 Log.w("WooAutoApplication", "WooCommerce配置无效: URL=${siteUrl.isNotBlank()}, Key=${consumerKey.isNotBlank()}, Secret=${consumerSecret.isNotBlank()}")
             }
@@ -407,7 +408,7 @@ class WooAutoApplication : MultiDexApplication(), Configuration.Provider {
 
     private fun startBackgroundPollingService() {
         try {
-            Log.d("WooAutoApplication", "正在启动后台轮询服务")
+            UiLog.d("WooAutoApplication", "正在启动后台轮询服务")
             val serviceIntent = Intent(this, BackgroundPollingService::class.java)
             ContextCompat.startForegroundService(this, serviceIntent)
         } catch (e: Exception) {
