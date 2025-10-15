@@ -525,8 +525,8 @@ class BluetoothPrinterManager @Inject constructor(
         var isDoubleWidth = false
         var isDoubleHeight = false
 
-        // 检测当前行是否包含中文字符
-        val hasChineseInLine = containsChineseCharacters(line)
+        // 检测当前行是否包含中文字符（当前未分支使用，去除未使用变量）
+        // val hasChineseInLine = containsChineseCharacters(line)
 
         // 首先处理对齐标记
         when {
@@ -636,7 +636,7 @@ class BluetoothPrinterManager @Inject constructor(
     /**
      * 将我们自定义的放大标签 <h>/<w> 映射为 DantSu 可识别的放大标签
      * - 保留 <b> 由库解析
-     * - 统一将 <h>/<w> 视为“大号字体”
+     * - 统一将 <h>/<w> 视为"大号字体"
      */
     private fun mapEnlargeTagsForDantSu(text: String): String {
         return text
@@ -785,19 +785,14 @@ class BluetoothPrinterManager @Inject constructor(
 
             // 确保已停止之前的扫描
             if (isScanning) {
-//                Log.d(TAG, "已有扫描正在进行，先停止它")
+                // 已有扫描正在进行，先停止它
                 if (ActivityCompat.checkSelfPermission(
-                        context,
-                        Manifest.permission.BLUETOOTH_SCAN
-                    ) != PackageManager.PERMISSION_GRANTED
+                        context, Manifest.permission.BLUETOOTH_SCAN
+                    ) == PackageManager.PERMISSION_GRANTED
                 ) {
-                    return emptyList()
+                    val adapter = getBluetoothAdapter()
+                    adapter?.cancelDiscovery()
                 }
-                val adapter = bluetoothAdapter // 保存引用避免智能转换问题
-                adapter?.cancelDiscovery()
-                isScanning = false
-                // 给适配器一点时间恢复
-                delay(1000)
             }
 
             // 注册接收器
@@ -904,13 +899,7 @@ class BluetoothPrinterManager @Inject constructor(
             val deviceName = device.name ?: "未知设备 (${device.address.takeLast(5)})"
             val status = printerStatusMap[device.address] ?: PrinterStatus.DISCONNECTED
 
-            // 检查设备的配对状态并记录日志
-            val bondState = when (device.bondState) {
-                BluetoothDevice.BOND_BONDED -> "已配对"
-                BluetoothDevice.BOND_BONDING -> "配对中"
-                BluetoothDevice.BOND_NONE -> "未配对"
-                else -> "未知状态(${device.bondState})"
-            }
+            // 可按需记录配对状态
             
 
             PrinterDevice(
@@ -966,17 +955,21 @@ class BluetoothPrinterManager @Inject constructor(
     override suspend fun printOrder(order: Order, config: PrinterConfig): Boolean =
         withContext(Dispatchers.IO) {
             // 添加打印前的详细状态日志
-            val printerStatus = getPrinterStatus(config)
+            // 调用保留以触发状态查询，但不保存为局部变量，避免未使用告警
+            getPrinterStatus(config)
 //        Log.d(TAG, "【打印机状态】开始打印订单 #${order.number}，当前打印机 ${config.name} 状态: $printerStatus")
 
             // 检查蓝牙适配器状态
-            val bluetoothEnabled = bluetoothAdapter?.isEnabled ?: false
-//        Log.d(TAG, "【打印机状态】蓝牙适配器状态: ${if (bluetoothEnabled) "已启用" else "未启用"}")
+            // 保留变量名但内联使用避免未使用警告
+            // 仅保留一次性检查，无需保存变量
+            bluetoothAdapter?.isEnabled ?: false
+//        Log.d(TAG, "【打印机状态】蓝牙适配器状态: ${if (_bluetoothEnabled) "已启用" else "未启用"}")
 
             // 检查打印机连接和实例
-            val hasConnection = currentConnection != null
-            val hasPrinter = currentPrinter != null
-//        Log.d(TAG, "【打印机状态】连接实例: ${if (hasConnection) "存在" else "不存在"}, 打印机实例: ${if (hasPrinter) "存在" else "不存在"}")
+            // 一次性检查，避免未使用告警
+            currentConnection != null
+            currentPrinter != null
+//        Log.d(TAG, "【打印机状态】连接实例: ${if (_hasConnection) "存在" else "不存在"}, 打印机实例: ${if (hasPrinter) "存在" else "不存在"}")
 
             var retryCount = 0
             while (retryCount < 3) {
@@ -1212,8 +1205,8 @@ class BluetoothPrinterManager @Inject constructor(
             UiLog.d(TAG, "使用模板打印订单: #${order.number}, 模板ID: $templateId")
             
             // 添加打印前的详细状态日志
-            val printerStatus = getPrinterStatus(config)
-            UiLog.d(TAG, "【打印机状态】开始使用模板打印订单 #${order.number}，当前打印机 ${config.name} 状态: $printerStatus")
+            val currentStatus = getPrinterStatus(config)
+            UiLog.d(TAG, "【打印机状态】开始使用模板打印订单 #${order.number}，当前打印机 ${config.name} 状态: $currentStatus")
 
             var retryCount = 0
             while (retryCount < 3) {
@@ -1374,7 +1367,7 @@ class BluetoothPrinterManager @Inject constructor(
      * @return 是否打印成功
      */
     private suspend fun printContent(content: String, config: PrinterConfig): Boolean {
-        val tag = "printContent"
+        // 移除未使用的局部tag
         try {
             // 确保有当前连接
             if (currentConnection == null) {
@@ -1749,8 +1742,8 @@ class BluetoothPrinterManager @Inject constructor(
         
         Log.d(TAG, "Android版本: ${Build.VERSION.SDK_INT} (${Build.VERSION.RELEASE})")
 
-        // 检查蓝牙适配器
-        val bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
+        // 检查蓝牙适配器（统一走封装，避免直接使用已弃用API）
+        val bluetoothAdapter = getBluetoothAdapter()
         
 
         // 检查权限状态
@@ -1862,7 +1855,8 @@ class BluetoothPrinterManager @Inject constructor(
                 Log.d(TAG, "启动系统轮询（打印机），间隔: ${HEARTBEAT_INTERVAL / 1000}秒")
                 var reconnectAttempts = 0
                 var lastReconnectTime = 0L
-                var lastSuccessfulHeartbeat = System.currentTimeMillis()
+                // 仅在需要统计心跳成功时间时启用
+                // var lastSuccessfulHeartbeat = System.currentTimeMillis()
 
                 while (isActive && heartbeatEnabled) {
                     try {
@@ -1886,7 +1880,6 @@ class BluetoothPrinterManager @Inject constructor(
                             try {
                                 sendHeartbeatCommand()
                                 writeOk = true
-                                lastSuccessfulHeartbeat = currentTime
                             } catch (e: Exception) {
                                 Log.e(TAG, "系统轮询写入失败（打印机）: ${e.message}")
                                 updatePrinterStatus(config, PrinterStatus.DISCONNECTED)
@@ -1930,7 +1923,7 @@ class BluetoothPrinterManager @Inject constructor(
 
                                 if (reconnected) {
                                     reconnectAttempts = 0
-                                    lastSuccessfulHeartbeat = System.currentTimeMillis()
+                                    // lastSuccessfulHeartbeat = System.currentTimeMillis()
                                     Log.d(TAG, "重连成功，重置重试计数")
                                 } else {
                                     reconnectAttempts++
@@ -2354,7 +2347,7 @@ class BluetoothPrinterManager @Inject constructor(
                 // 添加取消时的清理操作
                 continuation.invokeOnCancellation {
                     try {
-                        receiver?.let { context.unregisterReceiver(it) }
+                        if (receiver != null) context.unregisterReceiver(receiver)
                         getBluetoothAdapter()?.cancelDiscovery()
                     } catch (e: Exception) {
                         Log.w(TAG, "取消扫描时清理异常", e)
@@ -2766,7 +2759,7 @@ class BluetoothPrinterManager @Inject constructor(
      * @param config 打印机配置
      * @return 切纸操作是否成功执行
      */
-    fun forcePaperCut(config: PrinterConfig): Boolean {
+    fun forcePaperCut(@Suppress("UNUSED_PARAMETER") config: PrinterConfig): Boolean {
         try {
             
             

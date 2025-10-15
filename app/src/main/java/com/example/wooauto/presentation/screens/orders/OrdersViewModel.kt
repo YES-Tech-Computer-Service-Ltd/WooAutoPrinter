@@ -491,10 +491,10 @@ class OrdersViewModel @Inject constructor(
                 // 注释掉许可证检查阻止配置，因为许可证管理器在验证异常时应该允许使用
             }
             
-            // 检查基本配置信息是否完整
-            val siteUrl = config?.siteUrl ?: ""
-            val consumerKey = config?.consumerKey ?: ""
-            val consumerSecret = config?.consumerSecret ?: ""
+            // 检查基本配置信息是否完整（从注入的配置数据流中获取当前值）
+            val siteUrl = wooCommerceConfig.siteUrl.first()
+            val consumerKey = wooCommerceConfig.consumerKey.first()
+            val consumerSecret = wooCommerceConfig.consumerSecret.first()
             // Debug log removed
             
             val isValid = siteUrl.isNotBlank() && consumerKey.isNotBlank() && consumerSecret.isNotBlank()
@@ -524,8 +524,12 @@ class OrdersViewModel @Inject constructor(
             }
         } catch (e: Exception) {
             Log.e(TAG, "检查API配置时发生异常: ${e.message}", e)
+            val cachedOrders = try {
+                orderRepository.getCachedOrders()
+            } catch (_: Exception) {
+                emptyList()
+            }
             if (cachedOrders.isNotEmpty()) {
-                // Debug log removed
                 _isConfigured.value = true
                 true
             } else {

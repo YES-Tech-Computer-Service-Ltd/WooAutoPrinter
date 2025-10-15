@@ -182,7 +182,6 @@ class MainActivity : AppCompatActivity(), OrderNotificationManager.NotificationC
         splash.setKeepOnScreenCondition {
             val elapsed = System.currentTimeMillis() - startTime
             // 资格检查、首个数据快照与语言就绪后尽快放行；硬上限 800ms
-            val app = application as com.example.wooauto.WooAutoApplication
             val softReady = true // 语言已在 Application 初始化；Compose 首屏无阻塞
             val timeGuard = elapsed < 800
             softReady && timeGuard
@@ -489,11 +488,7 @@ fun NewOrderPopup(
     onStartProcessing: () -> Unit
 ) {
     rememberScrollState()
-    val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
-    val formattedDate = dateFormat.format(order.dateCreated)
-    
-    // 计算商品总数
-    val totalItems = order.items.sumOf { it.quantity }
+    // 已移除未使用的日期格式化与统计变量
     
     // 用于区分自动关闭和手动关闭的状态
     var isAutoClose by remember { mutableStateOf(false) }

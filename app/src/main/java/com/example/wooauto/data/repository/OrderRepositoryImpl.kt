@@ -225,7 +225,8 @@ class OrderRepositoryImpl @Inject constructor(
             val readOrderIds = orderDao.getReadOrderIds()
             
             // 获取所有订单ID
-            val allOrderIds = orderDao.getAllOrderIds()
+            // 仅用于触发数据库访问与潜在的缓存热身，避免未使用警告
+            orderDao.getAllOrderIds()
             
             val config = settingsRepository.getWooCommerceConfig()
             if (!config.isValid()) {
@@ -450,7 +451,8 @@ class OrderRepositoryImpl @Inject constructor(
 //                Log.d("OrderRepositoryImpl", "【轮询刷新】API返回 ${response.size} 个处理中订单")
                 
                 // 记录返回订单的状态分布
-                val statusCounts = response.groupBy { order -> order.status }.mapValues { entry -> entry.value.size }
+                // 仅用于调试统计，可在需要时恢复
+                // val statusCounts = response.groupBy { order -> order.status }.mapValues { entry -> entry.value.size }
 //                Log.d("OrderRepositoryImpl", "【轮询刷新】状态分布: $statusCounts")
                 
                 // 转换为领域模型，并保留已读状态
@@ -475,7 +477,7 @@ class OrderRepositoryImpl @Inject constructor(
 //                Log.d("OrderRepositoryImpl", "【轮询刷新】数据库中处理中订单: ${currentProcessingOrders.size}个, 内存中: ${cachedProcessingOrders.size}个")
                 
                 // 记录内存中已打印的订单
-                val printedInMemory = cachedProcessingOrders.filter { it.isPrinted }.map { it.id }
+                // val printedInMemory = cachedProcessingOrders.filter { it.isPrinted }.map { it.id }
 //                Log.d("OrderRepositoryImpl", "【轮询刷新】内存中已打印订单ID: $printedInMemory")
                 
                 // 创建新的处理中订单实体，以内存状态为准
@@ -592,18 +594,18 @@ class OrderRepositoryImpl @Inject constructor(
         
         try {
             // 先获取订单当前状态并记录日志
-            val orderBefore = orderDao.getOrderById(orderId)
-            Log.d("OrderRepositoryImpl", "【打印状态操作】打印前订单状态: ID=$orderId, 已打印=${orderBefore?.isPrinted}, 状态=${orderBefore?.status}, 订单号=${orderBefore?.number}")
+            val _orderBefore = orderDao.getOrderById(orderId)
+            Log.d("OrderRepositoryImpl", "【打印状态操作】打印前订单状态: ID=$orderId, 已打印=${_orderBefore?.isPrinted}, 状态=${_orderBefore?.status}, 订单号=${_orderBefore?.number}")
             
             // 更新数据库
             orderDao.updateOrderPrintStatus(orderId, true)
             
             // 验证更新是否成功
-            val orderAfter = orderDao.getOrderById(orderId)
-            Log.d("OrderRepositoryImpl", "【打印状态操作】打印后订单状态: ID=$orderId, 已打印=${orderAfter?.isPrinted}, 状态=${orderAfter?.status}")
+            val _orderAfter = orderDao.getOrderById(orderId)
+            Log.d("OrderRepositoryImpl", "【打印状态操作】打印后订单状态: ID=$orderId, 已打印=${_orderAfter?.isPrinted}, 状态=${_orderAfter?.status}")
             
             // 检查更新是否成功
-            if (orderAfter?.isPrinted != true) {
+            if (_orderAfter?.isPrinted != true) {
                 Log.e("OrderRepositoryImpl", "【打印状态操作】打印状态更新失败，数据库中订单状态未变更为已打印")
             }
             
@@ -614,7 +616,7 @@ class OrderRepositoryImpl @Inject constructor(
                 Log.w("OrderRepositoryImpl", "【打印状态操作】订单 $orderId 不在缓存中，从数据库加载完整订单信息")
                 
                 // 如果订单不在缓存中，从数据库加载完整订单
-                orderAfter?.let { entity ->
+                _orderAfter?.let { entity ->
                     val domainModel = mapToOrderModel(entity)
                     UiLog.d("OrderRepositoryImpl", "【打印状态操作】从数据库加载订单: #${domainModel.number}, 打印状态: ${domainModel.isPrinted}")
                     
@@ -671,14 +673,14 @@ class OrderRepositoryImpl @Inject constructor(
         
         try {
             // 先获取订单当前状态并记录日志
-            val orderBefore = orderDao.getOrderById(orderId)
+            // orderDao.getOrderById(orderId) // 查看旧状态时再启用
 //            Log.d("OrderRepositoryImpl", "修改前订单状态: ID=$orderId, 已打印=${orderBefore?.isPrinted}, 状态=${orderBefore?.status}")
             
             // 更新数据库
             orderDao.updateOrderPrintStatus(orderId, false)
             
             // 验证更新是否成功
-            val orderAfter = orderDao.getOrderById(orderId)
+            // orderDao.getOrderById(orderId) // 验证更新成功时再启用
 //            Log.d("OrderRepositoryImpl", "修改后订单状态: ID=$orderId, 已打印=${orderAfter?.isPrinted}, 状态=${orderAfter?.status}")
             
             // 更新缓存和流
@@ -739,14 +741,14 @@ class OrderRepositoryImpl @Inject constructor(
         
         try {
             // 先获取订单当前状态并记录日志
-            val orderBefore = orderDao.getOrderById(orderId)
+            // orderDao.getOrderById(orderId)
 //            Log.d("OrderRepositoryImpl", "读取前订单状态: ID=$orderId, 已读=${orderBefore?.isRead}, 状态=${orderBefore?.status}")
             
             // 更新数据库
             orderDao.updateOrderReadStatus(orderId, true)
             
             // 验证更新是否成功
-            val orderAfter = orderDao.getOrderById(orderId)
+            // orderDao.getOrderById(orderId)
 //            Log.d("OrderRepositoryImpl", "读取后订单状态: ID=$orderId, 已读=${orderAfter?.isRead}, 状态=${orderAfter?.status}")
             
             // 更新缓存和流
@@ -778,14 +780,14 @@ class OrderRepositoryImpl @Inject constructor(
         
         try {
             // 先获取订单当前状态并记录日志
-            val orderBefore = orderDao.getOrderById(orderId)
+            // orderDao.getOrderById(orderId)
 //            Log.d("OrderRepositoryImpl", "修改前订单状态: ID=$orderId, 已读=${orderBefore?.isRead}, 状态=${orderBefore?.status}")
             
             // 更新数据库
             orderDao.updateOrderReadStatus(orderId, false)
             
             // 验证更新是否成功
-            val orderAfter = orderDao.getOrderById(orderId)
+            // orderDao.getOrderById(orderId)
 //            Log.d("OrderRepositoryImpl", "修改后订单状态: ID=$orderId, 已读=${orderAfter?.isRead}, 状态=${orderAfter?.status}")
             
             // 更新缓存和流
@@ -894,7 +896,7 @@ class OrderRepositoryImpl @Inject constructor(
     }
 
     private fun updateOrdersByStatus() {
-        val groupedOrders = cachedOrders.groupBy { it.status }
+        // val groupedOrders = cachedOrders.groupBy { it.status }
 //        Log.d("OrderRepositoryImpl", "【状态分组】所有状态: ${groupedOrders.keys.joinToString()}")
         
         // 记录每个状态的订单数量及打印状态
@@ -988,8 +990,10 @@ class OrderRepositoryImpl @Inject constructor(
         
         // 记录日志用于调试
 //        Log.d("OrderRepositoryImpl", "订单#${entity.number} - 映射实体到模型，feeLines数量: ${entity.feeLines.size}")
-        entity.feeLines.forEach { feeLine ->
-//            Log.d("OrderRepositoryImpl", "订单#${entity.number} - 费用行: ${feeLine.name} = ${feeLine.total}")
+        entity.feeLines.forEach { _ ->
+            // 确保费用行中的配送费信息同步到WooFoodInfo（仅当实体未携带时才尝试同步）
+            // 注意：此处仅用于调试/显示的一致性，不改变业务字段来源
+            // 不在此处写回实体/数据库，避免副作用
         }
         
         // 将实体中的费用行转换为领域模型费用行

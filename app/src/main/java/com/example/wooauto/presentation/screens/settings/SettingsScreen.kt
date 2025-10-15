@@ -69,9 +69,7 @@ fun SettingsScreen(
     val siteUrl by viewModel.siteUrl.collectAsState()
     val consumerKey by viewModel.consumerKey.collectAsState()
     val consumerSecret by viewModel.consumerSecret.collectAsState()
-    val isAutoPrintEnabled by viewModel.automaticPrinting.collectAsState()
-    val templates by viewModel.templates.collectAsState()
-    val defaultTemplateType by viewModel.defaultTemplateType.collectAsState()
+    // 如需重组触发，可订阅；当前不使用则移除以免告警
     
     // 预先获取需要用到的字符串资源
     val licenseRequiredMessage = stringResource(R.string.license_required_message)
@@ -351,7 +349,7 @@ fun SettingsScreen(
                                                 val customTemplates = allConfigs.filter { it.templateId.startsWith("custom_") }
                                                     .map { Triple(it.templateId, com.example.wooauto.domain.templates.TemplateType.FULL_DETAILS, it.templateName) }
 
-                                                (defaultTemplates + customTemplates).forEach { (id, type, name) ->
+                                                (defaultTemplates + customTemplates).forEach { (id, _ /*type*/, name) ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -776,7 +774,7 @@ fun SettingsCategoryCard(
 
 @Composable
 fun SettingsNavigationItem(
-        icon: ImageVector?,
+        @Suppress("UNUSED_PARAMETER") icon: ImageVector?,
     title: String,
     subTitle: String? = null,
     isLocked: Boolean = false,
@@ -821,7 +819,7 @@ fun SettingsNavigationItem(
 
 @Composable
 fun SettingItem(
-    icon: ImageVector,
+    @Suppress("UNUSED_PARAMETER") icon: ImageVector,
     title: String,
     subtitle: String,
     onClick: () -> Unit

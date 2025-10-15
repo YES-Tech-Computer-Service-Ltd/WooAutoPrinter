@@ -58,7 +58,7 @@ fun OrderDetailDialog(
 ) {
     val viewModel: OrdersViewModel = hiltViewModel()
     remember { viewModel.licenseManager }
-    val licenseInfo by viewModel.licenseManager.licenseInfo.observeAsState()
+    // val licenseInfo by viewModel.licenseManager.licenseInfo.observeAsState()
     val eligibilityInfo by viewModel.licenseManager.eligibilityInfo.observeAsState()
     val hasEligibility = eligibilityInfo?.status == EligibilityStatus.ELIGIBLE
     val currencySymbol by viewModel.currencySymbol.collectAsState()
@@ -729,8 +729,8 @@ fun OrderDetailDialog(
                                 )
                                 Spacer(modifier = Modifier.height(24.dp))
                                 
-                                // 获取上下文，放在Composable函数顶层
-                                val context = LocalContext.current
+                                // 获取上下文（已不直接使用）
+                                // val context = LocalContext.current
                                 
                                 // 使用Row放置两个按钮
                                 Row(

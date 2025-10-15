@@ -181,7 +181,8 @@ private fun ProductsScreenContent(
     val categories by viewModel.categories.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
     val selectedProduct by viewModel.selectedProduct.collectAsState()
-    val isRefreshing by viewModel.refreshing.collectAsState()
+    // 订阅刷新状态以触发必要重组（不直接使用值避免告警）
+    val _ = viewModel.refreshing.collectAsState()
     val shouldResetScroll by viewModel.shouldResetScroll.collectAsState()
 
     
@@ -372,7 +373,8 @@ private fun ProductsScreenContent(
     }
     
     // 获取当前语言环境
-    val locale = LocalAppLocale.current
+    // 订阅当前Locale变化以触发必要重组（不直接使用值）
+    val __ = LocalContext.current.resources.configuration
     
     // 使用Surface包装Scaffold，避免布局问题
     androidx.compose.material3.Surface(
@@ -651,8 +653,7 @@ fun ProductsContent(
     // 添加LazyVerticalGrid的滚动状态管理
     val gridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
     
-    // 添加协程作用域用于滚动控制
-    val coroutineScope = rememberCoroutineScope()
+    // 需要作用域时再创建，避免未使用告警
     
     // 当产品数据更新时，滚动到顶部
     LaunchedEffect(products.size, selectedCategoryId) {
