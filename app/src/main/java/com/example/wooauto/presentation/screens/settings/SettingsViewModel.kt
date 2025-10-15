@@ -3,6 +3,7 @@ package com.example.wooauto.presentation.screens.settings
 import android.bluetooth.BluetoothManager
 import android.content.Context
 import android.util.Log
+import com.example.wooauto.utils.UiLog
 import android.util.Patterns
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -225,7 +226,7 @@ class SettingsViewModel @Inject constructor(
     private val _uiStatusOverride = MutableStateFlow<PrinterStatus?>(null)
 
     init {
-        Log.d("SettingsViewModel", "初始化ViewModel")
+        UiLog.d("SettingsViewModel", "初始化ViewModel")
         loadSettings()
         loadPrinterConfigs()
         loadStoreInfo()
@@ -250,7 +251,7 @@ class SettingsViewModel @Inject constructor(
             if (printerManager is BluetoothPrinterManager) {
                 printerManager.getScanResultFlow().collect { printers ->
                     _availablePrinters.value = printers
-                    Log.d("SettingsViewModel", "更新蓝牙设备列表，设备数量: ${printers.size}")
+                    UiLog.d("SettingsViewModel", "更新蓝牙设备列表，设备数量: ${printers.size}")
                     
                     if (_isScanning.value && printers.isNotEmpty()) {
                         // 延迟停止扫描状态，给用户时间看到结果
@@ -314,7 +315,7 @@ class SettingsViewModel @Inject constructor(
                     _keepScreenOn.value = keepOn
                 }
                 
-                Log.d("SettingsViewModel", "成功加载设置: $config")
+                UiLog.d("SettingsViewModel", "成功加载设置: $config")
             } catch (e: Exception) {
                 Log.e("SettingsViewModel", "加载设置失败", e)
             }
@@ -343,7 +344,7 @@ class SettingsViewModel @Inject constructor(
         
         // 如果轮询间隔发生变化，通知服务重启轮询
         if (oldInterval != interval) {
-            Log.d(TAG, "轮询间隔已更改: ${oldInterval}秒 -> ${interval}秒，将通知服务重启轮询")
+            UiLog.d(TAG, "轮询间隔已更改: ${oldInterval}秒 -> ${interval}秒，将通知服务重启轮询")
             notifyServiceToRestartPolling()
         }
     }
@@ -358,7 +359,7 @@ class SettingsViewModel @Inject constructor(
             try {
                 _keepScreenOn.value = keepOn
                 settingsRepository.setKeepScreenOn(keepOn)
-                Log.d(TAG, "更新屏幕常亮设置: $keepOn")
+                UiLog.d(TAG, "更新屏幕常亮设置: $keepOn")
             } catch (e: Exception) {
                 Log.e(TAG, "更新屏幕常亮设置失败", e)
             }
@@ -393,7 +394,7 @@ class SettingsViewModel @Inject constructor(
                     useWooCommerceFood = _useWooCommerceFood.value
                 )
                 settingsRepository.saveWooCommerceConfig(config)
-                Log.d("SettingsViewModel", "成功保存设置: $config")
+                UiLog.d("SettingsViewModel", "成功保存设置: $config")
             } catch (e: Exception) {
                 Log.e("SettingsViewModel", "保存设置失败", e)
             }
@@ -404,7 +405,7 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 _isTestingConnection.value = true
-                Log.d("SettingsViewModel", "开始测试API连接")
+                UiLog.d("SettingsViewModel", "开始测试API连接")
                 
                 // 创建临时配置
                 val config = WooCommerceConfig(
@@ -422,7 +423,7 @@ class SettingsViewModel @Inject constructor(
                     return@launch
                 }
                 
-                Log.d("SettingsViewModel", "使用配置测试连接: $config")
+                UiLog.d("SettingsViewModel", "使用配置测试连接: $config")
                 
                 // 立即保存配置
                 saveSettings(immediate = true)
@@ -432,7 +433,7 @@ class SettingsViewModel @Inject constructor(
                 
                 if (testResult) {
                     _connectionTestResult.value = ConnectionTestResult.Success
-                    Log.d("SettingsViewModel", "API连接测试成功")
+                    UiLog.d("SettingsViewModel", "API连接测试成功")
                 } else {
                     _connectionTestResult.value = ConnectionTestResult.Error("无法连接到API，请检查配置")
                     Log.e("SettingsViewModel", "API连接测试失败")
@@ -482,7 +483,7 @@ class SettingsViewModel @Inject constructor(
                     useWooCommerceFood = _useWooCommerceFood.value
                 )
                 settingsRepository.saveWooCommerceConfig(config)
-                Log.d("SettingsViewModel", "成功保存设置: $config")
+                UiLog.d("SettingsViewModel", "成功保存设置: $config")
                 
                 if (immediate) {
                     // 清除缓存，强制重新加载
@@ -503,7 +504,7 @@ class SettingsViewModel @Inject constructor(
     fun setAppLanguage(locale: Locale) {
         viewModelScope.launch {
             try {
-                Log.d("SettingsViewModel", "语言切换开始: ${locale.language}")
+                UiLog.d("SettingsViewModel", "语言切换开始: ${locale.language}")
                 
                 // 1. 使用 LocaleManager 设置和保存语言
                 LocaleManager.setAndSaveLocale(context, locale)
@@ -511,7 +512,7 @@ class SettingsViewModel @Inject constructor(
                 // 2. 更新当前语言状态
                 _currentLocale.value = locale
                 
-                Log.d("SettingsViewModel", "语言切换完成，UI 将立即更新")
+                UiLog.d("SettingsViewModel", "语言切换完成，UI 将立即更新")
             } catch (e: Exception) {
                 Log.e("SettingsViewModel", "语言切换失败", e)
             }
@@ -523,7 +524,7 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 _printerConfigs.value = settingsRepository.getAllPrinterConfigs()
-                Log.d("SettingsViewModel", "加载了${_printerConfigs.value.size}个打印机配置")
+                UiLog.d("SettingsViewModel", "加载了${_printerConfigs.value.size}个打印机配置")
                 
                 // 加载默认打印机
                 val defaultPrinter = settingsRepository.getDefaultPrinterConfig()
@@ -559,7 +560,7 @@ class SettingsViewModel @Inject constructor(
         
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                Log.d(TAG, "蓝牙设备扫描已启动")
+                UiLog.d(TAG, "蓝牙设备扫描已启动")
                 
                 // 获取打印机管理器
                 val printerManager = getPrinterManager()
@@ -580,7 +581,7 @@ class SettingsViewModel @Inject constructor(
                     if (printerManager is BluetoothPrinterManager) {
                         try {
                             printerManager.getScanResultFlow().collect { updatedDevices ->
-                                Log.d(TAG, "蓝牙设备列表更新: ${updatedDevices.size}个设备")
+                                UiLog.d(TAG, "蓝牙设备列表更新: ${updatedDevices.size}个设备")
                                 _availablePrinters.value = updatedDevices
                             }
                         } catch (e: Exception) {
@@ -614,7 +615,7 @@ class SettingsViewModel @Inject constructor(
                 }
             } catch (e: CancellationException) {
                 // 协程被主动取消（如界面切换/对话框关闭/重订阅），属于正常流程，不作为错误
-                Log.d(TAG, "订阅打印机状态流已取消（正常）")
+                UiLog.d(TAG, "订阅打印机状态流已取消（正常）")
             } catch (e: Exception) {
                 Log.e(TAG, "订阅打印机状态流失败", e)
             }
@@ -636,7 +637,7 @@ class SettingsViewModel @Inject constructor(
             _connectionErrorMessage.value = null
             
             try {
-                Log.d("SettingsViewModel", "开始连接打印机: ${device.name} (${device.address})")
+                UiLog.d("SettingsViewModel", "开始连接打印机: ${device.name} (${device.address})")
                 
                 // 构建打印机配置
                 val existingConfig = _printerConfigs.value.find { it.address == device.address }
@@ -666,7 +667,7 @@ class SettingsViewModel @Inject constructor(
                     if (ok) {
                         _printerStatus.value = PrinterStatus.CONNECTED
                         clearConnectingUiTimeout()
-                        Log.d("SettingsViewModel", "成功连接打印机: ${config.name}")
+                        UiLog.d("SettingsViewModel", "成功连接打印机: ${config.name}")
                     } else {
                         _printerStatus.value = PrinterStatus.ERROR
                         _connectionErrorMessage.value = "连接已建立但通信失败，请检查打印机状态"
@@ -723,7 +724,7 @@ class SettingsViewModel @Inject constructor(
                 if (ok) {
                     _printerStatus.value = PrinterStatus.CONNECTED
                     clearConnectingUiTimeout()
-                    Log.d("SettingsViewModel", "成功连接打印机: ${config.name}")
+                    UiLog.d("SettingsViewModel", "成功连接打印机: ${config.name}")
                 } else {
                     _printerStatus.value = PrinterStatus.ERROR
                     _connectionErrorMessage.value = "连接已建立但通信失败，请检查打印机状态"
@@ -762,7 +763,7 @@ class SettingsViewModel @Inject constructor(
                 printerManager.disconnect(config)
                 _printerStatus.value = PrinterStatus.DISCONNECTED
                 clearConnectingUiTimeout()
-                Log.d("SettingsViewModel", "已断开打印机连接: ${config.name}")
+                UiLog.d("SettingsViewModel", "已断开打印机连接: ${config.name}")
             } catch (e: Exception) {
                 Log.e("SettingsViewModel", "断开打印机连接失败", e)
             }
@@ -801,7 +802,7 @@ class SettingsViewModel @Inject constructor(
                     }
                 }
                 
-                Log.d(TAG, "成功保存打印机配置: $config")
+                UiLog.d(TAG, "成功保存打印机配置: $config")
             } catch (e: Exception) {
                 Log.e(TAG, "保存打印机配置失败", e)
             }
@@ -816,7 +817,7 @@ class SettingsViewModel @Inject constructor(
         val currentConfig = _currentPrinterConfig.value
         if (currentConfig != null) {
             _currentPrinterConfig.value = currentConfig.copy(autoCut = autoCut)
-            Log.d(TAG, "更新打印机自动切纸设置: ${currentConfig.name}, autoCut=$autoCut")
+            UiLog.d(TAG, "更新打印机自动切纸设置: ${currentConfig.name}, autoCut=$autoCut")
         }
     }
 
@@ -837,7 +838,7 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 settingsRepository.deletePrinterConfig(printerId)
-                Log.d("SettingsViewModel", "删除打印机配置: $printerId")
+                UiLog.d("SettingsViewModel", "删除打印机配置: $printerId")
                 
                 // 刷新打印机列表
                 loadPrinterConfigs()
@@ -878,7 +879,7 @@ class SettingsViewModel @Inject constructor(
     suspend fun chineseTestPrint(config: PrinterConfig): Boolean {
         return withContext(Dispatchers.IO) {
             try {
-                Log.d(TAG, "开始中文测试打印")
+                UiLog.d(TAG, "开始中文测试打印")
                 
                 // 1. 准备阶段 - 设置UI状态
                 prepareForPrinting()
@@ -897,7 +898,7 @@ class SettingsViewModel @Inject constructor(
                     _connectionErrorMessage.value = "中文测试打印失败"
                 }
                 
-                Log.d(TAG, "中文测试打印${if (success) "成功" else "失败"}")
+                UiLog.d(TAG, "中文测试打印${if (success) "成功" else "失败"}")
                 return@withContext success
                 
             } catch (e: Exception) {
@@ -916,7 +917,7 @@ class SettingsViewModel @Inject constructor(
     private fun prepareForPrinting() {
         _isPrinting.value = true
         _connectionErrorMessage.value = null
-        Log.d(TAG, "准备打印，状态已重置")
+        UiLog.d(TAG, "准备打印，状态已重置")
     }
     
     /**
@@ -926,16 +927,16 @@ class SettingsViewModel @Inject constructor(
      */
     private suspend fun connectToPrinter(config: PrinterConfig): Boolean {
         try {
-            Log.d(TAG, "检查打印机连接状态")
+            UiLog.d(TAG, "检查打印机连接状态")
             
             // 如果打印机已连接，则直接返回成功
             if (_printerStatus.value == PrinterStatus.CONNECTED) {
-                Log.d(TAG, "打印机已连接")
+                UiLog.d(TAG, "打印机已连接")
                 return true
             }
             
             // 尝试连接打印机
-            Log.d(TAG, "打印机未连接，尝试连接: ${config.name}")
+            UiLog.d(TAG, "打印机未连接，尝试连接: ${config.name}")
             val connected = printerManager.connect(config)
             
             if (!connected) {
@@ -945,7 +946,7 @@ class SettingsViewModel @Inject constructor(
                 return false
             }
             
-            Log.d(TAG, "打印机连接成功")
+            UiLog.d(TAG, "打印机连接成功")
             return true
         } catch (e: Exception) {
             Log.e(TAG, "连接打印机异常", e)
@@ -962,7 +963,7 @@ class SettingsViewModel @Inject constructor(
      */
     private suspend fun executePrintingAndHandleResult(config: PrinterConfig): Boolean {
         return try {
-            Log.d(TAG, "执行测试打印内容生成")
+            UiLog.d(TAG, "执行测试打印内容生成")
             
             // 执行测试打印
             val success = withContext(Dispatchers.IO) {
@@ -971,7 +972,7 @@ class SettingsViewModel @Inject constructor(
             
             // 处理打印结果
             if (success) {
-                Log.d(TAG, "测试打印成功完成")
+                UiLog.d(TAG, "测试打印成功完成")
                 _connectionErrorMessage.value = null
                 true
             } else {
@@ -1029,7 +1030,7 @@ class SettingsViewModel @Inject constructor(
                 _storePhone.value = settingsRepository.getStorePhoneFlow().first()
                 _currencySymbol.value = settingsRepository.getCurrencySymbolFlow().first()
                 
-                Log.d("SettingsViewModel", "加载商店信息成功")
+                UiLog.d("SettingsViewModel", "加载商店信息成功")
             } catch (e: Exception) {
                 Log.e("SettingsViewModel", "加载商店信息失败", e)
             }
@@ -1041,7 +1042,7 @@ class SettingsViewModel @Inject constructor(
             try {
                 settingsRepository.setStoreName(name)
                 _storeName.value = name
-                Log.d("SettingsViewModel", "更新商店名称: $name")
+                UiLog.d("SettingsViewModel", "更新商店名称: $name")
             } catch (e: Exception) {
                 Log.e("SettingsViewModel", "更新商店名称失败", e)
             }
@@ -1053,7 +1054,7 @@ class SettingsViewModel @Inject constructor(
             try {
                 settingsRepository.setStoreAddress(address)
                 _storeAddress.value = address
-                Log.d("SettingsViewModel", "更新商店地址: $address")
+                UiLog.d("SettingsViewModel", "更新商店地址: $address")
             } catch (e: Exception) {
                 Log.e("SettingsViewModel", "更新商店地址失败", e)
             }
@@ -1065,7 +1066,7 @@ class SettingsViewModel @Inject constructor(
             try {
                 settingsRepository.setStorePhone(phone)
                 _storePhone.value = phone
-                Log.d("SettingsViewModel", "更新商店电话: $phone")
+                UiLog.d("SettingsViewModel", "更新商店电话: $phone")
             } catch (e: Exception) {
                 Log.e("SettingsViewModel", "更新商店电话失败", e)
             }
@@ -1077,7 +1078,7 @@ class SettingsViewModel @Inject constructor(
             try {
                 settingsRepository.setCurrencySymbol(symbol)
                 _currencySymbol.value = symbol
-                Log.d("SettingsViewModel", "更新货币符号: $symbol")
+                UiLog.d("SettingsViewModel", "更新货币符号: $symbol")
             } catch (e: Exception) {
                 Log.e("SettingsViewModel", "更新货币符号失败", e)
             }
@@ -1095,7 +1096,7 @@ class SettingsViewModel @Inject constructor(
      */
     fun stopScanning() {
         _isScanning.value = false
-        Log.d("SettingsViewModel", "手动停止蓝牙扫描")
+        UiLog.d("SettingsViewModel", "手动停止蓝牙扫描")
     }
 
     /**
@@ -1116,7 +1117,7 @@ class SettingsViewModel @Inject constructor(
                 _defaultTemplateType.value = settingsRepository.getDefaultPrintTemplate()
                 // _inventoryAlerts.value = settingsRepository.getInventoryAlerts()
                 // _dailyBackup.value = settingsRepository.getDailyBackup()
-                Log.d(TAG, "成功加载自动化设置: autoPrint=${_automaticPrinting.value}, defaultTemplate=${_defaultTemplateType.value}")
+                UiLog.d(TAG, "成功加载自动化设置: autoPrint=${_automaticPrinting.value}, defaultTemplate=${_defaultTemplateType.value}")
             } catch (e: Exception) {
                 Log.e(TAG, "加载自动化设置失败", e)
             }
@@ -1135,7 +1136,7 @@ class SettingsViewModel @Inject constructor(
                 // settingsRepository.saveAutomaticOrderProcessing(_automaticOrderProcessing.value)
                 // settingsRepository.saveInventoryAlerts(_inventoryAlerts.value)
                 // settingsRepository.saveDailyBackup(_dailyBackup.value)
-                Log.d(TAG, "成功保存自动化设置: autoPrint=${_automaticPrinting.value}, defaultTemplate=${_defaultTemplateType.value}")
+                UiLog.d(TAG, "成功保存自动化设置: autoPrint=${_automaticPrinting.value}, defaultTemplate=${_defaultTemplateType.value}")
             } catch (e: Exception) {
                 Log.e(TAG, "保存自动化设置失败", e)
             }
@@ -1147,7 +1148,9 @@ class SettingsViewModel @Inject constructor(
      */
     fun updateAutomaticPrinting(enabled: Boolean) {
         _automaticPrinting.value = enabled
-        saveAutomationSettings()
+        viewModelScope.launch {
+            settingsRepository.setAutoPrintEnabled(enabled)
+        }
     }
 
     /**
@@ -1171,7 +1174,7 @@ class SettingsViewModel @Inject constructor(
                 settingsRepository.saveDefaultAutoPrintTemplateId(templateId)
                 // 保存模板类型（向后兼容）
                 settingsRepository.saveDefaultTemplateType(templateType)
-                Log.d(TAG, "保存默认自动打印模板: ID=$templateId, Type=$templateType")
+                UiLog.d(TAG, "保存默认自动打印模板: ID=$templateId, Type=$templateType")
             } catch (e: Exception) {
                 Log.e(TAG, "保存默认自动打印模板失败: ${e.message}")
             }
@@ -1199,7 +1202,7 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 settingsRepository.saveTemplatePrintCopies(printCopies)
-                Log.d(TAG, "保存模板打印份数: $printCopies")
+                UiLog.d(TAG, "保存模板打印份数: $printCopies")
             } catch (e: Exception) {
                 Log.e(TAG, "保存模板打印份数失败: ${e.message}")
             }
@@ -1216,7 +1219,7 @@ class SettingsViewModel @Inject constructor(
                 putExtra(BackgroundPollingService.EXTRA_RESTART_POLLING, true)
             }
             ContextCompat.startForegroundService(context, intent)
-            Log.d(TAG, "已发送重启轮询请求给服务")
+            UiLog.d(TAG, "已发送重启轮询请求给服务")
         } catch (e: Exception) {
             Log.e(TAG, "通知服务重启轮询失败: ${e.message}", e)
         }
@@ -1227,7 +1230,7 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 settingsRepository.setDefaultPrintTemplate(templateType)
-                Log.d(TAG, "保存默认模板类型: $templateType")
+                UiLog.d(TAG, "保存默认模板类型: $templateType")
             } catch (e: Exception) {
                 Log.e(TAG, "保存默认模板类型失败: ${e.message}")
             }
@@ -1291,7 +1294,7 @@ class SettingsViewModel @Inject constructor(
      */
     fun handleQrCodeResult(result: String) {
         try {
-            Log.d(TAG, "处理二维码扫描结果: ${result.take(30)}...")
+            UiLog.d(TAG, "处理二维码扫描结果: ${result.take(30)}...")
             
             // 检查是否是wooauto://开头的特定格式
             if (result.startsWith("wooauto://")) {
@@ -1311,7 +1314,7 @@ class SettingsViewModel @Inject constructor(
                     // 保存设置
                     saveSettings()
                     
-                    Log.d(TAG, "二维码数据解析成功: URL=${qrData.url}, Key=${qrData.key?.take(10)}..., Secret=${qrData.secret?.take(10)}...")
+                    UiLog.d(TAG, "二维码数据解析成功: URL=${qrData.url}, Key=${qrData.key?.take(10)}..., Secret=${qrData.secret?.take(10)}...")
                 } catch (e: Exception) {
                     Log.e(TAG, "解析二维码JSON数据失败: ${e.message}")
                     // 如果JSON解析失败，则直接使用整个结果作为URL
@@ -1320,7 +1323,7 @@ class SettingsViewModel @Inject constructor(
             } else {
                 // 不是特定格式，直接作为URL使用
                 _siteUrl.value = result.trim()
-                Log.d(TAG, "使用普通URL格式: ${result.take(30)}...")
+                UiLog.d(TAG, "使用普通URL格式: ${result.take(30)}...")
             }
         } catch (e: Exception) {
             Log.e(TAG, "处理二维码扫描结果出错", e)
@@ -1348,7 +1351,7 @@ class SettingsViewModel @Inject constructor(
      */
     private fun updateStatusMessage(message: String) {
         _connectionErrorMessage.value = message
-        Log.d(TAG, "状态消息更新: $message")
+        UiLog.d(TAG, "状态消息更新: $message")
         
         // 3秒后清除消息
         viewModelScope.launch {
@@ -1426,9 +1429,9 @@ class SettingsViewModel @Inject constructor(
                     _isCheckingUpdate.value = false
                     
                     if (updateInfo.needsUpdate()) {
-                        Log.d(TAG, "发现新版本: ${updateInfo.latestVersion.toVersionString()}, 当前版本: ${updateInfo.currentVersion.toVersionString()}")
+                        UiLog.d(TAG, "发现新版本: ${updateInfo.latestVersion.toVersionString()}, 当前版本: ${updateInfo.currentVersion.toVersionString()}")
                     } else {
-                        Log.d(TAG, "当前已是最新版本: ${updateInfo.currentVersion.toVersionString()}")
+                        UiLog.d(TAG, "当前已是最新版本: ${updateInfo.currentVersion.toVersionString()}")
                     }
                 }
             } catch (e: Exception) {
@@ -1477,7 +1480,7 @@ class SettingsViewModel @Inject constructor(
                 // 可以保存到设置
                 settingsRepository.setAutoUpdate(enabled)
                 
-                Log.d(TAG, "自动更新设置为: $enabled")
+                UiLog.d(TAG, "自动更新设置为: $enabled")
             } catch (e: Exception) {
                 Log.e(TAG, "设置自动更新失败", e)
             }
@@ -1490,7 +1493,7 @@ class SettingsViewModel @Inject constructor(
     fun downloadUpdate() {
         val updateInfo = _updateInfo.value
         if (updateInfo == null || !updateInfo.needsUpdate()) {
-            Log.d(TAG, "无更新可下载或版本已是最新")
+            UiLog.d(TAG, "无更新可下载或版本已是最新")
             return
         }
         
@@ -1563,7 +1566,7 @@ class SettingsViewModel @Inject constructor(
                 _soundVolume.value = soundSettings.notificationVolume
                 _soundType.value = soundSettings.soundType
                 _soundEnabled.value = soundSettings.soundEnabled
-                Log.d("SettingsViewModel", "加载声音设置成功: 音量=${soundSettings.notificationVolume}, 类型=${soundSettings.soundType}, 启用=${soundSettings.soundEnabled}")
+                UiLog.d("SettingsViewModel", "加载声音设置成功: 音量=${soundSettings.notificationVolume}, 类型=${soundSettings.soundType}, 启用=${soundSettings.soundEnabled}")
             } catch (e: Exception) {
                 Log.e("SettingsViewModel", "加载声音设置失败", e)
             }
@@ -1592,12 +1595,12 @@ class SettingsViewModel @Inject constructor(
     fun refreshSoundSettings() {
         viewModelScope.launch {
             try {
-                Log.d(TAG, "[声音设置刷新] 开始刷新声音设置...")
+                UiLog.d(TAG, "[声音设置刷新] 开始刷新声音设置...")
                 val soundSettings = settingsRepository.getSoundSettings()
                 _soundVolume.value = soundSettings.notificationVolume
                 _soundType.value = soundSettings.soundType
                 _soundEnabled.value = soundSettings.soundEnabled
-                Log.d(TAG, "[声音设置刷新] 刷新声音设置成功: 音量=${soundSettings.notificationVolume}, 类型=${soundSettings.soundType}, 启用=${soundSettings.soundEnabled}")
+                UiLog.d(TAG, "[声音设置刷新] 刷新声音设置成功: 音量=${soundSettings.notificationVolume}, 类型=${soundSettings.soundType}, 启用=${soundSettings.soundEnabled}")
             } catch (e: Exception) {
                 Log.e(TAG, "[声音设置刷新] 刷新声音设置失败", e)
             }
@@ -1615,7 +1618,7 @@ class SettingsViewModel @Inject constructor(
                 // 立即更新一次许可证状态文本
                 updateLicenseStatusTextFromEligibility(licenseManager.eligibilityInfo.value)
                 
-                Log.d(TAG, "许可证信息加载完成: 资格状态=${licenseManager.eligibilityInfo.value?.status}")
+                UiLog.d(TAG, "许可证信息加载完成: 资格状态=${licenseManager.eligibilityInfo.value?.status}")
             } catch (e: Exception) {
                 Log.e(TAG, "加载许可证信息失败", e)
             }
@@ -1677,7 +1680,7 @@ class SettingsViewModel @Inject constructor(
                     }
                 }
                 
-                Log.d(TAG, "基于资格状态更新许可证文本: ${_licenseStatusText.value}, isLicensed=${eligibilityInfo.isLicensed}, endDate=${eligibilityInfo.licenseEndDate}")
+                UiLog.d(TAG, "基于资格状态更新许可证文本: ${_licenseStatusText.value}, isLicensed=${eligibilityInfo.isLicensed}, endDate=${eligibilityInfo.licenseEndDate}")
             } catch (e: Exception) {
                 Log.e(TAG, "基于资格状态更新文本失败", e)
                 _licenseStatusText.value = context.getString(R.string.license_status_unverified)
@@ -1699,9 +1702,9 @@ class SettingsViewModel @Inject constructor(
     fun revalidateLicenseStatus() {
         viewModelScope.launch {
             try {
-                Log.d(TAG, "开始重新验证许可证状态")
+                UiLog.d(TAG, "开始重新验证许可证状态")
                 val isValid = licenseManager.forceRevalidateAndSync(context)
-                Log.d(TAG, "许可证重新验证完成: $isValid")
+                UiLog.d(TAG, "许可证重新验证完成: $isValid")
             } catch (e: Exception) {
                 Log.e(TAG, "重新验证许可证状态失败", e)
             }

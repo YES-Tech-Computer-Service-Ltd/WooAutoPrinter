@@ -4,6 +4,7 @@ import com.example.wooauto.data.remote.dto.MetaDataDto
 import com.google.gson.stream.JsonReader
 import com.google.gson.stream.JsonToken
 import android.util.Log
+import com.example.wooauto.utils.UiLog
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -22,7 +23,7 @@ class MetadataProcessorRegistry {
         // 防止重复注册
         if (processors.none { it.processorId == processor.processorId }) {
             processors.add(processor)
-            Log.d("MetadataProcessorRegistry", "注册处理器: ${processor.processorId}")
+            UiLog.d("MetadataProcessorRegistry", "注册处理器: ${processor.processorId}")
         }
     }
     
@@ -177,7 +178,7 @@ class MetadataProcessorRegistry {
      * 注册默认的处理器
      */
     fun initialize() {
-        Log.d("MetadataProcessorRegistry", "初始化元数据处理器注册表")
+        UiLog.d("MetadataProcessorRegistry", "初始化元数据处理器注册表")
         
         // 注册默认处理器
         registerProcessor(DefaultMetadataProcessor())

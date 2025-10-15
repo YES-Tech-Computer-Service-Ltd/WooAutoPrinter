@@ -1,6 +1,7 @@
 package com.example.wooauto.di
 
 import android.util.Log
+import com.example.wooauto.utils.UiLog
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import com.example.wooauto.data.remote.adapters.CategoryDtoTypeAdapter
@@ -103,7 +104,7 @@ class NetworkModule {
                 level = HttpLoggingInterceptor.Level.BODY
             }
 
-            Log.d("NetworkModule", "配置OkHttpClient，强制使用HTTP/1.1协议以避免HTTP/2 PROTOCOL_ERROR")
+            UiLog.d("NetworkModule", "配置OkHttpClient，强制使用HTTP/1.1协议以避免HTTP/2 PROTOCOL_ERROR")
 
             // 创建信任所有证书的SSL套接字工厂
             val trustAllCerts = arrayOf<javax.net.ssl.TrustManager>(object : javax.net.ssl.X509TrustManager {
@@ -116,10 +117,10 @@ class NetworkModule {
             val sslContext = try {
                 // 优先尝试TLS 1.3（安卓10+）
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-                    Log.d("NetworkModule", "使用TLS 1.3协议")
+                    UiLog.d("NetworkModule", "使用TLS 1.3协议")
                     javax.net.ssl.SSLContext.getInstance("TLSv1.3")
                 } else {
-                    Log.d("NetworkModule", "使用TLS 1.2协议")
+                    UiLog.d("NetworkModule", "使用TLS 1.2协议")
                     javax.net.ssl.SSLContext.getInstance("TLSv1.2")
                 }
             } catch (e: Exception) {
@@ -136,7 +137,7 @@ class NetworkModule {
             val sslSocketFactory = sslContext.socketFactory
 
             // 收集一些网络状态信息
-            Log.d("NetworkModule", "系统信息: ${System.getProperty("os.version")}, SDK: ${android.os.Build.VERSION.SDK_INT}")
+            UiLog.d("NetworkModule", "系统信息: ${System.getProperty("os.version")}, SDK: ${android.os.Build.VERSION.SDK_INT}")
 
             val builder = OkHttpClient.Builder()
                 .addInterceptor(loggingInterceptor)
@@ -190,7 +191,7 @@ class NetworkModule {
                 }
             }
             
-            Log.d("NetworkModule", "原始站点URL: $baseUrl")
+            UiLog.d("NetworkModule", "原始站点URL: $baseUrl")
             
             // 构建API基础URL
             val apiBaseUrl = if (baseUrl.contains("wp-json/wc/v3")) {
@@ -205,7 +206,7 @@ class NetworkModule {
                 }
             }
             
-            Log.d("NetworkModule", "创建Retrofit实例，baseUrl: $apiBaseUrl")
+            UiLog.d("NetworkModule", "创建Retrofit实例，baseUrl: $apiBaseUrl")
             
             try {
                 return Retrofit.Builder()
@@ -219,7 +220,7 @@ class NetworkModule {
                 
                 // 尝试进一步清理URL
                 val cleanUrl = apiBaseUrl.replace(Regex("\\s+"), "")
-                Log.d("NetworkModule", "尝试清理后的URL: $cleanUrl")
+                UiLog.d("NetworkModule", "尝试清理后的URL: $cleanUrl")
                 
                 return Retrofit.Builder()
                     .baseUrl(cleanUrl)
@@ -271,7 +272,7 @@ class NetworkModule {
             val remoteConfig = runBlocking {
                 try {
                     val converted = config.toRemoteConfig()
-                    Log.d("NetworkModule", "成功转换WooCommerce配置: $converted")
+                    UiLog.d("NetworkModule", "成功转换WooCommerce配置: $converted")
                     converted
                 } catch (e: Exception) {
                     Log.e("NetworkModule", "转换配置失败，使用空配置: ${e.message}", e)
@@ -279,7 +280,7 @@ class NetworkModule {
                 }
             }
             
-            Log.d("NetworkModule", "创建WooCommerceApi，使用统一配置源")
+            UiLog.d("NetworkModule", "创建WooCommerceApi，使用统一配置源")
             return WooCommerceApiImpl(remoteConfig, sslErrorInterceptor, connectionResetHandler)
         }
 

@@ -9,6 +9,7 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.util.Log
+import com.example.wooauto.utils.UiLog
 import android.view.WindowManager
 import android.view.WindowInsets
 import android.view.WindowInsetsController
@@ -132,7 +133,7 @@ class MainActivity : AppCompatActivity(), OrderNotificationManager.NotificationC
         val grantedPermissions = permissions.filterValues { it }.keys.toList()
         
         if (deniedPermissions.isEmpty()) {
-            Log.d(TAG, "所有请求的权限已授予")
+            UiLog.d(TAG, "所有请求的权限已授予")
         } else {
             Log.w(TAG, "以下权限被拒绝: ${deniedPermissions.joinToString(", ")}")
             
@@ -167,7 +168,7 @@ class MainActivity : AppCompatActivity(), OrderNotificationManager.NotificationC
         }
         
         if (grantedPermissions.isNotEmpty()) {
-            Log.d(TAG, "以下权限已授予: ${grantedPermissions.joinToString(", ")}")
+            UiLog.d(TAG, "以下权限已授予: ${grantedPermissions.joinToString(", ")}")
         }
     }
     
@@ -181,7 +182,6 @@ class MainActivity : AppCompatActivity(), OrderNotificationManager.NotificationC
         splash.setKeepOnScreenCondition {
             val elapsed = System.currentTimeMillis() - startTime
             // 资格检查、首个数据快照与语言就绪后尽快放行；硬上限 800ms
-            val app = application as com.example.wooauto.WooAutoApplication
             val softReady = true // 语言已在 Application 初始化；Compose 首屏无阻塞
             val timeGuard = elapsed < 800
             softReady && timeGuard
@@ -284,16 +284,16 @@ class MainActivity : AppCompatActivity(), OrderNotificationManager.NotificationC
     
     // 实现NotificationCallback接口
     override fun onNewOrderReceived(order: Order, totalCount: Int) {
-        Log.d(TAG, "[UI] onNewOrderReceived id=${order.id} #${order.number} total=$totalCount ts=${System.currentTimeMillis()}")
+        UiLog.d(TAG, "[UI] onNewOrderReceived id=${order.id} #${order.number} total=$totalCount ts=${System.currentTimeMillis()}")
         val incoming = if (totalCount <= 0) 1 else totalCount
         if (showNewOrderDialog && currentNewOrder != null) {
             // 弹窗已显示：累计增加数量，并更新展示的订单为最新
-            Log.d(TAG, "[UI] 弹窗已显示，叠加计数 +$incoming")
+            UiLog.d(TAG, "[UI] 弹窗已显示，叠加计数 +$incoming")
             currentPendingOrderCount += incoming
             currentNewOrder = order
         } else {
             // 弹窗未显示：以本批数量为基准
-            Log.d(TAG, "[UI] 弹窗未显示，准备显示全屏弹窗 count=$incoming")
+            UiLog.d(TAG, "[UI] 弹窗未显示，准备显示全屏弹窗 count=$incoming")
             currentPendingOrderCount = incoming
             currentNewOrder = order
             showNewOrderDialog = true
@@ -335,14 +335,14 @@ class MainActivity : AppCompatActivity(), OrderNotificationManager.NotificationC
         
         // 记录缺少的权限
         if (missingPermissions.isNotEmpty()) {
-            Log.d(TAG, "应用缺少以下权限: ${missingPermissions.joinToString(", ")}")
+            UiLog.d(TAG, "应用缺少以下权限: ${missingPermissions.joinToString(", ")}")
         } else {
-            Log.d(TAG, "所有必要权限已获取")
+            UiLog.d(TAG, "所有必要权限已获取")
         }
         
         // 请求所有缺少的权限
         if (permissionsToRequest.isNotEmpty()) {
-            Log.d(TAG, "正在请求以下权限: ${permissionsToRequest.joinToString(", ")}")
+            UiLog.d(TAG, "正在请求以下权限: ${permissionsToRequest.joinToString(", ")}")
             requestPermissionsLauncher.launch(permissionsToRequest.toTypedArray())
         }
     }
@@ -366,7 +366,7 @@ class MainActivity : AppCompatActivity(), OrderNotificationManager.NotificationC
      * 可以在扫描蓝牙等功能失败时调用
      */
     fun requestAllPermissions() {
-        Log.d(TAG, "外部组件请求权限")
+        UiLog.d(TAG, "外部组件请求权限")
         requestRequiredPermissions()
     }
     
@@ -378,7 +378,7 @@ class MainActivity : AppCompatActivity(), OrderNotificationManager.NotificationC
             try {
                 // 监听屏幕常亮设置的变化
                 settingsRepository.getKeepScreenOn().collect { keepOn ->
-                    Log.d(TAG, "屏幕常亮设置变更: $keepOn")
+                    UiLog.d(TAG, "屏幕常亮设置变更: $keepOn")
                     isKeepScreenOnEnabled = keepOn
                     updateScreenOnState(keepOn)
                 }
@@ -396,11 +396,11 @@ class MainActivity : AppCompatActivity(), OrderNotificationManager.NotificationC
             if (keepOn) {
                 // 保持屏幕常亮
                 window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-                Log.d(TAG, "已启用屏幕常亮")
+                UiLog.d(TAG, "已启用屏幕常亮")
             } else {
                 // 取消屏幕常亮
                 window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-                Log.d(TAG, "已禁用屏幕常亮")
+                UiLog.d(TAG, "已禁用屏幕常亮")
             }
         } catch (e: Exception) {
             Log.e(TAG, "更新屏幕常亮状态失败", e)
@@ -488,11 +488,7 @@ fun NewOrderPopup(
     onStartProcessing: () -> Unit
 ) {
     rememberScrollState()
-    val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
-    val formattedDate = dateFormat.format(order.dateCreated)
-    
-    // 计算商品总数
-    val totalItems = order.items.sumOf { it.quantity }
+    // 已移除未使用的日期格式化与统计变量
     
     // 用于区分自动关闭和手动关闭的状态
     var isAutoClose by remember { mutableStateOf(false) }

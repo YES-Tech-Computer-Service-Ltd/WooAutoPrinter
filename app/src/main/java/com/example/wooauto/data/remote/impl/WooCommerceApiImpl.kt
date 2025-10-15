@@ -1,6 +1,7 @@
 package com.example.wooauto.data.remote.impl
 
 import android.util.Log
+import com.example.wooauto.utils.UiLog
 import com.example.wooauto.data.remote.WooCommerceApi
 import com.example.wooauto.data.remote.WooCommerceConfig
 import com.example.wooauto.data.remote.adapters.CategoryDtoTypeAdapter
@@ -62,7 +63,7 @@ class WooCommerceApiImpl(
             }
         }
         
-        Log.d("WooCommerceApiImpl", "初始化WooCommerceApiImpl的OkHttpClient，强制使用HTTP/1.1协议")
+        UiLog.d("WooCommerceApiImpl", "初始化WooCommerceApiImpl的OkHttpClient，强制使用HTTP/1.1协议")
         
         // 创建信任所有证书的SSL套接字工厂
         val trustAllCerts = arrayOf<javax.net.ssl.TrustManager>(object : javax.net.ssl.X509TrustManager {
@@ -192,7 +193,7 @@ class WooCommerceApiImpl(
                         if (currentRetry > 0) {
                             // 使用指数退避延迟：1秒，2秒，4秒...
                             val delayMs = (2f.pow(currentRetry - 1) * 1000).toLong()
-                            Log.d("WooCommerceApiImpl", "重试请求，延迟 $delayMs ms")
+                            UiLog.d("WooCommerceApiImpl", "重试请求，延迟 $delayMs ms")
                             delay(delayMs)
                         }
                         
@@ -215,7 +216,7 @@ class WooCommerceApiImpl(
                         queryParams.forEach { (key, value) ->
                             // 特殊处理状态参数，确保以正确格式添加
                             if (key == "status") {
-                                Log.d("WooCommerceApiImpl", "【URL构建】添加状态参数值: '$value'")
+                                UiLog.d("WooCommerceApiImpl", "【URL构建】添加状态参数值: '$value'")
                                 // 直接使用addQueryParameter而不是addEncodedQueryParameter避免可能的编码问题
                                 urlBuilder.addQueryParameter(key, value)
                             } else {
@@ -228,7 +229,7 @@ class WooCommerceApiImpl(
                         val fullUrl = urlBuilder.build().toString()
                         // 仅在关键情况记录URL
                         if (BuildConfig.DEBUG && false) { // 添加false条件使其不执行
-                            Log.d("WooCommerceApiImpl", "【URL构建】最终URL: $fullUrl")
+                            UiLog.d("WooCommerceApiImpl", "【URL构建】最终URL: $fullUrl")
                         }
                         
                         // 注释掉状态参数监控的特别日志
@@ -263,7 +264,7 @@ class WooCommerceApiImpl(
                                     // 处理集合类型
                                     when {
                                         isListOfOrderDto<T>() -> {
-                                            Log.d("WooCommerceApiImpl", "解析List<OrderDto>类型响应")
+                                            UiLog.d("WooCommerceApiImpl", "解析List<OrderDto>类型响应")
                                             gson.fromJson<T>(responseBody, orderDtoListType)
                                         }
                                         else -> {
@@ -274,15 +275,15 @@ class WooCommerceApiImpl(
                                 }
                                 // 处理单个对象类型
                                 T::class == OrderDto::class -> {
-                                    Log.d("WooCommerceApiImpl", "解析OrderDto类型响应")
+                                    UiLog.d("WooCommerceApiImpl", "解析OrderDto类型响应")
                                     gson.fromJson(responseBody, OrderDto::class.java) as T
                                 }
                                 T::class == ProductDto::class -> {
-                                    Log.d("WooCommerceApiImpl", "解析ProductDto类型响应")
+                                    UiLog.d("WooCommerceApiImpl", "解析ProductDto类型响应")
                                     gson.fromJson(responseBody, ProductDto::class.java) as T
                                 }
                                 T::class == CategoryDto::class -> {
-                                    Log.d("WooCommerceApiImpl", "解析CategoryDto类型响应")
+                                    UiLog.d("WooCommerceApiImpl", "解析CategoryDto类型响应")
                                     gson.fromJson(responseBody, CategoryDto::class.java) as T
                                 }
                                 // 默认处理
@@ -372,7 +373,7 @@ class WooCommerceApiImpl(
                     .post(requestBody)
                     .build()
                 
-                Log.d("API请求", "POST ${urlBuilder.build()} - $jsonBody")
+                UiLog.d("API请求", "POST ${urlBuilder.build()} - $jsonBody")
                 
                 val response = client.newCall(request).execute()
                 val responseBody = response.body?.string() ?: throw Exception("响应体为空")
@@ -417,7 +418,7 @@ class WooCommerceApiImpl(
     }
     
     override suspend fun updateProduct(id: Long, data: Map<String, Any>): ProductDto {
-        Log.d("WooCommerceApiImpl", "更新产品 ID:$id 使用PATCH请求，数据: $data")
+        UiLog.d("WooCommerceApiImpl", "更新产品 ID:$id 使用PATCH请求，数据: $data")
         return executePatchRequest("products/$id", data)
     }
     
@@ -443,7 +444,7 @@ class WooCommerceApiImpl(
         
         // 记录请求的状态，并进行处理
         val requestedStatus = status?.trim()?.lowercase()
-        Log.d("WooCommerceApiImpl", "【API请求】请求订单，原始状态: $status, 处理后: $requestedStatus")
+        UiLog.d("WooCommerceApiImpl", "【API请求】请求订单，原始状态: $status, 处理后: $requestedStatus")
         
         // 添加状态参数到请求 - 确保格式正确（WooCommerce API期望单个字符串，不是数组）
         if (!requestedStatus.isNullOrBlank()) {
@@ -451,7 +452,7 @@ class WooCommerceApiImpl(
             val validStatuses = listOf("pending", "processing", "on-hold", "completed", "cancelled", "refunded", "failed", "trash", "any")
             
             if (validStatuses.contains(requestedStatus)) {
-                Log.d("WooCommerceApiImpl", "【API请求】添加有效状态过滤: '$requestedStatus'")
+                UiLog.d("WooCommerceApiImpl", "【API请求】添加有效状态过滤: '$requestedStatus'")
                 queryParams["status"] = requestedStatus  // 直接使用单个字符串状态值
             } else {
                 // 检查是否是中文状态，尝试映射为英文
@@ -468,7 +469,7 @@ class WooCommerceApiImpl(
                 // 尝试映射中文状态
                 val mappedStatus = statusMap[requestedStatus]
                 if (mappedStatus != null) {
-                    Log.d("WooCommerceApiImpl", "【API请求】将中文状态 '$requestedStatus' 映射为 '$mappedStatus'")
+                    UiLog.d("WooCommerceApiImpl", "【API请求】将中文状态 '$requestedStatus' 映射为 '$mappedStatus'")
                     queryParams["status"] = mappedStatus
                 } else {
                     Log.w("WooCommerceApiImpl", "【API请求】忽略无效的状态值: '$requestedStatus'")
@@ -477,19 +478,19 @@ class WooCommerceApiImpl(
         }
 
         // 添加调试日志，输出完整查询参数
-        Log.d("WooCommerceApiImpl", "【API请求】订单查询参数: $queryParams")
+        UiLog.d("WooCommerceApiImpl", "【API请求】订单查询参数: $queryParams")
         
         // 尝试不带过滤条件获取订单 - 测试用
         if (requestedStatus != null && queryParams.containsKey("status")) {
             try {
-                Log.d("WooCommerceApiImpl", "【API请求】尝试先不带状态过滤条件获取订单")
+                UiLog.d("WooCommerceApiImpl", "【API请求】尝试先不带状态过滤条件获取订单")
                 val basicParams = mutableMapOf(
                     "page" to page.toString(),
                     "per_page" to perPage.toString()
                 )
                 val result = executeGetRequest<List<OrderDto>>("orders", basicParams)
                 if (result.isNotEmpty()) {
-                    Log.d("WooCommerceApiImpl", "【API请求】不带状态参数成功获取到 ${result.size} 个订单")
+                    UiLog.d("WooCommerceApiImpl", "【API请求】不带状态参数成功获取到 ${result.size} 个订单")
                     // 在本地过滤结果
                     return result.filter { it.status == requestedStatus }
                 }
@@ -512,7 +513,7 @@ class WooCommerceApiImpl(
     
     // 添加一个备用方法，在标准解析失败时尝试手动解析JSON提取订单数据
     private fun extractOrdersManually(jsonString: String): List<OrderDto> {
-        Log.d("WooCommerceApiImpl", "【订单调试】尝试手动解析订单数据")
+        UiLog.d("WooCommerceApiImpl", "【订单调试】尝试手动解析订单数据")
         val orders = mutableListOf<OrderDto>()
         
         try {
@@ -617,7 +618,7 @@ class WooCommerceApiImpl(
                 }
             }
             
-            Log.d("WooCommerceApiImpl", "【订单调试】手动解析完成: 成功=${successCount}, 失败=${failCount}, 总计=${orders.size}")
+            UiLog.d("WooCommerceApiImpl", "【订单调试】手动解析完成: 成功=${successCount}, 失败=${failCount}, 总计=${orders.size}")
             
         } catch (e: Exception) {
             Log.e("WooCommerceApiImpl", "【订单调试】手动解析全部失败: ${e.message}", e)
@@ -655,7 +656,7 @@ class WooCommerceApiImpl(
         params.forEach { (key, value) ->
             // 检查是否是状态参数且不为空
             if (key == "status" && value.isNotEmpty()) {
-                Log.d("WooCommerceApiImpl", "【参数修复】处理状态参数: $value")
+                UiLog.d("WooCommerceApiImpl", "【参数修复】处理状态参数: $value")
                 
                 // 检查状态是否是有效的WooCommerce状态
                 val validStatuses = listOf("pending", "processing", "on-hold", "completed", "cancelled", "refunded", "failed", "trash", "any")
@@ -663,7 +664,7 @@ class WooCommerceApiImpl(
                 if (validStatuses.contains(value.lowercase())) {
                     // 是有效状态，正常添加
                     queryParams[key] = value.lowercase()
-                    Log.d("WooCommerceApiImpl", "【参数修复】添加有效状态: ${value.lowercase()}")
+                    UiLog.d("WooCommerceApiImpl", "【参数修复】添加有效状态: ${value.lowercase()}")
                 } else {
                     // 尝试映射中文状态
                     val statusMap = mapOf(
@@ -679,7 +680,7 @@ class WooCommerceApiImpl(
                     val mappedStatus = statusMap[value]
                     if (mappedStatus != null) {
                         queryParams[key] = mappedStatus
-                        Log.d("WooCommerceApiImpl", "【参数修复】将中文状态 '$value' 映射为 '$mappedStatus'")
+                        UiLog.d("WooCommerceApiImpl", "【参数修复】将中文状态 '$value' 映射为 '$mappedStatus'")
                     } else {
                         // 如果无法识别，不添加此参数
                         Log.w("WooCommerceApiImpl", "【参数修复】忽略无效的状态值: '$value'")
@@ -691,7 +692,7 @@ class WooCommerceApiImpl(
             }
         }
         
-        Log.d("WooCommerceApiImpl", "【API请求】带自定义参数查询订单，最终参数: $queryParams")
+        UiLog.d("WooCommerceApiImpl", "【API请求】带自定义参数查询订单，最终参数: $queryParams")
         return executeGetRequest("orders", queryParams)
     }
 
@@ -712,12 +713,12 @@ class WooCommerceApiImpl(
                     .patch(requestBody)
                     .build()
                 
-                Log.d("API请求", "PATCH ${urlBuilder.build()} - 请求体: $jsonBody")
+                UiLog.d("API请求", "PATCH ${urlBuilder.build()} - 请求体: $jsonBody")
                 
                 val response = client.newCall(request).execute()
                 val responseBody = response.body?.string() ?: throw Exception("响应体为空")
                 
-                Log.d("API响应", "PATCH ${urlBuilder.build()} - 状态码: ${response.code} - 响应体: $responseBody")
+                UiLog.d("API响应", "PATCH ${urlBuilder.build()} - 状态码: ${response.code} - 响应体: $responseBody")
                 
                 if (!response.isSuccessful) {
                     Log.e("API错误", "HTTP错误: ${response.code} - 响应体: $responseBody")

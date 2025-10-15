@@ -31,6 +31,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.navArgument
 import android.util.Log
+import com.example.wooauto.utils.UiLog
 import androidx.annotation.RequiresApi
 import com.example.wooauto.licensing.LicenseDataStore
 import com.example.wooauto.presentation.components.WooAppBar
@@ -106,7 +107,7 @@ class WooAutoApp {
 
             // 添加日志以追踪语言状态变化
             LaunchedEffect(currentLocale) {
-                Log.d(TAG, "语言状态更新: ${currentLocale.language}, ${currentLocale.displayName}")
+                UiLog.d(TAG, "语言状态更新: ${currentLocale.language}, ${currentLocale.displayName}")
             }
 
             // 使用key包装整个UI树，确保语言变化时整个UI树重新构建
@@ -147,7 +148,7 @@ fun AppContent() {
 
     // 添加日志跟踪导航变化
     LaunchedEffect(currentRoute) {
-        Log.d(TAG, "导航状态: 当前路由='$currentRoute', 当前语言=${locale.language}")
+        UiLog.d(TAG, "导航状态: 当前路由='$currentRoute', 当前语言=${locale.language}")
     }
 
     // ===== 统一资格验证 =====
@@ -165,17 +166,17 @@ fun AppContent() {
             licenseManager.verifyLicense(context, coroutineScope) { isValid ->
                 hasEligibility.value = isValid
                 isEligibilityChecked.value = true
-                Log.d("AppContent", "统一资格检查完成: hasEligibility = ${hasEligibility.value}")
+                UiLog.d("AppContent", "统一资格检查完成: hasEligibility = ${hasEligibility.value}")
             }
             
             // 添加超时保护
             delay(10000) // 最多等待10秒
             if (!isEligibilityChecked.value) {
-                Log.w("AppContent", "资格检查超时，强制完成")
+                UiLog.w("AppContent", "资格检查超时，强制完成")
                 isEligibilityChecked.value = true
             }
         } catch (e: Exception) {
-            Log.e("AppContent", "资格检查异常: ${e.message}", e)
+            UiLog.e("AppContent", "资格检查异常: ${e.message}", e)
             hasEligibility.value = false
             isEligibilityChecked.value = true
         }
@@ -244,7 +245,7 @@ fun AppContent() {
                     LaunchedEffect(Unit) {
                         delay(10000)
                         if (!isEligibilityChecked.value) {
-                            Log.w("AppContent", "资格检查超时，强制完成")
+                            UiLog.w("AppContent", "资格检查超时，强制完成")
                             isEligibilityChecked.value = true
                         }
                     }
@@ -260,7 +261,7 @@ fun AppContent() {
                 val startDestination = try {
                     NavigationItem.getDefaultRoute()
                 } catch (e: Exception) {
-                    Log.e(TAG, "获取默认路由失败，使用硬编码路由: ${e.message}", e)
+                    UiLog.e(TAG, "获取默认路由失败，使用硬编码路由: ${e.message}", e)
                     NavigationItem.Orders.route
                 }
 
@@ -282,23 +283,23 @@ fun AppContent() {
                             onLicenseActivated = {
                                 coroutineScope.launch {
                                     try {
-                                        Log.d("AppContent", "License activated, updating states")
+                                        UiLog.d("AppContent", "License activated, updating states")
                                         LicenseDataStore.setLicensed(context, true)
                                         isEligibilityChecked.value = true
                                         hasEligibility.value = true
                                         val savedLicensed = LicenseDataStore.isLicensed(context).first()
-                                        Log.d("AppContent", "Post-activation state - isLicensed: $savedLicensed")
+                                        UiLog.d("AppContent", "Post-activation state - isLicensed: $savedLicensed")
                                         if (savedLicensed) {
-                                            Log.d("AppContent", "States updated successfully, navigating to OrdersScreen")
+                                            UiLog.d("AppContent", "States updated successfully, navigating to OrdersScreen")
                                             navController.navigate(NavigationItem.Orders.route) {
                                                 popUpTo(0) { inclusive = true }
                                                 launchSingleTop = true
                                             }
                                         } else {
-                                            Log.e("AppContent", "State update failed - isLicensed: $savedLicensed")
+                                            UiLog.e("AppContent", "State update failed - isLicensed: $savedLicensed")
                                         }
                                     } catch (e: Exception) {
-                                        Log.e("AppContent", "Failed to update states after activation: ${e.message}", e)
+                                        UiLog.e("AppContent", "Failed to update states after activation: ${e.message}", e)
                                     }
                                 }
                             }
@@ -306,7 +307,7 @@ fun AppContent() {
                     }
 
                     composable(NavigationItem.Orders.route) {
-                        Log.d(TAG, "导航到订单页面")
+                        UiLog.d(TAG, "导航到订单页面")
                         // 默认跳转到 orders/active 二级页面
                         navController.navigate(com.example.wooauto.presentation.navigation.Screen.OrdersSection.routeFor("active")) {
                             launchSingleTop = true
@@ -319,7 +320,7 @@ fun AppContent() {
                         arguments = listOf(navArgument("section") { type = NavType.StringType })
                     ) { backStackEntry ->
                         val section = backStackEntry.arguments?.getString("section") ?: "active"
-                        Log.d(TAG, "导航到订单子页面: $section")
+                        UiLog.d(TAG, "导航到订单子页面: $section")
                         when (section) {
                             "active" -> {
                                 com.example.wooauto.presentation.screens.orders.OrdersActivePlaceholderScreen()
@@ -334,12 +335,12 @@ fun AppContent() {
                     }
 
                     composable(NavigationItem.Products.route) {
-                        Log.d(TAG, "导航到产品页面")
+                        UiLog.d(TAG, "导航到产品页面")
                         ProductsScreen(navController = navController)
                     }
 
                     composable(NavigationItem.Settings.route) {
-                        Log.d(TAG, "导航到设置页面")
+                        UiLog.d(TAG, "导航到设置页面")
                         SettingsScreen(navController = navController)
                     }
                     // Settings 子路由：settings/{section}
@@ -347,7 +348,7 @@ fun AppContent() {
                         arguments = listOf(navArgument("section") { type = NavType.StringType })
                     ) { backStackEntry ->
                         val section = backStackEntry.arguments?.getString("section") ?: "general"
-                        Log.d(TAG, "导航到设置子页面: $section")
+                        UiLog.d(TAG, "导航到设置子页面: $section")
                         SettingsScreen(navController = navController)
                     }
 
@@ -361,7 +362,7 @@ fun AppContent() {
                     ) { backStackEntry ->
                         val section = backStackEntry.arguments?.getString("section") ?: "general"
                         val sub = backStackEntry.arguments?.getString("sub") ?: ""
-                        Log.d(TAG, "导航到设置二级页面: $section/$sub")
+                        UiLog.d(TAG, "导航到设置二级页面: $section/$sub")
                         when("$section/$sub") {
                             "general/language" -> {
                                 LanguageSettingsScreen()
@@ -389,7 +390,7 @@ fun AppContent() {
 
                     // 打印机设置页面
                     composable(Screen.PrinterSettings.route) {
-                        Log.d(TAG, "导航到打印机设置页面")
+                        UiLog.d(TAG, "导航到打印机设置页面")
                         PrinterSettingsScreen(
                             navController = navController,
                             onClose = { navController.popBackStack() }
@@ -402,7 +403,7 @@ fun AppContent() {
                         arguments = listOf(navArgument("printerId") { type = NavType.StringType })
                     ) {
                         val printerId = it.arguments?.getString("printerId") ?: "new"
-                        Log.d(TAG, "导航到打印机详情页面")
+                        UiLog.d(TAG, "导航到打印机详情页面")
                         PrinterDetailsScreen(
                             navController = navController,
                             printerId = printerId
@@ -417,7 +418,7 @@ fun AppContent() {
                         arguments = listOf(navArgument("templateId") { type = NavType.StringType })
                     ) {
                         val templateId = it.arguments?.getString("templateId") ?: "default"
-                        Log.d(TAG, "导航到模板预览页面: $templateId")
+                        UiLog.d(TAG, "导航到模板预览页面: $templateId")
                         TemplatePreviewScreen(
                             navController = navController,
                             templateId = templateId
@@ -426,13 +427,13 @@ fun AppContent() {
 
                     // 声音设置页面
                     composable(Screen.SoundSettings.route) {
-                        Log.d(TAG, "导航到声音设置页面")
+                        UiLog.d(TAG, "导航到声音设置页面")
                         SoundSettingsScreen(navController = navController)
                     }
 
                     // 语言设置页面
                     composable(Screen.LanguageSettings.route) {
-                        Log.d(TAG, "导航到语言设置页面")
+                        UiLog.d(TAG, "导航到语言设置页面")
                         LanguageSettingsScreen()
                     }
                 }
@@ -440,7 +441,7 @@ fun AppContent() {
                         // 标记 NavHost 已初始化
                         LaunchedEffect(Unit) {
                             isNavHostInitialized.value = true
-                            Log.d("AppContent", "NavHost initialized")
+                            UiLog.d("AppContent", "NavHost initialized")
                         }
                     }
                 }
@@ -452,7 +453,7 @@ fun AppContent() {
     LaunchedEffect(isEligibilityChecked.value, isNavHostInitialized.value) {
         if (isEligibilityChecked.value && isNavHostInitialized.value && !isInitialNavigationHandled.value) {
             delay(1000)
-            Log.d("AppContent", "资格状态已加载")
+            UiLog.d("AppContent", "资格状态已加载")
             isInitialNavigationHandled.value = true
         }
     }

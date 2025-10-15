@@ -2,6 +2,7 @@ package com.example.wooauto.licensing
 
 import android.util.Log
 import com.example.wooauto.BuildConfig
+import com.example.wooauto.utils.UiLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -42,14 +43,14 @@ object LicenseValidator {
                 "license_key" to licenseKey,
                 "device_id" to deviceId
             )
-            Log.d("LicenseValidator", "Sending validate request: licenseKey=$licenseKey, deviceId=$deviceId")
-            Log.d("LicenseValidator", "API Key: ${BuildConfig.LICENSE_API_KEY}")
-            Log.d("LicenseValidator", "API URL: $API_URL")
+            UiLog.d("LicenseValidator", "Sending validate request: licenseKey=${licenseKey.take(4)}..., deviceId=$deviceId")
+            UiLog.d("LicenseValidator", "API Key: ${BuildConfig.LICENSE_API_KEY.take(4)}...")
+            UiLog.d("LicenseValidator", "API URL: $API_URL")
             
             val startTime = System.currentTimeMillis()
             val response = performPostRequest(parameters)
             val duration = System.currentTimeMillis() - startTime
-            Log.d("LicenseValidator", "Validate response: $response")
+            UiLog.d("LicenseValidator", "Validate response: $response")
 
             if (response.isBlank()) {
                 Log.e("LicenseValidator", "Empty response from server")
@@ -71,7 +72,7 @@ object LicenseValidator {
             val message = json.optString("message", "No message provided")
             val success = result == "success"
 
-            Log.d("LicenseValidator", "Validation result: success=$success, message=$message")
+            UiLog.d("LicenseValidator", "Validation result: success=$success, message=$message")
             LicenseValidationResult(success, message)
         } catch (e: Exception) {
             LicenseValidationResult(false, "Network error: ${e.message}")
@@ -86,11 +87,11 @@ object LicenseValidator {
                 "license_key" to licenseKey,
                 "device_id" to deviceId
             )
-            Log.d("LicenseValidator", "Sending activate request: licenseKey=$licenseKey, deviceId=$deviceId")
-            Log.d("LicenseValidator", "API Key: ${BuildConfig.LICENSE_API_KEY}")
-            Log.d("LicenseValidator", "API URL: $API_URL")
+            UiLog.d("LicenseValidator", "Sending activate request: licenseKey=${licenseKey.take(4)}..., deviceId=$deviceId")
+            UiLog.d("LicenseValidator", "API Key: ${BuildConfig.LICENSE_API_KEY.take(4)}...")
+            UiLog.d("LicenseValidator", "API URL: $API_URL")
             val response = performPostRequest(parameters)
-            Log.d("LicenseValidator", "Activate response: $response")
+            UiLog.d("LicenseValidator", "Activate response: $response")
 
             if (response.isBlank()) {
                 Log.e("LicenseValidator", "Empty response from server")
@@ -126,9 +127,9 @@ object LicenseValidator {
                 "fslm_api_key" to BuildConfig.LICENSE_API_KEY,
                 "license_key" to licenseKey
             )
-            Log.d("LicenseValidator", "Sending details request: licenseKey=$licenseKey")
+            UiLog.d("LicenseValidator", "Sending details request: licenseKey=${licenseKey.take(4)}...")
             val response = performPostRequest(parameters)
-            Log.d("LicenseValidator", "Details response: $response")
+            UiLog.d("LicenseValidator", "Details response: $response")
 
             if (response.isBlank()) {
                 Log.e("LicenseValidator", "Empty response from server")
@@ -148,7 +149,7 @@ object LicenseValidator {
             }
 
             val status = json.getString("license_status")
-            Log.d("LicenseValidator", "License status: $status")
+            UiLog.d("LicenseValidator", "License status: $status")
             
             if (status.equals("sold", ignoreCase = true) || status.equals("active", ignoreCase = true)) {
                 val activationDate = json.optString("activation_date", "")
@@ -161,19 +162,19 @@ object LicenseValidator {
                     if (validDays.isNotEmpty() && validDays != "0") {
                         val days = validDays.toIntOrNull()
                         if (days != null && days > 0) {
-                            Log.d("LicenseValidator", "使用API返回的valid字段: ${days}天")
+                            UiLog.d("LicenseValidator", "使用API返回的valid字段: ${days}天")
                             days
                         } else {
                             // 如果valid字段无效，检查是否为永久许可证
                             if (expirationDate == "0000-00-00" || expirationDate.isEmpty()) {
-                                Log.d("LicenseValidator", "检测到永久许可证(expiration_date=0000-00-00)")
+                                UiLog.d("LicenseValidator", "检测到永久许可证(expiration_date=0000-00-00)")
                                 3650 // 永久许可证设为10年
                             } else {
                                 365 // 默认1年
                             }
                         }
                     } else if (expirationDate == "0000-00-00" || expirationDate.isEmpty()) {
-                        Log.d("LicenseValidator", "检测到永久许可证(无valid字段)")
+                        UiLog.d("LicenseValidator", "检测到永久许可证(无valid字段)")
                         3650 // 永久许可证设为10年
                     } else if (expirationDate.isNotEmpty() && creationDate.isNotEmpty()) {
                         // 作为备选方案，计算expiration_date - creation_date
@@ -183,11 +184,11 @@ object LicenseValidator {
                         if (endDate != null && startDate != null) {
                             val diffInMillis = endDate.time - startDate.time
                             val diffInDays = (diffInMillis / (1000 * 60 * 60 * 24)).toInt()
-                            Log.d("LicenseValidator", "计算得到的有效期: ${diffInDays}天")
+                            UiLog.d("LicenseValidator", "计算得到的有效期: ${diffInDays}天")
                             if (diffInDays > 0) diffInDays else 365
                         } else 365
                     } else {
-                        Log.d("LicenseValidator", "使用默认有效期: 365天")
+                        UiLog.d("LicenseValidator", "使用默认有效期: 365天")
                         365 // 默认一年有效期
                     }
                 } catch (e: Exception) {
@@ -209,7 +210,7 @@ object LicenseValidator {
                 val edition = "Pro"
                 val capabilities = "Full Features"
                 
-                Log.d("LicenseValidator", "Parsed license details: licensedTo=$licensedTo, email=$ownerEmail, validity=$validity days")
+                UiLog.d("LicenseValidator", "Parsed license details: licensedTo=$licensedTo, email=$ownerEmail, validity=$validity days")
                 
                 LicenseDetailsResult.Success(
                     activationDate = activationDate.ifEmpty { creationDate },
@@ -243,15 +244,15 @@ object LicenseValidator {
         val postData = parameters.map { (key, value) ->
             "$key=${URLEncoder.encode(value, StandardCharsets.UTF_8.name())}"
         }.joinToString("&")
-        Log.d("LicenseValidator", "Post data: $postData")
+        UiLog.d("LicenseValidator", "Post data: $postData")
 
         conn.outputStream.use { os: OutputStream ->
             os.write(postData.toByteArray(StandardCharsets.UTF_8))
         }
 
         val responseCode = conn.responseCode
-        Log.d("LicenseValidator", "Response code: $responseCode")
-        Log.d("LicenseValidator", "Response message: ${conn.responseMessage}")
+        UiLog.d("LicenseValidator", "Response code: $responseCode")
+        UiLog.d("LicenseValidator", "Response message: ${conn.responseMessage}")
 
         val response = if (responseCode == HttpURLConnection.HTTP_OK) {
             conn.inputStream.use { input ->

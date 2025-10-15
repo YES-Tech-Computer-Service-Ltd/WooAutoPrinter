@@ -1,6 +1,7 @@
 package com.example.wooauto.data.remote.interceptors
 
 import android.util.Log
+import com.example.wooauto.utils.UiLog
 import okhttp3.Interceptor
 import okhttp3.Response
 import okhttp3.Request
@@ -68,7 +69,7 @@ class SSLErrorInterceptor @Inject constructor() : Interceptor {
                     
                     // 使用更长的指数退避
                     val delayMs = (3.0.pow(retryCount.toDouble()) * 1000).toLong()
-                    Log.d(TAG, "连接重置，等待 $delayMs ms 后重试...")
+                    UiLog.d(TAG, "连接重置，等待 $delayMs ms 后重试...")
                     Thread.sleep(delayMs)
                 } else {
                     if (++retryCount >= MAX_RETRIES) {

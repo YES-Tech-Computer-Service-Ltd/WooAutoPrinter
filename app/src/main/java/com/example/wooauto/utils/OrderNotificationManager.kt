@@ -66,11 +66,11 @@ class OrderNotificationManager @Inject constructor(
     
     init {
         // 在初始化时设置启动静默期，经过一段时间后才开始处理通知
-        Log.d(TAG, "初始化OrderNotificationManager，设置启动静默期: ${APP_STARTUP_QUIET_PERIOD}ms")
+        UiLog.d(TAG, "初始化OrderNotificationManager，设置启动静默期: ${APP_STARTUP_QUIET_PERIOD}ms")
         startupSilenceJob = mainScope.launch {
             delay(APP_STARTUP_QUIET_PERIOD)
             startupSilenceEnded = true
-            Log.d(TAG, "应用启动静默期结束，开始处理通知 (time=${System.currentTimeMillis()})")
+            UiLog.d(TAG, "应用启动静默期结束，开始处理通知 (time=${System.currentTimeMillis()})")
         }
         
         // 启动定期清理任务
@@ -82,7 +82,7 @@ class OrderNotificationManager @Inject constructor(
      */
     fun registerCallback(callback: NotificationCallback) {
         this.callback = callback
-        Log.d(TAG, "注册通知回调: callback=$callback")
+        UiLog.d(TAG, "注册通知回调: callback=$callback")
     }
     
     /**
@@ -90,7 +90,7 @@ class OrderNotificationManager @Inject constructor(
      */
     fun unregisterCallback() {
         this.callback = null
-        Log.d(TAG, "注销通知回调: callback已置空")
+        UiLog.d(TAG, "注销通知回调: callback已置空")
     }
     
     /**
@@ -115,7 +115,7 @@ class OrderNotificationManager @Inject constructor(
                         count++
                     }
                     
-                    Log.d(TAG, "已清理 $count 个过期订单ID记录，当前剩余: ${processedOrderIds.size}")
+                    UiLog.d(TAG, "已清理 $count 个过期订单ID记录，当前剩余: ${processedOrderIds.size}")
                 }
             }
         }
@@ -126,7 +126,7 @@ class OrderNotificationManager @Inject constructor(
      */
     fun registerReceiver() {
         if (newOrderReceiver != null) {
-            Log.d(TAG, "广播接收器已经注册过，不重复注册")
+            UiLog.d(TAG, "广播接收器已经注册过，不重复注册")
             return
         }
         
@@ -142,7 +142,7 @@ class OrderNotificationManager @Inject constructor(
                 val ordersToLoad = existingOrders.filter { it.isRead }.take(MAX_PROCESSED_ORDER_IDS)
                 processedOrderIds.addAll(ordersToLoad.map { it.id })
                 
-                Log.d(TAG, "预加载了 ${processedOrderIds.size} 个已有订单ID，防止重复通知")
+                UiLog.d(TAG, "预加载了 ${processedOrderIds.size} 个已有订单ID，防止重复通知")
             } catch (e: Exception) {
                 Log.e(TAG, "预加载订单ID失败: ${e.message}", e)
             }
@@ -161,7 +161,7 @@ class OrderNotificationManager @Inject constructor(
                     if (orderId != -1L && !isAlreadyProcessed) {
                         // 如果在启动静默期内，只记录ID但不产生通知
                         if (isInStartupPeriod) {
-                            Log.d(TAG, "在应用启动静默期内，记录订单ID但不发送通知: $orderId")
+                            UiLog.d(TAG, "在应用启动静默期内，记录订单ID但不发送通知: $orderId")
                             processedOrderIds.add(orderId)
                             
                             // 确保ID集合不会过大
@@ -186,11 +186,11 @@ class OrderNotificationManager @Inject constructor(
                         // 正常处理通知
                         if (isBatchNotificationEnabled) {
                             // 批量处理模式
-                            Log.d(TAG, "加入批处理队列: $orderId，当前pending=${pendingOrderIds.size}")
+                            UiLog.d(TAG, "加入批处理队列: $orderId，当前pending=${pendingOrderIds.size}")
                             addToPendingOrders(orderId)
                         } else {
                             // 单独处理模式
-                            Log.d(TAG, "单条处理: $orderId")
+                            UiLog.d(TAG, "单条处理: $orderId")
                             loadOrderDetails(orderId)
                         }
                     } else if (isAlreadyProcessed) {
@@ -211,12 +211,12 @@ class OrderNotificationManager @Inject constructor(
                 filter,
                 ContextCompat.RECEIVER_NOT_EXPORTED
             )
-            Log.d(TAG, "使用ContextCompat注册新订单广播接收器")
+            UiLog.d(TAG, "使用ContextCompat注册新订单广播接收器")
         } catch (e: Exception) {
             // 如果ContextCompat方法失败，降级使用传统方法
             try {
                 context.registerReceiver(newOrderReceiver, filter)
-                Log.d(TAG, "降级使用传统方式注册广播接收器")
+                UiLog.d(TAG, "降级使用传统方式注册广播接收器")
             } catch (e2: Exception) {
                 Log.e(TAG, "所有注册方法均失败: ${e2.message}", e2)
             }
@@ -226,7 +226,7 @@ class OrderNotificationManager @Inject constructor(
         try {
             androidx.localbroadcastmanager.content.LocalBroadcastManager.getInstance(context)
                 .registerReceiver(newOrderReceiver!!, filter)
-            Log.d(TAG, "已注册本地新订单广播接收器(LocalBroadcast)")
+            UiLog.d(TAG, "已注册本地新订单广播接收器(LocalBroadcast)")
         } catch (e: Exception) {
             Log.w(TAG, "注册本地广播接收器失败: ${e.message}")
         }
@@ -256,18 +256,18 @@ class OrderNotificationManager @Inject constructor(
             val pendingIds = pendingOrderIds.keys.toList()
             pendingOrderIds.clear()
             
-            Log.d(TAG, "[Batch] 开始批量处理 pending=${pendingIds.size} ts=${System.currentTimeMillis()}")
+            UiLog.d(TAG, "[Batch] 开始批量处理 pending=${pendingIds.size} ts=${System.currentTimeMillis()}")
             
             if (pendingIds.isNotEmpty()) {
                 // 获取所有订单详情
                 val orders = mutableListOf<Order>()
                 
                 for (orderId in pendingIds) {
-                    Log.d(TAG, "[Batch] 加载详情 id=$orderId")
+                    UiLog.d(TAG, "[Batch] 加载详情 id=$orderId")
                     withContext(Dispatchers.IO) {
                         orderRepository.getOrderById(orderId)
                     }?.let { order ->
-                        Log.d(TAG, "[Batch] 已加载订单: id=${order.id} #${order.number} status=${order.status} isRead=${order.isRead}")
+                        UiLog.d(TAG, "[Batch] 已加载订单: id=${order.id} #${order.number} status=${order.status} isRead=${order.isRead}")
                         orders.add(order)
                     }
                 }
@@ -277,20 +277,20 @@ class OrderNotificationManager @Inject constructor(
                     val newestOrder = orders.maxByOrNull { it.dateCreated.time }
                     val hasUiCallback = (callback != null)
                     val keepRinging = try { soundManager.isKeepRingingUntilAcceptEnabled() } catch (_: Exception) { false }
-                    Log.d(TAG, "[Batch] 条件: hasUiCallback=$hasUiCallback keepRinging=$keepRinging orders=${orders.size} ts=${System.currentTimeMillis()}")
+                    UiLog.d(TAG, "[Batch] 条件: hasUiCallback=$hasUiCallback keepRinging=$keepRinging orders=${orders.size} ts=${System.currentTimeMillis()}")
                     if (hasUiCallback) {
                         newestOrder?.let { order ->
-                            Log.d(TAG, "[Batch] 回调UI: id=${order.id} #${order.number} total=${orders.size}")
+                            UiLog.d(TAG, "[Batch] 回调UI: id=${order.id} #${order.number} total=${orders.size}")
                             callback?.onNewOrderReceived(order, orders.size)
                         }
                         // UI 已就绪，交由 UI 控制声音（内部会根据设置决定是否持续）
-                        try { soundManager.playOrderNotificationSound(); Log.d(TAG, "[Sound] 已触发播放通知音") } catch (e: Exception) { Log.e(TAG, "[Sound] 播放失败: ${e.message}") }
+                        try { soundManager.playOrderNotificationSound(); UiLog.d(TAG, "[Sound] 已触发播放通知音") } catch (e: Exception) { Log.e(TAG, "[Sound] 播放失败: ${e.message}") }
                     } else {
                         // 无UI时不再播放任何声音，避免无法关闭
                         Log.w(TAG, "[Batch] UI回调不存在，跳过声音播放与弹窗，仅依赖系统通知")
                     }
                 } else if (!startupSilenceEnded) {
-                    Log.d(TAG, "[Batch] 启动静默期内，跳过通知声音和UI显示 count=${orders.size}")
+                    UiLog.d(TAG, "[Batch] 启动静默期内，跳过通知声音和UI显示 count=${orders.size}")
                 }
             }
         } catch (e: Exception) {
@@ -315,14 +315,14 @@ class OrderNotificationManager @Inject constructor(
         if (receiver != null) {
             try {
                 context.unregisterReceiver(receiver)
-                Log.d(TAG, "已注销新订单全局广播接收器")
+                UiLog.d(TAG, "已注销新订单全局广播接收器")
             } catch (e: Exception) {
                 Log.e(TAG, "注销全局广播接收器失败: ${e.message}", e)
             }
             try {
                 androidx.localbroadcastmanager.content.LocalBroadcastManager.getInstance(context)
                     .unregisterReceiver(receiver)
-                Log.d(TAG, "已注销本地新订单广播接收器(LocalBroadcast)")
+                UiLog.d(TAG, "已注销本地新订单广播接收器(LocalBroadcast)")
             } catch (_: Exception) {}
             newOrderReceiver = null
         }
@@ -338,20 +338,20 @@ class OrderNotificationManager @Inject constructor(
     private fun loadOrderDetails(orderId: Long) {
         mainScope.launch {
             try {
-                Log.d(TAG, "开始加载订单详情: $orderId")
+                UiLog.d(TAG, "开始加载订单详情: $orderId")
                 val order = withContext(Dispatchers.IO) {
                     orderRepository.getOrderById(orderId)
                 }
                 
                 if (order != null) {
-                    Log.d(TAG, "成功加载订单详情: #${order.number}")
+                    UiLog.d(TAG, "成功加载订单详情: #${order.number}")
                     
                     // 只有在不在启动静默期时才播放声音和发送通知
                     if (startupSilenceEnded) {
                         soundManager.playOrderNotificationSound()
                         callback?.onNewOrderReceived(order, 1)
                     } else {
-                        Log.d(TAG, "在启动静默期内，记录但不通知: #${order.number}")
+                        UiLog.d(TAG, "在启动静默期内，记录但不通知: #${order.number}")
                     }
                 } else {
                     Log.e(TAG, "加载订单详情失败，未找到订单: $orderId")
@@ -372,7 +372,7 @@ class OrderNotificationManager @Inject constructor(
                     orderRepository.markOrderAsRead(orderId)
                 }
                 if (success) {
-                    Log.d(TAG, "成功标记订单为已读: $orderId")
+                    UiLog.d(TAG, "成功标记订单为已读: $orderId")
                     // 用户接单或关闭提示时，停止可能的持续响铃
                     soundManager.stopAllSounds()
                 } else {
@@ -394,7 +394,7 @@ class OrderNotificationManager @Inject constructor(
                     orderRepository.markOrderAsPrinted(orderId)
                 }
                 if (success) {
-                    Log.d(TAG, "成功标记订单为已打印: $orderId")
+                    UiLog.d(TAG, "成功标记订单为已打印: $orderId")
                     // 刷新订单数据
                     val updatedOrder = withContext(Dispatchers.IO) {
                         orderRepository.getOrderById(orderId)
@@ -418,6 +418,6 @@ class OrderNotificationManager @Inject constructor(
      */
     fun clearProcessedIds() {
         processedOrderIds.clear()
-        Log.d(TAG, "已清除所有处理过的订单ID")
+        UiLog.d(TAG, "已清除所有处理过的订单ID")
     }
 } 

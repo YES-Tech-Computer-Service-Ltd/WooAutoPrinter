@@ -1,6 +1,7 @@
 package com.example.wooauto.presentation.screens.products
 
 import android.util.Log
+import com.example.wooauto.utils.UiLog
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -83,7 +84,7 @@ fun ProductsScreen(
     navController: NavController,
     viewModel: ProductsViewModel = hiltViewModel()
 ) {
-    Log.d("ProductsScreen", "ProductsScreen 初始化")
+    UiLog.d("ProductsScreen", "ProductsScreen 初始化")
     
     // 添加一个安全状态，用于捕获组合过程中的任何未处理错误
     var hasCompositionError by remember { mutableStateOf(false) }
@@ -92,7 +93,7 @@ fun ProductsScreen(
     // 使用LaunchedEffect执行简单的一次性初始化
     LaunchedEffect(Unit) {
         // 初始化操作，无需try-catch块，因为没有长时间运行的操作
-        Log.d("ProductsScreen", "ProductsScreen组件初始化")
+        UiLog.d("ProductsScreen", "ProductsScreen组件初始化")
     }
     
     // 监听导航到许可证设置页面的状态
@@ -180,7 +181,8 @@ private fun ProductsScreenContent(
     val categories by viewModel.categories.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
     val selectedProduct by viewModel.selectedProduct.collectAsState()
-    val isRefreshing by viewModel.refreshing.collectAsState()
+    // 订阅刷新状态以触发必要重组（不直接使用值避免告警）
+    val _ = viewModel.refreshing.collectAsState()
     val shouldResetScroll by viewModel.shouldResetScroll.collectAsState()
 
     
@@ -198,7 +200,7 @@ private fun ProductsScreenContent(
         val searchJob = eventScope.launch {
             EventBus.searchEvents.collect { event ->
                 if (event.screenRoute == NavigationItem.Products.route) {
-                    Log.d("ProductsScreen", "收到搜索事件：${event.query}")
+                    UiLog.d("ProductsScreen", "收到搜索事件：${event.query}")
                     searchQuery = event.query
                     if (event.query.isEmpty()) {
                         viewModel.filterProductsByCategory(selectedCategoryId)
@@ -213,7 +215,7 @@ private fun ProductsScreenContent(
         val refreshJob = eventScope.launch {
             EventBus.refreshEvents.collect { event ->
                 if (event.screenRoute == NavigationItem.Products.route) {
-                    Log.d("ProductsScreen", "收到刷新事件")
+                    UiLog.d("ProductsScreen", "收到刷新事件")
                     viewModel.refreshData()
                 }
             }
@@ -223,14 +225,14 @@ private fun ProductsScreenContent(
         onDispose {
             searchJob.cancel()
             refreshJob.cancel()
-            Log.d("ProductsScreen", "清理事件订阅协程")
+            UiLog.d("ProductsScreen", "清理事件订阅协程")
         }
     }
     
     // 当进入此屏幕时执行刷新操作 - 仅当配置有效时触发一次
     LaunchedEffect(key1 = isConfigured) {
         if (isConfigured) {
-            Log.d("ProductsScreen", "配置有效，检查并刷新数据")
+            UiLog.d("ProductsScreen", "配置有效，检查并刷新数据")
             viewModel.checkAndRefreshConfig()
         }
     }
@@ -239,7 +241,7 @@ private fun ProductsScreenContent(
     var isInitialized by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         if (!isInitialized) {
-            Log.d("ProductsScreen", "初始化产品页面，确保从顶部开始显示")
+            UiLog.d("ProductsScreen", "初始化产品页面，确保从顶部开始显示")
             isInitialized = true
         }
     }
@@ -279,7 +281,7 @@ private fun ProductsScreenContent(
                 // 如果延迟后错误消息仍然存在且不在加载中，才显示错误界面
                 if (errorMessage != null && !isLoading) {
                     showErrorScreen = true
-                    Log.d("ProductsScreen", "显示错误界面: $errorMessage")
+                    UiLog.d("ProductsScreen", "显示错误界面: $errorMessage")
                 }
             }
         } else {
@@ -290,7 +292,7 @@ private fun ProductsScreenContent(
         onDispose {
             // 取消延迟作业
             delayJob?.cancel()
-            Log.d("ProductsScreen", "取消错误延迟显示")
+            UiLog.d("ProductsScreen", "取消错误延迟显示")
         }
     }
     
@@ -335,7 +337,7 @@ private fun ProductsScreenContent(
             timeoutJob = timeoutScope.launch {
                 kotlinx.coroutines.delay(3000)  // 减少超时时间
                 if (isSwitchingCategory) {
-                    Log.d("ProductsScreen", "切换分类超时，自动重置状态")
+                    UiLog.d("ProductsScreen", "切换分类超时，自动重置状态")
                     isSwitchingCategory = false
                     fadeTransition = 1f
                     // 如果加载状态也卡住了，也重置它
@@ -349,7 +351,7 @@ private fun ProductsScreenContent(
         onDispose {
             // 取消超时作业
             timeoutJob?.cancel()
-            Log.d("ProductsScreen", "取消分类切换超时")
+            UiLog.d("ProductsScreen", "取消分类切换超时")
         }
     }
     
@@ -360,7 +362,7 @@ private fun ProductsScreenContent(
     LaunchedEffect(currentSelectedCategoryId) {
         if (currentSelectedCategoryId != selectedCategoryId) {
             selectedCategoryId = currentSelectedCategoryId
-            Log.d("ProductsScreen", "同步分类ID: $selectedCategoryId")
+            UiLog.d("ProductsScreen", "同步分类ID: $selectedCategoryId")
         }
     }
     
@@ -371,7 +373,8 @@ private fun ProductsScreenContent(
     }
     
     // 获取当前语言环境
-    val locale = LocalAppLocale.current
+    // 订阅当前Locale变化以触发必要重组（不直接使用值）
+    val __ = LocalContext.current.resources.configuration
     
     // 使用Surface包装Scaffold，避免布局问题
     androidx.compose.material3.Surface(
@@ -434,7 +437,7 @@ private fun ProductsScreenContent(
                                         fadeTransition = 0.7f
                                     }
                                     selectedCategoryId = id
-                                    Log.d("ProductsScreen", "选择产品分类: ID=${id}, 名称='$name'")
+                                    UiLog.d("ProductsScreen", "选择产品分类: ID=${id}, 名称='$name'")
                                     viewModel.filterProductsByCategory(id)
                                 },
                                 onProductClick = { productId ->
@@ -650,8 +653,7 @@ fun ProductsContent(
     // 添加LazyVerticalGrid的滚动状态管理
     val gridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
     
-    // 添加协程作用域用于滚动控制
-    val coroutineScope = rememberCoroutineScope()
+    // 需要作用域时再创建，避免未使用告警
     
     // 当产品数据更新时，滚动到顶部
     LaunchedEffect(products.size, selectedCategoryId) {
@@ -659,7 +661,7 @@ fun ProductsContent(
             try {
                 // 平滑滚动到顶部
                 gridState.animateScrollToItem(0)
-                Log.d("ProductsScreen", "产品数据更新，滚动到顶部")
+                UiLog.d("ProductsScreen", "产品数据更新，滚动到顶部")
             } catch (e: Exception) {
                 // 如果动画滚动失败，尝试直接滚动
                 try {
@@ -675,7 +677,7 @@ fun ProductsContent(
     LaunchedEffect(shouldResetScroll) {
         if (shouldResetScroll) {
             try {
-                Log.d("ProductsScreen", "响应ViewModel滚动重置请求")
+                UiLog.d("ProductsScreen", "响应ViewModel滚动重置请求")
                 // 立即滚动到顶部（不使用动画，更快响应）
                 gridState.scrollToItem(0)
                 // 通知ViewModel已处理滚动重置
