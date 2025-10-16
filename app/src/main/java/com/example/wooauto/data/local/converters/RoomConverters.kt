@@ -2,7 +2,6 @@ package com.example.wooauto.data.local.converters
 
 import androidx.room.TypeConverter
 import com.example.wooauto.data.local.entities.CategoryEntity
-import com.example.wooauto.data.local.entities.OrderItemEntity
 import com.example.wooauto.data.local.entities.OrderLineItemEntity
 import com.example.wooauto.data.local.entities.ProductAttributeEntity
 import com.example.wooauto.data.local.entities.WooFoodInfoEntity
@@ -10,7 +9,6 @@ import com.example.wooauto.data.local.entities.FeeLineEntity
 import com.example.wooauto.data.local.entities.TaxLineEntity
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
-import java.util.Date
 
 /**
  * Room数据库类型转换器
@@ -19,17 +17,6 @@ import java.util.Date
 class RoomConverters {
     private val gson = Gson()
 
-    // Date转换
-    @TypeConverter
-    fun fromTimestamp(value: Long?): Date? {
-        return value?.let { Date(it) }
-    }
-
-    @TypeConverter
-    fun dateToTimestamp(date: Date?): Long? {
-        return date?.time
-    }
-    
     // 通用的字符串列表转换器
     @TypeConverter
     fun listToJson(value: List<String>): String {
@@ -40,19 +27,6 @@ class RoomConverters {
     fun jsonToList(value: String): List<String> {
         if (value.isBlank()) return emptyList()
         val listType = object : TypeToken<List<String>>() {}.type
-        return gson.fromJson(value, listType)
-    }
-
-    // Long列表转换
-    @TypeConverter
-    fun longListToJson(value: List<Long>): String {
-        return gson.toJson(value)
-    }
-
-    @TypeConverter
-    fun jsonToLongList(value: String): List<Long> {
-        if (value.isBlank()) return emptyList()
-        val listType = object : TypeToken<List<Long>>() {}.type
         return gson.fromJson(value, listType)
     }
 
@@ -79,19 +53,6 @@ class RoomConverters {
     fun jsonToProductAttributeList(value: String?): List<ProductAttributeEntity>? {
         if (value == null) return null
         val type = object : TypeToken<List<ProductAttributeEntity>>() {}.type
-        return gson.fromJson(value, type)
-    }
-
-    // OrderItemEntity列表转换
-    @TypeConverter
-    fun orderItemListToJson(value: List<OrderItemEntity>): String {
-        return gson.toJson(value)
-    }
-    
-    @TypeConverter
-    fun jsonToOrderItemList(value: String): List<OrderItemEntity> {
-        if (value.isBlank()) return emptyList()
-        val type = object : TypeToken<List<OrderItemEntity>>() {}.type
         return gson.fromJson(value, type)
     }
 
