@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.util.Log
+import com.example.wooauto.utils.UiLog
 import okhttp3.Interceptor
 import okhttp3.Response
 import java.io.IOException
@@ -37,19 +38,19 @@ class NetworkStatusInterceptor @Inject constructor(
         val request = when (networkInfo.type) {
             NetworkType.WIFI -> {
                 // Wi-Fi网络，使用正常超时
-                Log.d(TAG, "当前使用Wi-Fi网络，使用标准请求策略")
+                UiLog.d(TAG, "当前使用Wi-Fi网络，使用标准请求策略")
                 originalRequest
             }
             NetworkType.MOBILE -> {
                 // 移动网络，延长超时
-                Log.d(TAG, "当前使用移动网络，调整请求策略以优化性能")
+                UiLog.d(TAG, "当前使用移动网络，调整请求策略以优化性能")
                 originalRequest.newBuilder()
                     .header("X-Network-Type", "mobile")
                     .build()
             }
             NetworkType.OTHER -> {
                 // 其他网络（如以太网），使用正常超时
-                Log.d(TAG, "当前使用其他类型网络")
+                UiLog.d(TAG, "当前使用其他类型网络")
                 originalRequest
             }
             NetworkType.NONE -> {

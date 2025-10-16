@@ -3,6 +3,7 @@ package com.example.wooauto.initialization
 import android.content.Context
 import android.content.Intent
 import android.util.Log
+import com.example.wooauto.utils.UiLog
 import androidx.core.content.ContextCompat
 import com.example.wooauto.domain.repositories.DomainSettingRepository
 import com.example.wooauto.service.BackgroundPollingService
@@ -35,7 +36,7 @@ class InitializationManager @Inject constructor(
     fun startInitialization() {
         initScope.launch {
             try {
-                Log.d(TAG, "【初始化管理器】开始应用初始化流程")
+                UiLog.d(TAG, "【初始化管理器】开始应用初始化流程")
                 
                 // 步骤1：加载基础配置
                 loadBasicConfiguration()
@@ -46,7 +47,7 @@ class InitializationManager @Inject constructor(
                 // 步骤3：在配置完成后启动服务
                 startServices()
                 
-                Log.d(TAG, "【初始化管理器】应用初始化流程完成")
+                UiLog.d(TAG, "【初始化管理器】应用初始化流程完成")
             } catch (e: Exception) {
                 Log.e(TAG, "【初始化管理器】初始化过程失败", e)
             }
@@ -57,22 +58,22 @@ class InitializationManager @Inject constructor(
      * 加载基础配置
      */
     private suspend fun loadBasicConfiguration() {
-        Log.d(TAG, "【初始化管理器】步骤1：加载基础配置")
+        UiLog.d(TAG, "【初始化管理器】步骤1：加载基础配置")
         
         try {
             // 预加载关键配置，确保服务启动时可用
             withTimeoutOrNull(5000) {
                 // 读取WooCommerce配置
                 val config = settingsRepository.getWooCommerceConfig()
-                Log.d(TAG, "【初始化管理器】预加载配置: 轮询间隔=${config.pollingInterval}秒")
+                UiLog.d(TAG, "【初始化管理器】预加载配置: 轮询间隔=${config.pollingInterval}秒")
                 
                 // 读取其他关键配置
                 val hasDefaultPrinter = settingsRepository.getDefaultPrinterConfig() != null
-                Log.d(TAG, "【初始化管理器】是否有默认打印机: $hasDefaultPrinter")
+                UiLog.d(TAG, "【初始化管理器】是否有默认打印机: $hasDefaultPrinter")
             }
             
             configurationLoaded = true
-            Log.d(TAG, "【初始化管理器】基础配置加载完成")
+            UiLog.d(TAG, "【初始化管理器】基础配置加载完成")
         } catch (e: Exception) {
             Log.e(TAG, "【初始化管理器】基础配置加载失败: ${e.message}")
             // 即使失败也继续，使用默认配置
@@ -84,13 +85,13 @@ class InitializationManager @Inject constructor(
      * 准备权限检查（不立即执行）
      */
     private fun preparePermissionChecks() {
-        Log.d(TAG, "【初始化管理器】步骤2：准备权限检查")
+        UiLog.d(TAG, "【初始化管理器】步骤2：准备权限检查")
         
         // 权限检查将在用户首次使用相关功能时进行
         // 这里只是标记准备完成
         permissionsChecked = true
         
-        Log.d(TAG, "【初始化管理器】权限检查准备完成")
+        UiLog.d(TAG, "【初始化管理器】权限检查准备完成")
     }
     
     /**
@@ -102,14 +103,14 @@ class InitializationManager @Inject constructor(
             return
         }
         
-        Log.d(TAG, "【初始化管理器】步骤3：启动服务")
+        UiLog.d(TAG, "【初始化管理器】步骤3：启动服务")
         
         try {
             // 检查是否应该启动后台服务
             val shouldStartService = shouldStartBackgroundService()
             
             if (shouldStartService) {
-                Log.d(TAG, "【初始化管理器】启动后台轮询服务")
+                UiLog.d(TAG, "【初始化管理器】启动后台轮询服务")
                 val serviceIntent = Intent(context, BackgroundPollingService::class.java)
                 // 兼容低版本：使用 ContextCompat，根据系统版本自动选择 startService/startForegroundService
                 try {
@@ -119,11 +120,11 @@ class InitializationManager @Inject constructor(
                     context.startService(serviceIntent)
                 }
             } else {
-                Log.d(TAG, "【初始化管理器】配置未完成，暂不启动后台服务")
+                UiLog.d(TAG, "【初始化管理器】配置未完成，暂不启动后台服务")
             }
             
             servicesStarted = true
-            Log.d(TAG, "【初始化管理器】服务启动完成")
+            UiLog.d(TAG, "【初始化管理器】服务启动完成")
         } catch (e: Exception) {
             Log.e(TAG, "【初始化管理器】服务启动失败: ${e.message}")
         }
@@ -141,7 +142,7 @@ class InitializationManager @Inject constructor(
             val hasConsumerSecret = config.consumerSecret.isNotBlank()
             
             val hasBasicConfig = hasSiteUrl && hasConsumerKey && hasConsumerSecret
-            Log.d(TAG, "【初始化管理器】基础配置检查: URL=$hasSiteUrl, Key=$hasConsumerKey, Secret=$hasConsumerSecret")
+            UiLog.d(TAG, "【初始化管理器】基础配置检查: URL=$hasSiteUrl, Key=$hasConsumerKey, Secret=$hasConsumerSecret")
             
             hasBasicConfig
         } catch (e: Exception) {
@@ -156,7 +157,7 @@ class InitializationManager @Inject constructor(
     fun restartServices() {
         initScope.launch {
             try {
-                Log.d(TAG, "【初始化管理器】重启服务")
+                UiLog.d(TAG, "【初始化管理器】重启服务")
                 
                 // 发送重启轮询的广播
                 val intent = Intent(context, BackgroundPollingService::class.java)
@@ -167,7 +168,7 @@ class InitializationManager @Inject constructor(
                     context.startService(intent)
                 }
                 
-                Log.d(TAG, "【初始化管理器】服务重启完成")
+                UiLog.d(TAG, "【初始化管理器】服务重启完成")
             } catch (e: Exception) {
                 Log.e(TAG, "【初始化管理器】服务重启失败: ${e.message}")
             }

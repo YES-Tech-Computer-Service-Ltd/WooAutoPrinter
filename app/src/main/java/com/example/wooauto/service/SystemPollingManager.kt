@@ -6,6 +6,7 @@ import com.example.wooauto.BuildConfig
 import com.example.wooauto.domain.models.PrinterConfig
 import com.example.wooauto.domain.printer.PrinterManager
 import com.example.wooauto.domain.printer.PrinterStatus
+import com.example.wooauto.utils.UiLog
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -54,11 +55,11 @@ class SystemPollingManager @Inject constructor(
 
 	private fun startNetworkHeartbeat() {
 		if (networkHeartbeatJob?.isActive == true) return
-		if (BuildConfig.DEBUG) Log.d(TAG, "系统轮询/网络：启动网络心跳")
+		UiLog.d(TAG, "系统轮询/网络：启动网络心跳")
 		networkHeartbeatJob = scope.launch {
 			while (isActive) {
 				try {
-					if (BuildConfig.DEBUG) Log.d(TAG, "系统轮询/网络：执行网络心跳")
+					UiLog.d(TAG, "系统轮询/网络：执行网络心跳")
 					// 此处保留空实现：原网络心跳逻辑仍在 BackgroundPollingService 中
 					// 迁移时由服务改为委托本管理器或直接在此实现
 				} catch (e: Exception) {
@@ -72,11 +73,11 @@ class SystemPollingManager @Inject constructor(
 
 	private fun startWatchdog() {
 		if (watchdogJob?.isActive == true) return
-		if (BuildConfig.DEBUG) Log.d(TAG, "系统轮询/看门狗：启动")
+		UiLog.d(TAG, "系统轮询/看门狗：启动")
 		watchdogJob = scope.launch {
 			while (isActive) {
 				try {
-					if (BuildConfig.DEBUG) Log.d(TAG, "系统轮询/看门狗：检查轮询健康")
+					UiLog.d(TAG, "系统轮询/看门狗：检查轮询健康")
 					// 此处保留空实现：原看门狗逻辑仍在 BackgroundPollingService 中
 				} catch (e: Exception) {
 					Log.e(TAG, "系统轮询/看门狗：异常: ${e.message}", e)
@@ -89,7 +90,7 @@ class SystemPollingManager @Inject constructor(
 
 	private fun startPrinterHealth(defaultPrinterProvider: suspend () -> PrinterConfig?) {
 		if (printerHealthJob?.isActive == true) return
-		Log.d(TAG, "系统轮询/打印机：启动")
+		UiLog.d(TAG, "系统轮询/打印机：启动")
 		printerHealthJob = scope.launch {
 			while (isActive) {
 				try {

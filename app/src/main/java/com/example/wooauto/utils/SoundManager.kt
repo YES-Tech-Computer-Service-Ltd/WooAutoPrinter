@@ -30,6 +30,7 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
 import com.google.android.exoplayer2.audio.AudioAttributes as ExoAudioAttributes
+import com.example.wooauto.utils.UiLog
 
 /**
  * 声音管理器 - 极限音量增强版
@@ -174,13 +175,13 @@ class SoundManager @Inject constructor(
             try {
                 systemNotificationUri =
                     RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-                Log.d(TAG, "成功获取系统默认通知音效URI")
+                UiLog.d(TAG, "成功获取系统默认通知音效URI")
             } catch (e: Exception) {
                 Log.e(TAG, "获取系统通知音效URI失败", e)
             }
 
             anySoundLoaded = true
-            Log.d(TAG, "声音资源初始化完成（含内置原始资源映射）")
+            UiLog.d(TAG, "声音资源初始化完成（含内置原始资源映射）")
 
         } catch (e: Exception) {
             Log.e(TAG, "初始化声音资源失败", e)
@@ -193,7 +194,7 @@ class SoundManager @Inject constructor(
     private fun preloadSounds() {
         // 不再需要预加载，因为使用系统声音
         anySoundLoaded = true
-        Log.d(TAG, "系统声音不需要预加载")
+        UiLog.d(TAG, "系统声音不需要预加载")
     }
 
     /**
@@ -202,7 +203,7 @@ class SoundManager @Inject constructor(
     private fun loadSettings() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                Log.d(TAG, "[声音设置加载] 开始从存储加载声音配置...")
+                UiLog.d(TAG, "[声音设置加载] 开始从存储加载声音配置...")
                 val settings = settingsRepository.getSoundSettings()
                 _currentVolume.value = settings.notificationVolume
                 _currentSoundType.value = settings.soundType
@@ -211,12 +212,12 @@ class SoundManager @Inject constructor(
                 // 同步"接单持续提示"独立设置，确保应用启动后立即生效
                 try {
                     keepRingingUntilAccept = settingsRepository.getKeepRingingUntilAccept()
-                    Log.d(TAG, "[声音设置加载] keepRingingUntilAccept=$keepRingingUntilAccept")
+                    UiLog.d(TAG, "[声音设置加载] keepRingingUntilAccept=$keepRingingUntilAccept")
                 } catch (e: Exception) {
                     Log.w(TAG, "[声音设置加载] 读取keepRingingUntilAccept失败: ${e.message}")
                 }
 
-                Log.d(
+                UiLog.d(
                     TAG,
                     "[声音设置加载] 已加载声音设置: 音量=${settings.notificationVolume}, 类型=${settings.soundType}, 启用=${settings.soundEnabled}, 自定义声音=${settings.customSoundUri}"
                 )
@@ -238,7 +239,7 @@ class SoundManager @Inject constructor(
                 customSoundUri = _customSoundUri.value
             )
             settingsRepository.saveSoundSettings(settings)
-            Log.d(TAG, "已保存声音设置")
+            UiLog.d(TAG, "已保存声音设置")
         } catch (e: Exception) {
             Log.e(TAG, "保存声音设置失败", e)
         }
@@ -259,7 +260,7 @@ class SoundManager @Inject constructor(
         saveSettings()
 
         // 播放测试音效，让用户直接听到音量效果（仅播放一次，不重复）
-        Log.d(
+        UiLog.d(
             TAG,
             "[音效播放] 原因: 设置音量测试 - 新音量: $safeVolume, 声音类型: ${_currentSoundType.value}"
         )
@@ -293,7 +294,7 @@ class SoundManager @Inject constructor(
             saveSettings()
 
             // 播放测试音效，让用户直接听到选择的音效（仅播放一次，不重复）
-            Log.d(TAG, "[音效播放] 原因: 设置声音类型测试 - 新类型: $type")
+            UiLog.d(TAG, "[音效播放] 原因: 设置声音类型测试 - 新类型: $type")
             playTestSoundOnce(type)
         }
     }
@@ -308,10 +309,10 @@ class SoundManager @Inject constructor(
 
         // 如果启用声音，播放一个测试音效（仅播放一次，不重复）
         if (enabled) {
-            Log.d(TAG, "[音效播放] 原因: 启用声音设置测试 - 声音类型: ${_currentSoundType.value}")
+            UiLog.d(TAG, "[音效播放] 原因: 启用声音设置测试 - 声音类型: ${_currentSoundType.value}")
             playTestSoundOnce(_currentSoundType.value)
         } else {
-            Log.d(TAG, "[音效设置] 声音已禁用，不播放测试音效")
+            UiLog.d(TAG, "[音效设置] 声音已禁用，不播放测试音效")
         }
     }
 
@@ -340,7 +341,7 @@ class SoundManager @Inject constructor(
             if (currentTime - lastPlayTime < MIN_PLAY_INTERVAL) {
                 // 仅增加待处理通知计数，不立即播放
                 pendingNotifications++
-                Log.d(
+                UiLog.d(
                     TAG,
                     "[音效播放] 检测到短时间内连续通知，延迟播放，当前待处理通知: $pendingNotifications"
                 )
@@ -359,7 +360,7 @@ class SoundManager @Inject constructor(
             lastPlayTime = currentTime
             pendingNotifications = 0
 
-            Log.d(TAG, "[音效播放] 原因: 订单通知 - 声音类型: ${_currentSoundType.value}")
+            UiLog.d(TAG, "[音效播放] 原因: 订单通知 - 声音类型: ${_currentSoundType.value}")
             // 根据设置决定是否持续响铃
             if (keepRingingUntilAccept) {
                 isLoopingForAcceptance = true
@@ -368,7 +369,7 @@ class SoundManager @Inject constructor(
                 // 直接使用playSound方法确保声音类型一致性
                 playSound(_currentSoundType.value)
             }
-            Log.d(TAG, "播放订单通知声音: 类型=${_currentSoundType.value}")
+            UiLog.d(TAG, "播放订单通知声音: 类型=${_currentSoundType.value}")
         }
     }
 
@@ -378,7 +379,7 @@ class SoundManager @Inject constructor(
     private fun processPendingNotifications() {
         synchronized(notificationLock) {
             if (pendingNotifications > 0) {
-                Log.d(
+                UiLog.d(
                     TAG,
                     "[音效播放] 原因: 批量通知处理 - 处理 $pendingNotifications 个通知，声音类型: ${_currentSoundType.value}"
                 )
@@ -419,7 +420,7 @@ class SoundManager @Inject constructor(
      */
     fun playSound(type: String) {
         if (!_soundEnabled.value) {
-            Log.d(TAG, "[音效播放] 声音已禁用，不播放提示音")
+            UiLog.d(TAG, "[音效播放] 声音已禁用，不播放提示音")
             return
         }
 
@@ -431,7 +432,7 @@ class SoundManager @Inject constructor(
         }
         currentRepeatCount = 0  // 重置重复计数器
 
-        Log.d(
+        UiLog.d(
             TAG,
             "[音效播放] 开始播放声音 - 类型: $type, 音量级别: ${_currentVolume.value}%, 重复次数: $repeatPlayCount"
         )
@@ -449,7 +450,7 @@ class SoundManager @Inject constructor(
      */
     private fun playInternalSound(type: String) {
         if (!_soundEnabled.value) {
-            Log.d(TAG, "[内部音效] 声音已禁用，不播放提示音")
+            UiLog.d(TAG, "[内部音效] 声音已禁用，不播放提示音")
             return
         }
 
@@ -479,7 +480,7 @@ class SoundManager @Inject constructor(
                     val resId = soundResources[type]
                     if (resId != null) {
                         val uri = Uri.parse("android.resource://${context.packageName}/$resId")
-                        Log.d(
+                        UiLog.d(
                             TAG,
                             "[播放-内置] type=$type, resId=$resId, layers=$layers, enhance=$applyEnhancement, exo=$useExoBackend"
                         )
@@ -491,7 +492,7 @@ class SoundManager @Inject constructor(
                             triggerRepeat = true
                         )
                     } else {
-                        Log.w(TAG, "[播放-内置] 未找到资源映射: $type，回退系统默认")
+                        UiLog.w(TAG, "[播放-内置] 未找到资源映射: $type，回退系统默认")
                         val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
                         startPlayback(
                             uri,
@@ -505,7 +506,7 @@ class SoundManager @Inject constructor(
                 // 系统 URI（兼容保留）
                 SoundSettings.SOUND_TYPE_ALARM -> {
                     val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-                    Log.d(
+                    UiLog.d(
                         TAG,
                         "[播放-系统] ALARM, layers=$layers, enhance=$applyEnhancement, exo=$useExoBackend"
                     )
@@ -520,7 +521,7 @@ class SoundManager @Inject constructor(
 
                 SoundSettings.SOUND_TYPE_RINGTONE -> {
                     val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
-                    Log.d(
+                    UiLog.d(
                         TAG,
                         "[播放-系统] RINGTONE, layers=$layers, enhance=$applyEnhancement, exo=$useExoBackend"
                     )
@@ -535,7 +536,7 @@ class SoundManager @Inject constructor(
 
                 SoundSettings.SOUND_TYPE_DEFAULT -> {
                     val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-                    Log.d(
+                    UiLog.d(
                         TAG,
                         "[播放-系统] DEFAULT, layers=$layers, enhance=$applyEnhancement, exo=$useExoBackend"
                     )
@@ -550,7 +551,7 @@ class SoundManager @Inject constructor(
 
                 SoundSettings.SOUND_TYPE_EVENT -> {
                     val uri = Settings.System.DEFAULT_NOTIFICATION_URI
-                    Log.d(
+                    UiLog.d(
                         TAG,
                         "[播放-系统] EVENT(映射通知), layers=$layers, enhance=$applyEnhancement, exo=$useExoBackend"
                     )
@@ -565,7 +566,7 @@ class SoundManager @Inject constructor(
 
                 SoundSettings.SOUND_TYPE_EMAIL -> {
                     val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-                    Log.d(
+                    UiLog.d(
                         TAG,
                         "[播放-系统] EMAIL(映射通知), layers=$layers, enhance=$applyEnhancement, exo=$useExoBackend"
                     )
@@ -582,7 +583,7 @@ class SoundManager @Inject constructor(
                     val path = _customSoundUri.value
                     if (path.isNotEmpty()) {
                         val uri = toResolvableUri(path)
-                        Log.d(
+                        UiLog.d(
                             TAG,
                             "[播放-自定义] uri=$uri, layers=$layers, enhance=$applyEnhancement, exo=$useExoBackend"
                         )
@@ -595,7 +596,7 @@ class SoundManager @Inject constructor(
                         )
                     } else {
                         val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-                        Log.d(
+                        UiLog.d(
                             TAG,
                             "[播放-自定义] 为空，回退通知，layers=$layers, enhance=$applyEnhancement, exo=$useExoBackend"
                         )
@@ -611,7 +612,7 @@ class SoundManager @Inject constructor(
 
                 else -> {
                     val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-                    Log.d(
+                    UiLog.d(
                         TAG,
                         "[播放] 未知类型回退通知，layers=$layers, enhance=$applyEnhancement, exo=$useExoBackend"
                     )
@@ -677,11 +678,11 @@ class SoundManager @Inject constructor(
      */
     fun playTestSoundOnce(type: String) {
         if (!_soundEnabled.value) {
-            Log.d(TAG, "[测试音效] 声音已禁用，不播放测试音效")
+            UiLog.d(TAG, "[测试音效] 声音已禁用，不播放测试音效")
             return
         }
 
-        Log.d(
+        UiLog.d(
             TAG,
             "[测试音效] 开始播放测试音效 - 类型: $type, 音量级别: ${_currentVolume.value}% (仅播放一次)"
         )
@@ -706,7 +707,7 @@ class SoundManager @Inject constructor(
                     val resId = soundResources[type]
                     if (resId != null) {
                         val uri = Uri.parse("android.resource://${context.packageName}/$resId")
-                        Log.d(
+                        UiLog.d(
                             TAG,
                             "[测试音效] 内置 type=$type, layers=$layers, enhance=$applyEnhancement, exo=$useExoBackend"
                         )
@@ -828,7 +829,7 @@ class SoundManager @Inject constructor(
                 else -> 1
             }
             val enhance = _currentVolume.value >= 500
-            Log.d(TAG, "[系统声音-Exo] type=$ringtoneType, layers=$layers, enhance=$enhance")
+            UiLog.d(TAG, "[系统声音-Exo] type=$ringtoneType, layers=$layers, enhance=$enhance")
             startExoPlayback(uri, playOnce = false, applyEnhancement = enhance, layeredCount = layers, triggerRepeat = true)
         } catch (e: Exception) {
             Log.e(TAG, "[系统声音-Exo] 播放失败: ${e.message}")
@@ -845,7 +846,7 @@ class SoundManager @Inject constructor(
             _currentVolume.value >= 750 -> 2
             else -> 2
         }
-        Log.d(TAG, "[多音频叠加-Exo] layers=$layerCount")
+        UiLog.d(TAG, "[多音频叠加-Exo] layers=$layerCount")
         startExoPlayback(uri, playOnce = false, applyEnhancement = true, layeredCount = layerCount, triggerRepeat = true)
     }
 
@@ -853,7 +854,7 @@ class SoundManager @Inject constructor(
      * 音频增强播放 - 使用音频处理器增强音量
      */
     private fun playWithAudioEnhancement(uri: Uri) {
-        Log.d(TAG, "[音频增强-Exo]")
+        UiLog.d(TAG, "[音频增强-Exo]")
         startExoPlayback(uri, playOnce = false, applyEnhancement = true, layeredCount = 1, triggerRepeat = true)
     }
 
@@ -861,7 +862,7 @@ class SoundManager @Inject constructor(
      * 标准增强播放
      */
     private fun playWithStandardEnhancement(uri: Uri) {
-        Log.d(TAG, "[标准增强-Exo]")
+        UiLog.d(TAG, "[标准增强-Exo]")
         startExoPlayback(uri, playOnce = false, applyEnhancement = true, layeredCount = 1, triggerRepeat = true)
     }
 
@@ -869,7 +870,7 @@ class SoundManager @Inject constructor(
      * 标准播放
      */
     private fun playStandardSound(uri: Uri) {
-        Log.d(TAG, "[标准播放-Exo]")
+        UiLog.d(TAG, "[标准播放-Exo]")
         startExoPlayback(uri, playOnce = false, applyEnhancement = false, layeredCount = 1, triggerRepeat = true)
     }
 
@@ -900,7 +901,7 @@ class SoundManager @Inject constructor(
                 } catch (_: Exception) {
                 }
                 loudnessEnhancer = enhancer
-                Log.d(
+                UiLog.d(
                     TAG,
                     "[音频效果] LoudnessEnhancer(session=$audioSessionId) 设置增益: ${gainMb}mB"
                 )
@@ -938,7 +939,7 @@ class SoundManager @Inject constructor(
                     }
                     processor.setEnabled(true)
                     dynamicsProcessing = processor
-                    Log.d(TAG, "[高级音频效果] DynamicsProcessing(session=$audioSessionId) 已启用")
+                    UiLog.d(TAG, "[高级音频效果] DynamicsProcessing(session=$audioSessionId) 已启用")
                 } catch (e: Exception) {
                     Log.w(TAG, "[高级音频效果] DynamicsProcessing 设置失败: ${e.message}")
                 }
@@ -959,7 +960,7 @@ class SoundManager @Inject constructor(
      */
     private fun playFallbackSound() {
         val fallbackUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-        Log.d(TAG, "[回退播放-Exo]")
+        UiLog.d(TAG, "[回退播放-Exo]")
         startExoPlayback(fallbackUri, playOnce = false, applyEnhancement = false, layeredCount = 1, triggerRepeat = true)
     }
 
@@ -973,7 +974,7 @@ class SoundManager @Inject constructor(
             else -> 1
         }
         val enhance = _currentVolume.value >= 500
-        Log.d(TAG, "[特定音效-Exo] layers=$layers, enhance=$enhance")
+        UiLog.d(TAG, "[特定音效-Exo] layers=$layers, enhance=$enhance")
         startExoPlayback(uri, playOnce = false, applyEnhancement = enhance, layeredCount = layers, triggerRepeat = true)
     }
 
@@ -988,7 +989,7 @@ class SoundManager @Inject constructor(
             else -> 1
         }
         val enhance = _currentVolume.value >= 500
-        Log.d(TAG, "[自定义音效-Exo] uri=$uri, layers=$layers, enhance=$enhance")
+        UiLog.d(TAG, "[自定义音效-Exo] uri=$uri, layers=$layers, enhance=$enhance")
         startExoPlayback(uri, playOnce = false, applyEnhancement = enhance, layeredCount = layers, triggerRepeat = true)
     }
 
@@ -1001,7 +1002,7 @@ class SoundManager @Inject constructor(
             cleanupAudioEffects()
             testSoundPlaying = false
             restoreSystemVolume()
-            Log.d(TAG, "[音效控制] 所有声音已停止，音频效果已清理")
+            UiLog.d(TAG, "[音效控制] 所有声音已停止，音频效果已清理")
         } catch (e: Exception) {
             Log.e(TAG, "[音效控制] 停止声音失败", e)
         }
@@ -1060,7 +1061,7 @@ class SoundManager @Inject constructor(
      */
     fun setUseExoBackend(enabled: Boolean) {
         useExoBackend = enabled
-        Log.d(TAG, "[后端切换] useExoBackend=$useExoBackend")
+        UiLog.d(TAG, "[后端切换] useExoBackend=$useExoBackend")
     }
 
     /**
@@ -1083,7 +1084,7 @@ class SoundManager @Inject constructor(
      */
     private fun stopAllExoPlayers() {
         val size = activeExoPlayers.size
-        Log.d(TAG, "[Exo管理] 停止并释放 $size 个ExoPlayer 实例")
+        UiLog.d(TAG, "[Exo管理] 停止并释放 $size 个ExoPlayer 实例")
         activeExoPlayers.toList().forEach { p ->
             try {
                 p.stop()
@@ -1226,7 +1227,7 @@ class SoundManager @Inject constructor(
 
             // 已移除 AudioTrack 路径
 
-            Log.d(TAG, "[音频效果] 已幂等清理所有效果器与音频轨道")
+            UiLog.d(TAG, "[音频效果] 已幂等清理所有效果器与音频轨道")
         } catch (e: Exception) {
             Log.e(TAG, "[音频效果] 清理音频效果时出错", e)
         }
@@ -1270,7 +1271,7 @@ class SoundManager @Inject constructor(
                 audioManager.setStreamVolume(AudioManager.STREAM_NOTIFICATION, boostedVolume, 0)
                 isVolumeBoostActive = true
 
-                Log.d(
+                UiLog.d(
                     TAG,
                     "[系统音量增强] 原音量: $originalSystemVolume, 提升至: $boostedVolume (应用音量级别: ${_currentVolume.value}%, 提升比例: $enhancedBoostRatio, 增强: $useAudioEnhancement)"
                 )
@@ -1291,7 +1292,7 @@ class SoundManager @Inject constructor(
             audioManager.setStreamVolume(AudioManager.STREAM_NOTIFICATION, originalSystemVolume, 0)
             isVolumeBoostActive = false
 
-            Log.d(TAG, "[系统音量增强] 已恢复原始音量: $originalSystemVolume")
+            UiLog.d(TAG, "[系统音量增强] 已恢复原始音量: $originalSystemVolume")
         } catch (e: Exception) {
             Log.e(TAG, "[系统音量增强] 恢复系统音量失败", e)
         }
@@ -1305,18 +1306,18 @@ class SoundManager @Inject constructor(
 
         if (currentRepeatCount < repeatPlayCount) {
             // 还需要重复播放
-            Log.d(TAG, "[重复播放] 准备第${currentRepeatCount + 1}次播放 (共${repeatPlayCount}次)")
+            UiLog.d(TAG, "[重复播放] 准备第${currentRepeatCount + 1}次播放 (共${repeatPlayCount}次)")
 
             CoroutineScope(Dispatchers.Main).launch {
                 delay(repeatPlayInterval)  // 等待间隔时间
 
                 // 播放下一次 - 使用内部播放方法，避免重新设置重复计数
-                Log.d(TAG, "[重复播放] 开始第${currentRepeatCount + 1}次播放")
+                UiLog.d(TAG, "[重复播放] 开始第${currentRepeatCount + 1}次播放")
                 playInternalSound(currentPlayingSoundType)
             }
         } else {
             // 播放完成，恢复系统音量
-            Log.d(TAG, "[重复播放] 所有重复播放完成 (${repeatPlayCount}次)")
+            UiLog.d(TAG, "[重复播放] 所有重复播放完成 (${repeatPlayCount}次)")
             CoroutineScope(Dispatchers.Main).launch {
                 delay(1000)  // 延迟1秒后恢复音量，确保声音播放完毕
                 restoreSystemVolume()
@@ -1329,14 +1330,14 @@ class SoundManager @Inject constructor(
      */
     private fun performVibration() {
         if (!enableVibration) {
-            Log.d(TAG, "[振动提醒] 振动已禁用，跳过振动")
+            UiLog.d(TAG, "[振动提醒] 振动已禁用，跳过振动")
             return
         }
 
         try {
             // 检查设备是否支持振动
             if (!vibrator.hasVibrator()) {
-                Log.d(TAG, "[振动提醒] 设备不支持振动功能")
+                UiLog.d(TAG, "[振动提醒] 设备不支持振动功能")
                 return
             }
 
@@ -1395,7 +1396,7 @@ class SoundManager @Inject constructor(
                 val vibrationEffect =
                     VibrationEffect.createWaveform(vibrationPattern, amplitudes, -1)
                 vibrator.vibrate(vibrationEffect)
-                Log.d(
+                UiLog.d(
                     TAG,
                     "[振动提醒] 执行振动 - 模式: ${vibrationPattern.contentToString()}, 强度: $amplitude"
                 )
@@ -1403,7 +1404,7 @@ class SoundManager @Inject constructor(
                 // Android 8.0以下使用传统方法
                 @Suppress("DEPRECATION")
                 vibrator.vibrate(vibrationPattern, -1)
-                Log.d(TAG, "[振动提醒] 执行传统振动 - 模式: ${vibrationPattern.contentToString()}")
+                UiLog.d(TAG, "[振动提醒] 执行传统振动 - 模式: ${vibrationPattern.contentToString()}")
             }
         } catch (e: Exception) {
             Log.e(TAG, "[振动提醒] 执行振动失败", e)
@@ -1433,7 +1434,7 @@ class SoundManager @Inject constructor(
         loopGuardJob = null
         continuousRingingJob?.cancel()
         continuousRingingJob = null
-        Log.d(TAG, "已停止所有正在播放的声音")
+        UiLog.d(TAG, "已停止所有正在播放的声音")
     }
 
     /** 外部设置：接单持续提示 */
@@ -1454,7 +1455,7 @@ class SoundManager @Inject constructor(
      */
     private fun playSystemSoundOnce(ringtoneType: Int) {
         try {
-            Log.d(
+            UiLog.d(
                 TAG,
                 "[测试音效] 播放系统声音 - 类型: $ringtoneType, 音量: ${_currentVolume.value}% (仅播放一次)"
             )
@@ -1466,7 +1467,7 @@ class SoundManager @Inject constructor(
             boostSystemVolume()
 
             val notificationUri = RingtoneManager.getDefaultUri(ringtoneType)
-            Log.d(TAG, "[测试音效] 获取到系统声音URI: $notificationUri")
+            UiLog.d(TAG, "[测试音效] 获取到系统声音URI: $notificationUri")
 
             // 根据音量级别选择播放策略
             when {
@@ -1502,7 +1503,7 @@ class SoundManager @Inject constructor(
      */
     private fun playSpecificSoundOnce(uri: Uri) {
         try {
-            Log.d(
+            UiLog.d(
                 TAG,
                 "[测试音效] 播放特定URI声音: $uri, 音量: ${_currentVolume.value}% (仅播放一次)"
             )
@@ -1543,7 +1544,7 @@ class SoundManager @Inject constructor(
      */
     private fun playCustomSoundOnce(filePath: String) {
         try {
-            Log.d(
+            UiLog.d(
                 TAG,
                 "[测试音效] 播放自定义声音: $filePath, 音量: ${_currentVolume.value}% (仅播放一次)"
             )
@@ -1582,7 +1583,7 @@ class SoundManager @Inject constructor(
      */
     private fun playStandardSoundOnce(uri: Uri) {
         try {
-            Log.d(TAG, "[测试音效-Exo] 标准播放一次")
+            UiLog.d(TAG, "[测试音效-Exo] 标准播放一次")
             startExoPlayback(uri, playOnce = true, applyEnhancement = false, layeredCount = 1, triggerRepeat = false)
         } catch (e: Exception) {
             Log.e(TAG, "[测试音效] 标准播放失败", e)
@@ -1595,7 +1596,7 @@ class SoundManager @Inject constructor(
      */
     private fun playWithStandardEnhancementOnce(uri: Uri) {
         try {
-            Log.d(TAG, "[测试音效-Exo] 标准增强一次")
+            UiLog.d(TAG, "[测试音效-Exo] 标准增强一次")
             startExoPlayback(uri, playOnce = true, applyEnhancement = true, layeredCount = 1, triggerRepeat = false)
         } catch (e: Exception) {
             Log.e(TAG, "[测试音效] 标准增强播放失败", e)
@@ -1608,7 +1609,7 @@ class SoundManager @Inject constructor(
      */
     private fun playWithAudioEnhancementOnce(uri: Uri) {
         try {
-            Log.d(TAG, "[测试音效-Exo] 音频增强一次")
+            UiLog.d(TAG, "[测试音效-Exo] 音频增强一次")
             startExoPlayback(uri, playOnce = true, applyEnhancement = true, layeredCount = 1, triggerRepeat = false)
         } catch (e: Exception) {
             Log.e(TAG, "[测试音效] 音频增强播放失败", e)
@@ -1626,7 +1627,7 @@ class SoundManager @Inject constructor(
                 _currentVolume.value >= 750 -> 2
                 else -> 2
             }
-            Log.d(TAG, "[测试音效-Exo] 多层叠加一次 layers=$layers")
+            UiLog.d(TAG, "[测试音效-Exo] 多层叠加一次 layers=$layers")
             startExoPlayback(uri, playOnce = true, applyEnhancement = true, layeredCount = layers, triggerRepeat = false)
         } catch (e: Exception) {
             Log.e(TAG, "[测试音效] 多音频叠加播放失败", e)
@@ -1640,7 +1641,7 @@ class SoundManager @Inject constructor(
     private fun playFallbackSoundOnce() {
         try {
             val fallbackUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-            Log.d(TAG, "[测试音效-Exo] 使用备用系统通知声音一次")
+            UiLog.d(TAG, "[测试音效-Exo] 使用备用系统通知声音一次")
             startExoPlayback(fallbackUri, playOnce = true, applyEnhancement = false, layeredCount = 1, triggerRepeat = false)
         } catch (e: Exception) {
             Log.e(TAG, "[测试音效] 播放备用声音也失败", e)

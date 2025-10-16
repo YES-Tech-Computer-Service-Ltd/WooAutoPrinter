@@ -3,6 +3,7 @@ package com.example.wooauto.licensing
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
+import com.example.wooauto.utils.UiLog
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import kotlinx.coroutines.Dispatchers
@@ -72,7 +73,7 @@ object TrialTokenManager {
         if (firstLaunchTime == 0L) {
             val currentTime = System.currentTimeMillis()
             prefs.edit().putLong(KEY_FIRST_LAUNCH, currentTime).apply()
-            Log.d("TrialDebug", "Initialized first launch time: $currentTime")
+            UiLog.d("TrialDebug", "Initialized first launch time: $currentTime")
             return currentTime
         }
         return firstLaunchTime
@@ -95,7 +96,7 @@ object TrialTokenManager {
                 }
 
                 val resJson = JSONObject(res.body?.string() ?: throw Exception("Empty response"))
-                Log.d("TrialDebug", "START API response JSON = $resJson")
+                UiLog.d("TrialDebug", "START API response JSON = $resJson")
                 resJson
             } catch (e: Exception) {
                 Log.w("TrialManager", "Trial fetch error: ${e.message}")
@@ -108,13 +109,13 @@ object TrialTokenManager {
         var attempt = 0
         var resJson: JSONObject? = null
         while (attempt < MAX_RETRIES && resJson == null) {
-            Log.d("TrialDebug", "Attempting trial fetch, attempt ${attempt + 1}/$MAX_RETRIES")
+            UiLog.d("TrialDebug", "Attempting trial fetch, attempt ${attempt + 1}/$MAX_RETRIES")
             resJson = withTimeoutOrNull(3000) { // 每个请求最多 3 秒
                 fetchTrialFromServer(deviceId, appId)
             }
             if (resJson == null) {
                 attempt++
-                Log.d("TrialDebug", "Retrying trial fetch, attempt ${attempt + 1}/$MAX_RETRIES")
+                UiLog.d("TrialDebug", "Retrying trial fetch, attempt ${attempt + 1}/$MAX_RETRIES")
                 if (attempt < MAX_RETRIES) delay(1000)
             }
         }
@@ -124,13 +125,13 @@ object TrialTokenManager {
     suspend fun requestTrialIfNeeded(context: Context, deviceId: String, appId: String): Boolean {
         return withContext(Dispatchers.IO) {
             mutex.withLock {
-                Log.d("TrialDebug", "Starting requestTrialIfNeeded")
+                UiLog.d("TrialDebug", "Starting requestTrialIfNeeded")
                 val prefs = getPrefs(context)
                 val cachedToken = prefs.getString(KEY_TOKEN, null)
                 val cachedSig = prefs.getString(KEY_SIGNATURE, null)
 
                 if (cachedToken != null && cachedSig != null) {
-                    Log.d("TrialDebug", "Verifying cached token with server")
+                    UiLog.d("TrialDebug", "Verifying cached token with server")
                     val isValid = verifyWithServer(deviceId, appId, cachedToken, cachedSig)
                     if (!isValid) {
                         Log.w("TrialManager", "Server verification failed, proceeding with local check")
@@ -182,7 +183,7 @@ object TrialTokenManager {
                         }
                         isTrialInitialized = false
                         cachedTrialValid = null
-                        Log.d("TrialDebug", "requestTrialIfNeeded returned: true")
+                        UiLog.d("TrialDebug", "requestTrialIfNeeded returned: true")
                         return@withLock true
                     } catch (e: Exception) {
                         Log.w("TrialManager", "Trial fetch error: ${e.message}, setting default trial period of $DEFAULT_TRIAL_DAYS days")
@@ -210,7 +211,7 @@ object TrialTokenManager {
             // 检查是否有试用期数据，如果没有则初始化
             val trialDays = prefs.getInt(KEY_EXPIRES, -1)
             if (trialDays == -1) {
-                Log.d(TAG, "没有试用期数据，初始化试用期")
+                UiLog.d(TAG, "没有试用期数据，初始化试用期")
                 requestTrialIfNeeded(context, deviceId, appId)
                 return true // 新初始化的试用期应该是有效的
             }
@@ -226,7 +227,7 @@ object TrialTokenManager {
             // 检查试用期是否有效
             val isValid = remainingMillis > 0
             
-            Log.d(TAG, "试用期检查: firstLaunchTime=$firstLaunchTime, trialDays=$trialDays, currentTime=$currentTime, remainingMillis=$remainingMillis, isValid=$isValid")
+            UiLog.d(TAG, "试用期检查: firstLaunchTime=$firstLaunchTime, trialDays=$trialDays, currentTime=$currentTime, remainingMillis=$remainingMillis, isValid=$isValid")
             
             return isValid
             
@@ -262,7 +263,7 @@ object TrialTokenManager {
 
                 val result = JSONObject(res.body?.string() ?: return@withContext true)
                 val isValid = result.optBoolean("valid", true)
-                Log.d("TrialDebug", "Verify API result: $isValid, full response: $result")
+                UiLog.d("TrialDebug", "Verify API result: $isValid, full response: $result")
                 isValid
             } catch (e: Exception) {
                 Log.w("TrialManager", "Verify failed: ${e.message}, assuming valid")
@@ -289,7 +290,7 @@ object TrialTokenManager {
         val trialDays = prefs.getInt(KEY_EXPIRES, -1)
 
         if (trialDays == -1) {
-            Log.d("TrialDebug", "No trial data found, initializing trial")
+            UiLog.d("TrialDebug", "No trial data found, initializing trial")
             requestTrialIfNeeded(context, deviceId, appId)
             return getRemainingDays(context, deviceId, appId)
         }
@@ -311,9 +312,9 @@ object TrialTokenManager {
             ceil(remainingMillis.toDouble() / TimeUnit.DAYS.toMillis(1)).toInt()
         }
         if (remainingDays <= 0) {
-            Log.d("TrialDebug", "Trial expired - placeholder for future restrictions (e.g., disable new orders)")
+            UiLog.d("TrialDebug", "Trial expired - placeholder for future restrictions (e.g., disable new orders)")
         }
-        Log.d("TrialDebug", "Remaining days: $remainingDays (firstLaunchTime=$firstLaunchTime, trialDays=$trialDays, currentTime=$currentTime, remainingMillis=$remainingMillis)")
+        UiLog.d("TrialDebug", "Remaining days: $remainingDays (firstLaunchTime=$firstLaunchTime, trialDays=$trialDays, currentTime=$currentTime, remainingMillis=$remainingMillis)")
         return remainingDays
     }
     
@@ -321,7 +322,7 @@ object TrialTokenManager {
         val prefs = getPrefs(context)
         prefs.edit().putInt(KEY_EXPIRES, 0).apply()
         cachedTrialValid = false
-        Log.d("TrialDebug", "Simulated trial expired")
+        UiLog.d("TrialDebug", "Simulated trial expired")
     }
 
     fun clearTrialData(context: Context) {
@@ -329,7 +330,7 @@ object TrialTokenManager {
         prefs.edit().clear().apply()
         cachedTrialValid = null
         isTrialInitialized = false
-        Log.d("TrialDebug", "Cleared trial data")
+        UiLog.d("TrialDebug", "Cleared trial data")
     }
 
     fun isTrialExpired(context: Context): Boolean {
@@ -372,7 +373,7 @@ object TrialTokenManager {
             cachedTrialValid = null
             isTrialInitialized = false
             
-            Log.d(TAG, "试用期已重置")
+            UiLog.d(TAG, "试用期已重置")
         } catch (e: Exception) {
             Log.e(TAG, "重置试用期出错", e)
         }
@@ -421,7 +422,7 @@ object TrialTokenManager {
             cachedTrialValid = false
             isTrialInitialized = false
             
-            Log.d(TAG, "试用期已强制结束")
+            UiLog.d(TAG, "试用期已强制结束")
         } catch (e: Exception) {
             Log.e(TAG, "强制结束试用期出错", e)
         }
@@ -439,7 +440,7 @@ object TrialTokenManager {
             val cachedSig = prefs.getString(KEY_SIGNATURE, null)
             
             if (cachedToken == null || cachedSig == null) {
-                Log.d(TAG, "本地没有有效的试用期令牌")
+                UiLog.d(TAG, "本地没有有效的试用期令牌")
                 return false
             }
             
@@ -466,11 +467,11 @@ object TrialTokenManager {
             val isValid = result.optBoolean("valid", false)
             val serverMessage = result.optString("message", "")
             
-            Log.d(TAG, "服务器验证结果: $isValid, 消息: $serverMessage")
+            UiLog.d(TAG, "服务器验证结果: $isValid, 消息: $serverMessage")
             
             // 3. 如果服务器明确返回试用期无效，则强制过期本地试用期
             if (!isValid) {
-                Log.d(TAG, "服务器指示试用期已过期，强制结束本地试用期")
+                UiLog.d(TAG, "服务器指示试用期已过期，强制结束本地试用期")
                 forceExpireTrial(context)
                 return false
             }

@@ -2,6 +2,7 @@ package com.example.wooauto.licensing
 
 import android.content.Context
 import android.util.Log
+import com.example.wooauto.utils.UiLog
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -29,7 +30,7 @@ class LicenseVerificationManager @Inject constructor(
         onInvalid: suspend () -> Unit,
         onSuccess: suspend () -> Unit = {}
     ) {
-        Log.d("LicenseVerificationManager", "verifyLicenseOnStart - 使用LicenseManager")
+        UiLog.d("LicenseVerificationManager", "verifyLicenseOnStart - 使用LicenseManager")
         
         licenseManager.verifyLicense(context, coroutineScope) { isValid ->
             coroutineScope.launch(Dispatchers.IO) {
@@ -52,7 +53,7 @@ class LicenseVerificationManager @Inject constructor(
         onInvalid: suspend () -> Unit,
         onSuccess: suspend () -> Unit = {}
     ) {
-        Log.d("LicenseVerificationManager", "forceServerValidation - 使用LicenseManager")
+        UiLog.d("LicenseVerificationManager", "forceServerValidation - 使用LicenseManager")
         
         licenseManager.verifyLicense(context, coroutineScope, force = true) { isValid ->
             coroutineScope.launch(Dispatchers.IO) {

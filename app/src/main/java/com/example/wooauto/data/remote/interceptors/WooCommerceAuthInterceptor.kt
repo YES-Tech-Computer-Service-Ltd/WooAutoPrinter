@@ -2,6 +2,7 @@ package com.example.wooauto.data.remote.interceptors
 
 import android.util.Log
 import com.example.wooauto.data.local.WooCommerceConfig
+import com.example.wooauto.utils.UiLog
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import okhttp3.Interceptor
@@ -71,7 +72,7 @@ class WooCommerceAuthInterceptor @Inject constructor(
         }
         
         // 记录认证信息（不要记录完整的密钥信息）
-        Log.d("WooCommerceAuthInterceptor", "添加API认证参数: key=${if (consumerKey.isNotBlank()) consumerKey.take(5) + "..." else "空"}, " +
+        UiLog.d("WooCommerceAuthInterceptor", "添加API认证参数: key=${if (consumerKey.isNotBlank()) consumerKey.take(5) + "..." else "空"}, " +
                 "secret=${if (consumerSecret.isNotBlank()) consumerSecret.take(5) + "..." else "空"}")
         
         // 添加认证参数
@@ -83,7 +84,7 @@ class WooCommerceAuthInterceptor @Inject constructor(
         val requestBuilder = original.newBuilder().url(url)
         val request = requestBuilder.build()
         
-        Log.d("WooCommerceAuthInterceptor", "发送API请求: ${request.url}")
+        UiLog.d("WooCommerceAuthInterceptor", "发送API请求: ${request.url}")
         
         // 执行请求并检查响应
         val response = chain.proceed(request)

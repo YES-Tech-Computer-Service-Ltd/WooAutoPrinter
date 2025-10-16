@@ -1,6 +1,5 @@
 package com.example.wooauto.presentation.screens.orders
 
-import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -59,7 +58,7 @@ fun OrderDetailDialog(
 ) {
     val viewModel: OrdersViewModel = hiltViewModel()
     remember { viewModel.licenseManager }
-    val licenseInfo by viewModel.licenseManager.licenseInfo.observeAsState()
+    // val licenseInfo by viewModel.licenseManager.licenseInfo.observeAsState()
     val eligibilityInfo by viewModel.licenseManager.eligibilityInfo.observeAsState()
     val hasEligibility = eligibilityInfo?.status == EligibilityStatus.ELIGIBLE
     val currencySymbol by viewModel.currencySymbol.collectAsState()
@@ -89,7 +88,7 @@ fun OrderDetailDialog(
     val printStatusText = if (displayOrder.isPrinted) stringResource(R.string.printed_yes) else stringResource(R.string.printed_no)
     val printStatusColor = if (displayOrder.isPrinted) Color(0xFF4CAF50) else Color(0xFFE53935)
     
-    Log.d("OrderDetailDialog", "显示订单详情，订单ID: ${displayOrder.id}, 打印状态: ${displayOrder.isPrinted}")
+    // Debug log removed to reduce noise
     
     Dialog(
         onDismissRequest = wrappedOnDismiss,
@@ -432,11 +431,7 @@ fun OrderDetailDialog(
                         // 是否是外卖订单
                         val isDelivery = displayOrder.woofoodInfo?.isDelivery ?: false
                         
-                        // 记录所有费用行，方便调试
-                        Log.d("OrderDetailDialog", "【UI查找前】订单#${displayOrder.number} 费用行数量: ${displayOrder.feeLines.size}")
-                        displayOrder.feeLines.forEach { feeLine ->
-                            Log.d("OrderDetailDialog", "【UI查找前】费用行: '${feeLine.name}' = ${feeLine.total}")
-                        }
+                        // Debug logs removed
                         
                         // 更全面的配送费名称匹配
                         val deliveryFeeLine = displayOrder.feeLines.find { 
@@ -459,9 +454,7 @@ fun OrderDetailDialog(
                             it.name.contains("appreciation", ignoreCase = true)
                         }
                         
-                        // 记录匹配结果
-                        Log.d("OrderDetailDialog", "【UI匹配结果】配送费行: ${deliveryFeeLine?.name ?: "未找到"}, 金额: ${deliveryFeeLine?.total ?: "0.00"}")
-                        Log.d("OrderDetailDialog", "【UI匹配结果】小费行: ${tipLine?.name ?: "未找到"}, 金额: ${tipLine?.total ?: "0.00"}")
+                        // Debug logs removed
                         
                         // 获取配送费和小费的值
                         var deliveryFee = "0.00"
@@ -470,30 +463,28 @@ fun OrderDetailDialog(
                         // 首先尝试从feeLines直接获取配送费
                         if (deliveryFeeLine != null) {
                             deliveryFee = deliveryFeeLine.total
-                            Log.d("OrderDetailDialog", "【UI】从feeLines获取配送费: $deliveryFee (${deliveryFeeLine.name})")
+                            // Debug log removed
                         }
                         
                         // 首先尝试从feeLines直接获取小费
                         if (tipLine != null) {
                             tip = tipLine.total
-                            Log.d("OrderDetailDialog", "【UI】从feeLines获取小费: $tip (${tipLine.name})")
+                            // Debug log removed
                         }
                         
                         // 如果feeLines中没有找到配送费，但woofoodInfo中有，使用woofoodInfo中的值
                         if (deliveryFee == "0.00" && displayOrder.woofoodInfo?.deliveryFee != null && displayOrder.woofoodInfo.deliveryFee != "0.00") {
                             deliveryFee = displayOrder.woofoodInfo.deliveryFee
-                            Log.d("OrderDetailDialog", "【UI】从woofoodInfo获取配送费: $deliveryFee")
+                            // Debug log removed
                         }
                         
                         // 如果feeLines中没有找到小费，但woofoodInfo中有，使用woofoodInfo中的值
                         if (tip == "0.00" && displayOrder.woofoodInfo?.tip != null && displayOrder.woofoodInfo.tip != "0.00") {
                             tip = displayOrder.woofoodInfo.tip
-                            Log.d("OrderDetailDialog", "【UI】从woofoodInfo获取小费: $tip")
+                            // Debug log removed
                         }
                         
-                        // 添加详细日志，显示订单详情对话框中的数据状态
-                        Log.d("OrderDetailDialog", "【UI最终数据】订单#${displayOrder.number} - 是否外卖: $isDelivery, 最终配送费: $deliveryFee, 最终小费: $tip")
-                        Log.d("OrderDetailDialog", "【UI数据源】woofoodInfo值 - 配送费: ${displayOrder.woofoodInfo?.deliveryFee}, 小费: ${displayOrder.woofoodInfo?.tip}")
+                        // Debug logs removed
                         
                         // 如果是外卖订单，始终显示配送费行（即使金额为0）
                         if (isDelivery) {
@@ -556,15 +547,7 @@ fun OrderDetailDialog(
                             }
                         }
                         
-                        // 记录一下所有税费行，方便调试
-                        if (displayOrder.taxLines.isNotEmpty()) {
-                            Log.d("OrderDetailDialog", "税费行数量: ${displayOrder.taxLines.size}")
-                            displayOrder.taxLines.forEach { taxLine ->
-                                Log.d("OrderDetailDialog", "税费: ${taxLine.label} (${taxLine.ratePercent}%) = ¥${taxLine.taxTotal}")
-                            }
-                        } else {
-                            Log.d("OrderDetailDialog", "无税费行信息")
-                        }
+                        // Debug logs removed
                         
                         // 遍历税费行，分别显示PST和GST
                         displayOrder.taxLines.forEach { taxLine ->
@@ -746,8 +729,8 @@ fun OrderDetailDialog(
                                 )
                                 Spacer(modifier = Modifier.height(24.dp))
                                 
-                                // 获取上下文，放在Composable函数顶层
-                                val context = LocalContext.current
+                                // 获取上下文（已不直接使用）
+                                // val context = LocalContext.current
                                 
                                 // 使用Row放置两个按钮
                                 Row(
@@ -926,17 +909,9 @@ fun OrderDetailDialog(
     if (showTemplateOptions && (hasEligibility)) {
         TemplateSelectorDialog(
             onDismiss = { showTemplateOptions = false },
-            onTemplateSelected = { templateId ->
-                // 记录打印前的状态
-//                Log.d("OrderDetailDialog", "【打印状态修复】准备打印订单: ${displayOrder.id}, 当前打印状态: ${displayOrder.isPrinted}, 使用模板: $templateId")
-                
-                // 使用新的方法直接传递模板ID
-                viewModel.printOrderWithTemplate(displayOrder.id, templateId)
-                
-                // 记录打印后的状态
-//                Log.d("OrderDetailDialog", "【打印状态修复】已提交打印请求，等待状态变更")
-                
-                // 关闭模板选择对话框
+            onConfirm = { selectedCopies ->
+                // 多模板打印（手动）：按用户在弹窗中设置的份数逐一打印
+                viewModel.printOrderWithTemplates(displayOrder.id, selectedCopies)
                 showTemplateOptions = false
             }
         )
@@ -1066,7 +1041,7 @@ fun StatusChangeDialog(
 @Composable
 fun TemplateSelectorDialog(
     onDismiss: () -> Unit,
-    onTemplateSelected: (String) -> Unit  // 改为接受模板ID而不是TemplateType
+    onConfirm: (Map<String, Int>) -> Unit
 ) {
     val templateConfigViewModel: TemplateConfigViewModel = hiltViewModel()
     val allConfigs by templateConfigViewModel.allConfigs.collectAsState()
@@ -1099,6 +1074,10 @@ fun TemplateSelectorDialog(
         defaultTemplates + customTemplates
     }
     
+    // 选择集合与份数字典（仅用于本次手动打印，不持久化）
+    var selectedTemplateIds by remember { mutableStateOf(setOf<String>()) }
+    var copyCounts by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
+    
     Dialog(onDismissRequest = onDismiss) {
         Card(
             modifier = Modifier
@@ -1129,29 +1108,65 @@ fun TemplateSelectorDialog(
                     }
                 } else {
                     templateOptions.forEachIndexed { index, (templateId, description, icon) ->
+                        val checked = selectedTemplateIds.contains(templateId)
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
-                                    onTemplateSelected(templateId)
+                                    selectedTemplateIds = selectedTemplateIds.toMutableSet().apply {
+                                        if (contains(templateId)) remove(templateId) else add(templateId)
+                                    }
+                                    // 默认份数：首次选中时设为1
+                                    if (!checked && !copyCounts.containsKey(templateId)) {
+                                        copyCounts = copyCounts.toMutableMap().apply { put(templateId, 1) }
+                                    }
                                 }
                                 .padding(vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+                            Checkbox(
+                                checked = checked,
+                                onCheckedChange = {
+                                    selectedTemplateIds = selectedTemplateIds.toMutableSet().apply {
+                                        if (checked) remove(templateId) else add(templateId)
+                                    }
+                                    if (!checked && !copyCounts.containsKey(templateId)) {
+                                        copyCounts = copyCounts.toMutableMap().apply { put(templateId, 1) }
+                                    }
+                                }
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
                             Icon(
                                 imageVector = icon,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary
                             )
-                            
                             Spacer(modifier = Modifier.width(16.dp))
-                            
                             Text(
                                 text = description,
                                 style = MaterialTheme.typography.bodyLarge
                             )
+                            Spacer(modifier = Modifier.weight(1f))
+                            // 份数步进器（禁用态时降低透明度）
+                            val current = (copyCounts[templateId] ?: 1).coerceAtLeast(1)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                IconButton(
+                                    onClick = {
+                                        val next = (current - 1).coerceAtLeast(1)
+                                        copyCounts = copyCounts.toMutableMap().apply { put(templateId, next) }
+                                    },
+                                    enabled = checked
+                                ) { Icon(imageVector = Icons.Default.RemoveCircleOutline, contentDescription = null) }
+                                Text(text = current.toString(), color = if (checked) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+                                IconButton(
+                                    onClick = {
+                                        val next = (current + 1).coerceAtMost(99)
+                                        copyCounts = copyCounts.toMutableMap().apply { put(templateId, next) }
+                                    },
+                                    enabled = checked
+                                ) { Icon(imageVector = Icons.Default.AddCircleOutline, contentDescription = null) }
+                            }
                         }
-                        
                         if (index < templateOptions.size - 1) {
                             HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                         }
@@ -1159,12 +1174,27 @@ fun TemplateSelectorDialog(
                 }
                 
                 Spacer(modifier = Modifier.height(8.dp))
-                
-                Button(
-                    onClick = onDismiss,
-                    modifier = Modifier.align(Alignment.End)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(stringResource(R.string.cancel))
+                    Button(
+                        onClick = {
+                            // 仅提交被选中的模板及其份数，份数最少1
+                            val payload = selectedTemplateIds.associateWith { id -> (copyCounts[id] ?: 1).coerceAtLeast(1) }
+                            onConfirm(payload)
+                        },
+                        enabled = selectedTemplateIds.isNotEmpty()
+                    ) {
+                        // 复用“打印订单”文案
+                        Text(text = stringResource(id = R.string.print_order))
+                    }
+                    Button(
+                        onClick = onDismiss
+                    ) {
+                        Text(stringResource(R.string.cancel))
+                    }
                 }
             }
         }
