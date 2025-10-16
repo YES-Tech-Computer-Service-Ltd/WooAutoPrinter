@@ -1,25 +1,26 @@
 package com.example.wooauto.presentation.screens.products
 
 import android.util.Log
-import com.example.wooauto.utils.UiLog
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -49,6 +50,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -58,6 +60,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -71,11 +75,11 @@ import coil.request.ImageRequest
 import com.example.wooauto.R
 import com.example.wooauto.domain.models.Product
 import com.example.wooauto.navigation.NavigationItem
-import com.example.wooauto.presentation.components.WooTopBar
-import com.example.wooauto.utils.LocalAppLocale
-import kotlinx.coroutines.launch
 import com.example.wooauto.presentation.EventBus
 import com.example.wooauto.presentation.navigation.Screen
+import com.example.wooauto.utils.LocalAppLocale
+import com.example.wooauto.utils.UiLog
+import kotlinx.coroutines.launch
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -85,27 +89,27 @@ fun ProductsScreen(
     viewModel: ProductsViewModel = hiltViewModel()
 ) {
     UiLog.d("ProductsScreen", "ProductsScreen 初始化")
-    
+
     // 添加一个安全状态，用于捕获组合过程中的任何未处理错误
     var hasCompositionError by remember { mutableStateOf(false) }
     var compositionErrorMessage by remember { mutableStateOf<String?>(null) }
-    
+
     // 使用LaunchedEffect执行简单的一次性初始化
     LaunchedEffect(Unit) {
         // 初始化操作，无需try-catch块，因为没有长时间运行的操作
         UiLog.d("ProductsScreen", "ProductsScreen组件初始化")
     }
-    
+
     // 监听导航到许可证设置页面的状态
     val navigateToLicenseSettings by viewModel.navigateToLicenseSettings.collectAsState()
-    
+
     LaunchedEffect(navigateToLicenseSettings) {
         if (navigateToLicenseSettings) {
             navController.navigate(Screen.LicenseSettings.route)
             viewModel.clearLicenseSettingsNavigation()
         }
     }
-    
+
     // 使用状态机方式处理错误，而不是try-catch
     if (hasCompositionError) {
         // 显示友好的错误UI
@@ -125,18 +129,18 @@ fun ProductsScreen(
                     modifier = Modifier.size(64.dp),
                     tint = MaterialTheme.colorScheme.error
                 )
-                
+
                 Spacer(modifier = Modifier.height(16.dp))
-                
+
                 Text(
                     text = "加载产品页面时出现错误",
                     style = MaterialTheme.typography.headlineSmall,
                     color = MaterialTheme.colorScheme.error,
                     textAlign = TextAlign.Center
                 )
-                
+
                 Spacer(modifier = Modifier.height(8.dp))
-                
+
                 compositionErrorMessage?.let {
                     Text(
                         text = it,
@@ -145,9 +149,9 @@ fun ProductsScreen(
                         textAlign = TextAlign.Center
                     )
                 }
-                
+
                 Spacer(modifier = Modifier.height(16.dp))
-                
+
                 Button(
                     onClick = {
                         navController.navigate(NavigationItem.Orders.route) {
@@ -182,17 +186,17 @@ private fun ProductsScreenContent(
     val errorMessage by viewModel.errorMessage.collectAsState()
     val selectedProduct by viewModel.selectedProduct.collectAsState()
     // 订阅刷新状态以触发必要重组（不直接使用值避免告警）
-    val _ = viewModel.refreshing.collectAsState()
+    viewModel.refreshing.collectAsState()
     val shouldResetScroll by viewModel.shouldResetScroll.collectAsState()
 
-    
+
     val snackbarHostState = remember { SnackbarHostState() }
     rememberCoroutineScope()
-    
+
     // 搜索和分类相关状态
     var searchQuery by remember { mutableStateOf("") }
     var selectedCategoryId by remember { mutableStateOf<Long?>(null) }
-    
+
     // 接收搜索和刷新事件
     val eventScope = rememberCoroutineScope()
     DisposableEffect(Unit) {
@@ -210,7 +214,7 @@ private fun ProductsScreenContent(
                 }
             }
         }
-        
+
         // 订阅刷新事件
         val refreshJob = eventScope.launch {
             EventBus.refreshEvents.collect { event ->
@@ -228,7 +232,7 @@ private fun ProductsScreenContent(
             UiLog.d("ProductsScreen", "清理事件订阅协程")
         }
     }
-    
+
     // 当进入此屏幕时执行刷新操作 - 仅当配置有效时触发一次
     LaunchedEffect(key1 = isConfigured) {
         if (isConfigured) {
@@ -236,7 +240,7 @@ private fun ProductsScreenContent(
             viewModel.checkAndRefreshConfig()
         }
     }
-    
+
     // 初始化时确保页面从顶部开始显示
     var isInitialized by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
@@ -245,33 +249,33 @@ private fun ProductsScreenContent(
             isInitialized = true
         }
     }
-    
+
     // 显示错误消息
     val snackbarScope = rememberCoroutineScope()
     DisposableEffect(errorMessage) {
         var snackbarJob: kotlinx.coroutines.Job? = null
-        
+
         errorMessage?.let {
             snackbarJob = snackbarScope.launch {
                 snackbarHostState.showSnackbar(it)
                 viewModel.clearError()
             }
         }
-        
+
         onDispose {
             snackbarJob?.cancel()
         }
     }
-    
+
     // 优化防抖动延迟逻辑，提供更长的缓冲时间
     var showErrorScreen by remember { mutableStateOf(false) }
     var errorMessageForDisplay by remember { mutableStateOf<String?>(null) }
-    
+
     // 使用更长的延迟时间，确保有足够的加载时间
     val errorDelayScope = rememberCoroutineScope()
     DisposableEffect(errorMessage, isLoading) {
         var delayJob: kotlinx.coroutines.Job? = null
-        
+
         if (errorMessage != null && !isLoading) {
             // 保存当前错误消息用于显示
             errorMessageForDisplay = errorMessage
@@ -288,26 +292,26 @@ private fun ProductsScreenContent(
             // 如果错误消息消失或开始加载，立即隐藏错误界面
             showErrorScreen = false
         }
-        
+
         onDispose {
             // 取消延迟作业
             delayJob?.cancel()
             UiLog.d("ProductsScreen", "取消错误延迟显示")
         }
     }
-    
+
     // 其他UI状态变量
     var showProductDetail by remember { mutableStateOf(false) }
-    
+
     // 添加切换分类时的加载状态跟踪
     var isSwitchingCategory by remember { mutableStateOf(false) }
-    
+
     // 记录上一次显示的产品列表，用于平滑过渡
     var previousProducts by remember { mutableStateOf<List<Product>>(emptyList()) }
-    
+
     // 分类加载时的过渡动画控制
     var fadeTransition by remember { mutableStateOf(1f) }
-    
+
     // 使用effect更新产品数据和加载状态 - 合并为一个effet
     LaunchedEffect(products.size, isLoading, isSwitchingCategory) {
         // 当获取到新数据时，更新上一次的产品列表
@@ -315,7 +319,7 @@ private fun ProductsScreenContent(
             previousProducts = products
             fadeTransition = 1f
         }
-        
+
         // 处理加载状态变化
         if (isLoading && isSwitchingCategory) {
             // 加载开始时，逐渐降低透明度但不完全消失
@@ -326,12 +330,12 @@ private fun ProductsScreenContent(
             isSwitchingCategory = false
         }
     }
-    
+
     // 添加安全超时，防止切换状态卡住
     val timeoutScope = rememberCoroutineScope()
     DisposableEffect(isSwitchingCategory) {
         var timeoutJob: kotlinx.coroutines.Job? = null
-        
+
         if (isSwitchingCategory) {
             // 如果切换状态持续超过3秒，自动重置
             timeoutJob = timeoutScope.launch {
@@ -347,17 +351,17 @@ private fun ProductsScreenContent(
                 }
             }
         }
-        
+
         onDispose {
             // 取消超时作业
             timeoutJob?.cancel()
             UiLog.d("ProductsScreen", "取消分类切换超时")
         }
     }
-    
+
     // 同步ViewModel中的分类ID状态
     val currentSelectedCategoryId by viewModel.currentSelectedCategoryId.collectAsState()
-    
+
     // 确保UI的selectedCategoryId和ViewModel中的保持同步
     LaunchedEffect(currentSelectedCategoryId) {
         if (currentSelectedCategoryId != selectedCategoryId) {
@@ -365,24 +369,24 @@ private fun ProductsScreenContent(
             UiLog.d("ProductsScreen", "同步分类ID: $selectedCategoryId")
         }
     }
-    
+
     val categoryOptions = if (categories.isEmpty()) {
         listOf(null to stringResource(id = R.string.all_categories))
     } else {
         listOf(null to stringResource(id = R.string.all_categories)) + categories
     }
-    
+
     // 获取当前语言环境
     // 订阅当前Locale变化以触发必要重组（不直接使用值）
-    val __ = LocalContext.current.resources.configuration
-    
+    LocalContext.current.resources.configuration
+
     // 使用Surface包装Scaffold，避免布局问题
     androidx.compose.material3.Surface(
         modifier = Modifier.fillMaxSize()
     ) {
         // 使用key防止Scaffold不必要的重组
         androidx.compose.runtime.key(products.size) {
-                        Scaffold(
+            Scaffold(
                 snackbarHost = { SnackbarHost(snackbarHostState) }
             ) { paddingValues ->
                 // 主要内容区域
@@ -404,9 +408,9 @@ private fun ProductsScreenContent(
                         showErrorScreen -> {
                             ErrorView(
                                 errorMessage = errorMessageForDisplay,
-                                onRetryClick = { 
+                                onRetryClick = {
                                     viewModel.clearError()
-                                    viewModel.refreshData() 
+                                    viewModel.refreshData()
                                 },
                                 onSettingsClick = { navController.navigate(NavigationItem.Settings.route) }
                             )
@@ -437,7 +441,10 @@ private fun ProductsScreenContent(
                                         fadeTransition = 0.7f
                                     }
                                     selectedCategoryId = id
-                                    UiLog.d("ProductsScreen", "选择产品分类: ID=${id}, 名称='$name'")
+                                    UiLog.d(
+                                        "ProductsScreen",
+                                        "选择产品分类: ID=${id}, 名称='$name'"
+                                    )
                                     viewModel.filterProductsByCategory(id)
                                 },
                                 onProductClick = { productId ->
@@ -450,14 +457,14 @@ private fun ProductsScreenContent(
                             )
                         }
                     }
-                    
+
                     // 产品详情弹窗 - 使用key确保对话框状态稳定
                     if (showProductDetail && selectedProduct != null) {
                         val product = selectedProduct!!
                         androidx.compose.runtime.key(product.id) {
                             ProductDetailDialog(
                                 product = product,
-                                onDismiss = { 
+                                onDismiss = {
                                     showProductDetail = false
                                     viewModel.clearSelectedProduct()
                                 },
@@ -492,26 +499,26 @@ fun UnconfiguredView(
             modifier = Modifier.size(72.dp),
             tint = MaterialTheme.colorScheme.primary
         )
-        
+
         Spacer(modifier = Modifier.height(16.dp))
-        
+
         Text(
             text = stringResource(id = R.string.error_api_not_configured),
             style = MaterialTheme.typography.headlineSmall,
             textAlign = TextAlign.Center
         )
-        
+
         Spacer(modifier = Modifier.height(8.dp))
-        
+
         Text(
             text = errorMessage?.toString() ?: "WooCommerce API未配置",
             style = MaterialTheme.typography.bodyMedium,
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        
+
         Spacer(modifier = Modifier.height(24.dp))
-        
+
         Button(
             onClick = onSettingsClick,
             modifier = Modifier.padding(8.dp)
@@ -546,26 +553,26 @@ fun ErrorView(
             modifier = Modifier.size(72.dp),
             tint = MaterialTheme.colorScheme.error
         )
-        
+
         Spacer(modifier = Modifier.height(16.dp))
-        
+
         Text(
             text = stringResource(id = R.string.error_loading_products),
             style = MaterialTheme.typography.headlineSmall,
             textAlign = TextAlign.Center
         )
-        
+
         Spacer(modifier = Modifier.height(8.dp))
-        
+
         Text(
             text = errorMessage?.toString() ?: "未知错误",
             style = MaterialTheme.typography.bodyMedium,
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        
+
         Spacer(modifier = Modifier.height(24.dp))
-        
+
         Row(
             horizontalArrangement = Arrangement.Center,
             modifier = Modifier.fillMaxWidth()
@@ -582,7 +589,7 @@ fun ErrorView(
                 Spacer(modifier = Modifier.width(ButtonDefaults.IconSpacing))
                 Text(text = stringResource(id = R.string.retry))
             }
-            
+
             Button(
                 onClick = onSettingsClick,
                 modifier = Modifier.padding(horizontal = 8.dp)
@@ -612,17 +619,17 @@ fun LoadingProductsView() {
             modifier = Modifier.size(48.dp),
             color = MaterialTheme.colorScheme.primary
         )
-        
+
         Spacer(modifier = Modifier.height(16.dp))
-        
+
         Text(
             text = stringResource(id = R.string.loading_products),
             style = MaterialTheme.typography.headlineSmall,
             textAlign = TextAlign.Center
         )
-        
+
         Spacer(modifier = Modifier.height(8.dp))
-        
+
         Text(
             text = stringResource(id = R.string.loading_message),
             style = MaterialTheme.typography.bodyMedium,
@@ -649,12 +656,12 @@ fun ProductsContent(
 ) {
     // 使用列表状态，支持滚动到指定位置
     val categoryListState = rememberLazyListState()
-    
+
     // 添加LazyVerticalGrid的滚动状态管理
     val gridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
-    
+
     // 需要作用域时再创建，避免未使用告警
-    
+
     // 当产品数据更新时，滚动到顶部
     LaunchedEffect(products.size, selectedCategoryId) {
         if (products.isNotEmpty()) {
@@ -672,7 +679,7 @@ fun ProductsContent(
             }
         }
     }
-    
+
     // 响应ViewModel的滚动重置请求
     LaunchedEffect(shouldResetScroll) {
         if (shouldResetScroll) {
@@ -689,170 +696,216 @@ fun ProductsContent(
             }
         }
     }
-    
+
     // 计算要显示的产品列表，根据不同状态选择
-    val displayProducts = if (products.isEmpty() && previousProducts.isNotEmpty() && isSwitchingCategory) {
-        // 如果切换分类正在加载，且之前有数据，则显示previousProducts
-        previousProducts
-    } else {
-        // 否则显示当前产品列表
-        products
-    }
-    
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 12.dp, vertical = 8.dp)
-    ) {
-        // 分类选择区域
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 4.dp) // 减少底部边距
-        ) {
-            // 分类筛选器
-            LazyRow(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 2.dp), // 减少垂直边距为2dp
+    val displayProducts =
+        if (products.isEmpty() && previousProducts.isNotEmpty() && isSwitchingCategory) {
+            // 如果切换分类正在加载，且之前有数据，则显示previousProducts
+            previousProducts
+        } else {
+            // 否则显示当前产品列表
+            products
+        }
+
+    val config = LocalConfiguration.current
+    val isCompactWidth = config.screenWidthDp < 600
+
+    // 提取网格内容，避免重复
+    val gridContent: @Composable () -> Unit = {
+        if (displayProducts.isNotEmpty()) {
+            LazyVerticalGrid(
+                columns = GridCells.Adaptive(minSize = 150.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(horizontal = 4.dp), // 减少水平内边距
-                state = categoryListState
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                state = gridState, // 添加状态管理
+                modifier = Modifier
+                    .fillMaxSize()
+                    .alpha(fadeTransition)
             ) {
                 items(
-                    items = categoryOptions,
-                    key = { it.first ?: -1L } // 使用分类ID作为key
-                ) { (id, name) ->
-                    FilterChip(
-                        selected = selectedCategoryId == id,
-                        enabled = true,
-                        onClick = { onCategorySelect(id, name) },
-                        label = { 
-                            Text(
-                                text = name,
-                                style = MaterialTheme.typography.bodyMedium
-                            ) 
-                        },
-                        leadingIcon = if (selectedCategoryId == id) {
-                            {
-                                Icon(
-                                    imageVector = Icons.Default.Check,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
-                        } else null,
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    items = displayProducts,
+                    key = { it.id } // 使用产品ID作为key避免重组
+                ) { product ->
+                    // 使用key包装每个产品项防止不必要的重组
+                    key(product.id) {
+                        ProductGridItem(
+                            product = product,
+                            onClick = { onProductClick(product.id) }
                         )
-                    )
+                    }
                 }
             }
-            
-            Spacer(modifier = Modifier.height(8.dp)) // 减少垂直空间
         }
-            
-        // 产品列表区域
-        Box(
-            modifier = Modifier.weight(1f)
-        ) {
-            if (displayProducts.isNotEmpty()) {
-                LazyVerticalGrid(
-                    columns = GridCells.Adaptive(minSize = 150.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    state = gridState, // 添加状态管理
+        // 加载指示器更美观且不遮挡内容
+        if (isLoading || isSwitchingCategory) {
+            // 区分两种不同的加载状态
+            if (isLoading && !isSwitchingCategory && displayProducts.isNotEmpty()) {
+                // 数据刷新时，使用和订单页面一样的上方提示卡片
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    contentAlignment = Alignment.TopCenter
+                ) {
+                    Card(
+                        modifier = Modifier,
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.95f)
+                        ),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                        shape = RoundedCornerShape(20.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(
+                                text = if (LocalAppLocale.current.language == "zh") "正在刷新产品..." else "Refreshing products...",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+                    }
+                }
+            } else if (isSwitchingCategory || (isLoading && displayProducts.isEmpty())) {
+                // 切换分类或初始加载时，使用中央加载指示器
+                Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .alpha(fadeTransition)
+                        .alpha(0.5f), // 降低透明度，使背景内容更可见
+                    contentAlignment = Alignment.Center
                 ) {
-                    items(
-                        items = displayProducts,
-                        key = { it.id } // 使用产品ID作为key避免重组
-                    ) { product ->
-                        // 使用key包装每个产品项防止不必要的重组
-                        androidx.compose.runtime.key(product.id) {
-                            ProductGridItem(
-                                product = product,
-                                onClick = { onProductClick(product.id) }
+                    Card(
+                        modifier = Modifier.padding(16.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)
+                        ),
+                        shape = RoundedCornerShape(8.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(16.dp)
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(36.dp)
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = if (isSwitchingCategory)
+                                    stringResource(id = R.string.switching_category)
+                                else
+                                    stringResource(id = R.string.loading_products),
+                                style = MaterialTheme.typography.bodyMedium
                             )
                         }
                     }
                 }
             }
-            
-            // 加载指示器更美观且不遮挡内容
-            if (isLoading || isSwitchingCategory) {
-                // 区分两种不同的加载状态
-                if (isLoading && !isSwitchingCategory && displayProducts.isNotEmpty()) {
-                    // 数据刷新时，使用和订单页面一样的上方提示卡片
-                    Box(
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 12.dp, vertical = 8.dp)
+        ) {
+            if (isCompactWidth) {
+                // 顶部 Chips（小屏）
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 4.dp)
+                ) {
+                    LazyRow(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(16.dp),
-                        contentAlignment = Alignment.TopCenter
+                            .padding(vertical = 2.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = PaddingValues(horizontal = 4.dp),
+                        state = categoryListState
                     ) {
-                        Card(
-                            modifier = Modifier,
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.95f)
-                            ),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                            shape = RoundedCornerShape(20.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(20.dp),
-                                    strokeWidth = 2.dp,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                        items(
+                            items = categoryOptions,
+                            key = { it.first ?: -1L }
+                        ) { (id, name) ->
+                            FilterChip(
+                                selected = selectedCategoryId == id,
+                                enabled = true,
+                                onClick = { onCategorySelect(id, name) },
+                                label = {
+                                    Text(
+                                        text = name,
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                },
+                                leadingIcon = if (selectedCategoryId == id) {
+                                    {
+                                        Icon(
+                                            imageVector = Icons.Default.Check,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                } else null,
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
                                 )
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Text(
-                                    text = if (LocalAppLocale.current.language == "zh") "正在刷新产品..." else "Refreshing products...",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                            }
+                            )
                         }
                     }
-                } else if (isSwitchingCategory || (isLoading && displayProducts.isEmpty())) {
-                    // 切换分类或初始加载时，使用中央加载指示器
-                    Box(
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+                Box(modifier = Modifier.weight(1f)) { gridContent() }
+            } else {
+                Row(modifier = Modifier.weight(1f)) {
+                    // 左侧类别面板（中/大屏）
+                    val panelState = rememberLazyListState()
+                    Column(
                         modifier = Modifier
-                            .fillMaxSize()
-                            .alpha(0.5f), // 降低透明度，使背景内容更可见
-                        contentAlignment = Alignment.Center
+                            .width(200.dp)
+                            .fillMaxHeight()
+                            .padding(end = 8.dp)
                     ) {
-                        Card(
-                            modifier = Modifier.padding(16.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)
-                            ),
-                            shape = RoundedCornerShape(8.dp),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                        LazyColumn(
+                            state = panelState,
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                modifier = Modifier.padding(16.dp)
-                            ) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(36.dp)
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    text = if (isSwitchingCategory) 
-                                        stringResource(id = R.string.switching_category) 
-                                    else 
-                                        stringResource(id = R.string.loading_products),
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
+                            items(
+                                items = categoryOptions,
+                                key = { it.first ?: -1L }
+                            ) { (id, name) ->
+                                val selected = selectedCategoryId == id
+                                val bg =
+                                    if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
+                                val fg =
+                                    if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(bg, RoundedCornerShape(8.dp))
+                                        .clickable { onCategorySelect(id, name) }
+                                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = name,
+                                        color = fg,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
                             }
                         }
                     }
+                    Box(modifier = Modifier.weight(1f)) { gridContent() }
                 }
             }
         }
@@ -923,9 +976,9 @@ fun ProductGridItem(
                         }
                     }
                 }
-                
+
                 Spacer(modifier = Modifier.height(8.dp))
-                
+
                 // 产品ID和名称
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -938,7 +991,7 @@ fun ProductGridItem(
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
                     )
-                    
+
                     // 产品名称 - 确保居中对齐
                     Text(
                         text = product.name,
@@ -950,7 +1003,7 @@ fun ProductGridItem(
                     )
                 }
             }
-            
+
             // 底部容器（价格和库存）
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -964,7 +1017,7 @@ fun ProductGridItem(
                         .fillMaxWidth()
                         .background(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f))
                 )
-                
+
                 // 价格
                 Text(
                     text = "C$${product.regularPrice}",
@@ -972,20 +1025,20 @@ fun ProductGridItem(
                     color = MaterialTheme.colorScheme.primary,
                     fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
                 )
-                
+
                 // 库存
                 Text(
-                    text = if (product.stockStatus == "instock") 
-                             stringResource(id = R.string.stock_status_in_stock)
-                           else 
-                             stringResource(id = R.string.stock_status_out_of_stock),
+                    text = if (product.stockStatus == "instock")
+                        stringResource(id = R.string.stock_status_in_stock)
+                    else
+                        stringResource(id = R.string.stock_status_out_of_stock),
                     style = MaterialTheme.typography.bodySmall,
-                    color = if (product.stockStatus == "instock") 
-                        MaterialTheme.colorScheme.primary 
-                    else 
+                    color = if (product.stockStatus == "instock")
+                        MaterialTheme.colorScheme.primary
+                    else
                         MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
                 )
             }
         }
     }
-} 
+}
