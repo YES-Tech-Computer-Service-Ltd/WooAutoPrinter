@@ -2,12 +2,12 @@ package com.example.wooauto.presentation.screens.products
 
 import android.util.Log
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -59,9 +59,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -385,7 +385,7 @@ private fun ProductsScreenContent(
         modifier = Modifier.fillMaxSize()
     ) {
         // 使用key防止Scaffold不必要的重组
-        androidx.compose.runtime.key(products.size) {
+        key(products.size) {
             Scaffold(
                 snackbarHost = { SnackbarHost(snackbarHostState) }
             ) { paddingValues ->
@@ -461,7 +461,7 @@ private fun ProductsScreenContent(
                     // 产品详情弹窗 - 使用key确保对话框状态稳定
                     if (showProductDetail && selectedProduct != null) {
                         val product = selectedProduct!!
-                        androidx.compose.runtime.key(product.id) {
+                        key(product.id) {
                             ProductDetailDialog(
                                 product = product,
                                 onDismiss = {
@@ -710,203 +710,290 @@ fun ProductsContent(
     val config = LocalConfiguration.current
     val isCompactWidth = config.screenWidthDp < 600
 
-    // 提取网格内容，避免重复
-    val gridContent: @Composable () -> Unit = {
-        if (displayProducts.isNotEmpty()) {
-            LazyVerticalGrid(
-                columns = GridCells.Adaptive(minSize = 150.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                state = gridState, // 添加状态管理
+    // 布局与网格渲染
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 12.dp, vertical = 8.dp)
+    ) {
+        if (isCompactWidth) {
+            // 顶部 Chips（小屏）
+            Column(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .alpha(fadeTransition)
+                    .fillMaxWidth()
+                    .padding(bottom = 4.dp)
             ) {
-                items(
-                    items = displayProducts,
-                    key = { it.id } // 使用产品ID作为key避免重组
-                ) { product ->
-                    // 使用key包装每个产品项防止不必要的重组
-                    key(product.id) {
-                        ProductGridItem(
-                            product = product,
-                            onClick = { onProductClick(product.id) }
+                LazyRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = PaddingValues(horizontal = 4.dp),
+                    state = categoryListState
+                ) {
+                    items(
+                        items = categoryOptions,
+                        key = { it.first ?: -1L }
+                    ) { (id, name) ->
+                        FilterChip(
+                            selected = selectedCategoryId == id,
+                            enabled = true,
+                            onClick = { onCategorySelect(id, name) },
+                            label = {
+                                Text(
+                                    text = name,
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            },
+                            leadingIcon = if (selectedCategoryId == id) {
+                                {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            } else null,
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
                         )
                     }
                 }
+                Spacer(modifier = Modifier.height(8.dp))
             }
-        }
-        // 加载指示器更美观且不遮挡内容
-        if (isLoading || isSwitchingCategory) {
-            // 区分两种不同的加载状态
-            if (isLoading && !isSwitchingCategory && displayProducts.isNotEmpty()) {
-                // 数据刷新时，使用和订单页面一样的上方提示卡片
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    contentAlignment = Alignment.TopCenter
-                ) {
-                    Card(
-                        modifier = Modifier,
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.95f)
-                        ),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                        shape = RoundedCornerShape(20.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
+            Box(modifier = Modifier.weight(1f)) {
+                ProductsGrid(
+                    items = displayProducts,
+                    fade = fadeTransition,
+                    gridState = gridState,
+                    onProductClick = onProductClick
+                )
+                if (isLoading || isSwitchingCategory) {
+                    if (isLoading && !isSwitchingCategory && displayProducts.isNotEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            contentAlignment = Alignment.TopCenter
                         ) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(20.dp),
-                                strokeWidth = 2.dp,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text(
-                                text = if (LocalAppLocale.current.language == "zh") "正在刷新产品..." else "Refreshing products...",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                        }
-                    }
-                }
-            } else if (isSwitchingCategory || (isLoading && displayProducts.isEmpty())) {
-                // 切换分类或初始加载时，使用中央加载指示器
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .alpha(0.5f), // 降低透明度，使背景内容更可见
-                    contentAlignment = Alignment.Center
-                ) {
-                    Card(
-                        modifier = Modifier.padding(16.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)
-                        ),
-                        shape = RoundedCornerShape(8.dp),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.padding(16.dp)
-                        ) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(36.dp)
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = if (isSwitchingCategory)
-                                    stringResource(id = R.string.switching_category)
-                                else
-                                    stringResource(id = R.string.loading_products),
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 12.dp, vertical = 8.dp)
-        ) {
-            if (isCompactWidth) {
-                // 顶部 Chips（小屏）
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 4.dp)
-                ) {
-                    LazyRow(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 2.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        contentPadding = PaddingValues(horizontal = 4.dp),
-                        state = categoryListState
-                    ) {
-                        items(
-                            items = categoryOptions,
-                            key = { it.first ?: -1L }
-                        ) { (id, name) ->
-                            FilterChip(
-                                selected = selectedCategoryId == id,
-                                enabled = true,
-                                onClick = { onCategorySelect(id, name) },
-                                label = {
-                                    Text(
-                                        text = name,
-                                        style = MaterialTheme.typography.bodyMedium
+                            Card(
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(
+                                        alpha = 0.95f
                                     )
-                                },
-                                leadingIcon = if (selectedCategoryId == id) {
-                                    {
-                                        Icon(
-                                            imageVector = Icons.Default.Check,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                    }
-                                } else null,
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                            )
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                }
-                Box(modifier = Modifier.weight(1f)) { gridContent() }
-            } else {
-                Row(modifier = Modifier.weight(1f)) {
-                    // 左侧类别面板（中/大屏）
-                    val panelState = rememberLazyListState()
-                    Column(
-                        modifier = Modifier
-                            .width(200.dp)
-                            .fillMaxHeight()
-                            .padding(end = 8.dp)
-                    ) {
-                        LazyColumn(
-                            state = panelState,
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            items(
-                                items = categoryOptions,
-                                key = { it.first ?: -1L }
-                            ) { (id, name) ->
-                                val selected = selectedCategoryId == id
-                                val bg =
-                                    if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
-                                val fg =
-                                    if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                                ),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                                shape = RoundedCornerShape(20.dp)
+                            ) {
                                 Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .background(bg, RoundedCornerShape(8.dp))
-                                        .clickable { onCategorySelect(id, name) }
-                                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                                    modifier = Modifier.padding(
+                                        horizontal = 16.dp,
+                                        vertical = 12.dp
+                                    ),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(20.dp),
+                                        strokeWidth = 2.dp,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                    Spacer(modifier = Modifier.width(12.dp))
                                     Text(
-                                        text = name,
-                                        color = fg,
+                                        text = if (LocalAppLocale.current.language == "zh") "正在刷新产品..." else "Refreshing products...",
                                         style = MaterialTheme.typography.bodyMedium,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                }
+                            }
+                        }
+                    } else if (isSwitchingCategory || (isLoading && displayProducts.isEmpty())) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .alpha(0.5f),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Card(
+                                modifier = Modifier.padding(16.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)
+                                ),
+                                shape = RoundedCornerShape(8.dp),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                            ) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    modifier = Modifier.padding(16.dp)
+                                ) {
+                                    CircularProgressIndicator(modifier = Modifier.size(36.dp))
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text(
+                                        text = if (isSwitchingCategory) stringResource(id = R.string.switching_category) else stringResource(
+                                            id = R.string.loading_products
+                                        ),
+                                        style = MaterialTheme.typography.bodyMedium
                                     )
                                 }
                             }
                         }
                     }
-                    Box(modifier = Modifier.weight(1f)) { gridContent() }
                 }
+            }
+        } else {
+            Row(modifier = Modifier.weight(1f)) {
+                // 左侧类别面板（中/大屏）
+                val panelState = rememberLazyListState()
+                Column(
+                    modifier = Modifier
+                        .width(200.dp)
+                        .fillMaxHeight()
+                        .padding(end = 8.dp)
+                ) {
+                    LazyColumn(
+                        state = panelState,
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        items(
+                            items = categoryOptions,
+                            key = { it.first ?: -1L }
+                        ) { (id, name) ->
+                            val selected = selectedCategoryId == id
+                            val bg =
+                                if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
+                            val fg =
+                                if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(bg, RoundedCornerShape(8.dp))
+                                    .clickable { onCategorySelect(id, name) }
+                                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = name,
+                                    color = fg,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+                }
+                Box(modifier = Modifier.weight(1f)) {
+                    ProductsGrid(
+                        items = displayProducts,
+                        fade = fadeTransition,
+                        gridState = gridState,
+                        onProductClick = onProductClick
+                    )
+                    if (isLoading || isSwitchingCategory) {
+                        if (isLoading && !isSwitchingCategory && displayProducts.isNotEmpty()) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                contentAlignment = Alignment.TopCenter
+                            ) {
+                                Card(
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(
+                                            alpha = 0.95f
+                                        )
+                                    ),
+                                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                                    shape = RoundedCornerShape(20.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(
+                                            horizontal = 16.dp,
+                                            vertical = 12.dp
+                                        ),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(20.dp),
+                                            strokeWidth = 2.dp,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                                        )
+                                        Spacer(modifier = Modifier.width(12.dp))
+                                        Text(
+                                            text = if (LocalAppLocale.current.language == "zh") "正在刷新产品..." else "Refreshing products...",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                                        )
+                                    }
+                                }
+                            }
+                        } else if (isSwitchingCategory || (isLoading && displayProducts.isEmpty())) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .alpha(0.5f),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Card(
+                                    modifier = Modifier.padding(16.dp),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = MaterialTheme.colorScheme.surface.copy(
+                                            alpha = 0.8f
+                                        )
+                                    ),
+                                    shape = RoundedCornerShape(8.dp),
+                                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                                ) {
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        modifier = Modifier.padding(16.dp)
+                                    ) {
+                                        CircularProgressIndicator(modifier = Modifier.size(36.dp))
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Text(
+                                            text = if (isSwitchingCategory) stringResource(id = R.string.switching_category) else stringResource(
+                                                id = R.string.loading_products
+                                            ),
+                                            style = MaterialTheme.typography.bodyMedium
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProductsGrid(
+    items: List<Product>,
+    fade: Float,
+    gridState: androidx.compose.foundation.lazy.grid.LazyGridState,
+    onProductClick: (Long) -> Unit
+) {
+    if (items.isEmpty()) return
+    LazyVerticalGrid(
+        columns = GridCells.Adaptive(minSize = 150.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        state = gridState,
+        modifier = Modifier
+            .fillMaxSize()
+            .alpha(fade)
+    ) {
+        items(
+            items = items,
+            key = { it.id }
+        ) { product ->
+            key(product.id) {
+                ProductGridItem(
+                    product = product,
+                    onClick = { onProductClick(product.id) }
+                )
             }
         }
     }
