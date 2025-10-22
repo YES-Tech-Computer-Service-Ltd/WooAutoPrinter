@@ -182,7 +182,7 @@ private fun ProductsScreenContent(
     val errorMessage by viewModel.errorMessage.collectAsState()
     val selectedProduct by viewModel.selectedProduct.collectAsState()
     // 订阅刷新状态以触发必要重组（不直接使用值避免告警）
-    val _ = viewModel.refreshing.collectAsState()
+    val refreshingState = viewModel.refreshing.collectAsState()
     val shouldResetScroll by viewModel.shouldResetScroll.collectAsState()
 
     
@@ -374,7 +374,7 @@ private fun ProductsScreenContent(
     
     // 获取当前语言环境
     // 订阅当前Locale变化以触发必要重组（不直接使用值）
-    val __ = LocalContext.current.resources.configuration
+    val resourcesConfiguration = LocalContext.current.resources.configuration
     
     // 使用Surface包装Scaffold，避免布局问题
     androidx.compose.material3.Surface(

@@ -36,6 +36,7 @@ import androidx.annotation.RequiresApi
 import com.example.wooauto.licensing.LicenseDataStore
 import com.example.wooauto.presentation.components.WooAppBar
 import com.example.wooauto.presentation.components.WooSideNavigation
+import com.example.wooauto.presentation.components.SideNavMode
 import com.example.wooauto.presentation.navigation.AppNavConfig
 import com.example.wooauto.navigation.NavigationItem
 import com.example.wooauto.presentation.navigation.Screen
@@ -202,7 +203,17 @@ fun AppContent() {
     Row(modifier = Modifier.fillMaxSize()) {
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
             val totalWidth = this.maxWidth
-            val leftWidth = if (!isSpecialScreen) (totalWidth * 0.16f).coerceIn(80.dp, 240.dp) else 0.dp
+            // 基于宽度的三态模式：Expanded / Rail / MiniRail
+            val sideMode = when {
+                totalWidth >= 840.dp -> SideNavMode.Expanded
+                totalWidth >= 600.dp -> SideNavMode.Rail
+                else -> SideNavMode.MiniRail
+            }
+            val leftWidth = if (!isSpecialScreen) when (sideMode) {
+                SideNavMode.Expanded -> 240.dp
+                SideNavMode.Rail -> 80.dp
+                SideNavMode.MiniRail -> 56.dp
+            } else 0.dp
             val dividerWidth = if (!isSpecialScreen) 1.dp else 0.dp
 
             Row(modifier = Modifier.fillMaxSize()) {
@@ -216,7 +227,8 @@ fun AppContent() {
                         WooSideNavigation(
                             navController = navController,
                             items = sideItems,
-                            contentPadding = WindowInsets.statusBars.asPaddingValues()
+                            contentPadding = WindowInsets.statusBars.asPaddingValues(),
+                            mode = sideMode
                         )
                     }
                     // 垂直分隔线（侧栏与内容区之间）
