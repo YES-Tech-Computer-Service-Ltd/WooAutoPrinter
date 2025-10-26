@@ -1,5 +1,7 @@
 package com.example.wooauto.data.mappers
 
+import android.util.Log
+import com.example.wooauto.BuildConfig
 import com.example.wooauto.data.local.entities.FeeLineEntity
 import com.example.wooauto.data.local.entities.OrderEntity
 import com.example.wooauto.data.local.entities.OrderLineItemEntity
@@ -29,6 +31,7 @@ object OrderMapper {
      * @return 数据库订单实体
      */
     fun mapResponseToEntity(response: OrderResponse): OrderEntity {
+        // 调试日志已移除
         // 提取元数据信息并构建元数据字符串
         val metadataBuilder = StringBuilder()
         
@@ -143,7 +146,7 @@ object OrderMapper {
             )
         }
 
-        return OrderEntity(
+        val entity = OrderEntity(
             id = response.id,
             number = response.number.toIntOrNull() ?: 0,
             status = response.status,
@@ -163,6 +166,8 @@ object OrderMapper {
             notificationShown = false,
             lastUpdated = System.currentTimeMillis()
         )
+        // 调试日志已移除
+        return entity
     }
 
     /**
@@ -280,7 +285,9 @@ object OrderMapper {
         // println("【数据流】订单#${entity.number} 最终的WooFoodInfo: $finalWooFoodInfo")
         
         // 继续使用更新后的woofoodInfo创建Order对象
-        return createOrderWithUpdatedWooFoodInfo(entity, orderItems, finalWooFoodInfo, feeLines)
+        val domainOrder = createOrderWithUpdatedWooFoodInfo(entity, orderItems, finalWooFoodInfo, feeLines)
+        // 调试日志已移除
+        return domainOrder
     }
 
     /**

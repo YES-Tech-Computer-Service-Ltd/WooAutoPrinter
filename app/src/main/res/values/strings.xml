@@ -438,6 +438,15 @@
     <string name="pickup_time">Pickup Time</string>
 
     <!-- New additions from the code block -->
+    <!-- Order top-right status chip localization -->
+    <string name="status_urgent_title">Urgent (within 2h)</string>
+    <string name="status_today_later_title">Today later</string>
+    <string name="status_preorder_title">Pre-order</string>
+    <string name="relative_today">today</string>
+    <string name="relative_tomorrow">tomorrow</string>
+    <string name="relative_day_after_tomorrow">the day after tomorrow</string>
+    <string name="relative_days_later">%1$d days later</string>
+    <string name="status_date_with_relative">%1$s (%2$s)</string>
     <string name="about">About</string>
     <string name="deactivate_license">Deactivate License</string>
     <string name="deactivate_license_title">Deactivate license?</string>

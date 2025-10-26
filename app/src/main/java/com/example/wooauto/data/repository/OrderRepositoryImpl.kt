@@ -1312,4 +1312,24 @@ class OrderRepositoryImpl @Inject constructor(
             return@withContext emptyList<Order>()
         }
     }
+
+    // Debug: 获取指定订单的原始REST API元数据（格式化字符串）
+    override suspend fun getRawOrderMetadata(orderId: Long): String? = withContext(Dispatchers.IO) {
+        try {
+            val api = getApi()
+            val dto = api.getOrder(orderId)
+            val meta = dto.metaData ?: return@withContext null
+            val sb = StringBuilder()
+            sb.append("id=").append(dto.id).append(", number=").append(dto.number)
+            sb.append("\n-- meta_data --\n")
+            meta.forEach { m ->
+                sb.append(m.key).append(": ").append(m.value?.toString()).append('\n')
+            }
+            sb.append("-- customer_note --\n").append(dto.customerNote ?: "")
+            sb.toString()
+        } catch (e: Exception) {
+            Log.e("OrderRepositoryImpl", "getRawOrderMetadata error", e)
+            null
+        }
+    }
 }

@@ -270,6 +270,31 @@ fun OrderDto.toOrder(): Order {
         domainTaxLines
     }
     
+    // 组装备注：原始客户备注 + 关键元数据（用于时间/日期解析）
+    val noteBuilder = StringBuilder()
+    if (!customerNote.isNullOrBlank()) noteBuilder.append(customerNote)
+    // 将与WooFood相关的关键元数据拼接到备注，保持“key: value”格式，便于现有解析逻辑使用
+    metaData?.let { metas ->
+        val kv = metas.associate { (it.key ?: "") to (it.value?.toString() ?: "") }
+        val keysInOrder = listOf(
+            "exwfood_order_method",
+            "exwfood_date_deli",
+            "exwfood_date_deli_unix",
+            "exwfood_datetime_deli_unix",
+            "exwfood_time_deli",
+            "exwfood_timeslot"
+        )
+        val anyValue = keysInOrder.any { !kv[it].isNullOrBlank() }
+        if (anyValue) {
+            if (noteBuilder.isNotEmpty()) noteBuilder.append('\n')
+            noteBuilder.append("--- 元数据 ---\n")
+            keysInOrder.forEach { k ->
+                val v = kv[k]
+                if (!v.isNullOrBlank()) noteBuilder.append(k).append(": ").append(v).append('\n')
+            }
+        }
+    }
+
     return Order(
         id = id,
         number = number,
@@ -283,7 +308,7 @@ fun OrderDto.toOrder(): Order {
         items = lineItems.map { it.toOrderItem() },
         isPrinted = false, // 默认为未打印
         notificationShown = false,  // 默认为未显示通知
-        notes = customerNote.orEmpty(), // 使用客户备注作为订单备注
+        notes = noteBuilder.toString(),
         woofoodInfo = woofoodInfo, // 添加WooFood信息
         subtotal = calculatedSubtotal,
         totalTax = realTotalTax,

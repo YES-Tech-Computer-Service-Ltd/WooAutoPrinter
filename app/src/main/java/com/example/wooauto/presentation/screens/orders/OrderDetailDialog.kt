@@ -33,6 +33,7 @@ import com.example.wooauto.R
 import com.example.wooauto.domain.models.Order
 import com.example.wooauto.domain.models.OrderItem
 import com.example.wooauto.domain.templates.TemplateType
+import com.example.wooauto.BuildConfig
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.ui.draw.clip
@@ -57,6 +58,8 @@ fun OrderDetailDialog(
     onMarkAsRead: ((Long) -> Unit)? = null
 ) {
     val viewModel: OrdersViewModel = hiltViewModel()
+    // 临时获取仓库以便调用原始元数据接口
+    val repo = remember { viewModel.orderRepository }
     remember { viewModel.licenseManager }
     // val licenseInfo by viewModel.licenseManager.licenseInfo.observeAsState()
     val eligibilityInfo by viewModel.licenseManager.eligibilityInfo.observeAsState()
@@ -125,7 +128,53 @@ fun OrderDetailDialog(
                         }
                     },
                     actions = {
-                        // 移除右上角按钮，不再显示任何内容
+                        // 顶部右侧状态标签（紧急/今日稍后/预订单），展示相对日期字符串
+                        val wooFoodInfo = displayOrder.woofoodInfo
+                        val timeText = wooFoodInfo?.deliveryTime
+                        val scheduledDateStr = extractScheduledDateFromNotes(displayOrder.notes)
+                        // 本地化字符串资源
+                        val statusStrings = StatusStrings(
+                            urgentTitle = stringResource(R.string.status_urgent_title),
+                            todayLaterTitle = stringResource(R.string.status_today_later_title),
+                            preOrderTitle = stringResource(R.string.status_preorder_title),
+                            today = stringResource(R.string.relative_today),
+                            tomorrow = stringResource(R.string.relative_tomorrow),
+                            dayAfterTomorrow = stringResource(R.string.relative_day_after_tomorrow),
+                            daysLaterFormat = stringResource(R.string.relative_days_later),
+                            dateWithRelativeFormat = stringResource(R.string.status_date_with_relative)
+                        )
+                        val status = remember(displayOrder.id, scheduledDateStr, timeText, statusStrings) {
+                            buildOrderStatusLabel(
+                                createdAt = displayOrder.dateCreated,
+                                scheduledDateStr = scheduledDateStr,
+                                deliveryTimeText = timeText,
+                                strings = statusStrings
+                            )
+                        }
+                        // 调试日志已移除
+                        if (status != null) {
+                            Box(
+                                modifier = Modifier
+                                    .padding(end = 8.dp)
+                                    .background(color = status.backgroundColor, shape = RoundedCornerShape(12.dp))
+                                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.Schedule,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp),
+                                        tint = status.foregroundColor
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = status.text,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = status.foregroundColor
+                                    )
+                                }
+                            }
+                        }
                     }
                 )
                 
@@ -259,20 +308,23 @@ fun OrderDetailDialog(
                             )
                         }
                         
-                        // 显示订单备注信息
-                        if (displayOrder.notes.isNotEmpty()) {
-                            OrderDetailRow(
-                                label = stringResource(R.string.order_note),
-                                value = displayOrder.notes,
-                                icon = {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.TextSnippet,
-                                        contentDescription = stringResource(R.string.order_note),
-                                        modifier = Modifier.size(16.dp),
-                                        tint = MaterialTheme.colorScheme.primary
-                                    )
-                                }
-                            )
+                        // 显示订单备注信息（过滤掉我们为解析而注入的元数据行）
+                        run {
+                            val noteForDisplay = cleanNotesForDisplay(displayOrder.notes)
+                            if (noteForDisplay.isNotEmpty()) {
+                                OrderDetailRow(
+                                    label = stringResource(R.string.order_note),
+                                    value = noteForDisplay,
+                                    icon = {
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Filled.TextSnippet,
+                                            contentDescription = stringResource(R.string.order_note),
+                                            modifier = Modifier.size(16.dp),
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                )
+                            }
                         }
                         
                         // 显示WooFood信息（如果有）
@@ -284,6 +336,25 @@ fun OrderDetailDialog(
                                 Color(0xFF4CAF50) // 绿色用于自取
                             }
                             
+                            // 临时调试：仅针对#1700显示完整元数据与备注预览
+    if (false && displayOrder.number == "1700") {
+                                val previewNote = displayOrder.notes.take(2000)
+                                var rawMeta by remember { mutableStateOf<String?>(null) }
+                                // 调试抓取原始元数据已禁用
+                                OrderDetailRow(
+                                    label = "Meta",
+                                    value = (rawMeta ?: previewNote).ifBlank { stringResource(R.string.not_provided) },
+                                    icon = {
+                                        Icon(
+                                            imageVector = Icons.Default.Info,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp),
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                )
+                            }
+
                             val orderMethodText = if (wooFoodInfo.isDelivery) 
                                 stringResource(R.string.delivery_order) 
                             else 
@@ -360,11 +431,31 @@ fun OrderDetailDialog(
                                 )
                             }
                             
-                            // 统一显示预计时间（配送/自取）
+                            // 统一显示预计时间（配送/自取）——始终包含日期（优先预约日期，否则下单日期），并带相对日期
                             wooFoodInfo.deliveryTime?.let { time ->
+                                val scheduledDateStr = extractScheduledDateFromNotes(displayOrder.notes)
+                                val dateOnly = parseDateOnly(scheduledDateStr) ?: stripTime(displayOrder.dateCreated)
+                                val dateStr = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(dateOnly)
+                                val strings = StatusStrings(
+                                    urgentTitle = stringResource(R.string.status_urgent_title),
+                                    todayLaterTitle = stringResource(R.string.status_today_later_title),
+                                    preOrderTitle = stringResource(R.string.status_preorder_title),
+                                    today = stringResource(R.string.relative_today),
+                                    tomorrow = stringResource(R.string.relative_tomorrow),
+                                    dayAfterTomorrow = stringResource(R.string.relative_day_after_tomorrow),
+                                    daysLaterFormat = stringResource(R.string.relative_days_later),
+                                    dateWithRelativeFormat = stringResource(R.string.status_date_with_relative)
+                                )
+                                val relative = computeRelativeDayLabel(
+                                    createdAt = displayOrder.dateCreated,
+                                    scheduled = dateOnly,
+                                    strings = strings
+                                )
+                                val datePortion = if (relative != null) String.format(strings.dateWithRelativeFormat, dateStr, relative) else dateStr
+                                val dateTimeText = "$datePortion $time"
                                 OrderDetailRow(
                                     label = if (wooFoodInfo.isDelivery) stringResource(R.string.delivery_time) else stringResource(R.string.pickup_time),
-                                    value = time,
+                                    value = dateTimeText,
                                     icon = {
                                         Icon(
                                             imageVector = Icons.Default.Schedule,
@@ -1285,3 +1376,236 @@ fun OrderItemRow(item: OrderItem, currencySymbol: String) {
         )
     }
 } 
+
+// 从订单备注中提取预定日期（例如 exwfood_date_deli），并格式化为 yyyy-MM-dd
+private fun extractScheduledDateFromNotes(note: String): String? {
+    if (note.isBlank()) return null
+    return try {
+        // 优先匹配 WooFood/ExWooFood 元数据键
+        val keys = listOf(
+            "exwfood_date_deli",
+            "exwfood_date_pick",
+            "woofood_date_deli",
+            "woofood_date_pick",
+            "delivery_date",
+            "pickup_date",
+            "Pickup Date",
+            "Delivery Date"
+        )
+        // 调试日志已移除
+        for (key in keys) {
+            // 形如: key: October 29, 2025
+            val pattern = ("(?im)^\\s*" + key + "\\s*[:：]\\s*(.+)$").toRegex()
+            val match = pattern.find(note)
+            if (match != null && match.groupValues.size > 1) {
+                val raw = match.groupValues[1].trim()
+                val formatted = tryFormatDateString(raw)
+                return formatted ?: raw
+            }
+        }
+        // 调试日志已移除
+        null
+    } catch (e: Exception) {
+        null
+    }
+}
+
+// 仅用于UI展示：移除我们注入到 notes 中的调试/解析元数据行
+private fun cleanNotesForDisplay(notes: String): String {
+    if (notes.isBlank()) return notes
+    val lines = notes.lines()
+    val filtered = lines.filterNot { line ->
+        val trimmed = line.trim()
+        trimmed.startsWith("--- 元数据") ||
+        trimmed.startsWith("exwfood_order_method:") ||
+        trimmed.startsWith("exwfood_date_deli:") ||
+        trimmed.startsWith("exwfood_date_deli_unix:") ||
+        trimmed.startsWith("exwfood_datetime_deli_unix:") ||
+        trimmed.startsWith("exwfood_time_deli:") ||
+        trimmed.startsWith("exwfood_timeslot:")
+    }
+    return filtered.joinToString("\n").trim()
+}
+// 将多种常见输入日期格式转为 yyyy-MM-dd
+private fun tryFormatDateString(raw: String): String? {
+    val inputs = listOf(
+        "yyyy-MM-dd",
+        "yyyy/MM/dd",
+        "MM/dd/yyyy",
+        "dd/MM/yyyy",
+        "MM-dd-yyyy",
+        "MMM d, yyyy",
+        "MMM d yyyy",
+        "MMMM d, yyyy"
+    )
+    inputs.forEach { pattern ->
+        try {
+            val df = java.text.SimpleDateFormat(pattern, java.util.Locale.getDefault())
+            df.isLenient = true
+            val date = df.parse(raw)
+            if (date != null) {
+                val out = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+                return out.format(date)
+            }
+        } catch (_: Exception) { }
+    }
+    return null
+}
+
+// 顶部状态标签的数据载体
+private data class OrderStatusLabel(
+    val text: String,
+    val backgroundColor: Color,
+    val foregroundColor: Color
+)
+
+private data class StatusStrings(
+    val urgentTitle: String,
+    val todayLaterTitle: String,
+    val preOrderTitle: String,
+    val today: String,
+    val tomorrow: String,
+    val dayAfterTomorrow: String,
+    val daysLaterFormat: String, // e.g. "%1$d days later"
+    val dateWithRelativeFormat: String // e.g. "%1$s（%2$s）"
+)
+
+// 构建顶部右侧状态标签：红/黄/绿 + 相对日期字符串
+private fun buildOrderStatusLabel(
+    createdAt: java.util.Date,
+    scheduledDateStr: String?,
+    deliveryTimeText: String?,
+    strings: StatusStrings
+): OrderStatusLabel? {
+    // 解析计划日期（仅日期部分）
+    val dateOnly = parseDateOnly(scheduledDateStr) ?: stripTime(createdAt)
+    val startMillis = parseStartTimeMillis(dateOnly, deliveryTimeText) ?: dateOnly.time
+    val diffMillis = startMillis - createdAt.time
+
+    val relative = computeRelativeDayLabel(createdAt, dateOnly, strings)
+    val dateStr = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(dateOnly)
+    val timeDisplay = deliveryTimeText?.trim().orEmpty()
+    val datePortion = if (relative != null) String.format(strings.dateWithRelativeFormat, dateStr, relative) else dateStr
+
+    // 颜色预设
+    val red = Color(0xFFE53935)
+    val yellow = Color(0xFFFFA000)
+    val green = Color(0xFF4CAF50)
+    val fgOnLight = Color(0xFF0F0F0F)
+
+    // 分类
+    val twoHoursMs = 2 * 60 * 60 * 1000L
+    return when {
+        diffMillis in Long.MIN_VALUE..(twoHoursMs - 1) -> {
+            val text = buildString {
+                append(strings.urgentTitle)
+                append(" · ")
+                append(datePortion)
+                if (timeDisplay.isNotEmpty()) {
+                    append(' ')
+                    append(timeDisplay)
+                }
+            }
+            OrderStatusLabel(text, red.copy(alpha = 0.12f), red)
+        }
+        isSameDay(createdAt, dateOnly) -> {
+            val text = buildString {
+                append(strings.todayLaterTitle)
+                append(" · ")
+                append(String.format(strings.dateWithRelativeFormat, dateStr, strings.today))
+                if (timeDisplay.isNotEmpty()) {
+                    append(' ')
+                    append(timeDisplay)
+                }
+            }
+            OrderStatusLabel(text, yellow.copy(alpha = 0.12f), yellow)
+        }
+        else -> {
+            val text = buildString {
+                append(strings.preOrderTitle)
+                append(" · ")
+                val rel = relative ?: ""
+                append(String.format(strings.dateWithRelativeFormat, dateStr, rel))
+                if (timeDisplay.isNotEmpty()) {
+                    append(' ')
+                    append(timeDisplay)
+                }
+            }
+            OrderStatusLabel(text, green.copy(alpha = 0.12f), green)
+        }
+    }
+}
+
+// 解析仅日期（去除时分秒），支持 yyyy-MM-dd 等多种格式
+private fun parseDateOnly(dateStr: String?): java.util.Date? {
+    if (dateStr.isNullOrBlank()) return null
+    val candidate = tryFormatDateString(dateStr) ?: dateStr
+    val patterns = listOf("yyyy-MM-dd", "yyyy/MM/dd", "MM/dd/yyyy", "dd/MM/yyyy", "MM-dd-yyyy")
+    patterns.forEach { p ->
+        try {
+            val df = java.text.SimpleDateFormat(p, java.util.Locale.getDefault())
+            df.isLenient = true
+            val d = df.parse(candidate)
+            if (d != null) return stripTime(d)
+        } catch (_: Exception) { }
+    }
+    return null
+}
+
+// 去除时间部分，只保留日期
+private fun stripTime(date: java.util.Date): java.util.Date {
+    val cal = java.util.Calendar.getInstance()
+    cal.time = date
+    cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
+    cal.set(java.util.Calendar.MINUTE, 0)
+    cal.set(java.util.Calendar.SECOND, 0)
+    cal.set(java.util.Calendar.MILLISECOND, 0)
+    return cal.time
+}
+
+// 计算相对日期：今天/明天/后天/N天后；若为过去则返回""
+private fun computeRelativeDayLabel(createdAt: java.util.Date, scheduled: java.util.Date, strings: StatusStrings): String? {
+    val start = stripTime(createdAt)
+    val end = stripTime(scheduled)
+    val days = ((end.time - start.time) / (24 * 60 * 60 * 1000L)).toInt()
+    return when (days) {
+        0 -> strings.today
+        1 -> strings.tomorrow
+        2 -> strings.dayAfterTomorrow
+        else -> if (days > 2) String.format(strings.daysLaterFormat, days) else null
+    }
+}
+
+private fun isSameDay(a: java.util.Date, b: java.util.Date): Boolean {
+    val ca = java.util.Calendar.getInstance().apply { time = a }
+    val cb = java.util.Calendar.getInstance().apply { time = b }
+    return ca.get(java.util.Calendar.YEAR) == cb.get(java.util.Calendar.YEAR) &&
+            ca.get(java.util.Calendar.DAY_OF_YEAR) == cb.get(java.util.Calendar.DAY_OF_YEAR)
+}
+
+// 从时间文案解析起始时间戳（取区间的开始），结合日期
+private fun parseStartTimeMillis(dateOnly: java.util.Date, timeText: String?): Long? {
+    if (timeText.isNullOrBlank()) return null
+    val firstPart = timeText
+        .split("-", "–", "~", "到", "至")
+        .firstOrNull()
+        ?.trim()
+        ?: return null
+
+    val datePart = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(dateOnly)
+    val candidates = listOf(
+        "yyyy-MM-dd HH:mm",
+        "yyyy-MM-dd H:mm",
+        "yyyy-MM-dd hh:mm a",
+        "yyyy-MM-dd h:mm a"
+    )
+    candidates.forEach { p ->
+        try {
+            val df = java.text.SimpleDateFormat(p, java.util.Locale.getDefault())
+            df.isLenient = true
+            val dt = df.parse("$datePart $firstPart")
+            if (dt != null) return dt.time
+        } catch (_: Exception) { }
+    }
+    return null
+}

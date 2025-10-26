@@ -174,4 +174,9 @@ interface DomainOrderRepository {
      * @return 订单列表
      */
     suspend fun getOrdersByIds(orderIds: List<Long>): List<Order>
+
+    /**
+     * Debug: 获取指定订单的原始REST API元数据（格式化字符串）
+     */
+    suspend fun getRawOrderMetadata(orderId: Long): String?
 } 

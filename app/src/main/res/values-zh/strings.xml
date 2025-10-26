@@ -423,6 +423,15 @@
     <string name="deactivate_license_message">这将移除当前许可证并在本地重置试用期。你可以稍后激活新的许可证。</string>
     <string name="license_deactivated">许可证已停用</string>
     <string name="version">版本</string>
+    <!-- 顶部状态标签本地化 -->
+    <string name="status_urgent_title">紧急（2小时内）</string>
+    <string name="status_today_later_title">今日稍后</string>
+    <string name="status_preorder_title">预订单</string>
+    <string name="relative_today">今天</string>
+    <string name="relative_tomorrow">明天</string>
+    <string name="relative_day_after_tomorrow">后天</string>
+    <string name="relative_days_later">%1$d天后</string>
+    <string name="status_date_with_relative">%1$s（%2$s）</string>
     <string name="error_network">网络错误</string>
     <string name="error_server">服务器错误</string>
 

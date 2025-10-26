@@ -45,7 +45,7 @@ import com.example.wooauto.utils.SoundManager
 
 @HiltViewModel
 class OrdersViewModel @Inject constructor(
-    private val orderRepository: DomainOrderRepository,
+    val orderRepository: DomainOrderRepository,
     private val settingRepository: DomainSettingRepository,
     private val printerManager: PrinterManager,
     private val wooCommerceConfig: com.example.wooauto.data.local.WooCommerceConfig,
