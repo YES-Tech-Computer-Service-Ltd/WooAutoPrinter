@@ -392,11 +392,7 @@ class DefaultOrderPrintTemplate @Inject constructor(
         
         // 表头（非厨房模式且显示价格时）
         if (!kitchenStyle && templateConfig.showItemPrices) {
-            sb.append(ThermalPrinterFormatter.formatLeftRightText(
-                ThermalPrinterFormatter.formatBold("Item"), 
-                ThermalPrinterFormatter.formatBold("Qty x Price"), 
-                paperWidth
-            ))
+            sb.append(ThermalPrinterFormatter.formatThreePartHeader(paperWidth, qtyLabel = "Qty", nameLabel = "Item", priceLabel = "Price"))
         }
         
         // 商品列表
@@ -405,14 +401,19 @@ class DefaultOrderPrintTemplate @Inject constructor(
             
             if (!kitchenStyle && templateConfig.showItemPrices) {
                 val price = item.price
-                sb.append(ThermalPrinterFormatter.formatItemPriceLine(name, item.quantity, price, paperWidth))
+                // 三段式：首行固定价格在最右；后续行只渲染中间列
+                sb.append(ThermalPrinterFormatter.formatThreePartItemLinePinnedPrice(item.quantity, name, price, paperWidth))
+                // 每个条目之间增加一行空隙，增强可读性
+                sb.append(ThermalPrinterFormatter.addEmptyLines(1))
             } else {
-                // 厨房模式或不显示价格时，商品名称也使用专门的中文字体放大方案 - 支持中文和英文放大显示
-                val formattedProductName = ThermalPrinterFormatter.formatChineseLargeFont("${item.quantity} x $name", paperWidth)
+                // 厨房模式或不显示价格：仍放大显示“数量 名称”
+                val formattedProductName = ThermalPrinterFormatter.formatChineseLargeFont("${item.quantity} $name", paperWidth)
                 sb.append(ThermalPrinterFormatter.formatLeftText(
                     formattedProductName, 
                 paperWidth
             ))
+                // 厨房模式也保持条目间距
+                sb.append(ThermalPrinterFormatter.addEmptyLines(1))
             }
             
             // 商品选项
@@ -424,10 +425,7 @@ class DefaultOrderPrintTemplate @Inject constructor(
                 }
             }
             
-            // 厨房模式下每个商品之间添加额外空行
-            if (kitchenStyle) {
-                sb.append(ThermalPrinterFormatter.addEmptyLines(1))
-            }
+            // 额外空行逻辑已统一移入分支
         }
         
         sb.append(ThermalPrinterFormatter.formatDivider(paperWidth))
