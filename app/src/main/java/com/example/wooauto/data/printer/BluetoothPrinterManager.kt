@@ -1260,6 +1260,11 @@ class BluetoothPrinterManager @Inject constructor(
                         delay(1000)
                     }
                 } catch (e: Exception) {
+                    // 关键修复：尊重协程取消，避免在超时/取消后继续重试导致重复打印
+                    if (e is kotlinx.coroutines.CancellationException) {
+                        UiLog.d(TAG, "使用模板打印任务被取消，停止重试: #${order.number}")
+                        throw e
+                    }
                     Log.e(TAG, "使用模板打印订单异常: ${e.message}", e)
 
                     // 对于连接断开的异常，尝试重新连接

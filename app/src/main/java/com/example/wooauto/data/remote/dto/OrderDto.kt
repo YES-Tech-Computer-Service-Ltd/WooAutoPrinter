@@ -270,30 +270,9 @@ fun OrderDto.toOrder(): Order {
         domainTaxLines
     }
     
-    // 组装备注：原始客户备注 + 关键元数据（用于时间/日期解析）
+    // 备注只保留客户原始输入，不再拼接内部元数据，避免污染 Special Instructions
     val noteBuilder = StringBuilder()
     if (!customerNote.isNullOrBlank()) noteBuilder.append(customerNote)
-    // 将与WooFood相关的关键元数据拼接到备注，保持“key: value”格式，便于现有解析逻辑使用
-    metaData?.let { metas ->
-        val kv = metas.associate { (it.key ?: "") to (it.value?.toString() ?: "") }
-        val keysInOrder = listOf(
-            "exwfood_order_method",
-            "exwfood_date_deli",
-            "exwfood_date_deli_unix",
-            "exwfood_datetime_deli_unix",
-            "exwfood_time_deli",
-            "exwfood_timeslot"
-        )
-        val anyValue = keysInOrder.any { !kv[it].isNullOrBlank() }
-        if (anyValue) {
-            if (noteBuilder.isNotEmpty()) noteBuilder.append('\n')
-            noteBuilder.append("--- 元数据 ---\n")
-            keysInOrder.forEach { k ->
-                val v = kv[k]
-                if (!v.isNullOrBlank()) noteBuilder.append(k).append(": ").append(v).append('\n')
-            }
-        }
-    }
 
     return Order(
         id = id,

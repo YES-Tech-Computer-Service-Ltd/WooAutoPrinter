@@ -123,6 +123,9 @@ class BackgroundPollingService : Service() {
     private val MAX_NETWORK_RETRY_COUNT = 3
     private var networkRetryCount = 0
 
+    // 自动打印中的订单去重集合，防止并发/多源触发导致重复打印
+    private val printingOrderIds = java.util.Collections.synchronizedSet(mutableSetOf<Long>())
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
@@ -838,9 +841,11 @@ class BackgroundPollingService : Service() {
             val isProcessed = synchronized(processedOrderIds) {
                 processedOrderIds.contains(order.id)
             }
+            // 如果该订单当前已在自动打印中，也视为已处理，避免并发重复触发
+            val isInPrinting = printingOrderIds.contains(order.id)
             
             // 检查是否处理过此订单
-            val isNewOrder = !isProcessed
+            val isNewOrder = !(isProcessed || isInPrinting)
             
             // 首次轮询时，只处理5分钟内的新订单，避免处理历史订单
             val isRecentOrder = if (isFirstPolling) {
@@ -958,7 +963,11 @@ class BackgroundPollingService : Service() {
     private fun printOrder(order: Order) {
         serviceScope.launch {
             try {
-                
+                // 并发去重，若已在打印中则忽略
+                if (!printingOrderIds.add(order.id)) {
+                    UiLog.d(TAG, "【自动打印调试】该订单正在自动打印中，忽略重复触发: #${order.number}")
+                    return@launch
+                }
                 
                 // 检查订单是否已打印
                 if (order.isPrinted) {
@@ -1087,6 +1096,8 @@ class BackgroundPollingService : Service() {
                 
             } catch (e: Exception) {
                 Log.e(TAG, "自动打印订单时发生异常: ${e.message}", e)
+            } finally {
+                printingOrderIds.remove(order.id)
             }
         }
     }

@@ -23,6 +23,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -1235,9 +1236,11 @@ fun TemplateSelectorDialog(
                             Spacer(modifier = Modifier.width(16.dp))
                             Text(
                                 text = description,
-                                style = MaterialTheme.typography.bodyLarge
+                                style = MaterialTheme.typography.bodyLarge,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
                             )
-                            Spacer(modifier = Modifier.weight(1f))
                             // 份数步进器（禁用态时降低透明度）
                             val current = (copyCounts[templateId] ?: 1).coerceAtLeast(1)
                             Row(verticalAlignment = Alignment.CenterVertically) {

@@ -508,9 +508,31 @@ class DefaultOrderPrintTemplate @Inject constructor(
         val sb = StringBuilder()
         sb.append(ThermalPrinterFormatter.formatDivider(paperWidth))
         sb.append(ThermalPrinterFormatter.formatLeftText(ThermalPrinterFormatter.formatBold(sectionTitle), paperWidth))
-        sb.append(ThermalPrinterFormatter.formatMultilineText(order.notes, paperWidth))
+        // 过滤掉我们为解析而注入到备注中的元数据行，避免打印到 Special Instructions
+        val notesForPrint = sanitizeNotesForPrint(order.notes)
+        if (notesForPrint.isEmpty()) return ""
+        sb.append(ThermalPrinterFormatter.formatMultilineText(notesForPrint, paperWidth))
         
         return sb.toString()
+    }
+
+    /**
+     * 过滤掉备注中的内部元数据行，仅保留用户输入的说明内容
+     */
+    private fun sanitizeNotesForPrint(notes: String): String {
+        if (notes.isBlank()) return notes
+        val lines = notes.lines()
+        val filtered = lines.filterNot { line ->
+            val trimmed = line.trim()
+            trimmed.startsWith("--- 元数据") ||
+            trimmed.startsWith("exwfood_order_method:") ||
+            trimmed.startsWith("exwfood_date_deli:") ||
+            trimmed.startsWith("exwfood_date_deli_unix:") ||
+            trimmed.startsWith("exwfood_datetime_deli_unix:") ||
+            trimmed.startsWith("exwfood_time_deli:") ||
+            trimmed.startsWith("exwfood_timeslot:")
+        }
+        return filtered.joinToString("\n").trim()
     }
     
     /**
