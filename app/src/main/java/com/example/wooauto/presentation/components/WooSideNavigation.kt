@@ -159,10 +159,13 @@ fun WooSideNavigation(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .background(
-                                        if (subSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                                        if (subSelected) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f) else Color.Transparent,
                                         shape = MaterialTheme.shapes.small
                                     )
-                                    .clickable {
+                                    .clickable(
+                                        indication = null,
+                                        interactionSource = androidx.compose.foundation.interaction.MutableInteractionSource()
+                                    ) {
                                         val route = when (item.route) {
                                             com.example.wooauto.navigation.NavigationItem.Settings.route -> SettingsSectionRoutes.routeFor(sub.route)
                                             com.example.wooauto.navigation.NavigationItem.Orders.route -> com.example.wooauto.presentation.navigation.Screen.OrdersSection.routeFor(sub.route)

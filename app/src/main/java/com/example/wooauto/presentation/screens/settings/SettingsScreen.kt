@@ -581,41 +581,29 @@ fun SettingsScreen(
                                         Spacer(modifier = Modifier.height(8.dp))
                                         HorizontalDivider()
                                         Spacer(modifier = Modifier.height(8.dp))
+                        
+                        // 手动检查更新按钮（始终显示）
+                        val isCheckingUpdate = viewModel.isCheckingUpdate.collectAsState().value
+                        val updateInfoState = viewModel.updateInfo.collectAsState().value
+                        val manualSubtitle = when {
+                            isCheckingUpdate -> stringResource(R.string.checking_for_updates)
+                            updateInfoState?.needsUpdate() == true -> stringResource(
+                                R.string.update_available,
+                                updateInfoState.latestVersion.toVersionString()
+                            )
+                            else -> stringResource(R.string.version_is_latest)
+                        }
+                        val ctx = LocalContext.current
                         SettingsNavigationItem(
-                            icon = Icons.Outlined.Info,
-                            title = stringResource(R.string.about),
-                            subTitle = run {
-                                                val currentVersion =
-                                                    viewModel.updateInfo.collectAsState().value?.currentVersion?.toVersionString()
-                                                        ?: ""
-                                                val updateInfo =
-                                                    viewModel.updateInfo.collectAsState().value
-                                                val isCheckingUpdate =
-                                                    viewModel.isCheckingUpdate.collectAsState().value
-                                                if (isCheckingUpdate) stringResource(R.string.fetching_version_info) else if (currentVersion.isNotEmpty()) {
-                                    if (updateInfo?.needsUpdate() == true) {
-                                                        val latestVersion =
-                                                            updateInfo.latestVersion.toVersionString()
-                                                        stringResource(
-                                                            R.string.about_version_info,
-                                                            currentVersion,
-                                                            stringResource(
-                                                                R.string.version_needs_update,
-                                                                latestVersion
-                                                            )
-                                                        )
-                                                    } else stringResource(
-                                                        R.string.about_version_info,
-                                                        currentVersion,
-                                                        stringResource(R.string.version_is_latest)
-                                                    )
-                                                } else stringResource(R.string.fetching_version_info)
-                            },
+                            icon = null,
+                            title = stringResource(R.string.check_for_updates_action),
+                            subTitle = manualSubtitle,
                             onClick = {
-                                coroutineScope.launch {
-                                                    snackbarHostState.showSnackbar(
-                                                        viewModel.getAboutInfoText()
-                                                    )
+                                if (!isCheckingUpdate) {
+                                    viewModel.checkAppUpdate()
+                                    coroutineScope.launch {
+                                        snackbarHostState.showSnackbar(manualSubtitle)
+                                    }
                                 }
                             }
                         )
@@ -672,12 +660,47 @@ fun SettingsScreen(
                                 }
                             }
                         }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+                        HorizontalDivider()
+                        Spacer(modifier = Modifier.height(8.dp))
+                        SettingsNavigationItem(
+                            icon = Icons.Outlined.Info,
+                            title = stringResource(R.string.about),
+                            subTitle = run {
+                                val currentVersion =
+                                    viewModel.updateInfo.collectAsState().value?.currentVersion?.toVersionString()
+                                        ?: ""
+                                val uInfo = viewModel.updateInfo.collectAsState().value
+                                val checking = viewModel.isCheckingUpdate.collectAsState().value
+                                if (checking) stringResource(R.string.fetching_version_info) else if (currentVersion.isNotEmpty()) {
+                                    if (uInfo?.needsUpdate() == true) {
+                                        val latestVersion = uInfo.latestVersion.toVersionString()
+                                        stringResource(
+                                            R.string.about_version_info,
+                                            currentVersion,
+                                            stringResource(R.string.version_needs_update, latestVersion)
+                                        )
+                                    } else stringResource(
+                                        R.string.about_version_info,
+                                        currentVersion,
+                                        stringResource(R.string.version_is_latest)
+                                    )
+                                } else stringResource(R.string.fetching_version_info)
+                            },
+                            onClick = {
+                                coroutineScope.launch {
+                                    snackbarHostState.showSnackbar(
+                                        viewModel.getAboutInfoText()
+                                    )
+                                }
+                            }
+                        )
                     }
                                 }
                             }
                         }
-
-                        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(24.dp))
                     }
                 }
             }

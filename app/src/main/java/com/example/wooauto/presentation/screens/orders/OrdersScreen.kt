@@ -392,6 +392,7 @@ fun OrdersScreen(
                 .weight(1f)) {
                 when {
                     !isInitialized.value || !configChecked || isLoading -> {
+                        UiLog.d("OrdersScreen", "Loading gating -> isInitialized=${isInitialized.value}, configChecked=$configChecked, isLoading=$isLoading, ordersSize=${orders.size}")
                         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                                 CircularProgressIndicator()
