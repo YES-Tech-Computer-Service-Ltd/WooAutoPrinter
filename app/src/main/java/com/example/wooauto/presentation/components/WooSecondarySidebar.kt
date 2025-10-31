@@ -47,12 +47,15 @@ fun WooSecondarySidebar(
             val selected = selectedRoute == item.route
             Surface(
                 shape = MaterialTheme.shapes.small,
-                color = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+                color = if (selected) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f) else MaterialTheme.colorScheme.surface,
                 tonalElevation = if (selected) 2.dp else 0.dp,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 8.dp, vertical = 4.dp)
-                    .clickable { onSelect(item.route) }
+                    .clickable(
+                        indication = null,
+                        interactionSource = androidx.compose.foundation.interaction.MutableInteractionSource()
+                    ) { onSelect(item.route) }
             ) {
                 androidx.compose.foundation.layout.Row(
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),

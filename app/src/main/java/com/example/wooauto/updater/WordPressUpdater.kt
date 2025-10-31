@@ -137,10 +137,11 @@ class WordPressUpdater @Inject constructor(
             val (baseUrl, token) = config.getCurrentConfig()
             // 在API请求中传递当前版本，让服务器能够正确比较
             val apiUrl = "$baseUrl/check?token=$token&client_version=${currentVersion.toVersionString()}"
+            Log.d(TAG, "[Updater] 开始检查: url=$apiUrl, current=${currentVersion.toFullVersionString()}")
             val response = makeApiRequest(apiUrl)
             
             if (response != null) {
-                Log.d(TAG, "API响应: $response")
+                Log.d(TAG, "[Updater] API响应长度: ${response.length}")
                 val jsonResponse = JSONObject(response)
                 val success = jsonResponse.optBoolean("success", false)
                 
@@ -150,22 +151,18 @@ class WordPressUpdater @Inject constructor(
                     val fileSize = jsonResponse.optLong("file_size", 0L)
                     val serverHasUpdate = jsonResponse.optBoolean("has_update", false)
                     
-                    Log.d(TAG, "服务器返回 - 版本: $serverVersion, 服务器判断有更新: $serverHasUpdate, 下载链接: $downloadUrl, 文件大小: $fileSize")
+                    Log.d(TAG, "[Updater] 服务器返回: version=$serverVersion, has_update=$serverHasUpdate, size=$fileSize")
                     
                     if (serverVersion.isNotEmpty()) {
                         val latestVersion = parseVersionString(serverVersion)
-                        Log.d(TAG, "解析后的服务器版本: ${latestVersion.toVersionString()} (versionCode: ${latestVersion.versionCode})")
+                        Log.d(TAG, "[Updater] 解析服务器版本: ${latestVersion.toFullVersionString()}")
                         
                         // 详细的版本比较日志
                         val isCurrentOlder = currentVersion.isOlderThan(latestVersion)
-                        Log.d(TAG, "版本比较详情:")
-                        Log.d(TAG, "  当前版本: ${currentVersion.major}.${currentVersion.minor}.${currentVersion.patch} (build: ${currentVersion.build}, versionCode: ${currentVersion.versionCode})")
-                        Log.d(TAG, "  服务器版本: ${latestVersion.major}.${latestVersion.minor}.${latestVersion.patch} (build: ${latestVersion.build}, versionCode: ${latestVersion.versionCode})")
-                        Log.d(TAG, "  客户端版本比较结果: $isCurrentOlder")
-                        Log.d(TAG, "  服务器版本比较结果: $serverHasUpdate")
+                        Log.d(TAG, "[Updater] 比较: current=${currentVersion.toFullVersionString()}, server=${latestVersion.toFullVersionString()}, isCurrentOlder=$isCurrentOlder, serverHasUpdate=$serverHasUpdate")
                         
-                        // 使用服务器的判断结果，因为服务器有真实的版本信息
-                        val needsUpdate = serverHasUpdate && isCurrentOlder
+                        // 更稳健的判定：服务器声明有更新时优先提示；否则用本地兜底比较
+                        val needsUpdate = serverHasUpdate || isCurrentOlder
                         
                         val updateInfo = UpdateInfo(
                             latestVersion = latestVersion,
@@ -176,7 +173,7 @@ class WordPressUpdater @Inject constructor(
                             fileSize = if (fileSize > 0) fileSize / 1024 else null // 转换为KB
                         )
                         
-                        Log.d(TAG, "最终结果: needsUpdate=$needsUpdate, changelog=${updateInfo.changelog}")
+                        Log.d(TAG, "[Updater] 判定结果: needsUpdate=$needsUpdate")
                         emit(updateInfo)
                     } else {
                         Log.d(TAG, "服务器返回的版本号为空，认为无更新")
@@ -390,28 +387,41 @@ class WordPressUpdater @Inject constructor(
      * 发起API请求
      */
     private suspend fun makeApiRequest(urlString: String): String? = withContext(Dispatchers.IO) {
-        try {
-            val url = URL(urlString)
-            val connection = url.openConnection() as HttpURLConnection
-            connection.requestMethod = "GET"
-            connection.connectTimeout = 10000
-            connection.readTimeout = 10000
-            connection.setRequestProperty("User-Agent", "WooAuto-Android")
-            
-            val responseCode = connection.responseCode
-            if (responseCode == HttpURLConnection.HTTP_OK) {
-                val reader = BufferedReader(InputStreamReader(connection.inputStream))
-                val response = reader.readText()
-                reader.close()
-                response
-            } else {
-                Log.e(TAG, "API请求失败，响应码: $responseCode")
-                null
+        // 简单退避重试：最多3次，1s/2s退避；并提升超时，减少弱网下误判
+        val maxRetries = 3
+        var attempt = 0
+        var lastError: Exception? = null
+        while (attempt < maxRetries) {
+            try {
+                val url = URL(urlString)
+                val connection = url.openConnection() as HttpURLConnection
+                connection.requestMethod = "GET"
+                connection.connectTimeout = 20000 // 20s
+                connection.readTimeout = 20000 // 20s
+                connection.setRequestProperty("User-Agent", "WooAuto-Android")
+                val responseCode = connection.responseCode
+                if (responseCode == HttpURLConnection.HTTP_OK) {
+                    val reader = BufferedReader(InputStreamReader(connection.inputStream))
+                    val response = reader.readText()
+                    reader.close()
+                    Log.d(TAG, "[Updater] 请求成功: code=$responseCode, len=${response.length}")
+                    return@withContext response
+                } else {
+                    Log.w(TAG, "[Updater] 非200响应: code=$responseCode")
+                    return@withContext null
+                }
+            } catch (e: Exception) {
+                lastError = e
+                Log.w(TAG, "[Updater] 请求异常(第${attempt + 1}次): ${e.message}")
+                if (attempt < maxRetries - 1) {
+                    try { kotlinx.coroutines.delay(1000L * (attempt + 1)) } catch (_: Exception) {}
+                }
+            } finally {
+                attempt++
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "API请求异常", e)
-            null
         }
+        Log.e(TAG, "[Updater] 多次重试失败: ${lastError?.message}", lastError)
+        null
     }
     
     /**

@@ -602,6 +602,8 @@
     <string name="update_ready_to_install">Update ready to install</string>
     <string name="tap_to_install">Tap to install the downloaded update.</string>
     <string name="download_and_install_update">Download and Install Update</string>
+    <string name="check_for_updates_action">Check for updates</string>
+    <string name="update_check_started">Update check started</string>
 
     <string name="sound_volume_format">Volume: %1$d%%</string>
     <string name="sound_type_format">Sound: %1$s</string>

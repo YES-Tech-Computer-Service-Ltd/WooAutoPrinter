@@ -479,48 +479,38 @@ class OrdersViewModel @Inject constructor(
      * @return 配置是否有效（包括API配置和许可证状态）
      */
     suspend fun checkApiConfiguration(): Boolean {
-        return try {
-            // Debug log removed
-            
+        var result = false
+        try {
             // 首先检查许可证状态
             val isLicensed = licenseManager.hasEligibility
-            // Debug log removed
-            
             if (!isLicensed) {
-                // Debug log removed
-                // 注释掉许可证检查阻止配置，因为许可证管理器在验证异常时应该允许使用
+                // 许可证异常时不阻断配置，允许继续
             }
-            
+
             // 检查基本配置信息是否完整（从注入的配置数据流中获取当前值）
             val siteUrl = wooCommerceConfig.siteUrl.first()
             val consumerKey = wooCommerceConfig.consumerKey.first()
             val consumerSecret = wooCommerceConfig.consumerSecret.first()
-            // Debug log removed
-            
+
             val isValid = siteUrl.isNotBlank() && consumerKey.isNotBlank() && consumerSecret.isNotBlank()
             if (isValid) {
-                // Debug log removed
                 // 测试API连接
                 val connectionResult = try {
                     orderRepository.testConnection()
-                } catch (e: Exception) {
+                } catch (_: Exception) {
                     false
                 }
-                
                 if (connectionResult) {
-                    // Debug log removed
                     _isConfigured.value = true
-                    true
+                    result = true
                 } else {
-                    // Debug log removed
                     // 即使连接测试失败，如果配置信息完整，也应该设置为已配置
                     _isConfigured.value = true
-                    false
+                    result = false
                 }
             } else {
-                // Debug log removed
                 _isConfigured.value = false
-                false
+                result = false
             }
         } catch (e: Exception) {
             Log.e(TAG, "检查API配置时发生异常: ${e.message}", e)
@@ -531,11 +521,16 @@ class OrdersViewModel @Inject constructor(
             }
             if (cachedOrders.isNotEmpty()) {
                 _isConfigured.value = true
-                true
+                result = true
             } else {
-                false
+                result = false
             }
+        } finally {
+            // 关键：无论成功与否，都标记配置检查已完成，避免UI长时间停留在Loading
+            _configChecked.value = true
+            UiLog.d(TAG, "配置检查完成：isConfigured=${isConfigured.value}, configChecked=${configChecked.value}, result=$result")
         }
+        return result
     }
     
     /**
