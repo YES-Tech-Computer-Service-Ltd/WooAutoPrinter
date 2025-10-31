@@ -18,6 +18,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -77,62 +78,61 @@ fun WooSideNavigation(
                 val selected = currentRoute == item.route ||
                     (currentRoute?.startsWith("settings/") == true && item.route == com.example.wooauto.navigation.NavigationItem.Settings.route) ||
                     (currentRoute?.startsWith("orders/") == true && item.route == com.example.wooauto.navigation.NavigationItem.Orders.route)
-                NavigationDrawerItem(
-                    label = { 
-                        val apiConfigured by com.example.wooauto.data.local.WooCommerceConfig.isConfigured.collectAsState(initial = true)
-                        val externalBadge = item.badgeFlow?.collectAsState(initial = Badge.None)?.value ?: Badge.None
-                        val showBadgeDot = (!apiConfigured && item.route == NavigationItem.Settings.route) ||
-                            (externalBadge is Badge.Dot) ||
-                            (externalBadge is Badge.Count && externalBadge.value > 0)
+                val apiConfigured by com.example.wooauto.data.local.WooCommerceConfig.isConfigured.collectAsState(initial = true)
+                val externalBadge = item.badgeFlow?.collectAsState(initial = Badge.None)?.value ?: Badge.None
+                val showBadgeDot = (!apiConfigured && item.route == NavigationItem.Settings.route) ||
+                    (externalBadge is Badge.Dot) ||
+                    (externalBadge is Badge.Count && externalBadge.value > 0)
 
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = stringResource(id = item.titleResId),
-                                color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                                style = if (selected) MaterialTheme.typography.bodyLarge.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
-                                        else MaterialTheme.typography.bodyLarge,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            if (showBadgeDot) {
-                                Spacer(modifier = Modifier.width(6.dp))
-                                androidx.compose.foundation.layout.Box(
-                                    modifier = Modifier
-                                        .size(8.dp)
-                                        .background(color = MaterialTheme.colorScheme.error, shape = CircleShape)
-                                )
+                Surface(
+                    shape = MaterialTheme.shapes.small,
+                    color = if (selected) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f) else Color.Transparent,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 2.dp)
+                        .clickable(
+                            indication = null,
+                            interactionSource = androidx.compose.foundation.interaction.MutableInteractionSource()
+                        ) {
+                            if (!selected) {
+                                navController.navigate(item.route) {
+                                    popUpTo(navController.graph.startDestinationId) { inclusive = false }
+                                    launchSingleTop = true
+                                    restoreState = false
+                                }
                             }
                         }
-                    },
-                    selected = selected,
-                    onClick = {
-                        if (!selected) {
-                            navController.navigate(item.route) {
-                                popUpTo(navController.graph.startDestinationId) { inclusive = false }
-                                launchSingleTop = true
-                                restoreState = false
-                            }
-                        }
-                    },
-                    icon = {
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .padding(horizontal = 10.dp, vertical = 8.dp)
+                            .fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Icon(
                             imageVector = if (selected) item.selectedIcon else item.unselectedIcon,
                             contentDescription = stringResource(id = item.titleResId),
                             tint = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                    },
-                    colors = NavigationDrawerItemDefaults.colors(
-                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                        selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                        selectedTextColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                        unselectedContainerColor = Color.Transparent,
-                        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
-                    ),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 2.dp)
-                )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = stringResource(id = item.titleResId),
+                            color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = if (selected) MaterialTheme.typography.bodyLarge.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
+                                    else MaterialTheme.typography.bodyLarge,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        if (showBadgeDot) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .background(color = MaterialTheme.colorScheme.error, shape = CircleShape)
+                            )
+                        }
+                    }
+                }
 
                 // 展开二级菜单
                 if (selected) {
