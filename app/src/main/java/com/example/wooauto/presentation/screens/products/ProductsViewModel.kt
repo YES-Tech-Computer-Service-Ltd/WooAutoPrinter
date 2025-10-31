@@ -65,6 +65,7 @@ class ProductsViewModel @Inject constructor(
     
     // 用于取消之前的Flow收集作业
     private var productsCollectionJob: kotlinx.coroutines.Job? = null
+    private var categoriesJob: kotlinx.coroutines.Job? = null
     
     // 新增：缓存已加载的分类数据，避免重复网络请求
     private val categoryProductsCache = ConcurrentHashMap<Long, Pair<List<Product>, Long>>()
@@ -262,23 +263,28 @@ class ProductsViewModel @Inject constructor(
                     // 网络刷新产品数据
                     productRepository.refreshProducts()
                     
-                    // 从Flow获取最新数据
-                    productRepository.getAllProductsFlow().collect { updatedProducts ->
-                        if (shouldCancelProductJobs) return@collect
-                        
-                        _products.value = updatedProducts
-                        lastAllProductsLoadTime = System.currentTimeMillis()
-                        
-                        // 更新缓存
-                        categoryProductsCache[ALL_PRODUCTS_KEY] = Pair(updatedProducts, System.currentTimeMillis())
-                        
-                        Log.d("ProductsViewModel", "成功更新所有产品: ${updatedProducts.size} 个")
-                        
-                        // 通知UI重置滚动位置
-                        _shouldResetScroll.value = true
-                        
+                    // 从Flow获取最新数据，增加超时兜底，避免首帧卡在loading
+                    val collected = kotlinx.coroutines.withTimeoutOrNull(10_000) {
+                        productRepository.getAllProductsFlow().collect { updatedProducts ->
+                            if (shouldCancelProductJobs) return@collect
+                            _products.value = updatedProducts
+                            lastAllProductsLoadTime = System.currentTimeMillis()
+                            // 更新缓存
+                            categoryProductsCache[ALL_PRODUCTS_KEY] = Pair(updatedProducts, System.currentTimeMillis())
+                            Log.d("ProductsViewModel", "成功更新所有产品: ${updatedProducts.size} 个")
+                            // 通知UI重置滚动位置
+                            _shouldResetScroll.value = true
+                            _isLoading.value = false
+                            _refreshing.value = false
+                        }
+                    }
+                    if (collected == null) {
+                        Log.w("ProductsViewModel", "获取产品超时，停止loading并显示当前数据(${_products.value.size})")
                         _isLoading.value = false
                         _refreshing.value = false
+                        if (_products.value.isEmpty()) {
+                            _errorMessage.value = _errorMessage.value // 保持现状，不强行覆盖具体错误
+                        }
                     }
                 }
             } catch (e: Exception) {
@@ -308,7 +314,8 @@ class ProductsViewModel @Inject constructor(
     }
     
     private fun loadCategories() {
-        viewModelScope.launch {
+        if (categoriesJob?.isActive == true) return
+        categoriesJob = viewModelScope.launch {
             try {
                 Log.d("ProductsViewModel", "正在加载产品分类")
                 val categoriesList = productRepository.getAllCategories()

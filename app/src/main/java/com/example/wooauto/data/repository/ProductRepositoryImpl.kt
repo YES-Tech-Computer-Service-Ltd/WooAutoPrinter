@@ -119,8 +119,8 @@ class ProductRepositoryImpl @Inject constructor(
             Log.d("ProductRepositoryImpl", "调用API获取产品列表")
             
             try {
-                // 先获取所有产品
-                val allProducts = api.getProducts(1, 100)
+                // 先获取所有产品（降低单次负载，减少超时概率）
+                val allProducts = api.getProducts(1, 50)
                 Log.d("ProductRepositoryImpl", "成功获取所有产品列表，共 ${allProducts.size} 个产品")
                 
                 // 转换所有产品
@@ -138,18 +138,38 @@ class ProductRepositoryImpl @Inject constructor(
                 // 更新内存中的数据流
                 _allProductsFlow.value = allDomainProducts
                 
-                // 如果有分类ID，过滤产品并返回
+                // 如果有分类ID，优先从本地过滤；为空时兜底调用服务端按分类接口
                 val filteredProducts = if (categoryId != null) {
-                    val filtered = allDomainProducts.filter { product -> 
+                    var filtered = allDomainProducts.filter { product -> 
                         product.categories.any { it.id == categoryId }
                     }
-                    Log.d("ProductRepositoryImpl", "按分类ID $categoryId 过滤后得到 ${filtered.size} 个产品")
-                    
+                    Log.d("ProductRepositoryImpl", "按分类ID $categoryId 本地过滤后得到 ${filtered.size} 个产品")
+
+                    if (filtered.isEmpty()) {
+                        try {
+                            Log.d("ProductRepositoryImpl", "本地为空，调用服务端按分类获取产品: category=$categoryId")
+                            val responses = apiService.getProductsByCategory(
+                                category = categoryId.toInt(),
+                                page = 1,
+                                perPage = 50
+                            )
+                            val domainList = ProductMapper.mapResponsesListToDomainList(responses)
+                            if (domainList.isNotEmpty()) {
+                                filtered = domainList
+                                Log.d("ProductRepositoryImpl", "服务端按分类获取到 ${filtered.size} 个产品")
+                            } else {
+                                Log.d("ProductRepositoryImpl", "服务端按分类返回 0 个产品")
+                            }
+                        } catch (e: Exception) {
+                            Log.e("ProductRepositoryImpl", "服务端按分类获取产品失败: ${e.message}")
+                        }
+                    }
+
                     // 更新分类产品缓存
                     val currentMap = _productsByCategoryFlow.value.toMutableMap()
                     currentMap[categoryId] = filtered
                     _productsByCategoryFlow.value = currentMap
-                    
+
                     filtered
                 } else {
                     allDomainProducts
@@ -202,6 +222,11 @@ class ProductRepositoryImpl @Inject constructor(
                 return emptyList()
             }
 
+            // 优先返回内存缓存，避免重复网络请求
+            if (isCategoriesCached && cachedCategories.isNotEmpty()) {
+                return cachedCategories.map { it.id to it.name }
+            }
+
             // 使用getApi方法获取API实例，确保使用最新的配置
             val api = getApi(config)
             
@@ -209,7 +234,12 @@ class ProductRepositoryImpl @Inject constructor(
             val categories = api.getCategories(1, 100)
             Log.d("ProductRepositoryImpl", "成功获取分类列表，共 ${categories.size} 个分类")
             
-            categories.map { it.id to it.name }
+            // 同步到领域缓存，便于后续快速返回
+            val domainCategories = categories.map { it.toCategory() }
+            cachedCategories = domainCategories
+            isCategoriesCached = true
+            
+            domainCategories.map { it.id to it.name }
         } catch (e: Exception) {
             Log.e("ProductRepositoryImpl", "获取分类列表时出错: ${e.message}", e)
             // 检查是否是认证错误 (401)
