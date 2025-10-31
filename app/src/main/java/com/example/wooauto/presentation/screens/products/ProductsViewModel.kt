@@ -201,7 +201,12 @@ class ProductsViewModel @Inject constructor(
     }
     
     private fun loadAllProducts() {
-        // 取消之前的产品收集作业
+        // 重入保护：若已有加载任务在进行，避免重复触发导致取消
+        if (productsCollectionJob?.isActive == true) {
+            Log.d("ProductsViewModel", "已有加载任务进行中，跳过重复加载")
+            return
+        }
+        // 清理已完成的旧作业
         productsCollectionJob?.cancel()
         
         // 从缓存加载全部产品 - 立即显示，无延迟

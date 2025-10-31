@@ -157,6 +157,7 @@ class ProductRepositoryImpl @Inject constructor(
                 
                 return@withContext Result.success(filteredProducts)
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 val error = when (e) {
                     is ApiError -> e
                     else -> ApiError.fromException(e)
@@ -166,6 +167,7 @@ class ProductRepositoryImpl @Inject constructor(
                 return@withContext Result.failure(error)
             }
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             val error = when (e) {
                 is ApiError -> e
                 else -> ApiError.fromException(e)
@@ -530,6 +532,7 @@ class ProductRepositoryImpl @Inject constructor(
             val result = refreshProducts(null)
             result.isSuccess
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             Log.e("ProductRepositoryImpl", "刷新产品失败", e)
             false
         }

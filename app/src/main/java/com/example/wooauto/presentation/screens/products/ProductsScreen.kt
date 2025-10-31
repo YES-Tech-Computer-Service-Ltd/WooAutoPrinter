@@ -411,9 +411,14 @@ private fun ProductsScreenContent(
                                 onSettingsClick = { navController.navigate(NavigationItem.Settings.route) }
                             )
                         }
-                        // 无数据时显示加载界面
-                        products.isEmpty() -> {
+                        // 无数据时根据加载状态区分显示
+                        products.isEmpty() && isLoading -> {
                             LoadingProductsView()
+                        }
+                        products.isEmpty() && !isLoading -> {
+                            EmptyProductsView(
+                                onSettingsClick = { navController.navigate(NavigationItem.Settings.route) }
+                            )
                         }
                         // 显示产品列表（默认情况）
                         else -> {
@@ -629,6 +634,55 @@ fun LoadingProductsView() {
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+    }
+}
+
+@Composable
+fun EmptyProductsView(
+    onSettingsClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            imageVector = Icons.Default.Info,
+            contentDescription = null,
+            modifier = Modifier.size(48.dp),
+            tint = MaterialTheme.colorScheme.primary
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Text(
+            text = if (LocalAppLocale.current.language == "zh") "暂无产品" else "No products",
+            style = MaterialTheme.typography.headlineSmall,
+            textAlign = TextAlign.Center
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Text(
+            text = if (LocalAppLocale.current.language == "zh") "请检查分类筛选或前往设置核对API配置" else "Check filters or verify API settings",
+            style = MaterialTheme.typography.bodyMedium,
+            textAlign = TextAlign.Center,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Button(onClick = onSettingsClick) {
+            Icon(
+                imageVector = Icons.Default.Settings,
+                contentDescription = null,
+                modifier = Modifier.size(ButtonDefaults.IconSize)
+            )
+            Spacer(modifier = Modifier.width(ButtonDefaults.IconSpacing))
+            Text(text = stringResource(id = R.string.check_settings))
+        }
     }
 }
 
