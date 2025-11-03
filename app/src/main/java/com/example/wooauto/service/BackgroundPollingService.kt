@@ -103,11 +103,11 @@ class BackgroundPollingService : Service() {
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
     private var isNetworkAvailable = true
 
-    // 添加轮询看门狗相关属性
-    private var watchdogJob: Job? = null
+    // 轮询健康监测（PollingHealthMonitor）相关属性
+    private var pollingHealthMonitorJob: Job? = null
     private var lastPollingActivity = System.currentTimeMillis()
-    private val WATCHDOG_CHECK_INTERVAL = 60 * 1000L // 每分钟检查一次
-    private val POLLING_TIMEOUT_THRESHOLD = 3 * 60 * 1000L // 3分钟无活动则认为轮询可能停止
+    private val POLLING_HEALTH_CHECK_INTERVAL = 60 * 1000L // 每分钟检查一次
+    private val POLLING_HEALTH_TIMEOUT_THRESHOLD = 3 * 60 * 1000L // 3分钟无活动则认为轮询可能停止
 
     // 添加电源管理和WiFi锁定相关组件
     private var wakeLock: PowerManager.WakeLock? = null
@@ -142,7 +142,7 @@ class BackgroundPollingService : Service() {
         // 初始化网络监听器
         initNetworkListener()
 
-        // 启动系统轮询（统一网络/看门狗/打印机健康）
+        // 启动系统轮询（统一网络/轮询健康监测/打印机健康）
         try {
             systemPollingManager.startAll(defaultPrinterProvider = {
                 settingsRepository.getDefaultPrinterConfig()
@@ -325,7 +325,7 @@ class BackgroundPollingService : Service() {
         // 启动定期清理任务
         startPeriodicCleanupTask()
         
-        // 系统轮询：统一启动网络心跳/看门狗/打印机健康检查
+        // 系统轮询：统一启动网络心跳/轮询健康监测/打印机健康检查
         try {
             systemPollingManager.startAll(defaultPrinterProvider = {
                 settingsRepository.getDefaultPrinterConfig()
