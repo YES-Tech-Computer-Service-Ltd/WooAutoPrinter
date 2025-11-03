@@ -6,11 +6,14 @@ import com.example.wooauto.domain.models.WooFoodInfo
 import com.example.wooauto.domain.models.FeeLine
 import com.example.wooauto.domain.models.TaxLine
 import com.google.gson.annotations.SerializedName
+import java.math.BigDecimal
+import java.math.RoundingMode
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import android.util.Log
 import com.example.wooauto.BuildConfig
+import kotlin.text.toBigDecimalOrNull
 
 data class OrderDto(
     val id: Long,
@@ -120,9 +123,11 @@ fun OrderDto.toOrder(): Order {
     
     // 基于API返回的真实值或计算商品小计（如果API未提供）
     val calculatedSubtotal = if (subtotal == "0.00" || subtotal.isEmpty()) {
-        lineItems.sumOf { 
-            it.subtotal?.toDoubleOrNull() ?: 0.0 
-        }.toString()
+        lineItems.asSequence()
+            .mapNotNull { it.subtotal?.toBigDecimalOrNull() }
+            .fold(BigDecimal.ZERO) { acc, value -> acc + value }
+            .setScale(2, RoundingMode.HALF_UP)
+            .toPlainString()
     } else {
         subtotal
     }
@@ -132,9 +137,11 @@ fun OrderDto.toOrder(): Order {
         totalTax
     } else {
         // 如果没有API提供的税费总额，尝试从税费行计算
-        taxLines.sumOf { 
-            it.taxTotal.toDoubleOrNull() ?: 0.0 
-        }.toString()
+        taxLines.asSequence()
+            .mapNotNull { it.taxTotal.toBigDecimalOrNull() }
+            .fold(BigDecimal.ZERO) { acc, value -> acc + value }
+            .setScale(2, RoundingMode.HALF_UP)
+            .toPlainString()
     }
     
     // 使用API提供的真实折扣总额
