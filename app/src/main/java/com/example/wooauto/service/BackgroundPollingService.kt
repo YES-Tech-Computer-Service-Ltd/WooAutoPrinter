@@ -50,6 +50,7 @@ class BackgroundPollingService : Service() {
         private const val CHANNEL_ID = "woo_auto_polling_channel"
         private const val NEW_ORDER_CHANNEL_ID = "woo_auto_new_order_channel"
         private const val TAG = "BackgroundPollingService"
+		private const val POLLING_HEALTH_NOTIFICATION_ID = 1005
         
         // 广播Action常量
         const val ACTION_NEW_ORDERS_RECEIVED = "com.example.wooauto.NEW_ORDERS_RECEIVED"
@@ -103,11 +104,9 @@ class BackgroundPollingService : Service() {
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
     private var isNetworkAvailable = true
 
-    // 添加轮询看门狗相关属性
-    private var watchdogJob: Job? = null
-    private var lastPollingActivity = System.currentTimeMillis()
-    private val WATCHDOG_CHECK_INTERVAL = 60 * 1000L // 每分钟检查一次
-    private val POLLING_TIMEOUT_THRESHOLD = 3 * 60 * 1000L // 3分钟无活动则认为轮询可能停止
+	// 轮询健康监测相关属性
+	@Volatile private var lastPollingActivity = System.currentTimeMillis()
+	private val POLLING_HEALTH_TIMEOUT_THRESHOLD_MS = 3 * 60 * 1000L // 3分钟无活动则认为轮询可能停止
 
     // 添加电源管理和WiFi锁定相关组件
     private var wakeLock: PowerManager.WakeLock? = null
@@ -135,11 +134,12 @@ class BackgroundPollingService : Service() {
         // 初始化网络监听器
         initNetworkListener()
 
-		// 启动系统轮询（统一网络/看门狗/打印机健康）
+		// 启动系统轮询（统一网络/轮询健康监测/打印机健康）
 		try {
 			systemPollingManager.startAll(
 				defaultPrinterProvider = { settingsRepository.getDefaultPrinterConfig() },
 				networkHeartbeatConfig = buildNetworkHeartbeatConfig(),
+				pollingHealthMonitorConfig = buildPollingHealthMonitorConfig(),
 			)
 			// 启用外部系统轮询接管打印机健康检查，避免内部心跳重复
 			try {
@@ -319,11 +319,12 @@ class BackgroundPollingService : Service() {
         // 启动定期清理任务
         startPeriodicCleanupTask()
         
-		// 系统轮询：统一启动网络心跳/看门狗/打印机健康检查
+		// 系统轮询：统一启动网络心跳/轮询健康监测/打印机健康检查
 		try {
 			systemPollingManager.startAll(
 				defaultPrinterProvider = { settingsRepository.getDefaultPrinterConfig() },
 				networkHeartbeatConfig = buildNetworkHeartbeatConfig(),
+				pollingHealthMonitorConfig = buildPollingHealthMonitorConfig(),
 			)
 		} catch (e: Exception) {
 			Log.e(TAG, "启动系统轮询失败: ${e.message}")
@@ -357,6 +358,7 @@ class BackgroundPollingService : Service() {
         releaseWakeLock()
         releaseWifiLock()
         releaseHighPerfWifiLock() // 释放高性能WiFi锁
+		cancelPollingHealthIssueNotification()
         
         UiLog.d(TAG, "【服务销毁】资源清理完成")
         super.onDestroy()
@@ -432,85 +434,99 @@ class BackgroundPollingService : Service() {
      * 重启轮询任务
      * 用于配置更改后刷新
      */
-    private fun restartPolling() {
-        serviceScope.launch {
-            try {
-                restartMutex.withLock {
-                    UiLog.d(TAG, "重启轮询任务 (已加锁)")
-                    
-                    // 标记轮询为非活动状态，停止当前轮询循环
-                    isPollingActive = false
-                    UiLog.d(TAG, "已标记轮询为非活动状态")
-                    
-                    // 等待当前轮询循环自然结束
-                    try {
-                        val pollingJobToWait = pollingJob
-                        if (pollingJobToWait?.isActive == true) {
-                            UiLog.d(TAG, "等待当前轮询任务结束...")
-                            withTimeoutOrNull(5000) { // 最多等待5秒
-                                pollingJobToWait.join()
-                            }
-                            UiLog.d(TAG, "当前轮询任务已结束")
-                        } else {
-                            UiLog.d(TAG, "当前轮询任务已停止或不存在")
-                        }
-                    } catch (e: Exception) {
-                        Log.w(TAG, "等待轮询任务结束异常: ${e.message}")
-                        pollingJob?.cancel() // 强制取消
-                    }
-                    pollingJob = null
-                    
-                    // 等待间隔监听任务结束
-                    try {
-                        val intervalJobToWait = intervalMonitorJob
-                        if (intervalJobToWait?.isActive == true) {
-                            UiLog.d(TAG, "等待间隔监听任务结束...")
-                            withTimeoutOrNull(2000) { // 最多等待2秒
-                                intervalJobToWait.join()
-                            }
-                            UiLog.d(TAG, "间隔监听任务已结束")
-                        }
-                    } catch (e: Exception) {
-                        Log.w(TAG, "等待间隔监听任务结束异常: ${e.message}")
-                        intervalMonitorJob?.cancel() // 强制取消
-                    }
-                    intervalMonitorJob = null
-                    
-                    // 短暂延迟确保资源释放
-                    delay(200)
-                    
-                    // 重置状态标志
-                    initialPollingComplete = false
-                    UiLog.d(TAG, "重置轮询状态标志")
-                    
-                    // 启动新的轮询任务
-                    UiLog.d(TAG, "启动新的轮询任务")
-                    startPolling()
-                    
-                    // 验证轮询是否成功启动
-                    delay(1000) // 等待1秒让轮询启动
-                    if (isPollingActive && pollingJob?.isActive == true) {
-                        UiLog.d(TAG, "轮询重启成功")
-                    } else {
-                        Log.w(TAG, "轮询重启可能失败，尝试再次启动")
-                        startPolling()
-                    }
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "重启轮询过程中发生异常: ${e.message}", e)
-                // 如果重启失败，确保至少启动基本轮询
-                try {
-                    delay(500)
-                    if (!isPollingActive) {
-                        Log.w(TAG, "重启失败，尝试基本启动")
-                        startPolling()
-                    }
-                } catch (e2: Exception) {
-                    Log.e(TAG, "基本启动也失败: ${e2.message}", e2)
-                }
-            }
-        }
-    }
+	private suspend fun restartPollingInternal(): Boolean {
+		return try {
+			restartMutex.withLock {
+				UiLog.d(TAG, "重启轮询任务 (已加锁)")
+
+				// 标记轮询为非活动状态，停止当前轮询循环
+				isPollingActive = false
+				UiLog.d(TAG, "已标记轮询为非活动状态")
+
+				// 等待当前轮询循环自然结束
+				try {
+					val pollingJobToWait = pollingJob
+					if (pollingJobToWait?.isActive == true) {
+						UiLog.d(TAG, "等待当前轮询任务结束...")
+						withTimeoutOrNull(5000) { // 最多等待5秒
+							pollingJobToWait.join()
+						}
+						UiLog.d(TAG, "当前轮询任务已结束")
+					} else {
+						UiLog.d(TAG, "当前轮询任务已停止或不存在")
+					}
+				} catch (e: Exception) {
+					Log.w(TAG, "等待轮询任务结束异常: ${e.message}")
+					pollingJob?.cancel() // 强制取消
+				}
+				pollingJob = null
+
+				// 等待间隔监听任务结束
+				try {
+					val intervalJobToWait = intervalMonitorJob
+					if (intervalJobToWait?.isActive == true) {
+						UiLog.d(TAG, "等待间隔监听任务结束...")
+						withTimeoutOrNull(2000) { // 最多等待2秒
+							intervalJobToWait.join()
+						}
+						UiLog.d(TAG, "间隔监听任务已结束")
+					}
+				} catch (e: Exception) {
+					Log.w(TAG, "等待间隔监听任务结束异常: ${e.message}")
+					intervalMonitorJob?.cancel() // 强制取消
+				}
+				intervalMonitorJob = null
+
+				// 短暂延迟确保资源释放
+				delay(200)
+
+				// 重置状态标志
+				initialPollingComplete = false
+				UiLog.d(TAG, "重置轮询状态标志")
+
+				// 启动新的轮询任务
+				UiLog.d(TAG, "启动新的轮询任务")
+				startPolling()
+
+				// 验证轮询是否成功启动
+				delay(1000) // 等待1秒让轮询启动
+				val restarted = isPollingActive && pollingJob?.isActive == true
+				if (restarted) {
+					UiLog.d(TAG, "轮询重启成功")
+					true
+				} else {
+					Log.w(TAG, "轮询重启可能失败，尝试再次启动")
+					startPolling()
+					delay(1000)
+					val retrySuccess = isPollingActive && pollingJob?.isActive == true
+					if (retrySuccess) {
+						UiLog.d(TAG, "轮询重启重试成功")
+					}
+					retrySuccess
+				}
+			}
+		} catch (e: Exception) {
+			Log.e(TAG, "重启轮询过程中发生异常: ${e.message}", e)
+			false
+		}
+	}
+
+	private fun restartPolling() {
+		serviceScope.launch {
+			val success = restartPollingInternal()
+			if (!success) {
+				try {
+					delay(500)
+					if (!isPollingActive) {
+						Log.w(TAG, "重启失败，尝试基本启动")
+						startPolling()
+					}
+				} catch (e: Exception) {
+					Log.e(TAG, "基本启动也失败: ${e.message}", e)
+				}
+			}
+		}
+	}
 
     private fun startPolling() {
         if (isPollingActive) {
@@ -1522,6 +1538,73 @@ class BackgroundPollingService : Service() {
 				showNetworkIssueNotification()
 			},
 		)
+	}
+
+	private fun buildPollingHealthMonitorConfig(): SystemPollingManager.PollingHealthMonitorConfig {
+		return SystemPollingManager.PollingHealthMonitorConfig(
+			isPollingActive = { isPollingActive },
+			lastPollingActivityProvider = { lastPollingActivity },
+			timeoutThresholdMs = POLLING_HEALTH_TIMEOUT_THRESHOLD_MS,
+			onPollingTimeout = { staleDurationMs ->
+				handlePollingTimeout(staleDurationMs)
+			},
+			onPollingRecovered = { staleDurationMs ->
+				handlePollingRecovered(staleDurationMs)
+			},
+		)
+	}
+
+	private suspend fun handlePollingTimeout(staleDurationMs: Long) {
+		val seconds = staleDurationMs / 1000
+		Log.w(TAG, "【轮询健康】检测到轮询任务已 ${seconds}s 未活跃，尝试自动恢复")
+		val restartSucceeded = restartPollingInternal()
+		if (restartSucceeded) {
+			UiLog.d(TAG, "【轮询健康】轮询已重新启动，等待下一次活动心跳")
+			cancelPollingHealthIssueNotification()
+		} else {
+			Log.e(TAG, "【轮询健康】自动重启失败，将提示用户检查设备状态")
+			showPollingHealthIssueNotification(staleDurationMs)
+		}
+	}
+
+	private suspend fun handlePollingRecovered(staleDurationMs: Long) {
+		if (BuildConfig.DEBUG) {
+			Log.d(TAG, "【轮询健康】轮询恢复正常，最近活动 ${staleDurationMs}ms 前")
+		}
+		cancelPollingHealthIssueNotification()
+	}
+
+	private fun showPollingHealthIssueNotification(staleDurationMs: Long) {
+		try {
+			val minutes = (staleDurationMs / 60_000L).coerceAtLeast(1)
+			val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+				.setContentTitle(getString(R.string.app_name))
+				.setContentText("后台轮询已暂停约${minutes}分钟，系统正在尝试恢复，请检查网络和电源设置")
+				.setSmallIcon(R.drawable.ic_launcher_foreground)
+				.setPriority(NotificationCompat.PRIORITY_HIGH)
+				.setAutoCancel(false)
+				.setOngoing(true)
+				.setOnlyAlertOnce(true)
+				.build()
+
+			val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+			notificationManager.notify(POLLING_HEALTH_NOTIFICATION_ID, notification)
+			Log.w(TAG, "【轮询健康】已显示轮询异常通知 (约${minutes}分钟)" )
+		} catch (e: Exception) {
+			Log.e(TAG, "【轮询健康】显示轮询异常通知失败: ${e.message}", e)
+		}
+	}
+
+	private fun cancelPollingHealthIssueNotification() {
+		try {
+			val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+			notificationManager.cancel(POLLING_HEALTH_NOTIFICATION_ID)
+			if (BuildConfig.DEBUG) {
+				Log.d(TAG, "【轮询健康】已取消轮询异常通知")
+			}
+		} catch (e: Exception) {
+			Log.e(TAG, "【轮询健康】取消轮询异常通知失败: ${e.message}", e)
+		}
 	}
 
 

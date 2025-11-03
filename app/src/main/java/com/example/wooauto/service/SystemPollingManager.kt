@@ -27,7 +27,7 @@ import javax.inject.Singleton
 
 /**
  * System Polling Manager
- * - Centralizes all non-order-related periodic checks (network heartbeat, watchdog, printer health checks)
+ * - Centralizes all non-order-related periodic checks (network heartbeat, polling health monitor, printer health checks)
  * - Does not directly modify business state; updates status only via domain components such as PrinterManager
  */
 @Singleton
@@ -38,9 +38,10 @@ class SystemPollingManager @Inject constructor(
 	companion object {
 		private const val TAG = "SystemPollingManager"
 		private const val NETWORK_HEARTBEAT_INTERVAL_MS = 30_000L
-		private const val WATCHDOG_INTERVAL_MS = 30_000L
+		private const val POLLING_HEALTH_CHECK_INTERVAL_MS = 30_000L
 		private const val PRINTER_HEALTH_INTERVAL_MS = 5_000L
 		private const val MAX_NETWORK_RETRY_COUNT = 3
+		private const val POLLING_HEALTH_ALERT_COOLDOWN_MS = 2 * 60_000L
 	}
 
 	data class NetworkHeartbeatConfig(
@@ -51,25 +52,39 @@ class SystemPollingManager @Inject constructor(
 		val showNetworkIssueNotification: suspend () -> Unit,
 	)
 
+	data class PollingHealthMonitorConfig(
+		val isPollingActive: () -> Boolean,
+		val lastPollingActivityProvider: () -> Long,
+		val timeoutThresholdMs: Long,
+		val onPollingTimeout: suspend (staleDurationMs: Long) -> Unit,
+		val onPollingRecovered: suspend (staleDurationMs: Long) -> Unit,
+	)
+
 	private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
 	private var networkHeartbeatJob: Job? = null
-	private var watchdogJob: Job? = null
+	private var pollingHealthMonitorJob: Job? = null
 	private var printerHealthJob: Job? = null
 
 	private var networkHeartbeatConfig: NetworkHeartbeatConfig? = null
 	private val networkHeartbeatMutex = Mutex()
 	private var networkRetryCount = 0
 	private var lastNetworkCheckTime = 0L
+	private var pollingHealthMonitorConfig: PollingHealthMonitorConfig? = null
+	private val pollingHealthMonitorMutex = Mutex()
+	private var lastPollingHealthAlertAt = 0L
+	private var isPollingCurrentlyStuck = false
 
 	fun startAll(
 		defaultPrinterProvider: suspend () -> PrinterConfig?,
 		networkHeartbeatConfig: NetworkHeartbeatConfig,
+		pollingHealthMonitorConfig: PollingHealthMonitorConfig,
 	) {
 		this.networkHeartbeatConfig = networkHeartbeatConfig
+		this.pollingHealthMonitorConfig = pollingHealthMonitorConfig
 		networkRetryCount = 0
 		startNetworkHeartbeat()
-		startWatchdog()
+		startPollingHealthMonitor()
 		startPrinterHealth(defaultPrinterProvider)
 	}
 
@@ -78,7 +93,10 @@ class SystemPollingManager @Inject constructor(
 		networkHeartbeatConfig = null
 		networkRetryCount = 0
 		lastNetworkCheckTime = 0L
-		watchdogJob?.cancel(); watchdogJob = null
+		pollingHealthMonitorJob?.cancel(); pollingHealthMonitorJob = null
+		pollingHealthMonitorConfig = null
+		lastPollingHealthAlertAt = 0L
+		isPollingCurrentlyStuck = false
 		printerHealthJob?.cancel(); printerHealthJob = null
 	}
 
@@ -241,19 +259,88 @@ class SystemPollingManager @Inject constructor(
 		}
 	}
 
-	private fun startWatchdog() {
-		if (watchdogJob?.isActive == true) return
-		UiLog.d(TAG, "系统轮询/看门狗：启动")
-		watchdogJob = scope.launch {
+	private fun startPollingHealthMonitor() {
+		if (pollingHealthMonitorJob?.isActive == true) return
+		if (pollingHealthMonitorConfig == null) {
+			Log.w(TAG, "系统轮询/健康监测：未提供配置，跳过启动")
+			return
+		}
+		UiLog.d(TAG, "系统轮询/健康监测：启动")
+		pollingHealthMonitorJob = scope.launch {
 			while (isActive) {
 				try {
-					UiLog.d(TAG, "系统轮询/看门狗：检查轮询健康")
-					// 此处保留空实现：原看门狗逻辑仍在 BackgroundPollingService 中
+					val config = pollingHealthMonitorConfig
+					if (config != null) {
+						performPollingHealthCheck(config)
+					} else {
+						if (BuildConfig.DEBUG) {
+							Log.d(TAG, "系统轮询/健康监测：配置缺失，跳过本次检查")
+						}
+					}
 				} catch (e: Exception) {
-					Log.e(TAG, "系统轮询/看门狗：异常: ${e.message}", e)
+					Log.e(TAG, "系统轮询/健康监测：检查异常: ${e.message}", e)
 				} finally {
-					delay(WATCHDOG_INTERVAL_MS)
+					delay(POLLING_HEALTH_CHECK_INTERVAL_MS)
 				}
+			}
+		}
+	}
+
+	private suspend fun performPollingHealthCheck(config: PollingHealthMonitorConfig) {
+		pollingHealthMonitorMutex.withLock {
+			if (!config.isPollingActive()) {
+				if (isPollingCurrentlyStuck) {
+					try {
+						config.onPollingRecovered(0)
+					} catch (e: Exception) {
+						Log.e(TAG, "系统轮询/健康监测：轮询未激活时恢复回调异常: ${e.message}", e)
+					}
+				}
+				isPollingCurrentlyStuck = false
+				return
+			}
+
+			val now = System.currentTimeMillis()
+			val lastActivityRaw = try {
+				config.lastPollingActivityProvider()
+			} catch (e: Exception) {
+				Log.e(TAG, "系统轮询/健康监测：获取轮询活动时间失败: ${e.message}", e)
+				now
+			}
+			val lastActivity = if (lastActivityRaw <= 0) now else lastActivityRaw
+			var idleDuration = now - lastActivity
+			if (idleDuration < 0) idleDuration = 0
+			val timeoutThreshold = config.timeoutThresholdMs.coerceAtLeast(POLLING_HEALTH_CHECK_INTERVAL_MS)
+
+			if (idleDuration >= timeoutThreshold) {
+				if (!isPollingCurrentlyStuck || now - lastPollingHealthAlertAt >= POLLING_HEALTH_ALERT_COOLDOWN_MS) {
+					isPollingCurrentlyStuck = true
+					lastPollingHealthAlertAt = now
+					Log.w(TAG, "系统轮询/健康监测：检测到轮询任务 ${idleDuration}ms 未活跃，触发恢复流程")
+					try {
+						config.onPollingTimeout(idleDuration)
+					} catch (e: Exception) {
+						Log.e(TAG, "系统轮询/健康监测：处理轮询超时回调失败: ${e.message}", e)
+					}
+				} else if (BuildConfig.DEBUG) {
+					Log.d(TAG, "系统轮询/健康监测：轮询仍处于超时状态，已于 ${lastPollingHealthAlertAt} 通知")
+				}
+				return@withLock
+			}
+
+			if (isPollingCurrentlyStuck) {
+				isPollingCurrentlyStuck = false
+				Log.i(TAG, "系统轮询/健康监测：轮询恢复正常，最近活动 ${idleDuration}ms 前")
+				try {
+					config.onPollingRecovered(idleDuration)
+				} catch (e: Exception) {
+					Log.e(TAG, "系统轮询/健康监测：恢复回调执行异常: ${e.message}", e)
+				}
+				return@withLock
+			}
+
+			if (BuildConfig.DEBUG) {
+				Log.d(TAG, "系统轮询/健康监测：轮询正常，最近活动 ${idleDuration}ms 前")
 			}
 		}
 	}
