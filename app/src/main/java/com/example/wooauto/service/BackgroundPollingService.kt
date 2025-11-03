@@ -116,13 +116,6 @@ class BackgroundPollingService : Service() {
     private var powerManager: PowerManager? = null
     private var wifiManager: WifiManager? = null
     
-    // 网络心跳检测相关
-    private var networkHeartbeatJob: Job? = null
-    private var lastNetworkCheckTime = 0L
-    private val NETWORK_HEARTBEAT_INTERVAL = 30 * 1000L // 30秒检查一次网络
-    private val MAX_NETWORK_RETRY_COUNT = 3
-    private var networkRetryCount = 0
-
     // 自动打印中的订单去重集合，防止并发/多源触发导致重复打印
     private val printingOrderIds = java.util.Collections.synchronizedSet(mutableSetOf<Long>())
 
@@ -142,23 +135,24 @@ class BackgroundPollingService : Service() {
         // 初始化网络监听器
         initNetworkListener()
 
-        // 启动系统轮询（统一网络/看门狗/打印机健康）
-        try {
-            systemPollingManager.startAll(defaultPrinterProvider = {
-                settingsRepository.getDefaultPrinterConfig()
-            })
-            // 启用外部系统轮询接管打印机健康检查，避免内部心跳重复
-            try {
-                if (printerManager is BluetoothPrinterManager) {
-                    (printerManager as BluetoothPrinterManager).setExternalPollingEnabled(true)
-            UiLog.d(TAG, "已启用外部系统轮询接管打印机健康检查")
-                }
-            } catch (e: Exception) {
-                Log.w(TAG, "设置外部系统轮询标志失败: ${e.message}")
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "启动系统轮询失败: ${e.message}")
-        }
+		// 启动系统轮询（统一网络/看门狗/打印机健康）
+		try {
+			systemPollingManager.startAll(
+				defaultPrinterProvider = { settingsRepository.getDefaultPrinterConfig() },
+				networkHeartbeatConfig = buildNetworkHeartbeatConfig(),
+			)
+			// 启用外部系统轮询接管打印机健康检查，避免内部心跳重复
+			try {
+				if (printerManager is BluetoothPrinterManager) {
+					(printerManager as BluetoothPrinterManager).setExternalPollingEnabled(true)
+		UiLog.d(TAG, "已启用外部系统轮询接管打印机健康检查")
+				}
+			} catch (e: Exception) {
+				Log.w(TAG, "设置外部系统轮询标志失败: ${e.message}")
+			}
+		} catch (e: Exception) {
+			Log.e(TAG, "启动系统轮询失败: ${e.message}")
+		}
         
         // 延迟初始化，确保应用组件完全加载
         serviceScope.launch {
@@ -243,15 +237,15 @@ class BackgroundPollingService : Service() {
                                         val wifiState = wifiManager?.wifiState
                                         UiLog.d(TAG, "【息屏处理】息屏后WiFi状态: $wifiState")
                                         
-                                        // 等待5秒后进行网络连接检查
-                                        delay(5000)
-                                        val isConnected = checkNetworkConnectivity()
-                                        UiLog.d(TAG, "【息屏处理】息屏5秒后网络状态: $isConnected")
-                                        
-                                        if (!isConnected) {
-                                            Log.w(TAG, "【息屏处理】息屏后检测到网络断开，立即处理")
-                                            handleNetworkDisconnection()
-                                        }
+					// 等待5秒后进行网络连接检查
+					delay(5000)
+					val isConnected = systemPollingManager.checkNetworkConnectivity()
+					UiLog.d(TAG, "【息屏处理】息屏5秒后网络状态: $isConnected")
+					
+					if (!isConnected) {
+						Log.w(TAG, "【息屏处理】息屏后检测到网络断开，委托系统轮询管理器处理")
+						systemPollingManager.requestImmediateNetworkCheck("SCREEN_OFF_RECOVERY")
+					}
                                     } catch (e: Exception) {
                                         Log.e(TAG, "【息屏处理】息屏网络保持处理失败: ${e.message}", e)
                                     }
@@ -325,14 +319,15 @@ class BackgroundPollingService : Service() {
         // 启动定期清理任务
         startPeriodicCleanupTask()
         
-        // 系统轮询：统一启动网络心跳/看门狗/打印机健康检查
-        try {
-            systemPollingManager.startAll(defaultPrinterProvider = {
-                settingsRepository.getDefaultPrinterConfig()
-            })
-        } catch (e: Exception) {
-            Log.e(TAG, "启动系统轮询失败: ${e.message}")
-        }
+		// 系统轮询：统一启动网络心跳/看门狗/打印机健康检查
+		try {
+			systemPollingManager.startAll(
+				defaultPrinterProvider = { settingsRepository.getDefaultPrinterConfig() },
+				networkHeartbeatConfig = buildNetworkHeartbeatConfig(),
+			)
+		} catch (e: Exception) {
+			Log.e(TAG, "启动系统轮询失败: ${e.message}")
+		}
         
         return START_STICKY
     }
@@ -534,9 +529,6 @@ class BackgroundPollingService : Service() {
             acquireWakeLock()
             acquireWifiLock()
             acquireHighPerfWifiLock() // 获取高性能WiFi锁
-            
-            // 启动网络心跳检测
-            startNetworkHeartbeat()
             
             // 检查电池优化状态
             checkBatteryOptimization()
@@ -1485,162 +1477,53 @@ class BackgroundPollingService : Service() {
         }
     }
 
-    /**
-     * 启动网络心跳检测
-     * 定期检查网络连接状态，发现断网时主动重连
-     */
-    private fun startNetworkHeartbeat() {
-        if (networkHeartbeatJob?.isActive == true) {
-            if (BuildConfig.DEBUG) Log.d(TAG, "【网络心跳】网络心跳检测已在运行")
-            return
-        }
-        
-        networkHeartbeatJob = serviceScope.launch {
-            try {
-                while (isActive && isPollingActive) {
-                    delay(NETWORK_HEARTBEAT_INTERVAL)
-                    
-                    if (BuildConfig.DEBUG) Log.d(TAG, "【网络心跳】执行网络连接检查")
-                    
-                    val currentTime = System.currentTimeMillis()
-                    lastNetworkCheckTime = currentTime
-                    
-                    // 检查网络连接状态
-                    val isConnected = checkNetworkConnectivity()
-                    
-                    if (!isConnected) {
-                        Log.w(TAG, "【网络心跳】检测到网络断开，尝试恢复")
-                        handleNetworkDisconnection()
-                    } else {
-                        if (BuildConfig.DEBUG) Log.d(TAG, "【网络心跳】网络连接正常")
-                        networkRetryCount = 0 // 重置重试计数
-                        
-                        // 额外检查：尝试一个简单的网络请求
-                        val canReachInternet = testInternetConnectivity()
-                        if (!canReachInternet) {
-                            Log.w(TAG, "【网络心跳】虽然WiFi已连接，但无法访问互联网")
-                        }
-                    }
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "【网络心跳】网络心跳检测异常: ${e.message}", e)
-            }
-        }
-        
-        if (BuildConfig.DEBUG) Log.d(TAG, "【网络心跳】网络心跳检测已启动")
-    }
+	private suspend fun resetWifiLocksForNetworkRecovery() {
+		try {
+			releaseWifiLock()
+			releaseHighPerfWifiLock()
+			delay(1_000)
+			acquireWifiLock()
+			acquireHighPerfWifiLock()
+		} catch (e: Exception) {
+			Log.e(TAG, "【网络心跳】重置网络保持锁失败: ${e.message}", e)
+		}
+	}
 
-    /**
-     * 检查网络连接状态
-     */
-    private fun checkNetworkConnectivity(): Boolean {
-        return try {
-            val connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+	private fun buildNetworkHeartbeatConfig(): SystemPollingManager.NetworkHeartbeatConfig {
+		return SystemPollingManager.NetworkHeartbeatConfig(
+			isPollingActive = { isPollingActive },
+			latestPolledDateProvider = { latestPolledDate },
+			onNetworkRestored = { lastPolledDate ->
+				if (!isPollingActive) {
+					if (BuildConfig.DEBUG) {
+						Log.d(TAG, "【网络心跳】网络恢复回调被跳过：轮询未激活")
+					}
+					return@NetworkHeartbeatConfig
+				}
+				try {
+					val result = orderRepository.refreshProcessingOrdersForPolling(lastPolledDate)
+					if (result.isSuccess) {
+						val orders = result.getOrDefault(emptyList())
+						Log.d(TAG, "【网络心跳】网络恢复轮询获取了 ${orders.size} 个订单")
+						if (orders.isNotEmpty()) {
+							processNewOrders(orders)
+						}
+					} else {
+						Log.w(TAG, "【网络心跳】网络恢复轮询失败: ${result.exceptionOrNull()?.message}")
+					}
+				} catch (e: Exception) {
+					Log.e(TAG, "【网络心跳】网络恢复后轮询失败: ${e.message}", e)
+				}
+			},
+			resetWifiLocks = {
+				resetWifiLocksForNetworkRecovery()
+			},
+			showNetworkIssueNotification = {
+				showNetworkIssueNotification()
+			},
+		)
+	}
 
-            val network = connectivityManager.activeNetwork ?: return false
-            val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
-
-            capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) &&
-            capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
-            capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
-        } catch (e: Exception) {
-            Log.e(TAG, "【网络心跳】检查网络连接状态失败: ${e.message}", e)
-            false
-        }
-    }
-
-    /**
-     * 测试互联网连接
-     */
-    private suspend fun testInternetConnectivity(): Boolean {
-        return try {
-            withTimeoutOrNull(5000) {
-                // 尝试简单的网络请求来测试连接
-                val url = java.net.URL("https://www.google.com")
-                val connection = url.openConnection()
-                connection.connectTimeout = 3000
-                connection.readTimeout = 3000
-                connection.connect()
-                true
-            } ?: false
-        } catch (e: Exception) {
-            Log.w(TAG, "【网络心跳】互联网连接测试失败: ${e.message}")
-            false
-        }
-    }
-
-    /**
-     * 处理网络断开情况
-     */
-    private fun handleNetworkDisconnection() {
-        serviceScope.launch {
-            try {
-                networkRetryCount++
-                Log.w(TAG, "【网络心跳】处理网络断开，重试次数: $networkRetryCount/$MAX_NETWORK_RETRY_COUNT")
-                
-                if (networkRetryCount <= MAX_NETWORK_RETRY_COUNT) {
-                    // 尝试重新获取WiFi锁
-                    Log.d(TAG, "【网络心跳】重新获取WiFi锁")
-                    releaseWifiLock()
-                    releaseHighPerfWifiLock()
-                    delay(1000)
-                    acquireWifiLock()
-                    acquireHighPerfWifiLock()
-                    
-                    // 检查WiFi状态
-                    val wifiState = wifiManager?.wifiState
-                    Log.d(TAG, "【网络心跳】当前WiFi状态: $wifiState")
-                    
-                    // 如果WiFi已禁用，尝试启用
-                    if (wifiState == WifiManager.WIFI_STATE_DISABLED) {
-                        Log.w(TAG, "【网络心跳】WiFi已禁用，尝试启用")
-                        try {
-                            @Suppress("DEPRECATION")
-                            wifiManager?.isWifiEnabled = true
-                        } catch (e: Exception) {
-                            Log.e(TAG, "【网络心跳】无法启用WiFi (需要用户权限): ${e.message}")
-                        }
-                    }
-                    
-                    // 等待网络恢复
-                    delay(5000)
-                    
-                    // 再次检查连接
-                    val isReconnected = checkNetworkConnectivity()
-                    if (isReconnected) {
-                        Log.i(TAG, "【网络心跳】网络连接已恢复")
-                        networkRetryCount = 0
-                        
-                        // 网络恢复后，触发一次立即轮询
-                        if (isPollingActive) {
-                            Log.d(TAG, "【网络心跳】网络恢复后触发立即轮询")
-                            delay(1000) // 稍等片刻确保网络完全稳定
-                            try {
-                                val result = orderRepository.refreshProcessingOrdersForPolling(latestPolledDate)
-                                if (result.isSuccess) {
-                                    val orders = result.getOrDefault(emptyList())
-                                    Log.d(TAG, "【网络心跳】网络恢复轮询获取了 ${orders.size} 个订单")
-                                    if (orders.isNotEmpty()) {
-                                        processNewOrders(orders)
-                                    }
-                                }
-                            } catch (e: Exception) {
-                                Log.e(TAG, "【网络心跳】网络恢复后轮询失败: ${e.message}")
-                            }
-                        }
-                    } else {
-                        Log.w(TAG, "【网络心跳】网络连接仍未恢复，将继续监控")
-                    }
-                } else {
-                    Log.e(TAG, "【网络心跳】网络重连失败，已达到最大重试次数")
-                    // 显示网络问题通知
-                    showNetworkIssueNotification()
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "【网络心跳】处理网络断开异常: ${e.message}", e)
-            }
-        }
-    }
 
     /**
      * 显示网络问题通知
