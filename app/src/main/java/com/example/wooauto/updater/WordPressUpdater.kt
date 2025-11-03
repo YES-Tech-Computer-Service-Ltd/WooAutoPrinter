@@ -47,6 +47,7 @@ class WordPressUpdater @Inject constructor(
     
     companion object {
         private const val TAG = "WordPressUpdater"
+        private const val DIAG = "WordPressUpdaterDiag"
         private const val PREFS_NAME = "wordpress_updater"
         private const val KEY_AUTO_CHECK = "auto_check_enabled"
         private const val KEY_CHECK_INTERVAL = "check_interval_hours"
@@ -133,15 +134,19 @@ class WordPressUpdater @Inject constructor(
         try {
             val currentVersion = getCurrentVersion()
             Log.d(TAG, "开始检查更新 - 当前版本: ${currentVersion.toVersionString()} (versionCode: ${currentVersion.versionCode})")
+            Log.d(DIAG, "[Check] LocalVersion: major=${currentVersion.major}, minor=${currentVersion.minor}, patch=${currentVersion.patch}, build=${currentVersion.build}, code=${currentVersion.versionCode}, name=${currentVersion.versionName}, isBeta=${currentVersion.isBeta}")
             
             val (baseUrl, token) = config.getCurrentConfig()
             // 在API请求中传递当前版本，让服务器能够正确比较
             val apiUrl = "$baseUrl/check?token=$token&client_version=${currentVersion.toVersionString()}"
             Log.d(TAG, "[Updater] 开始检查: url=$apiUrl, current=${currentVersion.toFullVersionString()}")
+            Log.d(DIAG, "[Check] UsingConfig: baseUrl=$baseUrl, tokenMasked=${maskToken(token)}")
+            Log.d(DIAG, "[Check] FullRequestUrl(maskedToken)=${apiUrl.replace(token, maskToken(token))}")
             val response = makeApiRequest(apiUrl)
             
             if (response != null) {
                 Log.d(TAG, "[Updater] API响应长度: ${response.length}")
+                Log.d(DIAG, "[Check] RawResponsePreview=${preview(response)}")
                 val jsonResponse = JSONObject(response)
                 val success = jsonResponse.optBoolean("success", false)
                 
@@ -152,6 +157,7 @@ class WordPressUpdater @Inject constructor(
                     val serverHasUpdate = jsonResponse.optBoolean("has_update", false)
                     
                     Log.d(TAG, "[Updater] 服务器返回: version=$serverVersion, has_update=$serverHasUpdate, size=$fileSize")
+                    Log.d(DIAG, "[Check] ParsedJSON: success=$success, current_version=$serverVersion, has_update=$serverHasUpdate, file_size=$fileSize, download_url_present=${downloadUrl.isNotEmpty()}")
                     
                     if (serverVersion.isNotEmpty()) {
                         val latestVersion = parseVersionString(serverVersion)
@@ -160,6 +166,7 @@ class WordPressUpdater @Inject constructor(
                         // 详细的版本比较日志
                         val isCurrentOlder = currentVersion.isOlderThan(latestVersion)
                         Log.d(TAG, "[Updater] 比较: current=${currentVersion.toFullVersionString()}, server=${latestVersion.toFullVersionString()}, isCurrentOlder=$isCurrentOlder, serverHasUpdate=$serverHasUpdate")
+                        Log.d(DIAG, "[Check] CompareDetail: current={maj=${currentVersion.major},min=${currentVersion.minor},pat=${currentVersion.patch},b=${currentVersion.build},beta=${currentVersion.isBeta}} vs server={maj=${latestVersion.major},min=${latestVersion.minor},pat=${latestVersion.patch},b=${latestVersion.build},beta=${latestVersion.isBeta}} => older=$isCurrentOlder")
                         
                         // 更稳健的判定：服务器声明有更新时优先提示；否则用本地兜底比较
                         val needsUpdate = serverHasUpdate || isCurrentOlder
@@ -174,17 +181,21 @@ class WordPressUpdater @Inject constructor(
                         )
                         
                         Log.d(TAG, "[Updater] 判定结果: needsUpdate=$needsUpdate")
+                        Log.d(DIAG, "[Check] Decision: serverHasUpdate=$serverHasUpdate, isCurrentOlder=$isCurrentOlder, final=$needsUpdate")
                         emit(updateInfo)
                     } else {
                         Log.d(TAG, "服务器返回的版本号为空，认为无更新")
+                        Log.w(DIAG, "[Check] Empty serverVersion in success response, emitting noUpdate")
                         emit(UpdateInfo.noUpdateAvailable(currentVersion))
                     }
                 } else {
                     Log.d(TAG, "服务器API返回失败，认为无更新")
+                    Log.w(DIAG, "[Check] success=false, response=${preview(response)}")
                     emit(UpdateInfo.noUpdateAvailable(currentVersion))
                 }
             } else {
                 Log.d(TAG, "无法连接到更新服务器，认为无更新")
+                Log.w(DIAG, "[Check] Response is null (network/timeout/non-200). See network logs below.")
                 emit(UpdateInfo.noUpdateAvailable(currentVersion))
             }
             
@@ -195,6 +206,7 @@ class WordPressUpdater @Inject constructor(
                 
         } catch (e: Exception) {
             Log.e(TAG, "检查更新失败", e)
+            Log.e(DIAG, "[Check] Exception during checkForUpdates: ${e.message}", e)
             emit(UpdateInfo.noUpdateAvailable(getCurrentVersion()))
         }
     }.flowOn(Dispatchers.IO)
@@ -212,19 +224,26 @@ class WordPressUpdater @Inject constructor(
     override suspend fun getLatestVersion(): AppVersion? {
         return try {
             val (baseUrl, token) = config.getCurrentConfig()
-            val response = makeApiRequest("$baseUrl/check?token=$token")
+            val url = "$baseUrl/check?token=$token"
+            Log.d(DIAG, "[Latest] RequestUrl(maskedToken)=${url.replace(token, maskToken(token))}")
+            val response = makeApiRequest(url)
             if (response != null) {
                 val jsonResponse = JSONObject(response)
                 val success = jsonResponse.optBoolean("success", false)
                 if (success) {
                     val serverVersion = jsonResponse.optString("current_version", "")
+                    Log.d(DIAG, "[Latest] success=true, current_version=$serverVersion, raw=${preview(response)}")
                     if (serverVersion.isNotEmpty()) {
                         parseVersionString(serverVersion)
                     } else null
-                } else null
+                } else {
+                    Log.w(DIAG, "[Latest] success=false, raw=${preview(response)}")
+                    null
+                }
             } else null
         } catch (e: Exception) {
             Log.e(TAG, "获取最新版本失败", e)
+            Log.e(DIAG, "[Latest] Exception: ${e.message}", e)
             null
         }
     }
@@ -405,14 +424,26 @@ class WordPressUpdater @Inject constructor(
                     val response = reader.readText()
                     reader.close()
                     Log.d(TAG, "[Updater] 请求成功: code=$responseCode, len=${response.length}")
+                    Log.d(DIAG, "[Net] OK url=${preview(urlString)}, bodyPreview=${preview(response)}")
                     return@withContext response
                 } else {
+                    val errorPreview = try {
+                        val es = connection.errorStream
+                        if (es != null) {
+                            val er = BufferedReader(InputStreamReader(es))
+                            val text = er.readText()
+                            er.close()
+                            preview(text)
+                        } else "<no-error-body>"
+                    } catch (_: Exception) { "<error-reading-error-body>" }
                     Log.w(TAG, "[Updater] 非200响应: code=$responseCode")
+                    Log.w(DIAG, "[Net] Non200 url=${preview(urlString)}, code=$responseCode, errorPreview=$errorPreview")
                     return@withContext null
                 }
             } catch (e: Exception) {
                 lastError = e
                 Log.w(TAG, "[Updater] 请求异常(第${attempt + 1}次): ${e.message}")
+                Log.w(DIAG, "[Net] Exception attempt=${attempt + 1} url=${preview(urlString)} msg=${e.message}", e)
                 if (attempt < maxRetries - 1) {
                     try { kotlinx.coroutines.delay(1000L * (attempt + 1)) } catch (_: Exception) {}
                 }
@@ -421,6 +452,7 @@ class WordPressUpdater @Inject constructor(
             }
         }
         Log.e(TAG, "[Updater] 多次重试失败: ${lastError?.message}", lastError)
+        Log.e(DIAG, "[Net] Exhausted retries for url=${preview(urlString)} last=${lastError?.message}", lastError)
         null
     }
     
@@ -452,6 +484,7 @@ class WordPressUpdater @Inject constructor(
                 Pair(currentVersion.build + 1, currentVersion.versionCode + 1)
             }
             
+            Log.d(DIAG, "[Parse] input=$versionString -> major=$major, minor=$minor, patch=$patch, isBeta=$isBeta, build=$build, code=$versionCode")
             return AppVersion(
                 major = major,
                 minor = minor,
@@ -463,6 +496,7 @@ class WordPressUpdater @Inject constructor(
             )
         } catch (e: Exception) {
             Log.e(TAG, "版本字符串解析失败: $versionString", e)
+            Log.e(DIAG, "[Parse] Failed: $versionString -> ${e.message}", e)
             return currentVersion
         }
     }
@@ -557,5 +591,25 @@ class WordPressUpdater @Inject constructor(
      */
     fun getLastCheckTime(): Long {
         return preferences.getLong(KEY_LAST_CHECK, 0L)
+    }
+
+    /**
+     * 掩码token，避免日志暴露完整敏感信息
+     */
+    private fun maskToken(token: String): String {
+        if (token.isEmpty()) return "<empty>"
+        if (token.length <= 8) return "****${token.last()}"
+        val head = token.substring(0, 4)
+        val tail = token.substring(token.length - 4)
+        return "$head****$tail"
+    }
+
+    /**
+     * 输出预览（前后截断），避免在日志中打印过长内容
+     */
+    private fun preview(text: String?, limit: Int = 300): String {
+        if (text == null) return "<null>"
+        val trimmed = text.replace("\n", "\\n")
+        return if (trimmed.length <= limit) trimmed else trimmed.substring(0, limit) + "…(${trimmed.length})"
     }
 } 
