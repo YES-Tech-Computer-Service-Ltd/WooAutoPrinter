@@ -208,7 +208,6 @@ object OrderMapper {
         val feeLines = parseFeeLines(entity)
         
         // 记录解析到的费用行
-        // println("【数据流】订单#${entity.number} 解析到的费用行:")
         feeLines.forEach { feeLine ->
             // println("  - ${feeLine.name}: ${feeLine.total}")
         }
