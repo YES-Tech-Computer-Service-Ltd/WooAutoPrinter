@@ -13,9 +13,12 @@ import com.example.wooauto.data.remote.models.ShippingResponse
 import com.example.wooauto.domain.models.Order
 import com.example.wooauto.domain.models.OrderItem
 import com.google.gson.Gson
+import java.math.BigDecimal
+import java.math.RoundingMode
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.text.toBigDecimalOrNull
 
 /**
  * 订单数据映射器
@@ -153,7 +156,11 @@ object OrderMapper {
             dateCreated = parseDate(response.dateCreated).time,
             dateModified = System.currentTimeMillis(),
             total = response.total,
-            totalTax = response.taxLines.sumOf { it.taxTotal.toDoubleOrNull() ?: 0.0 }.toString(),
+            totalTax = response.taxLines
+                .mapNotNull { it.taxTotal.toBigDecimalOrNull() }
+                .fold(BigDecimal.ZERO) { acc, value -> acc + value }
+                .setScale(2, RoundingMode.HALF_UP)
+                .toPlainString(),
             customerName = formatCustomerName(response.billing),
             customerNote = customerNote.toString(),
             contactInfo = formatContactInfo(response.billing),
