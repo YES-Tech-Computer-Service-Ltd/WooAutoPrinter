@@ -147,6 +147,8 @@ class BackgroundPollingService : Service() {
             systemPollingManager.startAll(defaultPrinterProvider = {
                 settingsRepository.getDefaultPrinterConfig()
             })
+            // 启动看门狗（轮询健康监测）
+            startWatchdog()
             // 启用外部系统轮询接管打印机健康检查，避免内部心跳重复
             try {
                 if (printerManager is BluetoothPrinterManager) {
@@ -346,6 +348,7 @@ class BackgroundPollingService : Service() {
         // 取消所有协程任务
         pollingJob?.cancel()
         intervalMonitorJob?.cancel()
+        pollingHealthMonitorJob?.cancel(); pollingHealthMonitorJob = null
         // 系统轮询下线
         try { systemPollingManager.stopAll() } catch (_: Exception) {}
         
@@ -686,6 +689,40 @@ class BackgroundPollingService : Service() {
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "间隔监听任务异常: ${e.message}", e)
+            }
+        }
+    }
+
+    /**
+     * 看门狗（轮询健康监测）：定期检测轮询是否卡死并尝试恢复
+     */
+    private fun startWatchdog() {
+        if (pollingHealthMonitorJob?.isActive == true) {
+            UiLog.d(TAG, "【轮询健康】监测已在运行，跳过重复启动")
+            return
+        }
+        pollingHealthMonitorJob = serviceScope.launch {
+            try {
+                while (isActive) {
+                    delay(POLLING_HEALTH_CHECK_INTERVAL)
+                    try {
+                        if (!isPollingActive) continue
+                        val now = System.currentTimeMillis()
+                        val idle = now - lastPollingActivity
+                        if (idle > POLLING_HEALTH_TIMEOUT_THRESHOLD) {
+                            Log.e(TAG, "【轮询健康】检测到轮询可能停止，上次活动: ${idle}ms 前，尝试恢复")
+                            restartPolling()
+                        } else if (BuildConfig.DEBUG) {
+                            Log.d(TAG, "【轮询健康】正常，最近活动 ${idle}ms 前")
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "【轮询健康】检查异常: ${e.message}", e)
+                    }
+                }
+            } catch (_: CancellationException) {
+                UiLog.d(TAG, "【轮询健康】监测已取消")
+            } catch (e: Exception) {
+                Log.e(TAG, "【轮询健康】监测任务异常: ${e.message}", e)
             }
         }
     }

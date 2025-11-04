@@ -20,7 +20,7 @@ import javax.inject.Singleton
 
 /**
  * System Polling Manager
- * - Centralizes all non-order-related periodic checks (network heartbeat, polling health monitor, printer health checks)
+ * - Centralizes all non-order-related periodic checks (network heartbeat, watchdog, printer health checks)
  * - Does not directly modify business state; updates status only via domain components such as PrinterManager
  */
 @Singleton
@@ -31,25 +31,25 @@ class SystemPollingManager @Inject constructor(
 	companion object {
 		private const val TAG = "SystemPollingManager"
 		private const val NETWORK_HEARTBEAT_INTERVAL_MS = 30_000L
-		private const val POLLING_HEALTH_CHECK_INTERVAL_MS = 30_000L
+		private const val WATCHDOG_INTERVAL_MS = 30_000L
 		private const val PRINTER_HEALTH_INTERVAL_MS = 5_000L
 	}
 
 	private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
 	private var networkHeartbeatJob: Job? = null
-	private var pollingHealthMonitorJob: Job? = null
+	private var watchdogJob: Job? = null
 	private var printerHealthJob: Job? = null
 
 	fun startAll(defaultPrinterProvider: suspend () -> PrinterConfig?) {
 		startNetworkHeartbeat()
-		startPollingHealthMonitor()
+		startWatchdog()
 		startPrinterHealth(defaultPrinterProvider)
 	}
 
 	fun stopAll() {
 		networkHeartbeatJob?.cancel(); networkHeartbeatJob = null
-		pollingHealthMonitorJob?.cancel(); pollingHealthMonitorJob = null
+		watchdogJob?.cancel(); watchdogJob = null
 		printerHealthJob?.cancel(); printerHealthJob = null
 	}
 
@@ -71,18 +71,18 @@ class SystemPollingManager @Inject constructor(
 		}
 	}
 
-private fun startPollingHealthMonitor() {
-    if (pollingHealthMonitorJob?.isActive == true) return
-    UiLog.d(TAG, "系统轮询/轮询健康监测：启动")
-    pollingHealthMonitorJob = scope.launch {
+	private fun startWatchdog() {
+		if (watchdogJob?.isActive == true) return
+		UiLog.d(TAG, "系统轮询/看门狗：启动")
+		watchdogJob = scope.launch {
 			while (isActive) {
 				try {
-                UiLog.d(TAG, "系统轮询/轮询健康监测：检查轮询健康")
-                // 此处保留空实现：原轮询健康监测逻辑仍在 BackgroundPollingService 中
+					UiLog.d(TAG, "系统轮询/看门狗：检查轮询健康")
+					// 此处保留空实现：原看门狗逻辑仍在 BackgroundPollingService 中
 				} catch (e: Exception) {
-                Log.e(TAG, "系统轮询/轮询健康监测：异常: ${e.message}", e)
+					Log.e(TAG, "系统轮询/看门狗：异常: ${e.message}", e)
 				} finally {
-                delay(POLLING_HEALTH_CHECK_INTERVAL_MS)
+					delay(WATCHDOG_INTERVAL_MS)
 				}
 			}
 		}
