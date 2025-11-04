@@ -348,7 +348,7 @@ class BackgroundPollingService : Service() {
         intervalMonitorJob?.cancel()
         pollingHealthMonitorJob?.cancel(); pollingHealthMonitorJob = null
         // 系统轮询下线
-        try { systemPollingManager.stopPollingHealthMonitor() } catch (_: Exception) {}
+        stopPollingHealthMonitor()
         try { systemPollingManager.stopAll() } catch (_: Exception) {}
         
         // 取消整个服务协程作用域
@@ -539,12 +539,8 @@ class BackgroundPollingService : Service() {
             
             // 启动网络心跳检测
             startNetworkHeartbeat()
-            // 启动轮询健康监测（委托 SystemPollingManager）
-            try {
-                systemPollingManager.startPollingHealthMonitor(buildPollingHealthMonitorConfig())
-            } catch (e: Exception) {
-                Log.e(TAG, "启动轮询健康监测失败: ${e.message}")
-            }
+            // 启动轮询健康监测（本地实现）
+            startPollingHealthMonitor()
             
             // 检查电池优化状态
             checkBatteryOptimization()
@@ -670,18 +666,11 @@ class BackgroundPollingService : Service() {
         }
     }
 
-    private fun buildPollingHealthMonitorConfig(): SystemPollingManager.PollingHealthMonitorConfig {
-        return SystemPollingManager.PollingHealthMonitorConfig(
-            isPollingActive = { isPollingActive },
-            lastPollingActivityProvider = { lastPollingActivity },
-            timeoutThresholdMs = POLLING_HEALTH_TIMEOUT_THRESHOLD,
-            onPollingTimeout = { _ ->
-                restartPolling()
-            },
-            onPollingRecovered = { _ ->
-                if (BuildConfig.DEBUG) Log.d(TAG, "【轮询健康】已恢复")
-            }
-        )
+    private fun stopPollingHealthMonitor() {
+        try {
+            pollingHealthMonitorJob?.cancel()
+        } catch (_: Exception) {}
+        pollingHealthMonitorJob = null
     }
     
     /**
@@ -715,7 +704,7 @@ class BackgroundPollingService : Service() {
     /**
      * 看门狗（轮询健康监测）：定期检测轮询是否卡死并尝试恢复
      */
-    private fun startWatchdog() {
+    private fun startPollingHealthMonitor() {
         if (pollingHealthMonitorJob?.isActive == true) {
             UiLog.d(TAG, "【轮询健康】监测已在运行，跳过重复启动")
             return
