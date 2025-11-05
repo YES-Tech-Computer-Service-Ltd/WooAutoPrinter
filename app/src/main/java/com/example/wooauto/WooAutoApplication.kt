@@ -20,6 +20,11 @@ import com.example.wooauto.utils.OrderNotificationManager
 import com.example.wooauto.licensing.LicenseVerificationManager
 import com.example.wooauto.initialization.InitializationManager
 import dagger.hilt.android.HiltAndroidApp
+import coil.ImageLoader
+import coil.ImageLoaderFactory
+import coil.disk.DiskCache
+import coil.memory.MemoryCache
+import android.graphics.Bitmap
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -30,7 +35,7 @@ import kotlinx.coroutines.coroutineScope
 import javax.inject.Inject
 
 @HiltAndroidApp
-class WooAutoApplication : MultiDexApplication(), Configuration.Provider {
+class WooAutoApplication : MultiDexApplication(), Configuration.Provider, ImageLoaderFactory {
 
     @Inject
     lateinit var wooCommerceConfig: WooCommerceConfig
@@ -96,6 +101,26 @@ class WooAutoApplication : MultiDexApplication(), Configuration.Provider {
                 Log.e("WooAutoApplication", "【应用初始化】初始化失败", e)
             }
         }
+    }
+
+    override fun newImageLoader(): ImageLoader {
+        // 全局图片加载配置：禁用硬件位图、使用RGB_565、开启内存/磁盘缓存
+        return ImageLoader.Builder(this)
+            .allowHardware(false)
+            .bitmapConfig(Bitmap.Config.RGB_565)
+            .memoryCache(
+                MemoryCache.Builder(this)
+                    .maxSizePercent(0.25)
+                    .build()
+            )
+            .diskCache(
+                DiskCache.Builder()
+                    .directory(cacheDir.resolve("image_cache"))
+                    .maxSizePercent(0.02)
+                    .build()
+            )
+            // 交由各请求自行指定 size/decoderFactory；此处保持通用配置
+            .build()
     }
     
     /**

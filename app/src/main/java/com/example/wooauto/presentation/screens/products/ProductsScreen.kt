@@ -76,6 +76,9 @@ import com.example.wooauto.utils.LocalAppLocale
 import kotlinx.coroutines.launch
 import com.example.wooauto.presentation.EventBus
 import com.example.wooauto.presentation.navigation.Screen
+import android.graphics.Bitmap
+import coil.decode.BitmapFactoryDecoder
+import coil.request.CachePolicy
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -953,6 +956,12 @@ fun ProductGridItem(
                             model = ImageRequest.Builder(LocalContext.current)
                                 .data(product.images.first().src)
                                 .crossfade(true)
+                                .size(100, 100)
+                                .allowHardware(false)
+                                .bitmapConfig(Bitmap.Config.RGB_565)
+                                .memoryCachePolicy(CachePolicy.ENABLED)
+                                .diskCachePolicy(CachePolicy.ENABLED)
+                                .decoderFactory(BitmapFactoryDecoder.Factory())
                                 .build(),
                             contentDescription = product.name,
                             modifier = Modifier.fillMaxSize(),

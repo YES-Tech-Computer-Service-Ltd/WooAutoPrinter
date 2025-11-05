@@ -30,6 +30,9 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import coil.request.CachePolicy
+import coil.decode.BitmapFactoryDecoder
+import android.graphics.Bitmap
 import com.example.wooauto.R
 import com.example.wooauto.domain.models.Product
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -113,6 +116,12 @@ fun ProductDetailDialog(
                                     model = ImageRequest.Builder(LocalContext.current)
                                         .data(product.images.first().src)
                                         .crossfade(true)
+                                        .size(160, 160)
+                                        .allowHardware(false)
+                                        .bitmapConfig(Bitmap.Config.RGB_565)
+                                        .memoryCachePolicy(CachePolicy.ENABLED)
+                                        .diskCachePolicy(CachePolicy.ENABLED)
+                                        .decoderFactory(BitmapFactoryDecoder.Factory())
                                         .build(),
                                     contentDescription = product.name,
                                     modifier = Modifier.fillMaxSize(),
