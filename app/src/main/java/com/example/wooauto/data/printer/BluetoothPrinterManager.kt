@@ -1890,17 +1890,10 @@ class BluetoothPrinterManager @Inject constructor(
                                 updatePrinterStatus(config, PrinterStatus.DISCONNECTED)
                                 throw e
                             } finally {
-                                // 即使写入成功，也再次小延迟后确认一次连接状态，避免短暂缓存导致的假在线
+                                // 不再基于 isConnected() 做写后确认，避免假阳性
                                 if (writeOk) {
-                                    delay(150)
-                                    val stillConnected = try { currentConnection?.isConnected() ?: false } catch (_: Exception) { false }
-                                    if (!stillConnected) {
-                                        Log.w(TAG, "写入成功但socket已失效，标记为断开")
-                                        updatePrinterStatus(config, PrinterStatus.DISCONNECTED)
-                                        throw EscPosConnectionException("Socket lost after write")
-                                    }
+                                    // 轻量心跳：不在此处更新 CONNECTED，交由连接/广播路径维护
                                 }
-                                updatePrinterStatus(config, PrinterStatus.CONNECTED)
                                 if (reconnectAttempts > 0) {
                                     Log.d(TAG, "系统轮询成功，连接恢复稳定")
                                     reconnectAttempts = 0
@@ -1986,9 +1979,9 @@ class BluetoothPrinterManager @Inject constructor(
     private fun sendHeartbeatCommand() {
         try {
             currentConnection?.let { connection ->
-                // 发送一个初始化命令作为心跳（更容易暴露断开）
-                val initCommand = byteArrayOf(0x1B, 0x40)  // ESC @
-                connection.write(initCommand)
+                // 使用无副作用的心跳字节，避免重置打印机
+                val heartbeat = byteArrayOf(0x00)  // NUL
+                connection.write(heartbeat)
             } ?: throw IllegalStateException("打印机未连接")
         } catch (e: Exception) {
             Log.e(TAG, "发送心跳命令失败: ${e.message}", e)
