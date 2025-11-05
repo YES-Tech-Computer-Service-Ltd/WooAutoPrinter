@@ -75,6 +75,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.lifecycleScope
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -226,7 +228,8 @@ fun PrinterSettingsScreen(
     viewModel: SettingsViewModel = hiltViewModel(),
     onClose: () -> Unit
 ) {
-    val coroutineScope = rememberCoroutineScope()
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val lifecycleScope = lifecycleOwner.lifecycleScope
     val snackbarHostState = remember { SnackbarHostState() }
     
     val printerConfigs by viewModel.printerConfigs.collectAsState()
@@ -287,6 +290,8 @@ fun PrinterSettingsScreen(
             )
         }
     ) { paddingValues ->
+        val lifecycleOwner = LocalLifecycleOwner.current
+        val lifecycleScope = lifecycleOwner.lifecycleScope
         PrinterSettingsContent(
             modifier = Modifier.padding(paddingValues),
             printerConfigs = printerConfigs,
@@ -300,7 +305,7 @@ fun PrinterSettingsScreen(
             printerToDelete = printerToDelete,
             showScanDialog = showScanDialog,
             onConnect = { printer ->
-                coroutineScope.launch {
+                lifecycleScope.launch {
                     if (printerStatus == PrinterStatus.CONNECTED && currentPrinterConfig?.id == printer.id) {
                         viewModel.disconnectPrinter(printer)
                         snackbarHostState.showSnackbar(printerDisconnectedMsg)
@@ -323,7 +328,7 @@ fun PrinterSettingsScreen(
                 showDeleteDialog = true
             },
             onTestPrint = { printer ->
-                coroutineScope.launch {
+                lifecycleScope.launch {
                     snackbarHostState.showSnackbar(connectingPrinterMsg)
                     try {
                         val success = viewModel.testPrint(printer)
@@ -339,7 +344,7 @@ fun PrinterSettingsScreen(
                 }
             },
             onChineseTestPrint = { printer ->
-                coroutineScope.launch {
+                lifecycleScope.launch {
                     snackbarHostState.showSnackbar("正在进行中文测试打印...")
                     try {
                         val success = viewModel.chineseTestPrint(printer)
@@ -358,7 +363,7 @@ fun PrinterSettingsScreen(
                 if (isDefault) {
                     val updatedConfig = printer.copy(isDefault = true)
                     viewModel.savePrinterConfig(updatedConfig)
-                    coroutineScope.launch {
+                    lifecycleScope.launch {
                         snackbarHostState.showSnackbar(setAsDefaultSuccessMsg)
                     }
                 }
@@ -374,7 +379,7 @@ fun PrinterSettingsScreen(
             onConfirmDelete = {
                 printerToDelete?.let { printer ->
                     viewModel.deletePrinterConfig(printer.id)
-                    coroutineScope.launch {
+                    lifecycleScope.launch {
                         snackbarHostState.showSnackbar(printerDeletedMsg)
                     }
                 }
@@ -422,7 +427,7 @@ fun PrinterSettingsScreen(
                         },
                         onSave = {
                             viewModel.savePrinterConfig(selectedPrinterForConfig!!)
-                            coroutineScope.launch {
+                            lifecycleScope.launch {
                                 snackbarHostState.showSnackbar(printerConfigSavedMsg)
                                 delay(500)
                                 showConfigurationDialog = false
@@ -1051,7 +1056,8 @@ public fun PrinterSettingsDialogContent(
     onClose: () -> Unit,
     navController: NavController
 ) {
-    val coroutineScope = rememberCoroutineScope()
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val lifecycleScope = lifecycleOwner.lifecycleScope
     val snackbarHostState = remember { SnackbarHostState() }
     
     val printerConfigs by viewModel.printerConfigs.collectAsState()
@@ -1128,7 +1134,7 @@ public fun PrinterSettingsDialogContent(
             printerToDelete = printerToDelete,
             showScanDialog = showScanDialog,
             onConnect = { printer ->
-                coroutineScope.launch {
+                lifecycleScope.launch {
                     if (printerStatus == PrinterStatus.CONNECTED && currentPrinterConfig?.id == printer.id) {
                         viewModel.disconnectPrinter(printer)
                         snackbarHostState.showSnackbar(printerDisconnectedMsg)
@@ -1151,7 +1157,7 @@ public fun PrinterSettingsDialogContent(
                 showDeleteDialog = true
             },
             onTestPrint = { printer ->
-                coroutineScope.launch {
+                lifecycleScope.launch {
                     snackbarHostState.showSnackbar(connectingPrinterMsg)
                     try {
                         val success = viewModel.testPrint(printer)
@@ -1167,7 +1173,7 @@ public fun PrinterSettingsDialogContent(
                 }
             },
             onChineseTestPrint = { printer ->
-                coroutineScope.launch {
+                lifecycleScope.launch {
                     snackbarHostState.showSnackbar("正在进行中文测试打印...")
                     try {
                         val success = viewModel.chineseTestPrint(printer)
@@ -1186,7 +1192,7 @@ public fun PrinterSettingsDialogContent(
                 if (isDefault) {
                     val updatedConfig = printer.copy(isDefault = true)
                     viewModel.savePrinterConfig(updatedConfig)
-                    coroutineScope.launch {
+                    lifecycleScope.launch {
                         snackbarHostState.showSnackbar(setAsDefaultSuccessMsg)
                     }
                 }
@@ -1202,7 +1208,7 @@ public fun PrinterSettingsDialogContent(
             onConfirmDelete = {
                 printerToDelete?.let { printer ->
                     viewModel.deletePrinterConfig(printer.id)
-                    coroutineScope.launch {
+                    lifecycleScope.launch {
                         snackbarHostState.showSnackbar(printerDeletedMsg)
                     }
                 }
@@ -1250,7 +1256,7 @@ public fun PrinterSettingsDialogContent(
                         },
                         onSave = {
                             viewModel.savePrinterConfig(selectedPrinterForConfig!!)
-                            coroutineScope.launch {
+                    lifecycleScope.launch {
                                 snackbarHostState.showSnackbar(printerConfigSavedMsg)
                                 delay(500)
                                 showConfigurationDialog = false
