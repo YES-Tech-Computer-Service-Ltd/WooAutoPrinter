@@ -28,6 +28,9 @@ import com.example.wooauto.domain.printer.PrinterStatus
 import com.example.wooauto.domain.repositories.DomainOrderRepository
 import com.example.wooauto.domain.repositories.DomainSettingRepository
 import com.example.wooauto.domain.templates.OrderPrintTemplate
+import com.example.wooauto.domain.printer.PrinterVendor
+import com.example.wooauto.data.printer.detect.VendorDetector
+import com.example.wooauto.data.printer.star.StarPrinterDriver
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -128,6 +131,11 @@ class BluetoothPrinterManager @Inject constructor(
     private var heartbeatJob: Job? = null
     // 连接状态广播接收器
     private var connectionStateReceiver: BroadcastReceiver? = null
+
+    // 供应商识别与Star驱动
+    private val addressToVendor = ConcurrentHashMap<String, PrinterVendor>()
+    private val starDriver: StarPrinterDriver = StarPrinterDriver(context)
+    private var currentVendor: PrinterVendor? = null
 
     private fun ensureHeartbeatRunning(config: PrinterConfig) {
         val active = heartbeatJob?.isActive == true
@@ -230,6 +238,13 @@ class BluetoothPrinterManager @Inject constructor(
 
                         // 保存设备，不过滤任何设备
                         discoveredDevices[it.address] = it
+                        // 供应商识别（基于名称的轻量判断）
+                        try {
+                            val vendor = VendorDetector.detectByName(it.name)
+                            addressToVendor[it.address] = vendor
+                        } catch (_: Exception) {
+                            // 忽略识别异常，保持通用类型
+                        }
 
                         // 更新扫描结果
                         updateScanResults()
@@ -416,8 +431,31 @@ class BluetoothPrinterManager @Inject constructor(
                 }
             }
 
-            // 创建蓝牙连接，添加超时控制
-            
+            // 依据供应商路由连接流程（Star 走独立驱动，其他走通用 ESC/POS）
+            run {
+                val vendor = detectVendorForDevice(device)
+                currentVendor = vendor
+                if (vendor == PrinterVendor.STAR) {
+                    updatePrinterStatus(config, PrinterStatus.CONNECTING)
+                    val ok = ensureStarConnected(config)
+                    if (ok) {
+                        updatePrinterStatus(config, PrinterStatus.CONNECTED)
+                        currentPrinterConfig = config
+                        settingRepository.setPrinterConnection(true)
+                        UiLog.d(TAG, "【打印机连接】Star 流程连接成功: ${config.name}")
+                        return true
+                    } else {
+                        Log.e(TAG, "Star 流程连接失败")
+                        updatePrinterStatus(config, PrinterStatus.ERROR)
+                        return false
+                    }
+                } else {
+                    currentVendor = PrinterVendor.GENERIC
+                }
+            }
+
+            // 创建蓝牙连接，添加超时控制（通用 ESC/POS 流程）
+
             val connection = BluetoothConnection(device)
             updatePrinterStatus(config, PrinterStatus.CONNECTING)
 
@@ -828,6 +866,21 @@ class BluetoothPrinterManager @Inject constructor(
                 // 继续执行，至少可以显示已配对设备
             }
 
+            // 并行调用 Star SDK 搜索（若可用），用于更精准的 Star 设备标注
+            managerScope.launch {
+                try {
+                    val macs = starDriver.searchBluetoothMacs()
+                    if (macs.isNotEmpty()) {
+                        for (mac in macs) {
+                            addressToVendor[mac] = PrinterVendor.STAR
+                        }
+                        updateScanResults()
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Star 蓝牙搜索失败: ${e.message}")
+                }
+            }
+
             // 启动超时协程而不是暂停当前协程
             managerScope.launch {
                 try {
@@ -898,12 +951,14 @@ class BluetoothPrinterManager @Inject constructor(
         return discoveredDevices.values.map { device ->
             val deviceName = device.name ?: "未知设备 (${device.address.takeLast(5)})"
             val status = printerStatusMap[device.address] ?: PrinterStatus.DISCONNECTED
+            val vendor = addressToVendor[device.address] ?: PrinterVendor.GENERIC
+            val displayName = if (vendor == PrinterVendor.STAR) "[STAR] $deviceName" else deviceName
 
             // 可按需记录配对状态
             
 
             PrinterDevice(
-                name = deviceName,
+                name = displayName,
                 address = device.address,
                 type = PrinterConfig.PRINTER_TYPE_BLUETOOTH,
                 status = status
@@ -925,6 +980,18 @@ class BluetoothPrinterManager @Inject constructor(
             try {
                 // 停止心跳机制
                 stopHeartbeat()
+
+                // Star 流程独立断开
+                val vendor = currentVendor ?: getVendorForAddress(config.address)
+                if (vendor == PrinterVendor.STAR) {
+                    try {
+                        starDriver.disconnect()
+                    } catch (_: Exception) {
+                    }
+                    updatePrinterStatus(config, PrinterStatus.DISCONNECTED)
+                    settingRepository.setPrinterConnection(false)
+                    return@withContext
+                }
 
                 currentPrinter?.disconnectPrinter()
                 currentConnection?.disconnect()
@@ -970,6 +1037,27 @@ class BluetoothPrinterManager @Inject constructor(
             currentConnection != null
             currentPrinter != null
 //        Log.d(TAG, "【打印机状态】连接实例: ${if (_hasConnection) "存在" else "不存在"}, 打印机实例: ${if (hasPrinter) "存在" else "不存在"}")
+
+            // Star 路径：完全独立于 ESC/POS 流程
+            if (getVendorForAddress(config.address) == PrinterVendor.STAR) {
+                try {
+                    if (!ensureStarConnected(config)) {
+                        Log.e(TAG, "【STAR】打印机连接失败，无法打印订单")
+                        return@withContext false
+                    }
+                    // 生成内容并转换为 Star 可打印的纯文本（由驱动内部处理粗略转换）
+                    val content = generateOrderContent(order, config)
+                    val ok = starDriver.printOrder(order, config, content)
+                    if (ok) {
+                        return@withContext handleSuccessfulPrint(order)
+                    }
+                    Log.e(TAG, "【STAR】打印失败")
+                    return@withContext false
+                } catch (e: Exception) {
+                    Log.e(TAG, "【STAR】打印异常: ${e.message}", e)
+                    return@withContext false
+                }
+            }
 
             var retryCount = 0
             while (retryCount < 3) {
@@ -1208,6 +1296,24 @@ class BluetoothPrinterManager @Inject constructor(
             val currentStatus = getPrinterStatus(config)
             UiLog.d(TAG, "【打印机状态】开始使用模板打印订单 #${order.number}，当前打印机 ${config.name} 状态: $currentStatus")
 
+            // Star 路径
+            if (getVendorForAddress(config.address) == PrinterVendor.STAR) {
+                try {
+                    if (!ensureStarConnected(config)) {
+                        Log.e(TAG, "【STAR】打印机连接失败，无法使用模板打印")
+                        return@withContext false
+                    }
+                    val content = generateOrderContent(order, config, templateId)
+                    val ok = starDriver.printOrder(order, config, content)
+                    if (ok) return@withContext handleSuccessfulPrint(order)
+                    Log.e(TAG, "【STAR】使用模板打印失败")
+                    return@withContext false
+                } catch (e: Exception) {
+                    Log.e(TAG, "【STAR】使用模板打印异常: ${e.message}", e)
+                    return@withContext false
+                }
+            }
+
             var retryCount = 0
             while (retryCount < 3) {
                 try {
@@ -1326,6 +1432,49 @@ class BluetoothPrinterManager @Inject constructor(
      * @return 连接是否成功
      */
     suspend fun ensurePrinterConnected(config: PrinterConfig): Boolean {
+        // 根据供应商选择不同的连接保障逻辑
+        val vendor = getVendorForAddress(config.address)
+        // Star 流程
+        if (vendor == PrinterVendor.STAR) {
+            val status = getPrinterStatus(config)
+            UiLog.d(TAG, "【打印机状态】(STAR) 确保打印机连接 - 当前状态: $status，打印机: ${config.name}")
+
+            if (status != PrinterStatus.CONNECTED) {
+                updatePrinterStatus(config, PrinterStatus.CONNECTING)
+                val ok = ensureStarConnected(config)
+                if (ok) {
+                    updatePrinterStatus(config, PrinterStatus.CONNECTED)
+                    settingRepository.setPrinterConnection(true)
+                    currentVendor = PrinterVendor.STAR
+                    currentPrinterConfig = config
+                    return true
+                }
+                updatePrinterStatus(config, PrinterStatus.ERROR)
+                return false
+            }
+
+            // 已标记连接，做一次轻量测试
+            val ok = withTimeoutOrNull(2000) {
+                try {
+                    starDriver.testConnection()
+                } catch (_: Exception) {
+                    false
+                }
+            } ?: false
+            if (!ok) {
+                Log.w(TAG, "【打印机状态】(STAR) 连通性测试失败，尝试重连")
+                updatePrinterStatus(config, PrinterStatus.DISCONNECTED)
+                val re = ensureStarConnected(config)
+                if (re) {
+                    updatePrinterStatus(config, PrinterStatus.CONNECTED)
+                    settingRepository.setPrinterConnection(true)
+                }
+                return re
+            }
+            return true
+        }
+
+        // 通用 ESC/POS 流程
         // 检查打印机状态
         val status = getPrinterStatus(config)
         UiLog.d(TAG, "【打印机状态】确保打印机连接 - 当前状态: $status，打印机: ${config.name}")
@@ -1741,6 +1890,43 @@ class BluetoothPrinterManager @Inject constructor(
     }
 
     /**
+     * 供应商识别（设备级）
+     */
+    private fun detectVendorForDevice(device: BluetoothDevice): PrinterVendor {
+        // 先用缓存
+        addressToVendor[device.address]?.let { return it }
+        val vendor = try {
+            VendorDetector.detectByName(device.name)
+        } catch (_: Exception) {
+            PrinterVendor.GENERIC
+        }
+        addressToVendor[device.address] = vendor
+        return vendor
+    }
+
+    /**
+     * 供应商识别（地址级）
+     */
+    private suspend fun getVendorForAddress(address: String): PrinterVendor {
+        addressToVendor[address]?.let { return it }
+        val device = getBluetoothDevice(address) ?: return PrinterVendor.GENERIC
+        return detectVendorForDevice(device)
+    }
+
+    /**
+     * 确保 Star 打印机连接
+     */
+    private suspend fun ensureStarConnected(config: PrinterConfig): Boolean {
+        val device = getBluetoothDevice(config.address) ?: return false
+        if (!starDriver.isConnected(config.address)) {
+            if (!starDriver.connect(device, config)) {
+                return false
+            }
+        }
+        return true
+    }
+
+    /**
      * 输出蓝牙诊断信息，帮助识别权限问题
      */
     fun logBluetoothDiagnostics() {
@@ -2125,6 +2311,17 @@ class BluetoothPrinterManager @Inject constructor(
         return try {
             Log.d(TAG, "测试打印机连接: ${config.name}")
 
+            // Star 路径
+            if (getVendorForAddress(config.address) == PrinterVendor.STAR) {
+                if (!starDriver.isConnected(config.address)) {
+                    Log.w(TAG, "【STAR】未连接，连接测试失败")
+                    return false
+                }
+                return withContext(Dispatchers.IO) {
+                    starDriver.testConnection()
+                }
+            }
+
             // 先检查状态
             val status = getPrinterStatus(config)
             if (status != PrinterStatus.CONNECTED) {
@@ -2465,6 +2662,17 @@ class BluetoothPrinterManager @Inject constructor(
     override suspend fun printTest(config: PrinterConfig): Boolean = withContext(Dispatchers.IO) {
         try {
             Log.d(TAG, "执行测试打印")
+
+            // Star 路径
+            if (getVendorForAddress(config.address) == PrinterVendor.STAR) {
+                if (!ensureStarConnected(config)) {
+                    Log.e(TAG, "【STAR】打印机连接失败，无法执行测试打印")
+                    return@withContext false
+                }
+                val ok = starDriver.printTest()
+                if (!ok) Log.e(TAG, "【STAR】测试打印失败")
+                return@withContext ok
+            }
 
             // 1. 检查并确保连接
             if (!ensurePrinterConnected(config)) {

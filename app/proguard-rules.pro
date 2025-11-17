@@ -50,3 +50,7 @@
 # 应用特定的保留规则
 -keep class com.example.wooauto.data.remote.dto.** { *; }
 -keep class com.example.wooauto.domain.models.** { *; }
+
+# Star SDK（反射 + 直接依赖）保留规则
+-keep class com.starmicronics.** { *; }
+-dontwarn com.starmicronics.**

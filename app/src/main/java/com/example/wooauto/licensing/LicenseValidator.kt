@@ -14,6 +14,19 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
+import java.security.KeyStore
+import java.security.SecureRandom
+import java.security.cert.CertPathValidator
+import java.security.cert.CertificateFactory
+import java.security.cert.PKIXParameters
+import java.security.cert.TrustAnchor
+import java.security.cert.X509Certificate
+import javax.net.ssl.HostnameVerifier
+import javax.net.ssl.HttpsURLConnection
+import javax.net.ssl.SSLContext
+import javax.net.ssl.SSLSocketFactory
+import javax.net.ssl.TrustManager
+import javax.net.ssl.X509TrustManager
 
 data class LicenseValidationResult(
     val success: Boolean,
@@ -34,6 +47,11 @@ sealed class LicenseDetailsResult {
 
 object LicenseValidator {
     private const val API_URL = "https://yestech.ca/"
+    private val LICENSE_HOST: String by lazy { URL(API_URL).host }
+    private val revocationDisabledSslSocketFactory: SSLSocketFactory by lazy {
+        UiLog.d("LicenseValidator", "Initializing custom SSLSocketFactory (revocation disabled) for $LICENSE_HOST")
+        buildRevocationDisabledSocketFactory()
+    }
 
     suspend fun validateLicense(licenseKey: String, deviceId: String): LicenseValidationResult = withContext(Dispatchers.IO) {
         try {
@@ -234,6 +252,20 @@ object LicenseValidator {
     private suspend fun performPostRequest(parameters: Map<String, String>): String = withContext(Dispatchers.IO) {
         val url = URL(API_URL)
         val conn = url.openConnection() as HttpURLConnection
+        if (conn is HttpsURLConnection && url.host.equals(LICENSE_HOST, ignoreCase = true)) {
+            try {
+                conn.sslSocketFactory = revocationDisabledSslSocketFactory
+                val defaultVerifier: HostnameVerifier = HttpsURLConnection.getDefaultHostnameVerifier()
+                conn.hostnameVerifier = HostnameVerifier { hostname, session ->
+                    val result = defaultVerifier.verify(hostname, session)
+                    UiLog.d("LicenseValidator", "Hostname verify: host=$hostname, peerHost=${session?.peerHost}, result=$result")
+                    result
+                }
+                UiLog.d("LicenseValidator", "Applied custom SSL (revocation disabled) to $LICENSE_HOST")
+            } catch (e: Exception) {
+                Log.w("LicenseValidator", "Failed to apply custom SSL, fallback to default: ${e.message}", e)
+            }
+        }
         conn.requestMethod = "POST"
         conn.setRequestProperty("User-Agent", System.getProperty("http.agent") ?: "Android")
         conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
@@ -272,6 +304,95 @@ object LicenseValidator {
 
         conn.disconnect()
         response
+    }
+
+    private fun buildRevocationDisabledSocketFactory(): SSLSocketFactory {
+        val trustManagers = arrayOf<TrustManager>(RevocationDisabledTrustManager())
+        val sslContext = SSLContext.getInstance("TLS")
+        sslContext.init(null, trustManagers, SecureRandom())
+        return sslContext.socketFactory
+    }
+
+    private class RevocationDisabledTrustManager : X509TrustManager {
+        private val systemTrustAnchors: Set<TrustAnchor> by lazy { loadSystemTrustAnchors() }
+        private val acceptedIssuersArray: Array<X509Certificate> by lazy { loadAcceptedIssuers() }
+
+        override fun getAcceptedIssuers(): Array<X509Certificate> = acceptedIssuersArray
+
+        override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {
+            // 不用于客户端证书校验
+        }
+
+        override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {
+            UiLog.d("LicenseValidator", "TLS checkServerTrusted: authType=$authType, chainSize=${chain.size}")
+            require(chain.isNotEmpty()) { "Empty server certificate chain" }
+
+            try {
+                chain.forEachIndexed { idx, cert ->
+                    cert.checkValidity()
+                    UiLog.d("LicenseValidator", "Cert[$idx] Subject=${cert.subjectX500Principal.name}")
+                }
+
+                val cf = CertificateFactory.getInstance("X.509")
+                val certPath = cf.generateCertPath(chain.toList())
+
+                if (systemTrustAnchors.isEmpty()) {
+                    throw IllegalStateException("System trust anchors are empty")
+                }
+
+                val params = PKIXParameters(systemTrustAnchors).apply {
+                    isRevocationEnabled = false
+                }
+
+                val validator = CertPathValidator.getInstance("PKIX")
+                val result = validator.validate(certPath, params)
+                UiLog.d("LicenseValidator", "PKIX validation passed (revocation disabled): $result")
+            } catch (e: Exception) {
+                Log.e("LicenseValidator", "PKIX validation failed (revocation disabled): ${e.message}", e)
+                throw e
+            }
+        }
+
+        private fun loadSystemTrustAnchors(): Set<TrustAnchor> {
+            return try {
+                val ks = KeyStore.getInstance("AndroidCAStore")
+                ks.load(null)
+                val anchors = mutableSetOf<TrustAnchor>()
+                val aliases = ks.aliases()
+                while (aliases.hasMoreElements()) {
+                    val alias = aliases.nextElement()
+                    val cert = ks.getCertificate(alias)
+                    if (cert is X509Certificate) {
+                        anchors.add(TrustAnchor(cert, null))
+                    }
+                }
+                UiLog.d("LicenseValidator", "Loaded system trust anchors: ${anchors.size}")
+                anchors
+            } catch (e: Exception) {
+                Log.e("LicenseValidator", "Failed to load AndroidCAStore: ${e.message}", e)
+                emptySet()
+            }
+        }
+
+        private fun loadAcceptedIssuers(): Array<X509Certificate> {
+            return try {
+                val ks = KeyStore.getInstance("AndroidCAStore")
+                ks.load(null)
+                val list = mutableListOf<X509Certificate>()
+                val aliases = ks.aliases()
+                while (aliases.hasMoreElements()) {
+                    val alias = aliases.nextElement()
+                    val cert = ks.getCertificate(alias)
+                    if (cert is X509Certificate) {
+                        list.add(cert)
+                    }
+                }
+                list.toTypedArray()
+            } catch (e: Exception) {
+                Log.w("LicenseValidator", "Failed to load accepted issuers from AndroidCAStore: ${e.message}")
+                emptyArray()
+            }
+        }
     }
 
     private fun isJsonValid(jsonString: String): Boolean {
