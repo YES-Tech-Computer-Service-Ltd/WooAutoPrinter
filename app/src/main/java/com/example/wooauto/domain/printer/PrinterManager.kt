@@ -87,6 +87,14 @@ interface PrinterManager {
      * @return 打印结果，成功返回true
      */
     suspend fun printChineseTest(config: PrinterConfig): Boolean
+
+    /**
+     * 最小走纸（用于唤醒/防止长时间待机首单失败）
+     * @param config 打印机配置
+     * @param lines 走纸行数（缺省1行）
+     * @return 执行结果，成功返回true
+     */
+    suspend fun feedPaperMinimal(config: PrinterConfig, lines: Int = 1): Boolean
 }
 
 /**

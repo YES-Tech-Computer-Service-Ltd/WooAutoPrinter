@@ -11,41 +11,46 @@ data class UpdateInfo(
      * 最新版本信息
      */
     val latestVersion: AppVersion,
-    
+
     /**
      * 当前版本信息
      */
     val currentVersion: AppVersion,
-    
+
     /**
      * 是否有更新可用
      */
     val hasUpdate: Boolean,
-    
+
     /**
      * 更新日志
      */
     val changelog: String,
-    
+
     /**
      * 更新发布日期
      */
     val releaseDate: Date? = null,
-    
+
     /**
      * 下载URL
      */
     val downloadUrl: String,
-    
+
     /**
      * APK文件大小（KB）
      */
     val fileSize: Long? = null,
-    
+
     /**
      * 是否为强制更新
      */
-    val isForceUpdate: Boolean = false
+    val isForceUpdate: Boolean = false,
+
+    /**
+     * 是否为网络错误（用于区分“无更新”和“网络失败”）
+     */
+    val networkError: Boolean = false
 ) {
     /**
      * 判断是否需要更新
@@ -68,14 +73,15 @@ data class UpdateInfo(
         /**
          * 创建一个表示没有更新的UpdateInfo对象
          */
-        fun noUpdateAvailable(currentVersion: AppVersion): UpdateInfo {
+        fun noUpdateAvailable(currentVersion: AppVersion, isNetworkError: Boolean = false): UpdateInfo {
             return UpdateInfo(
                 latestVersion = currentVersion,
                 currentVersion = currentVersion,
                 hasUpdate = false,
                 changelog = "",
                 downloadUrl = "",
-                isForceUpdate = false
+                isForceUpdate = false,
+                networkError = isNetworkError
             )
         }
     }

@@ -208,6 +208,12 @@ class SettingsViewModel @Inject constructor(
     private val _soundEnabled = MutableStateFlow(true)
     val soundEnabled: StateFlow<Boolean> = _soundEnabled.asStateFlow()
 
+    // 打印机唤醒（最小走纸）设置
+    private val _keepAliveFeedEnabled = MutableStateFlow(true)
+    val keepAliveFeedEnabled: StateFlow<Boolean> = _keepAliveFeedEnabled.asStateFlow()
+    private val _keepAliveFeedIntervalHours = MutableStateFlow(24)
+    val keepAliveFeedIntervalHours: StateFlow<Int> = _keepAliveFeedIntervalHours.asStateFlow()
+
     // 许可证相关状态
     val licenseInfo: LiveData<LicenseInfo> = licenseManager.licenseInfo
     
@@ -245,6 +251,15 @@ class SettingsViewModel @Inject constructor(
                 Log.e(TAG, "加载亮度设置失败", e)
             }
         }
+        // 加载打印机唤醒（最小走纸）设置
+        viewModelScope.launch {
+            try {
+                _keepAliveFeedEnabled.value = settingsRepository.getKeepAliveFeedEnabled()
+                _keepAliveFeedIntervalHours.value = settingsRepository.getKeepAliveFeedIntervalHours()
+            } catch (e: Exception) {
+                Log.e(TAG, "加载最小走纸设置失败", e)
+            }
+        }
         
         // 监听打印机扫描结果
         viewModelScope.launch {
@@ -278,6 +293,59 @@ class SettingsViewModel @Inject constructor(
                 val effective = _uiStatusOverride.value ?: status
                 _printerStatus.value = effective
             }
+        }
+    }
+
+    fun updateKeepAliveFeedEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            try {
+                _keepAliveFeedEnabled.value = enabled
+                settingsRepository.setKeepAliveFeedEnabled(enabled)
+            } catch (e: Exception) {
+                Log.e(TAG, "更新最小走纸开关失败", e)
+            }
+        }
+    }
+
+    fun updateKeepAliveFeedIntervalHours(hours: Int) {
+        viewModelScope.launch {
+            try {
+                val safe = hours.coerceAtLeast(1)
+                _keepAliveFeedIntervalHours.value = safe
+                settingsRepository.setKeepAliveFeedIntervalHours(safe)
+            } catch (e: Exception) {
+                Log.e(TAG, "更新最小走纸间隔失败", e)
+            }
+        }
+    }
+
+    /**
+     * 测试最小走纸（1行）
+     */
+    suspend fun testKeepAliveFeed(): Boolean {
+        return try {
+            val cfg = settingsRepository.getDefaultPrinterConfig()
+            if (cfg == null) {
+                _connectionErrorMessage.value = "未设置默认打印机"
+                return false
+            }
+            val status = printerManager.getPrinterStatus(cfg)
+            if (status != PrinterStatus.CONNECTED) {
+                val connected = withTimeoutOrNull(15000) { printerManager.connect(cfg) } ?: false
+                if (!connected) {
+                    _connectionErrorMessage.value = "无法连接打印机"
+                    return false
+                }
+            }
+            val ok = withTimeoutOrNull(15000) { printerManager.feedPaperMinimal(cfg, 1) } ?: false
+            if (!ok) {
+                _connectionErrorMessage.value = "最小走纸失败"
+            }
+            ok
+        } catch (e: Exception) {
+            Log.e(TAG, "最小走纸测试异常", e)
+            _connectionErrorMessage.value = "最小走纸测试异常: ${e.message}"
+            false
         }
     }
 
@@ -1457,7 +1525,12 @@ class SettingsViewModel @Inject constructor(
         if (updateInfo == null) {
             return context.getString(R.string.fetching_version_info)
         }
-        
+
+        // 区分网络错误与“已是最新”
+        if (updateInfo.networkError) {
+            return "网络错误，稍后重试"
+        }
+
         return if (updateInfo.needsUpdate()) {
             val latestVersion = updateInfo.latestVersion.toVersionString()
             context.getString(R.string.about_version_info, currentVersion,

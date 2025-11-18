@@ -474,4 +474,35 @@ interface DomainSettingRepository {
      * 清除应用内自定义亮度设置，恢复跟随系统。
      */
     suspend fun clearAppBrightness()
+
+    /**
+     * 获取“打印机唤醒（最小走纸）”开关
+     */
+    suspend fun getKeepAliveFeedEnabled(): Boolean
+
+    /**
+     * 设置“打印机唤醒（最小走纸）”开关
+     */
+    suspend fun setKeepAliveFeedEnabled(enabled: Boolean)
+
+    /**
+     * 获取“打印机唤醒（最小走纸）”间隔（单位：小时）
+     * 例如 6/12/24/72/168
+     */
+    suspend fun getKeepAliveFeedIntervalHours(): Int
+
+    /**
+     * 设置“打印机唤醒（最小走纸）”间隔（单位：小时）
+     */
+    suspend fun setKeepAliveFeedIntervalHours(hours: Int)
+
+    /**
+     * 获取上次最小走纸时间（epoch毫秒）
+     */
+    suspend fun getLastKeepAliveFeedTime(): Long
+
+    /**
+     * 记录上次最小走纸时间（epoch毫秒）
+     */
+    suspend fun setLastKeepAliveFeedTime(timestamp: Long)
 } 

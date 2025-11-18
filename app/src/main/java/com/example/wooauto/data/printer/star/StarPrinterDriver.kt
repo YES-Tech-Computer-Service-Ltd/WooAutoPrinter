@@ -192,6 +192,27 @@ class StarPrinterDriver(
     }
 
     /**
+     * 最小走纸：发送若干换行以推动走纸
+     */
+    suspend fun feedMinimal(lines: Int = 1): Boolean {
+        if (!isSdkAvailable()) return false
+        val port = starPort ?: return false
+        return try {
+            val safeLines = lines.coerceIn(1, 5)
+            val text = buildString {
+                repeat(safeLines) { append("\r\n") }
+            }
+            val data = text.toByteArray(charset("UTF-8"))
+            val write = port.javaClass.getMethod(WRITE_PORT_METHOD, ByteArray::class.java, Int::class.javaPrimitiveType, Int::class.javaPrimitiveType)
+            val written = write.invoke(port, data, 0, data.size) as? Int ?: -1
+            written > 0
+        } catch (e: Throwable) {
+            Log.e(TAG, "Star 最小走纸失败: ${e.message}", e)
+            false
+        }
+    }
+
+    /**
      * 将 ESC/POS 风格标签文本转为纯文本（基本可读）
      */
     private fun toPlainText(formatted: String): String {

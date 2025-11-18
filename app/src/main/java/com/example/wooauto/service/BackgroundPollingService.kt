@@ -82,6 +82,7 @@ class BackgroundPollingService : Service() {
     private var pollingJob: Job? = null
     private var intervalMonitorJob: Job? = null // 独立的间隔监听任务
     private var latestPolledDate: Date? = null
+    private var keepAliveFeedJob: Job? = null
     
     // 使用LRU方式管理处理过的订单ID，减少内存占用
     private val processedOrderIds = LinkedHashSet<Long>(MAX_PROCESSED_IDS)
@@ -333,6 +334,9 @@ class BackgroundPollingService : Service() {
         } catch (e: Exception) {
             Log.e(TAG, "启动系统轮询失败: ${e.message}")
         }
+
+        // 启动打印机“最小走纸”保活任务
+        startKeepAliveFeedTask()
         
         return START_STICKY
     }
@@ -346,6 +350,7 @@ class BackgroundPollingService : Service() {
         // 取消所有协程任务
         pollingJob?.cancel()
         intervalMonitorJob?.cancel()
+        keepAliveFeedJob?.cancel(); keepAliveFeedJob = null
         pollingHealthMonitorJob?.cancel(); pollingHealthMonitorJob = null
         // 系统轮询下线
         stopPollingHealthMonitor()
@@ -367,6 +372,66 @@ class BackgroundPollingService : Service() {
         
         UiLog.d(TAG, "【服务销毁】资源清理完成")
         super.onDestroy()
+    }
+
+    /**
+     * 启动打印机“最小走纸”保活任务
+     * 默认按设置的间隔（小时）检查一次是否到期，到期则对默认打印机发送最小走纸
+     */
+    private fun startKeepAliveFeedTask() {
+        if (keepAliveFeedJob?.isActive == true) return
+        keepAliveFeedJob = serviceScope.launch {
+            while (isActive) {
+                try {
+                    val enabled = settingsRepository.getKeepAliveFeedEnabled()
+                    val intervalHours = settingsRepository.getKeepAliveFeedIntervalHours().coerceAtLeast(1)
+                    val intervalMs = intervalHours * 60L * 60L * 1000L
+                    val last = settingsRepository.getLastKeepAliveFeedTime()
+                    val now = System.currentTimeMillis()
+
+                    if (enabled) {
+                        val due = if (last <= 0L) Long.MAX_VALUE else (last + intervalMs)
+                        if (last <= 0L) {
+                            // 首次初始化：记录时间，避免安装/重启后立刻出纸
+                            settingsRepository.setLastKeepAliveFeedTime(now)
+                        } else if (now >= due) {
+                            // 到期：尝试对默认打印机执行最小走纸
+                            val cfg = settingsRepository.getDefaultPrinterConfig()
+                            if (cfg != null) {
+                                try {
+                                    val status = printerManager.getPrinterStatus(cfg)
+                                    if (status != PrinterStatus.CONNECTED) {
+                                        withTimeoutOrNull(15000) { printerManager.connect(cfg) }
+                                    }
+                                    // 发送1行最小走纸
+                                    withTimeoutOrNull(15000) { printerManager.feedPaperMinimal(cfg, 1) }
+                                    settingsRepository.setLastKeepAliveFeedTime(now)
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "最小走纸执行失败: ${e.message}", e)
+                                }
+                            } else {
+                                Log.w(TAG, "未配置默认打印机，跳过最小走纸")
+                            }
+                        }
+                    }
+
+                    // 计算下一次检查延迟：最小1分钟，通常为距离到期的剩余时间或固定轮询间隔
+                    val nextDelay = run {
+                        val base = if (!enabled) 60 * 60 * 1000L else {
+                            val nextDue = if (last <= 0L) now + intervalMs else last + intervalMs
+                            (nextDue - now).coerceAtLeast(60 * 1000L).coerceAtMost(6 * 60 * 60 * 1000L)
+                        }
+                        base
+                    }
+                    delay(nextDelay)
+                } catch (e: CancellationException) {
+                    break
+                } catch (e: Exception) {
+                    Log.e(TAG, "最小走纸保活任务异常: ${e.message}", e)
+                    delay(5 * 60 * 1000L)
+                }
+            }
+        }
     }
 
     private fun createNotificationChannel() {

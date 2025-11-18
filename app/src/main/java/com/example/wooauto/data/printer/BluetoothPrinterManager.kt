@@ -2364,6 +2364,52 @@ class BluetoothPrinterManager @Inject constructor(
     }
 
     /**
+     * 最小走纸（1-2行），用于唤醒打印机
+     */
+    override suspend fun feedPaperMinimal(config: PrinterConfig, lines: Int): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val safeLines = lines.coerceIn(1, 2)
+            val vendor = getVendorForAddress(config.address)
+            if (vendor == PrinterVendor.STAR) {
+                if (!ensureStarConnected(config)) return@withContext false
+                return@withContext starDriver.feedMinimal(safeLines)
+            }
+
+            if (!ensurePrinterConnected(config)) return@withContext false
+            val connection = currentConnection ?: return@withContext false
+
+            try {
+                if (!connection.isConnected()) connection.connect()
+
+                // 按照正式打印流程的唤醒顺序来推进
+                connection.write(byteArrayOf(0x1B, 0x40)) // ESC @ 初始化
+                Thread.sleep(80)
+
+                connection.write(byteArrayOf(0x18)) // CAN 清缓冲
+                Thread.sleep(60)
+
+                connection.write(byteArrayOf(0x1B, 0x64, safeLines.toByte())) // ESC d n 行走纸
+                Thread.sleep(60)
+
+                // 利用格式化打印（与真实打印同路径）输出一个空行，确保缓冲刷新
+                runCatching { currentPrinter?.printFormattedText(" \n") }.onFailure {
+                    Log.w(TAG, "最小走纸触发打印失败: ${it.message}")
+                }
+
+                Log.d(TAG, "最小走纸完成（${safeLines}行）")
+                true
+            } catch (e: Exception) {
+                Log.e(TAG, "最小走纸失败: ${e.message}", e)
+                updatePrinterStatus(config, PrinterStatus.ERROR)
+                false
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "最小走纸异常: ${e.message}", e)
+            false
+        }
+    }
+
+    /**
      * 尝试连接指定地址的蓝牙设备
      * @param deviceAddress 蓝牙设备地址
      * @return 连接结果

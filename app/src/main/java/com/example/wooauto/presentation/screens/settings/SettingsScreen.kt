@@ -171,10 +171,10 @@ fun SettingsScreen(
                                 }
                             }
                         )
-                        
-                        Spacer(modifier = Modifier.height(8.dp))
-                        HorizontalDivider()
-                        Spacer(modifier = Modifier.height(8.dp))
+
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    HorizontalDivider()
+                                    Spacer(modifier = Modifier.height(8.dp))
                         
                                     // Language
                                     SettingItem(
@@ -253,6 +253,96 @@ fun SettingsScreen(
                                                 }
                                             }
                                         )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        HorizontalDivider()
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        val keepAliveTitle = stringResource(R.string.printer_keep_alive_title)
+                        val keepAliveDesc = stringResource(R.string.printer_keep_alive_desc)
+                        val keepAliveTestLabel = stringResource(R.string.printer_keep_alive_test_button)
+                        val keepAliveTestSuccess = stringResource(R.string.printer_keep_alive_test_success)
+                        val keepAliveTestFail = stringResource(R.string.printer_keep_alive_test_fail)
+                        val keepAliveIntervals = listOf(
+                            6 to stringResource(R.string.printer_keep_alive_interval_6h),
+                            12 to stringResource(R.string.printer_keep_alive_interval_12h),
+                            24 to stringResource(R.string.printer_keep_alive_interval_1d),
+                            72 to stringResource(R.string.printer_keep_alive_interval_3d),
+                            168 to stringResource(R.string.printer_keep_alive_interval_1w),
+                        )
+                        // 打印机唤醒（走纸）
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = keepAliveTitle,
+                                        style = MaterialTheme.typography.titleMedium
+                                    )
+                                    Text(
+                                        text = keepAliveDesc,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                val enabled = viewModel.keepAliveFeedEnabled.collectAsState().value
+                                Switch(
+                                    checked = enabled,
+                                    onCheckedChange = { viewModel.updateKeepAliveFeedEnabled(it) }
+                                )
+                            }
+                            val selectedInterval = viewModel.keepAliveFeedIntervalHours.collectAsState().value
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 4.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                keepAliveIntervals.forEach { (hours, label) ->
+                                    val selected = selectedInterval == hours
+                                    androidx.compose.material3.OutlinedButton(
+                                        onClick = { viewModel.updateKeepAliveFeedIntervalHours(hours) },
+                                        enabled = hasEligibility && viewModel.keepAliveFeedEnabled.collectAsState().value,
+                                        border = if (selected) androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null
+                                    ) {
+                                        Text(
+                                            text = label,
+                                            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+                                }
+                            }
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 8.dp),
+                                horizontalArrangement = Arrangement.Start,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                androidx.compose.material3.OutlinedButton(
+                                    onClick = {
+                                        coroutineScope.launch {
+                                            val ok = viewModel.testKeepAliveFeed()
+                                            val msg = if (ok) keepAliveTestSuccess else (viewModel.connectionErrorMessage.value ?: keepAliveTestFail)
+                                            snackbarHostState.showSnackbar(msg)
+                                        }
+                                    },
+                                    enabled = hasEligibility
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Print,
+                                        contentDescription = null,
+                                        modifier = Modifier.padding(end = 6.dp)
+                                    )
+                                    Text(keepAliveTestLabel)
+                                }
+                            }
+                        }
+
                         Spacer(modifier = Modifier.height(8.dp))
                         HorizontalDivider()
                         Spacer(modifier = Modifier.height(8.dp))

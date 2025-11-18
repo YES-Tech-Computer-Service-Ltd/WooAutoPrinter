@@ -81,6 +81,11 @@ class SettingsRepositoryImpl @Inject constructor(
         val TEMPLATE_PRINT_COPIES = stringPreferencesKey(KEY_TEMPLATE_PRINT_COPIES)
         // 应用内自定义亮度（百分比，5..100），缺省表示跟随系统
         val APP_BRIGHTNESS_PERCENT = intPreferencesKey("app_brightness_percent")
+
+        // 打印机唤醒（最小走纸）设置
+        val KEEP_ALIVE_FEED_ENABLED = booleanPreferencesKey("keep_alive_feed_enabled")
+        val KEEP_ALIVE_FEED_INTERVAL_HOURS = intPreferencesKey("keep_alive_feed_interval_hours")
+        val LAST_KEEP_ALIVE_FEED_TIME = longPreferencesKey("last_keep_alive_feed_time")
     }
 
     // 设置键名常量
@@ -688,6 +693,59 @@ class SettingsRepositoryImpl @Inject constructor(
     override suspend fun setCustomSoundUri(uri: String) {
         dataStore.edit { settings ->
             settings[PreferencesKeys.CUSTOM_SOUND_URI] = uri
+        }
+    }
+
+    // ===== 打印机唤醒（最小走纸）设置 =====
+    override suspend fun getKeepAliveFeedEnabled(): Boolean {
+        return dataStore.data
+            .catch { exception ->
+                if (exception is IOException) {
+                    Log.e("SettingsRepositoryImpl", "Error reading keep_alive_feed_enabled.", exception)
+                    emit(androidx.datastore.preferences.core.emptyPreferences())
+                } else {
+                    throw exception
+                }
+            }
+            .map { preferences ->
+                preferences[PreferencesKeys.KEEP_ALIVE_FEED_ENABLED] ?: true
+            }.first()
+    }
+
+    override suspend fun setKeepAliveFeedEnabled(enabled: Boolean) {
+        dataStore.edit { settings ->
+            settings[PreferencesKeys.KEEP_ALIVE_FEED_ENABLED] = enabled
+        }
+    }
+
+    override suspend fun getKeepAliveFeedIntervalHours(): Int {
+        return dataStore.data
+            .catch { exception ->
+                if (exception is IOException) {
+                    Log.e("SettingsRepositoryImpl", "Error reading keep_alive_feed_interval_hours.", exception)
+                    emit(androidx.datastore.preferences.core.emptyPreferences())
+                } else {
+                    throw exception
+                }
+            }
+            .map { preferences ->
+                preferences[PreferencesKeys.KEEP_ALIVE_FEED_INTERVAL_HOURS] ?: 24
+            }.first()
+    }
+
+    override suspend fun setKeepAliveFeedIntervalHours(hours: Int) {
+        dataStore.edit { settings ->
+            settings[PreferencesKeys.KEEP_ALIVE_FEED_INTERVAL_HOURS] = hours.coerceAtLeast(1)
+        }
+    }
+
+    override suspend fun getLastKeepAliveFeedTime(): Long {
+        return dataStore.data.first()[PreferencesKeys.LAST_KEEP_ALIVE_FEED_TIME] ?: 0L
+    }
+
+    override suspend fun setLastKeepAliveFeedTime(timestamp: Long) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.LAST_KEEP_ALIVE_FEED_TIME] = timestamp
         }
     }
 

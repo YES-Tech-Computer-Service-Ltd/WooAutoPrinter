@@ -216,7 +216,7 @@ class WordPressUpdater @Inject constructor(
             } else {
                 Log.d(TAG, "无法连接到更新服务器，认为无更新")
                 Log.w(DIAG, "[Check] Response is null (network/timeout/non-200). See network logs below.")
-                emit(UpdateInfo.noUpdateAvailable(currentVersion))
+                emit(UpdateInfo.noUpdateAvailable(currentVersion, isNetworkError = true))
             }
             
             // 更新最后检查时间
@@ -227,7 +227,7 @@ class WordPressUpdater @Inject constructor(
         } catch (e: Exception) {
             Log.e(TAG, "检查更新失败", e)
             Log.e(DIAG, "[Check] Exception during checkForUpdates: ${e.message}", e)
-            emit(UpdateInfo.noUpdateAvailable(getCurrentVersion()))
+            emit(UpdateInfo.noUpdateAvailable(getCurrentVersion(), isNetworkError = true))
         }
     }.flowOn(Dispatchers.IO)
     
@@ -426,8 +426,8 @@ class WordPressUpdater @Inject constructor(
      * 发起API请求
      */
     private suspend fun makeApiRequest(urlString: String): String? = withContext(Dispatchers.IO) {
-        // 简单退避重试：最多3次，1s/2s退避；并提升超时，减少弱网下误判
-        val maxRetries = 3
+        // 简单退避重试：最多4次，1s/2s/3s退避；并提升读超时，减少弱网下误判
+        val maxRetries = 4
         var attempt = 0
         var lastError: Exception? = null
         while (attempt < maxRetries) {
@@ -451,9 +451,11 @@ class WordPressUpdater @Inject constructor(
                     }
                 }
                 connection.requestMethod = "GET"
-                connection.connectTimeout = 20000 // 20s
-                connection.readTimeout = 20000 // 20s
+                connection.connectTimeout = 10000 // 10s 更快地失败以便重试
+                connection.readTimeout = 35000 // 35s 给服务器更多响应时间
                 connection.setRequestProperty("User-Agent", "WooAuto-Android")
+                connection.setRequestProperty("Accept", "application/json")
+                connection.setRequestProperty("Connection", "close")
                 val responseCode = connection.responseCode
                 if (responseCode == HttpURLConnection.HTTP_OK) {
                     val reader = BufferedReader(InputStreamReader(connection.inputStream))
@@ -481,7 +483,10 @@ class WordPressUpdater @Inject constructor(
                 Log.w(TAG, "[Updater] 请求异常(第${attempt + 1}次): ${e.message}")
                 Log.w(DIAG, "[Net] Exception attempt=${attempt + 1} url=${preview(urlString)} msg=${e.message}", e)
                 if (attempt < maxRetries - 1) {
-                    try { kotlinx.coroutines.delay(1000L * (attempt + 1)) } catch (_: Exception) {}
+                    // 线性退避 1s/2s/3s，并引入少量抖动
+                    val base = 1000L * (attempt + 1)
+                    val jitter = (200L..600L).random()
+                    try { kotlinx.coroutines.delay(base + jitter) } catch (_: Exception) {}
                 }
             } finally {
                 attempt++
