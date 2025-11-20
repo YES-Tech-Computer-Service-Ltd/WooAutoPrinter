@@ -331,7 +331,9 @@ class SettingsViewModel @Inject constructor(
             }
             val status = printerManager.getPrinterStatus(cfg)
             if (status != PrinterStatus.CONNECTED) {
-                val connected = withTimeoutOrNull(15000) { printerManager.connect(cfg) } ?: false
+                val connected = withTimeoutOrNull(15000) {
+                    withContext(Dispatchers.IO) { printerManager.connect(cfg) }
+                } ?: false
                 if (!connected) {
                     _connectionErrorMessage.value = "无法连接打印机"
                     return false
@@ -607,7 +609,9 @@ class SettingsViewModel @Inject constructor(
                     if (status != PrinterStatus.CONNECTED) {
                         viewModelScope.launch {
                             try {
-                                withTimeoutOrNull(10000) { printerManager.connect(defaultPrinter) }
+                        withTimeoutOrNull(10000) {
+                            withContext(Dispatchers.IO) { printerManager.connect(defaultPrinter) }
+                        }
                             } catch (_: Exception) { }
                         }
                     }
@@ -723,7 +727,7 @@ class SettingsViewModel @Inject constructor(
                 
                 // 使用超时控制连接
                 val connected = withTimeoutOrNull(10000) {
-                    printerManager.connect(config)
+                    withContext(Dispatchers.IO) { printerManager.connect(config) }
                 } ?: false
                 
                 if (connected) {
@@ -780,7 +784,7 @@ class SettingsViewModel @Inject constructor(
             startConnectingUiTimeout()
             
             // 直接调用打印机管理器的连接方法
-            val connected = printerManager.connect(config)
+            val connected = withContext(Dispatchers.IO) { printerManager.connect(config) }
             
             // 根据结果更新状态
             if (connected) {
@@ -865,9 +869,7 @@ class SettingsViewModel @Inject constructor(
                 // 如果配置为默认，连接到该打印机
                 if (config.isDefault) {
                     // 修正调用，直接传递config对象而不是id
-                    viewModelScope.launch {
-                        printerManager.connect(config)
-                    }
+                    withContext(Dispatchers.IO) { printerManager.connect(config) }
                 }
                 
                 UiLog.d(TAG, "成功保存打印机配置: $config")
@@ -1005,7 +1007,7 @@ class SettingsViewModel @Inject constructor(
             
             // 尝试连接打印机
             UiLog.d(TAG, "打印机未连接，尝试连接: ${config.name}")
-            val connected = printerManager.connect(config)
+            val connected = withContext(Dispatchers.IO) { printerManager.connect(config) }
             
             if (!connected) {
                 Log.e(TAG, "打印机连接失败")

@@ -218,6 +218,16 @@
     <string name="printer_error">打印机错误: %1$s</string>
     <string name="printer_deleted">打印机已删除</string>
     <string name="set_as_default_success">已设置为默认打印机</string>
+    <string name="printer_keep_alive_title">打印机唤醒（走纸）</string>
+    <string name="printer_keep_alive_desc">定期走纸 1 行，防止长时间待机后不出纸</string>
+    <string name="printer_keep_alive_interval_6h">6小时</string>
+    <string name="printer_keep_alive_interval_12h">12小时</string>
+    <string name="printer_keep_alive_interval_1d">1天</string>
+    <string name="printer_keep_alive_interval_3d">3天</string>
+    <string name="printer_keep_alive_interval_1w">1周</string>
+    <string name="printer_keep_alive_test_button">测试走纸</string>
+    <string name="printer_keep_alive_test_success">已走纸1行（测试）</string>
+    <string name="printer_keep_alive_test_fail">走纸测试失败</string>
 
     <!-- Sound Setup -->
     <string name="sound_type">声音类型</string>

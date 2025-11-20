@@ -343,9 +343,11 @@ class BluetoothPrinterManager @Inject constructor(
     private var isConnecting = false
 
     override suspend fun connect(config: PrinterConfig): Boolean {
-        // 使用互斥锁防止并发连接
-        return connectionMutex.withLock {
-            connectInternal(config)
+        return withContext(Dispatchers.IO) {
+            // 使用互斥锁防止并发连接
+            connectionMutex.withLock {
+                connectInternal(config)
+            }
         }
     }
     
