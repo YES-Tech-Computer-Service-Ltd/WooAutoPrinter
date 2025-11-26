@@ -384,4 +384,33 @@ class FakeSettingRepository : DomainSettingRepository {
     override suspend fun saveTemplatePrintCopies(printCopies: Map<String, Int>) {
         templatePrintCopies = printCopies
     }
+
+    // 打印机唤醒（最小走纸）设置
+    private var keepAliveFeedEnabled = false
+    private var keepAliveFeedIntervalHours = 24
+    private var lastKeepAliveFeedTime = 0L
+
+    override suspend fun getKeepAliveFeedEnabled(): Boolean {
+        return keepAliveFeedEnabled
+    }
+
+    override suspend fun setKeepAliveFeedEnabled(enabled: Boolean) {
+        keepAliveFeedEnabled = enabled
+    }
+
+    override suspend fun getKeepAliveFeedIntervalHours(): Int {
+        return keepAliveFeedIntervalHours
+    }
+
+    override suspend fun setKeepAliveFeedIntervalHours(hours: Int) {
+        keepAliveFeedIntervalHours = hours
+    }
+
+    override suspend fun getLastKeepAliveFeedTime(): Long {
+        return lastKeepAliveFeedTime
+    }
+
+    override suspend fun setLastKeepAliveFeedTime(timestamp: Long) {
+        lastKeepAliveFeedTime = timestamp
+    }
 } 
