@@ -1151,6 +1151,12 @@ class OrderRepositoryImpl @Inject constructor(
      */
     private fun extractTimeInfo(note: String): String? {
         try {
+            // 0. 优先检查 ASAP
+            if (note.contains("asap", ignoreCase = true) || 
+                note.contains("ASAP", ignoreCase = false)) {
+                return "ASAP"
+            }
+
             // 匹配常见的时间格式
             // 1. HH:MM 格式 (24小时制)
             // 2. HH:MM AM/PM 格式 (12小时制)

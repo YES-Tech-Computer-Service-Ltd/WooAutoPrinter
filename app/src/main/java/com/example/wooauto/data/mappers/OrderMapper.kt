@@ -544,6 +544,11 @@ object OrderMapper {
      */
     private fun extractTimeInfo(note: String): String? {
         try {
+            // 0. 优先检查 ASAP
+            if (note.contains("asap", ignoreCase = true)) {
+                return "ASAP"
+            }
+
             // 匹配常见的时间格式
             val timeRegex = "(\\d{1,2}:\\d{2}(\\s*[AaPp][Mm])?)".toRegex()
             val timeMatch = timeRegex.find(note)

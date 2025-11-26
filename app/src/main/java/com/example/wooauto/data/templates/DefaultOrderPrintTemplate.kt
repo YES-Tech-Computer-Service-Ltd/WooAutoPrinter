@@ -349,6 +349,12 @@ class DefaultOrderPrintTemplate @Inject constructor(
         val isDelivery = order.woofoodInfo?.isDelivery ?: false
         sb.append(ThermalPrinterFormatter.formatLabelValue("Order Type", 
             if (isDelivery) "Delivery" else "Takeaway", paperWidth))
+
+        // 显示配送时间或自取时间
+        order.woofoodInfo?.deliveryTime?.takeIf { it.isNotBlank() }?.let { time ->
+            val timeLabel = if (isDelivery) "Delivery Time" else "Pickup Time"
+            sb.append(ThermalPrinterFormatter.formatLabelValue(timeLabel, time, paperWidth))
+        }
         
         if (!showOnlyOrderType && isDelivery) {
             // 优先使用WooFood插件的配送地址，如果为空则使用billing地址作为备选
