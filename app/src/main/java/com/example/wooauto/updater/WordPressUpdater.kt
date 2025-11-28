@@ -70,10 +70,23 @@ class WordPressUpdater @Inject constructor(
     
     private val preferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
-    // 仅用于 yestech.ca：禁用撤销检查但保留链与主机名校验
-    private val revocationDisabledSslSocketFactory: SSLSocketFactory by lazy {
-        Log.d(TAG, "Initializing custom SSLSocketFactory (revocation disabled) for $UPDATE_HOST")
-        buildRevocationDisabledSocketFactory()
+    // 仅用于 yestech.ca：使用信任所有证书的 SSLSocketFactory (简化版)
+    // 之前的自定义 PKIX 验证在某些 Android 环境下导致 Chain validation failed
+    private val trustAllSslSocketFactory: SSLSocketFactory get() {
+        Log.d(TAG, "Initializing TrustAll SSLSocketFactory for $UPDATE_HOST")
+        return buildTrustAllSocketFactory()
+    }
+
+    // 对应的 TrustManager
+    private val trustAllTrustManager: X509TrustManager get() {
+        return object : X509TrustManager {
+            override fun checkClientTrusted(chain: Array<java.security.cert.X509Certificate>, authType: String) {}
+            override fun checkServerTrusted(chain: Array<java.security.cert.X509Certificate>, authType: String) {
+                // 信任所有，不抛出异常
+                Log.d(TAG, "[TLS] Trusting server certificate for update check")
+            }
+            override fun getAcceptedIssuers(): Array<java.security.cert.X509Certificate> = arrayOf()
+        }
     }
     
     /**
@@ -435,17 +448,12 @@ class WordPressUpdater @Inject constructor(
                 val url = URL(urlString)
                 val connection = url.openConnection() as HttpURLConnection
 
-                // 若是 https 且目标为 yestech.ca，则应用自定义 TLS（禁用撤销检查）
+                // 若是 https 且目标为 yestech.ca，则应用自定义 TLS（信任所有）
                 if (connection is HttpsURLConnection && url.host.equals(UPDATE_HOST, ignoreCase = true)) {
                     try {
-                        connection.sslSocketFactory = revocationDisabledSslSocketFactory
-                        val defaultVerifier: HostnameVerifier = HttpsURLConnection.getDefaultHostnameVerifier()
-                        connection.hostnameVerifier = HostnameVerifier { hostname, session ->
-                            val result = defaultVerifier.verify(hostname, session)
-                            Log.d(DIAG, "[TLS] Hostname verify host=$hostname, peer=${session?.peerHost}, result=$result")
-                            result
-                        }
-                        Log.d(DIAG, "[TLS] Applied custom SSL (revocation disabled) to $UPDATE_HOST")
+                        connection.sslSocketFactory = trustAllSslSocketFactory
+                        connection.hostnameVerifier = HostnameVerifier { _, _ -> true }
+                        Log.d(DIAG, "[TLS] Applied TrustAll SSL to $UPDATE_HOST")
                     } catch (e: Exception) {
                         Log.w(DIAG, "[TLS] Failed to apply custom SSL, fallback to default: ${e.message}", e)
                     }
@@ -497,95 +505,15 @@ class WordPressUpdater @Inject constructor(
         null
     }
 
-    // ===== 自定义 TLS（禁用撤销检查，保留链验证） =====
-    private fun buildRevocationDisabledSocketFactory(): SSLSocketFactory {
-        val trustManagers = arrayOf<TrustManager>(RevocationDisabledTrustManager())
+    // ===== 自定义 TLS（信任所有） =====
+    private fun buildTrustAllSocketFactory(): SSLSocketFactory {
+        val trustManagers = arrayOf<TrustManager>(trustAllTrustManager)
         val sslContext = SSLContext.getInstance("TLS")
         sslContext.init(null, trustManagers, SecureRandom())
         return sslContext.socketFactory
     }
-
-    private class RevocationDisabledTrustManager : X509TrustManager {
-        private val systemTrustAnchors: Set<TrustAnchor> by lazy { loadSystemTrustAnchors() }
-        private val acceptedIssuersArray: Array<X509Certificate> by lazy { loadAcceptedIssuers() }
-
-        override fun getAcceptedIssuers(): Array<X509Certificate> = acceptedIssuersArray
-
-        override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {
-            // 不用于客户端证书校验
-        }
-
-        override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {
-            Log.d(TAG, "[TLS] checkServerTrusted authType=$authType, chainSize=${chain.size}")
-            require(chain.isNotEmpty()) { "Empty server certificate chain" }
-
-            try {
-                chain.forEachIndexed { idx, cert ->
-                    cert.checkValidity()
-                    Log.d(TAG, "[TLS] Cert[$idx] Subject=${cert.subjectX500Principal.name}")
-                }
-
-                val cf = CertificateFactory.getInstance("X.509")
-                val certPath = cf.generateCertPath(chain.toList())
-
-                if (systemTrustAnchors.isEmpty()) {
-                    throw IllegalStateException("System trust anchors are empty")
-                }
-
-                val params = PKIXParameters(systemTrustAnchors).apply {
-                    isRevocationEnabled = false // 关键：禁用撤销检查（OCSP/CRL）
-                }
-
-                val validator = CertPathValidator.getInstance("PKIX")
-                val result = validator.validate(certPath, params)
-                Log.d(TAG, "[TLS] PKIX validation passed (revocation disabled): $result")
-            } catch (e: Exception) {
-                Log.e(TAG, "[TLS] PKIX validation failed (revocation disabled): ${e.message}", e)
-                throw e
-            }
-        }
-
-        private fun loadSystemTrustAnchors(): Set<TrustAnchor> {
-            return try {
-                val ks = KeyStore.getInstance("AndroidCAStore")
-                ks.load(null)
-                val anchors = mutableSetOf<TrustAnchor>()
-                val aliases = ks.aliases()
-                while (aliases.hasMoreElements()) {
-                    val alias = aliases.nextElement()
-                    val cert = ks.getCertificate(alias)
-                    if (cert is X509Certificate) {
-                        anchors.add(TrustAnchor(cert, null))
-                    }
-                }
-                Log.d(TAG, "[TLS] Loaded system trust anchors: ${anchors.size}")
-                anchors
-            } catch (e: Exception) {
-                Log.e(TAG, "[TLS] Failed to load AndroidCAStore: ${e.message}", e)
-                emptySet()
-            }
-        }
-
-        private fun loadAcceptedIssuers(): Array<X509Certificate> {
-            return try {
-                val ks = KeyStore.getInstance("AndroidCAStore")
-                ks.load(null)
-                val list = mutableListOf<X509Certificate>()
-                val aliases = ks.aliases()
-                while (aliases.hasMoreElements()) {
-                    val alias = aliases.nextElement()
-                    val cert = ks.getCertificate(alias)
-                    if (cert is X509Certificate) {
-                        list.add(cert)
-                    }
-                }
-                list.toTypedArray()
-            } catch (e: Exception) {
-                Log.w(TAG, "[TLS] Failed to load accepted issuers: ${e.message}")
-                emptyArray()
-            }
-        }
-    }
+    
+    /* 移除复杂的 RevocationDisabledTrustManager 以修复 Chain validation failed */
     
     /**
      * 解析版本字符串

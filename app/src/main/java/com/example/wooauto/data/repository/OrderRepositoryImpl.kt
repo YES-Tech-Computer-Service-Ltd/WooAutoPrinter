@@ -281,7 +281,8 @@ class OrderRepositoryImpl @Inject constructor(
 
             UiLog.d("OrderRepositoryImpl", "【API请求】最终请求参数: $params")
             val response = if (params.isEmpty()) {
-                api.getOrders(1, 100)
+                // 优化：默认情况下只拉取最近的50个订单，而不是100个，减少单次负载
+                api.getOrders(1, 50)
             } else {
                 api.getOrdersWithParams(1, 100, params)
             }
@@ -446,9 +447,10 @@ class OrderRepositoryImpl @Inject constructor(
 //                Log.d("OrderRepositoryImpl", "【轮询刷新】调用API: getOrders(page=1, perPage=100, status=processing)")
                 
                 // 调用API获取处理中订单
-                val response = api.getOrders(1, 100, "processing")
+                // 优化：轮询时只需要最新的订单，减少获取数量到20，大幅降低延迟和超时风险
+                val response = api.getOrders(1, 20, "processing")
                 
-//                Log.d("OrderRepositoryImpl", "【轮询刷新】API返回 ${response.size} 个处理中订单")
+                // Log.d("OrderRepositoryImpl", "【轮询刷新】API返回 ${response.size} 个处理中订单")
                 
                 // 记录返回订单的状态分布
                 // 仅用于调试统计，可在需要时恢复

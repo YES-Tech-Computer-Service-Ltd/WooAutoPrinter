@@ -162,6 +162,8 @@ android {
             storePassword = "wooautoprinter"
             keyAlias = "wooautoprinter"
             keyPassword = "wooautoprinter"
+            enableV1Signing = true
+            enableV2Signing = true
         }
     }
 
@@ -173,7 +175,6 @@ android {
                 "proguard-rules.pro"
             )
             signingConfig = signingConfigs.getByName("release")
-            buildConfigField("String", "LICENSE_API_KEY", "\"$licenseApiKey\"")
         }
         debug {
             isMinifyEnabled = false
@@ -183,17 +184,16 @@ android {
                 "proguard-rules.pro"
             )
             signingConfig = signingConfigs.getByName("release")
-            buildConfigField("String", "LICENSE_API_KEY", "\"$licenseApiKey\"")
         }
     }
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
 
     kotlinOptions {
-        jvmTarget = "11"
+        jvmTarget = "17"
     }
 
     buildFeatures {

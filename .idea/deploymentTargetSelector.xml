@@ -3,11 +3,11 @@
   <component name="deploymentTargetSelector">
     <selectionStates>
       <SelectionState runConfigName="app">
-        <option name="selectionMode" value="DROPDOWN" />
-        <DropdownSelection timestamp="2025-10-27T16:32:00.199975700Z">
+        <option name="selectionMode" value="DIALOG" />
+        <DropdownSelection timestamp="2025-11-28T02:07:03.970763900Z">
           <Target type="DEFAULT_BOOT">
             <handle>
-              <DeviceId pluginId="PhysicalDevice" identifier="serial=X25072608HB2000670" />
+              <DeviceId pluginId="PhysicalDevice" identifier="serial=ENJO1CGLEF" />
             </handle>
           </Target>
         </DropdownSelection>
@@ -15,7 +15,17 @@
           <targets>
             <Target type="DEFAULT_BOOT">
               <handle>
-                <DeviceId pluginId="PhysicalDevice" identifier="serial=X25072608HB2000670" />
+                <DeviceId pluginId="LocalEmulator" identifier="path=C:\Users\wuche\.android\avd\andriod7.avd" />
+              </handle>
+            </Target>
+            <Target type="DEFAULT_BOOT">
+              <handle>
+                <DeviceId pluginId="LocalEmulator" identifier="path=C:\Users\wuche\.android\avd\Medium_Tablet_2.avd" />
+              </handle>
+            </Target>
+            <Target type="DEFAULT_BOOT">
+              <handle>
+                <DeviceId pluginId="PhysicalDevice" identifier="serial=ENJO1CGLEF" />
               </handle>
             </Target>
           </targets>

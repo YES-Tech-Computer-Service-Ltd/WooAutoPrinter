@@ -81,19 +81,29 @@ class WooCommerceApiImpl(
         
         val clientBuilder = OkHttpClient.Builder()
             .addInterceptor(loggingInterceptor)
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(30, TimeUnit.SECONDS)
-            .writeTimeout(30, TimeUnit.SECONDS)
+            // 添加自定义User-Agent拦截器
+            .addInterceptor { chain ->
+                val original = chain.request()
+                val request = original.newBuilder()
+                    .header("User-Agent", "WooAuto-Android/${BuildConfig.VERSION_NAME}")
+                    .header("Connection", "keep-alive")
+                    .method(original.method, original.body)
+                    .build()
+                chain.proceed(request)
+            }
+            .connectTimeout(60, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .writeTimeout(60, TimeUnit.SECONDS)
             // 添加SSL握手超时设置
-            .callTimeout(60, TimeUnit.SECONDS)
-            // 强制使用HTTP/1.1协议，解决HTTP/2 PROTOCOL_ERROR
-            .protocols(listOf(okhttp3.Protocol.HTTP_1_1))
+            .callTimeout(120, TimeUnit.SECONDS)
+            // 强制使用HTTP/1.1协议，解决服务器端对HTTP/2的不兼容导致的500错误
+            .protocols(listOf(okhttp3.Protocol.HTTP_1_1)) 
             // 添加自定义SSL工厂以解决SSL握手问题 - 正确提供TrustManager
             .sslSocketFactory(sslContext.socketFactory, trustManager)
             .hostnameVerifier { _, _ -> true }
             .retryOnConnectionFailure(true)
-            // 配置连接池，提高连接复用效率
-            .connectionPool(okhttp3.ConnectionPool(5, 5, TimeUnit.MINUTES))
+            // 配置连接池，提高连接复用效率，增加最大空闲连接数
+            .connectionPool(okhttp3.ConnectionPool(10, 5, TimeUnit.MINUTES))
             
         // 配置TLS版本支持
         SslUtil.configureTls(clientBuilder)
