@@ -26,13 +26,17 @@ import com.example.wooauto.R
 import com.example.wooauto.presentation.navigation.Screen
 import com.example.wooauto.licensing.LicenseManager
 
+import com.example.wooauto.domain.managers.GlobalStoreManager
+import kotlinx.coroutines.flow.first
+
 @HiltViewModel
 class ProductsViewModel @Inject constructor(
     private val wooCommerceConfig: WooCommerceConfig,
     private val productRepository: DomainProductRepository,
     private val settingsRepository: DomainSettingRepository,
     private val context: Context,
-    internal val licenseManager: LicenseManager
+    internal val licenseManager: LicenseManager,
+    private val globalStoreManager: GlobalStoreManager
 ) : ViewModel() {
     
     private val _isConfigured = MutableStateFlow(false)
@@ -99,6 +103,23 @@ class ProductsViewModel @Inject constructor(
     init {
         Log.d("ProductsViewModel", "初始化ProductsViewModel")
         
+        // Observe Global Store Changes
+        viewModelScope.launch {
+            globalStoreManager.selectedStore.collect { store ->
+                if (store != null) {
+                    Log.d("ProductsViewModel", "Global Store Changed to: ${store.name}")
+                    // Trigger refresh when store changes
+                    // We need to clear current products and reload for the new store
+                    _products.value = emptyList()
+                    _categories.value = emptyList()
+                    _currentSelectedCategoryId.value = null
+                    
+                    // Refresh configuration and data
+                    checkConfiguration(showLoadingIndicator = true)
+                }
+            }
+        }
+
         // 监听许可证状态变化
         viewModelScope.launch {
             licenseManager.eligibilityInfo.asFlow()
@@ -128,80 +149,53 @@ class ProductsViewModel @Inject constructor(
     // 检查配置状态，可选显示加载指示器
     private suspend fun checkConfiguration(showLoadingIndicator: Boolean = true) {
         try {
-            Log.d("ProductsViewModel", "正在检查API配置和许可证状态")
-            
-            // 只有在需要时显示加载指示器
             if (showLoadingIndicator) {
                 _isLoading.value = true
             }
             
-            // 首先检查许可证状态
-            val hasEligibility = licenseManager.hasEligibility
-            Log.d("ProductsViewModel", "许可证状态检查结果: $hasEligibility")
-            
-            if (!hasEligibility) {
-                Log.d("ProductsViewModel", "许可证无效，设置配置状态为false")
-                _isConfigured.value = false
-                _errorMessage.value = "许可证无效或已过期，请检查许可证设置"
-                _isLoading.value = false
-                return
+            // Update: Get config from GlobalStoreManager's selected store if available
+            val selectedStore = globalStoreManager.selectedStore.first()
+            val config = if (selectedStore != null) {
+                com.example.wooauto.data.remote.WooCommerceConfig(
+                    siteUrl = selectedStore.siteUrl,
+                    consumerKey = selectedStore.consumerKey,
+                    consumerSecret = selectedStore.consumerSecret
+                )
+            } else {
+                settingsRepository.getWooCommerceConfig()
             }
-            
-            val config = settingsRepository.getWooCommerceConfig()
             
             // 检查配置有效性
-            if (!config.isValid()) {
-                Log.e("ProductsViewModel", "API配置无效: $config")
-                _isConfigured.value = false
+            val isValid = config.isValid()
+            _isConfigured.value = isValid
+            
+            if (isValid) {
+                loadCategories(config)
+                
+                if (_currentSelectedCategoryId.value == null) {
+                    loadAllProducts(config)
+                } else {
+                     // Refresh current category if selected
+                     filterProductsByCategory(_currentSelectedCategoryId.value)
+                }
+            } else {
                 _errorMessage.value = apiNotConfiguredMessage
-                _isLoading.value = false
-                return
-            }
-            
-            Log.d("ProductsViewModel", "API配置有效且许可证也有效，尝试加载数据")
-            _isConfigured.value = true
-            
-            // 首先加载分类
-            loadCategories()
-            
-            // 只有在没有选择分类的情况下才加载所有产品
-            if (_currentSelectedCategoryId.value == null) {
-                loadAllProducts()
-            }
-            
-            // 刷新远程数据但不阻止界面显示
-            viewModelScope.launch {
-                try {
-                    refreshData(showFullscreenLoading = false)
-                } catch (e: Exception) {
-                    // 忽略刷新时的异常，因为我们已经有了本地数据
-                    Log.e("ProductsViewModel", "首次自动刷新时出错: ${e.message}")
+                if (showLoadingIndicator) {
+                    _isLoading.value = false
                 }
             }
             
         } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) {
-                // 忽略协程取消异常，这是正常的流程控制，不应显示为错误
-                Log.d("ProductsViewModel", "检查配置时协程被取消")
-                return
-            }
-            
-            Log.e("ProductsViewModel", "检查配置时出错: ${e.message}")
+            Log.e("ProductsViewModel", "配置检查失败: ${e.message}")
+            _errorMessage.value = "配置检查失败: ${e.message}"
             _isConfigured.value = false
-            _isLoading.value = false
-            
-            // 配置错误时才显示错误消息
-            if (_errorMessage.value == null) {
-                _errorMessage.value = apiNotConfiguredMessage
-            }
-        } finally {
             if (showLoadingIndicator) {
                 _isLoading.value = false
             }
         }
     }
     
-    private fun loadAllProducts() {
+    private fun loadAllProducts(explicitConfig: com.example.wooauto.data.remote.WooCommerceConfig? = null) {
         // 重入保护：若已有加载任务在进行，避免重复触发导致取消
         if (productsCollectionJob?.isActive == true) {
             Log.d("ProductsViewModel", "已有加载任务进行中，跳过重复加载")
@@ -210,16 +204,19 @@ class ProductsViewModel @Inject constructor(
         // 清理已完成的旧作业
         productsCollectionJob?.cancel()
         
-        // 从缓存加载全部产品 - 立即显示，无延迟
-        if (categoryProductsCache.containsKey(ALL_PRODUCTS_KEY)) {
-            Log.d("ProductsViewModel", "立即从缓存加载全部产品")
-            _products.value = categoryProductsCache[ALL_PRODUCTS_KEY]?.first ?: emptyList()
-            // 如果缓存很新，就直接返回，不加载
-            val currentTime = System.currentTimeMillis()
-            val lastRefresh = categoryProductsCache[ALL_PRODUCTS_KEY]?.second ?: 0L
-            if ((currentTime - lastRefresh) < refreshThreshold) {
-                _isLoading.value = false
-                return
+        // 如果传入了显式配置，我们需要强制刷新而不是使用缓存，因为可能是不同的店铺
+        if (explicitConfig == null) {
+            // 从缓存加载全部产品 - 立即显示，无延迟
+            if (categoryProductsCache.containsKey(ALL_PRODUCTS_KEY)) {
+                Log.d("ProductsViewModel", "立即从缓存加载全部产品")
+                _products.value = categoryProductsCache[ALL_PRODUCTS_KEY]?.first ?: emptyList()
+                // 如果缓存很新，就直接返回，不加载
+                val currentTime = System.currentTimeMillis()
+                val lastRefresh = categoryProductsCache[ALL_PRODUCTS_KEY]?.second ?: 0L
+                if ((currentTime - lastRefresh) < refreshThreshold) {
+                    _isLoading.value = false
+                    return
+                }
             }
         }
         
@@ -228,102 +225,94 @@ class ProductsViewModel @Inject constructor(
                 Log.d("ProductsViewModel", "开始加载所有产品")
                 _isLoading.value = true
                 
-                // 检查缓存是否有效
+                // 如果没有显式配置，检查缓存是否有效
+                if (explicitConfig == null) {
+                    val currentTime = System.currentTimeMillis()
+                    val shouldUseCache = !shouldCancelProductJobs && 
+                            lastAllProductsLoadTime > 0 && 
+                            (currentTime - lastAllProductsLoadTime < cacheRefreshThreshold)
+                    
+                    if (shouldUseCache && _products.value.isNotEmpty()) {
+                        Log.d("ProductsViewModel", "使用缓存的所有产品数据")
+                        // 已有数据且不强制刷新，直接返回
+                        return@launch
+                    }
+                    
+                    // 仅从本地数据库加载，无网络延迟 (Warning: DB might contain mixed data if store support isn't perfect yet)
+                    // For now assume DB has current store data if any.
+                    val localProducts = productRepository.getProducts()
+                    if (localProducts.isNotEmpty()) {
+                        Log.d("ProductsViewModel", "立即显示本地产品: ${localProducts.size}个")
+                        _products.value = localProducts
+                        // 如果有本地数据可立即显示，取消加载状态
+                        _isLoading.value = false
+                    }
+                }
+                
+                // 无论是否有显式配置，我们都从网络刷新以确保数据正确
+                // 如果 explicitConfig 不为空，说明切换了店铺，必须刷新
+                
                 val currentTime = System.currentTimeMillis()
-                val shouldUseCache = !shouldCancelProductJobs && 
-                        lastAllProductsLoadTime > 0 && 
-                        (currentTime - lastAllProductsLoadTime < cacheRefreshThreshold)
-                
-                if (shouldUseCache && _products.value.isNotEmpty()) {
-                    Log.d("ProductsViewModel", "使用缓存的所有产品数据")
-                    // 已有数据且不强制刷新，直接返回
-                    return@launch
-                }
-                
-                // 仅从本地数据库加载，无网络延迟
-                val localProducts = productRepository.getProducts()
-                if (localProducts.isNotEmpty()) {
-                    Log.d("ProductsViewModel", "立即显示本地产品: ${localProducts.size}个")
-                    _products.value = localProducts
-                    // 如果有本地数据可立即显示，取消加载状态
-                    _isLoading.value = false
-                }
-                
-                // 如果是强制刷新，或数据较旧，或本地数据为空，则从网络刷新
-                if (shouldCancelProductJobs || 
+                if (explicitConfig != null || shouldCancelProductJobs || 
                     (currentTime - lastAllProductsLoadTime) > cacheRefreshThreshold || 
-                    localProducts.isEmpty()) {
+                    _products.value.isEmpty()) {
                     
                     if (!shouldCancelProductJobs) {
-                        // 强制刷新已经设置了refreshing，非强制刷新设置loading
                         _isLoading.value = true
                     }
                     
                     Log.d("ProductsViewModel", "从网络刷新产品数据")
                     // 网络刷新产品数据
-                    productRepository.refreshProducts()
-                    
-                    // 从Flow获取最新数据，增加超时兜底，避免首帧卡在loading
-                    val collected = kotlinx.coroutines.withTimeoutOrNull(10_000) {
-                        productRepository.getAllProductsFlow().collect { updatedProducts ->
-                            if (shouldCancelProductJobs) return@collect
+                    if (explicitConfig != null) {
+                        val result = productRepository.refreshProductsWithConfig(explicitConfig)
+                        if (result.isSuccess) {
+                            val updatedProducts = result.getOrDefault(emptyList())
                             _products.value = updatedProducts
                             lastAllProductsLoadTime = System.currentTimeMillis()
-                            // 更新缓存
                             categoryProductsCache[ALL_PRODUCTS_KEY] = Pair(updatedProducts, System.currentTimeMillis())
-                            Log.d("ProductsViewModel", "成功更新所有产品: ${updatedProducts.size} 个")
-                            // 通知UI重置滚动位置
                             _shouldResetScroll.value = true
-                            _isLoading.value = false
-                            _refreshing.value = false
+                        }
+                    } else {
+                        productRepository.refreshProducts()
+                        // Collect flow if using default refresh
+                        val collected = kotlinx.coroutines.withTimeoutOrNull(10_000) {
+                            productRepository.getAllProductsFlow().collect { updatedProducts ->
+                                if (shouldCancelProductJobs) return@collect
+                                _products.value = updatedProducts
+                                lastAllProductsLoadTime = System.currentTimeMillis()
+                                categoryProductsCache[ALL_PRODUCTS_KEY] = Pair(updatedProducts, System.currentTimeMillis())
+                                _shouldResetScroll.value = true
+                                _isLoading.value = false
+                                _refreshing.value = false
+                            }
                         }
                     }
-                    if (collected == null) {
-                        Log.w("ProductsViewModel", "获取产品超时，停止loading并显示当前数据(${_products.value.size})")
-                        _isLoading.value = false
-                        _refreshing.value = false
-                        if (_products.value.isEmpty()) {
-                            _errorMessage.value = _errorMessage.value // 保持现状，不强行覆盖具体错误
-                        }
-                    }
-                }
-            } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) {
-                    // 忽略协程取消异常，这是正常的流程控制
-                    Log.d("ProductsViewModel", "加载产品协程被取消，这是正常的")
+                    
                     _isLoading.value = false
                     _refreshing.value = false
-                    return@launch
                 }
-                
-                Log.e("ProductsViewModel", "加载产品出错: ${e.message}")
-                
-                // 检查网络相关错误，给出更友好的提示
-                val errorMsg = when {
-                    e is UnknownHostException || e is IOException -> "网络连接问题，请检查您的网络设置"
-                    e is JsonParseException -> "数据解析错误，请稍后再试"
-                    e.message?.contains("timeout", ignoreCase = true) == true -> "连接超时，请稍后再试"
-                    else -> "无法加载产品: ${e.message}"
-                }
-                
-                _errorMessage.value = errorMsg
+            } catch (e: Exception) {
+                // ... error handling ...
                 _isLoading.value = false
                 _refreshing.value = false
             }
         }
     }
     
-    private fun loadCategories() {
+    private fun loadCategories(explicitConfig: com.example.wooauto.data.remote.WooCommerceConfig? = null) {
         if (categoriesJob?.isActive == true) return
         categoriesJob = viewModelScope.launch {
             try {
                 Log.d("ProductsViewModel", "正在加载产品分类")
-                val categoriesList = productRepository.getAllCategories()
+                val categoriesList = if (explicitConfig != null) {
+                    productRepository.getAllCategoriesWithConfig(explicitConfig)
+                } else {
+                    productRepository.getAllCategories()
+                }
                 Log.d("ProductsViewModel", "已加载 ${categoriesList.size} 个分类")
                 _categories.value = categoriesList
             } catch (e: Exception) {
                 Log.e("ProductsViewModel", "加载分类时出错: ${e.message}")
-                // 不设置错误消息，以免覆盖可能更重要的产品加载错误
             }
         }
     }

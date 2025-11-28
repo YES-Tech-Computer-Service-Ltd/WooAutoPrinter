@@ -31,9 +31,11 @@ object OrderMapper {
     /**
      * 将远程API响应模型转换为本地数据库实体
      * @param response API响应的订单模型
+     * @param storeId 商店ID (Multi-Store)
+     * @param storeName 商店名称 (Multi-Store)
      * @return 数据库订单实体
      */
-    fun mapResponseToEntity(response: OrderResponse): OrderEntity {
+    fun mapResponseToEntity(response: OrderResponse, storeId: Long = 0, storeName: String = ""): OrderEntity {
         // 调试日志已移除
         // 提取元数据信息并构建元数据字符串
         val metadataBuilder = StringBuilder()
@@ -171,7 +173,10 @@ object OrderMapper {
             paymentMethodTitle = response.paymentMethodTitle,
             isPrinted = false,
             notificationShown = false,
-            lastUpdated = System.currentTimeMillis()
+            lastUpdated = System.currentTimeMillis(),
+            // Multi-Store Support
+            storeId = storeId,
+            storeName = storeName
         )
         // 调试日志已移除
         return entity
@@ -821,7 +826,10 @@ object OrderMapper {
             taxLines = taxLines,
             subtotal = order.subtotal,
             discountTotal = order.discountTotal,
-            isRead = order.isRead
+            isRead = order.isRead,
+            // Multi-Store Support
+            storeId = order.storeId,
+            storeName = order.storeName
         )
     }
 
@@ -962,7 +970,10 @@ object OrderMapper {
             discountTotal = entity.discountTotal,
             feeLines = finalFeeLines,
             taxLines = taxLines,
-            isRead = entity.isRead
+            isRead = entity.isRead,
+            // Multi-Store Support
+            storeId = entity.storeId,
+            storeName = entity.storeName
         )
     }
 }

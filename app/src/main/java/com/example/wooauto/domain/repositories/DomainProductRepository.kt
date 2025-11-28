@@ -45,6 +45,11 @@ interface DomainProductRepository {
     suspend fun refreshProducts(categoryId: Long? = null): Result<List<Product>>
 
     /**
+     * 使用特定配置刷新产品 (多店铺)
+     */
+    suspend fun refreshProductsWithConfig(config: WooCommerceConfig, categoryId: Long? = null): Result<List<Product>>
+
+    /**
      * 获取产品详情
      * @param productId 产品ID
      * @return 获取结果，包含产品详细信息
@@ -56,6 +61,11 @@ interface DomainProductRepository {
      * @return 分类列表，每项包含分类ID和名称
      */
     suspend fun getAllCategories(): List<Pair<Long, String>>
+
+    /**
+     * 使用特定配置获取分类 (多店铺)
+     */
+    suspend fun getAllCategoriesWithConfig(config: WooCommerceConfig): List<Pair<Long, String>>
 
     /**
      * 更新产品信息
@@ -130,4 +140,4 @@ interface DomainProductRepository {
      * 清除缓存数据
      */
     suspend fun clearCache()
-} 
+}

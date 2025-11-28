@@ -35,6 +35,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.catch
 import java.io.IOException
+import com.example.wooauto.domain.repositories.StoreRepository
 
 // 将扩展属性改为伴生对象中的工厂方法
 private val Context.dataStore by preferencesDataStore(name = "settings")
@@ -45,7 +46,8 @@ class SettingsRepositoryImpl @Inject constructor(
     @ApplicationContext private val context: Context,
     private val settingDao: SettingDao,
     private val wooCommerceConfig: LocalWooCommerceConfig,
-    private val gson: Gson
+    private val gson: Gson,
+    private val storeRepository: StoreRepository
 ) : DomainSettingRepository {
 
     // 获取DataStore实例
@@ -398,11 +400,29 @@ class SettingsRepositoryImpl @Inject constructor(
     }
 
     // 商店信息相关方法实现
+    // Updated to fetch from active store in StoreRepository
+    
+    private suspend fun getActiveStore(): com.example.wooauto.domain.models.Store? {
+        return try {
+            storeRepository.getAllStores().first().firstOrNull { it.isActive }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     override suspend fun getStoreName(): String? {
-        return settingDao.getSettingByKey(KEY_STORE_NAME)?.value ?: DEFAULT_STORE_NAME
+        val activeStore = getActiveStore()
+        return activeStore?.name ?: (settingDao.getSettingByKey(KEY_STORE_NAME)?.value ?: DEFAULT_STORE_NAME)
     }
     
     override suspend fun setStoreName(name: String) {
+        // This is a legacy method, but we should try to update the active store if possible
+        val activeStore = getActiveStore()
+        if (activeStore != null) {
+            storeRepository.updateStore(activeStore.copy(name = name))
+        }
+        
+        // Still update legacy setting for backward compatibility
         val entity = SettingMapper.createStringSettingEntity(
             KEY_STORE_NAME,
             name,
@@ -412,10 +432,16 @@ class SettingsRepositoryImpl @Inject constructor(
     }
     
     override suspend fun getStoreAddress(): String? {
-        return settingDao.getSettingByKey(KEY_STORE_ADDRESS)?.value
+        val activeStore = getActiveStore()
+        return activeStore?.address ?: settingDao.getSettingByKey(KEY_STORE_ADDRESS)?.value
     }
     
     override suspend fun setStoreAddress(address: String) {
+        val activeStore = getActiveStore()
+        if (activeStore != null) {
+            storeRepository.updateStore(activeStore.copy(address = address))
+        }
+        
         val entity = SettingMapper.createStringSettingEntity(
             KEY_STORE_ADDRESS,
             address,
@@ -425,10 +451,16 @@ class SettingsRepositoryImpl @Inject constructor(
     }
     
     override suspend fun getStorePhone(): String? {
-        return settingDao.getSettingByKey(KEY_STORE_PHONE)?.value
+        val activeStore = getActiveStore()
+        return activeStore?.phone ?: settingDao.getSettingByKey(KEY_STORE_PHONE)?.value
     }
     
     override suspend fun setStorePhone(phone: String) {
+        val activeStore = getActiveStore()
+        if (activeStore != null) {
+            storeRepository.updateStore(activeStore.copy(phone = phone))
+        }
+        
         val entity = SettingMapper.createStringSettingEntity(
             KEY_STORE_PHONE,
             phone,

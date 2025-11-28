@@ -18,6 +18,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
+import javax.inject.Provider
 import javax.inject.Singleton
 
 /**
@@ -28,8 +29,12 @@ import javax.inject.Singleton
 @Singleton
 class SystemPollingManager @Inject constructor(
 	@ApplicationContext private val context: Context,
-	private val printerManager: PrinterManager,
+	private val printerManagerProvider: Provider<PrinterManager>,
 ) {
+
+    
+	private val printerManager: PrinterManager
+		get() = printerManagerProvider.get()
 	companion object {
 		private const val TAG = "SystemPollingManager"
 		private const val NETWORK_HEARTBEAT_INTERVAL_MS = 30_000L

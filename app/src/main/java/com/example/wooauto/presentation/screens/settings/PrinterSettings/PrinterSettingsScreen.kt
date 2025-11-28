@@ -96,6 +96,9 @@ import com.example.wooauto.presentation.screens.settings.SettingsViewModel
 import kotlinx.coroutines.delay
 import androidx.core.app.ActivityCompat
 import android.content.pm.PackageManager
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.filled.Info
 
 @Composable
 private fun PrinterList(
@@ -108,6 +111,7 @@ private fun PrinterList(
     onDelete: (PrinterConfig) -> Unit,
     onTestPrint: (PrinterConfig) -> Unit,
     onChineseTestPrint: (PrinterConfig) -> Unit,
+    onTestConnectionStatus: (PrinterConfig) -> Unit,
     onSetDefault: (PrinterConfig, Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -125,6 +129,7 @@ private fun PrinterList(
                 onDelete = { onDelete(printer) },
                 onTestPrint = { onTestPrint(printer) },
                 onChineseTestPrint = { onChineseTestPrint(printer) },
+                onTestConnectionStatus = { onTestConnectionStatus(printer) },
                 onSetDefault = { isDefault -> onSetDefault(printer, isDefault) }
             )
         }
@@ -134,6 +139,7 @@ private fun PrinterList(
 @Composable
 private fun PrinterSettingsContent(
     modifier: Modifier = Modifier,
+    viewModel: SettingsViewModel,
     printerConfigs: List<PrinterConfig>,
     currentPrinterConfig: PrinterConfig?,
     printerStatus: PrinterStatus,
@@ -141,6 +147,7 @@ private fun PrinterSettingsContent(
     isScanning: Boolean,
     availablePrinters: List<PrinterDevice>,
     connectionErrorMessage: String?,
+    connectionStatusReport: String?,
     showDeleteDialog: Boolean,
     printerToDelete: PrinterConfig?,
     showScanDialog: Boolean,
@@ -149,8 +156,10 @@ private fun PrinterSettingsContent(
     onDelete: (PrinterConfig) -> Unit,
     onTestPrint: (PrinterConfig) -> Unit,
     onChineseTestPrint: (PrinterConfig) -> Unit,
+    onTestConnectionStatus: (PrinterConfig) -> Unit,
     onSetDefault: (PrinterConfig, Boolean) -> Unit,
     onClearError: () -> Unit,
+    onClearConnectionStatusReport: () -> Unit,
     onAddPrinter: () -> Unit,
     onScan: () -> Unit,
     onStopScan: () -> Unit,
@@ -190,6 +199,7 @@ private fun PrinterSettingsContent(
                     onDelete = onDelete,
                     onTestPrint = onTestPrint,
                     onChineseTestPrint = onChineseTestPrint,
+                    onTestConnectionStatus = onTestConnectionStatus,
                     onSetDefault = onSetDefault,
                     modifier = Modifier.weight(1f)
                 )
@@ -218,6 +228,28 @@ private fun PrinterSettingsContent(
                 onDeviceSelected = onDeviceSelected
             )
         }
+
+        // 连接状态测试报告对话框
+        if (connectionStatusReport != null) {
+            AlertDialog(
+                onDismissRequest = onClearConnectionStatusReport,
+                title = { Text("连接状态测试报告") },
+                text = {
+                    Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                        Text(
+                            text = connectionStatusReport,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = onClearConnectionStatusReport) {
+                        Text("关闭")
+                    }
+                }
+            )
+        }
     }
 }
 
@@ -239,6 +271,7 @@ fun PrinterSettingsScreen(
     val isScanning by viewModel.isScanning.collectAsState()
     val availablePrinters by viewModel.availablePrinters.collectAsState()
     val connectionErrorMessage by viewModel.connectionErrorMessage.collectAsState()
+    val connectionStatusReport by viewModel.connectionStatusReport.collectAsState()
     
     var showDeleteDialog by remember { mutableStateOf(false) }
     var printerToDelete by remember { mutableStateOf<PrinterConfig?>(null) }
@@ -294,6 +327,7 @@ fun PrinterSettingsScreen(
         val lifecycleScope = lifecycleOwner.lifecycleScope
         PrinterSettingsContent(
             modifier = Modifier.padding(paddingValues),
+            viewModel = viewModel,
             printerConfigs = printerConfigs,
             currentPrinterConfig = currentPrinterConfig,
             printerStatus = printerStatus,
@@ -301,6 +335,7 @@ fun PrinterSettingsScreen(
             isScanning = isScanning,
             availablePrinters = availablePrinters,
             connectionErrorMessage = connectionErrorMessage,
+            connectionStatusReport = connectionStatusReport,
             showDeleteDialog = showDeleteDialog,
             printerToDelete = printerToDelete,
             showScanDialog = showScanDialog,
@@ -343,6 +378,9 @@ fun PrinterSettingsScreen(
                     }
                 }
             },
+            onTestConnectionStatus = { printer ->
+                viewModel.runConnectionStatusTest(printer)
+            },
             onChineseTestPrint = { printer ->
                 lifecycleScope.launch {
                     snackbarHostState.showSnackbar("正在进行中文测试打印...")
@@ -369,6 +407,7 @@ fun PrinterSettingsScreen(
                 }
             },
             onClearError = { viewModel.clearConnectionError() },
+            onClearConnectionStatusReport = { viewModel.clearConnectionStatusReport() },
             onAddPrinter = { showScanDialog = true },
             onScan = { viewModel.scanPrinters() },
             onStopScan = { viewModel.stopScanning() },
@@ -777,6 +816,7 @@ private fun PrinterConfigItem(
     onDelete: () -> Unit,
     onTestPrint: () -> Unit,
     onChineseTestPrint: () -> Unit,
+    onTestConnectionStatus: () -> Unit,
     onSetDefault: (Boolean) -> Unit
 ) {
     Card(
@@ -857,36 +897,36 @@ private fun PrinterConfigItem(
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // 设置按钮
+                // 连接测试按钮
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier
-                        .clickable { onEdit() }
-                        .padding(12.dp)
+                        .clickable { onTestConnectionStatus() }
+                        .padding(8.dp)
                         .weight(1f)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Settings,
-                        contentDescription = stringResource(id = R.string.edit_printer),
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(28.dp)
+                        imageVector = Icons.Default.Info,
+                        contentDescription = "Status Test",
+                        tint = MaterialTheme.colorScheme.tertiary,
+                        modifier = Modifier.size(24.dp)
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = stringResource(id = R.string.printer_settings_button),
+                        text = "连接测试",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary,
+                        color = MaterialTheme.colorScheme.tertiary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-                
+
                 // 测试打印按钮
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier
                         .clickable { onTestPrint() }
-                        .padding(12.dp)
+                        .padding(8.dp)
                         .weight(1f)
                 ) {
                     Icon(
@@ -1067,6 +1107,7 @@ public fun PrinterSettingsDialogContent(
     val isScanning by viewModel.isScanning.collectAsState()
     val availablePrinters by viewModel.availablePrinters.collectAsState()
     val connectionErrorMessage by viewModel.connectionErrorMessage.collectAsState()
+    val connectionStatusReport by viewModel.connectionStatusReport.collectAsState()
     
     var showDeleteDialog by remember { mutableStateOf(false) }
     var printerToDelete by remember { mutableStateOf<PrinterConfig?>(null) }
@@ -1123,6 +1164,7 @@ public fun PrinterSettingsDialogContent(
     ) { paddingValues ->
         PrinterSettingsContent(
             modifier = Modifier.padding(paddingValues),
+            viewModel = viewModel,
             printerConfigs = printerConfigs,
             currentPrinterConfig = currentPrinterConfig,
             printerStatus = printerStatus,
@@ -1130,6 +1172,7 @@ public fun PrinterSettingsDialogContent(
             isScanning = isScanning,
             availablePrinters = availablePrinters,
             connectionErrorMessage = connectionErrorMessage,
+            connectionStatusReport = connectionStatusReport,
             showDeleteDialog = showDeleteDialog,
             printerToDelete = printerToDelete,
             showScanDialog = showScanDialog,
@@ -1172,6 +1215,9 @@ public fun PrinterSettingsDialogContent(
                     }
                 }
             },
+            onTestConnectionStatus = { printer ->
+                viewModel.runConnectionStatusTest(printer)
+            },
             onChineseTestPrint = { printer ->
                 lifecycleScope.launch {
                     snackbarHostState.showSnackbar("正在进行中文测试打印...")
@@ -1198,6 +1244,7 @@ public fun PrinterSettingsDialogContent(
                 }
             },
             onClearError = { viewModel.clearConnectionError() },
+            onClearConnectionStatusReport = { viewModel.clearConnectionStatusReport() },
             onAddPrinter = { showScanDialog = true },
             onScan = { viewModel.scanPrinters() },
             onStopScan = { viewModel.stopScanning() },

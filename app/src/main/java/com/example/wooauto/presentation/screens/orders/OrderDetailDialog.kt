@@ -66,6 +66,7 @@ fun OrderDetailDialog(
     val eligibilityInfo by viewModel.licenseManager.eligibilityInfo.observeAsState()
     val hasEligibility = eligibilityInfo?.status == EligibilityStatus.ELIGIBLE
     val currencySymbol by viewModel.currencySymbol.collectAsState()
+    val hasMultipleStores by viewModel.hasMultipleStores.collectAsState()
     
     var showStatusOptions by remember { mutableStateOf(false) }
     var showTemplateOptions by remember { mutableStateOf(false) }
@@ -203,6 +204,22 @@ fun OrderDetailDialog(
                                 )
                             }
                         )
+                        
+                        // Store Name (Multi-Store)
+                        if (hasMultipleStores && displayOrder.storeName.isNotEmpty()) {
+                            OrderDetailRow(
+                                label = stringResource(R.string.store_name),
+                                value = displayOrder.storeName,
+                                icon = {
+                                    Icon(
+                                        imageVector = Icons.Default.Store,
+                                        contentDescription = stringResource(R.string.store_name),
+                                        modifier = Modifier.size(16.dp),
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            )
+                        }
                         
                         val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
                         val formattedDate = dateFormat.format(displayOrder.dateCreated)

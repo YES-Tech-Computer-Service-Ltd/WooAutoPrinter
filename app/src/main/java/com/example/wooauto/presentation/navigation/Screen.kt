@@ -20,6 +20,12 @@ sealed class Screen(val route: String) {
     object LicenseSettings : Screen("license_settings")
     object LanguageSettings : Screen("language_settings")
 
+    // Store Management
+    object StoreList : Screen("settings/general/stores")
+    object StoreEdit : Screen("settings/stores/edit/{storeId}") {
+        fun createRoute(storeId: Long) = "settings/stores/edit/$storeId"
+    }
+    object StoreAdd : Screen("settings/stores/add")
     
     companion object {
     }

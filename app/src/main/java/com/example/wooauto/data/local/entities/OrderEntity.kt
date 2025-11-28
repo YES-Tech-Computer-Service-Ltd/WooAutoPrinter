@@ -37,7 +37,10 @@ data class OrderEntity(
     val taxLines: List<TaxLineEntity> = emptyList(),
     val subtotal: String = "",
     val discountTotal: String = "",
-    val isRead: Boolean = false
+    val isRead: Boolean = false,
+    // Multi-Store Support
+    val storeId: Long = 0,
+    val storeName: String = ""
 )
 
 /**
@@ -82,4 +85,4 @@ data class TaxLineEntity(
     val label: String,
     val ratePercent: Double,
     val taxTotal: String
-) 
+)

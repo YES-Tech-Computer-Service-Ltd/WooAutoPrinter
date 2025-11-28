@@ -7,10 +7,12 @@ import com.example.wooauto.data.local.converters.RoomConverters
 import com.example.wooauto.data.local.dao.OrderDao
 import com.example.wooauto.data.local.dao.ProductDao
 import com.example.wooauto.data.local.dao.SettingDao
+import com.example.wooauto.data.local.dao.StoreDao
 import com.example.wooauto.data.local.dao.TemplateConfigDao
 import com.example.wooauto.data.local.entities.OrderEntity
 import com.example.wooauto.data.local.entities.ProductEntity
 import com.example.wooauto.data.local.entities.SettingEntity
+import com.example.wooauto.data.local.entities.StoreEntity
 import com.example.wooauto.data.local.entities.TemplateConfigEntity
 
 /**
@@ -24,10 +26,11 @@ import com.example.wooauto.data.local.entities.TemplateConfigEntity
  * - V6: 模板配置表添加商店信息细分字段（showStoreName、showStoreAddress、showStorePhone）
  * - V7: 重新设计模板配置字段结构，按功能分组
  * - V8: 添加自定义页脚文本字段（footerText）
+ * - V9: 添加多店铺支持 (StoreEntity)
  */
 @Database(
-    entities = [OrderEntity::class, ProductEntity::class, SettingEntity::class, TemplateConfigEntity::class],
-    version = 8,
+    entities = [OrderEntity::class, ProductEntity::class, SettingEntity::class, TemplateConfigEntity::class, StoreEntity::class],
+    version = 9,
     exportSchema = false
 )
 @TypeConverters(RoomConverters::class)
@@ -36,4 +39,5 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun productDao(): ProductDao
     abstract fun settingDao(): SettingDao
     abstract fun templateConfigDao(): TemplateConfigDao
+    abstract fun storeDao(): StoreDao
 } 

@@ -24,7 +24,10 @@ data class Order(
     val discountTotal: String = "", // The total discount amount
     val feeLines: List<FeeLine> = emptyList(), // 额外费用项（如小费、服务费等）
     val taxLines: List<TaxLine> = emptyList(), // 税费明细
-    val isRead: Boolean = false // 订单是否已读
+    val isRead: Boolean = false, // 订单是否已读
+    // Multi-Store Support
+    val storeId: Long = 0,
+    val storeName: String = ""
 )
 
 /**
@@ -62,4 +65,4 @@ data class TaxLine(
     val label: String,
     val ratePercent: Double,
     val taxTotal: String
-) 
+)

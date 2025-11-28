@@ -178,6 +178,14 @@ class SettingsViewModel @Inject constructor(
     private val _statusMessage = MutableStateFlow<String?>(null)
     val statusMessage: StateFlow<String?> = _statusMessage.asStateFlow()
 
+    // 连接状态测试报告
+    private val _connectionStatusReport = MutableStateFlow<String?>(null)
+    val connectionStatusReport: StateFlow<String?> = _connectionStatusReport.asStateFlow()
+
+    fun clearConnectionStatusReport() {
+        _connectionStatusReport.value = null
+    }
+
     // 添加版本相关状态
     private val _currentAppVersion = MutableStateFlow(updater.getCurrentVersion().toFullVersionString())
     val currentAppVersion: StateFlow<String> = _currentAppVersion.asStateFlow()
@@ -941,6 +949,38 @@ class SettingsViewModel @Inject constructor(
         
         // 3. 执行打印并处理结果
         return executePrintingAndHandleResult(config)
+    }
+
+    /**
+     * 运行连接状态全面测试
+     */
+    fun runConnectionStatusTest(config: PrinterConfig) {
+        viewModelScope.launch {
+            _isPrinting.value = true
+            _connectionStatusReport.value = "正在初始化测试...\n请稍候..."
+            
+            try {
+                // 确保已连接
+                if (printerManager.getPrinterStatus(config) != PrinterStatus.CONNECTED) {
+                     _connectionStatusReport.value = "尝试连接打印机..."
+                     val connected = printerManager.connect(config)
+                     if (!connected) {
+                         _connectionStatusReport.value = "❌ 无法连接到打印机。\n请确保打印机已开机、蓝牙已开启且在范围内。\n如果问题持续，请尝试在系统蓝牙设置中取消配对后重新配对。"
+                         _isPrinting.value = false
+                         return@launch
+                     }
+                }
+                
+                _connectionStatusReport.value = "正在执行双向通信测试..."
+                val report = printerManager.checkPrinterStatusFull(config)
+                _connectionStatusReport.value = report
+            } catch (e: Exception) {
+                _connectionStatusReport.value = "❌ 测试过程出错: ${e.message}"
+                Log.e(TAG, "Connection status test error", e)
+            } finally {
+                _isPrinting.value = false
+            }
+        }
     }
     
     /**

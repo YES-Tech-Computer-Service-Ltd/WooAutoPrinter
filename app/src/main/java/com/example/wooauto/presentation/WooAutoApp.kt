@@ -15,6 +15,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -36,7 +37,6 @@ import androidx.annotation.RequiresApi
 import com.example.wooauto.licensing.LicenseDataStore
 import com.example.wooauto.presentation.components.WooAppBar
 import com.example.wooauto.presentation.components.WooSideNavigation
-import com.example.wooauto.presentation.components.SideNavMode
 import com.example.wooauto.presentation.navigation.AppNavConfig
 import com.example.wooauto.navigation.NavigationItem
 import com.example.wooauto.presentation.navigation.Screen
@@ -45,6 +45,8 @@ import com.example.wooauto.presentation.screens.products.ProductsScreen
 import com.example.wooauto.presentation.screens.settings.*
 import com.example.wooauto.presentation.screens.templatePreview.TemplatePreviewScreen
 import com.example.wooauto.presentation.screens.settings.LicenseSettingsScreen
+import com.example.wooauto.presentation.screens.settings.stores.StoreListScreen
+import com.example.wooauto.presentation.screens.settings.stores.StoreEditScreen
 import com.example.wooauto.presentation.theme.WooAutoTheme
 import com.example.wooauto.utils.LocalAppLocale
 import com.example.wooauto.utils.LocaleManager
@@ -62,6 +64,7 @@ import com.example.wooauto.presentation.screens.settings.PrinterSettings.Printer
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.foundation.background
+import com.example.wooauto.presentation.components.SideNavMode
 
 private const val TAG = "WooAutoApp"
 
@@ -224,11 +227,45 @@ fun AppContent() {
                             .width(leftWidth)
                     ) {
                         val sideItems = remember { AppNavConfig.sideNavEntries() }
+                        // 获取 MainViewModel 以提供 GlobalStoreManager
+                        val mainViewModel: com.example.wooauto.presentation.MainViewModel = androidx.hilt.navigation.compose.hiltViewModel()
+                        
+                        val showStoreDialog by mainViewModel.showStoreInfoDialog.collectAsState(initial = false)
+                        // 监听统一的警报流
+                        val activeAlerts by mainViewModel.activeAlerts.collectAsState(initial = emptyMap())
+                        
+                        // 监听日志用于UnifiedSystemAlertsDialog
+                        val networkLogs by mainViewModel.networkLogs.collectAsState(initial = emptyList())
+                        val printerLogs by mainViewModel.printerLogs.collectAsState(initial = emptyList())
+                        val apiLogs by mainViewModel.apiLogs.collectAsState(initial = emptyList())
+
+                        // 单独的 StoreInfoDialog (因为它是一个复杂的表单，目前保持独立)
+                        if (showStoreDialog) {
+                            com.example.wooauto.presentation.components.StoreInfoDialog(
+                                onDismiss = { mainViewModel.dismissStoreInfoDialog() },
+                                onConfirm = { name, address, phone ->
+                                    mainViewModel.updateStoreInfo(name, address, phone)
+                                }
+                            )
+                        }
+                        
+                        // 统一系统警报对话框（处理网络、打印机等警报）
+                        if (activeAlerts.isNotEmpty()) {
+                            com.example.wooauto.presentation.components.UnifiedSystemAlertsDialog(
+                                activeAlerts = activeAlerts,
+                                onDismissAlert = { type -> mainViewModel.dismissAlert(type) },
+                                networkLogs = networkLogs,
+                                printerLogs = printerLogs,
+                                apiLogs = apiLogs
+                            )
+                        }
+                        
                         WooSideNavigation(
                             navController = navController,
                             items = sideItems,
                             contentPadding = WindowInsets.statusBars.asPaddingValues(),
-                            mode = sideMode
+                            mode = sideMode,
+                            storeManager = mainViewModel.globalStoreManager
                         )
                     }
                     // 垂直分隔线（侧栏与内容区之间）
@@ -288,6 +325,22 @@ fun AppContent() {
                         bottom = 0.dp
                     )
                 ) {
+                    // Store Management Routes
+                    composable(Screen.StoreList.route) {
+                        StoreListScreen(navController = navController)
+                    }
+                    
+                    composable(Screen.StoreAdd.route) {
+                        StoreEditScreen(navController = navController)
+                    }
+                    
+                    composable(
+                        route = Screen.StoreEdit.route,
+                        arguments = listOf(navArgument("storeId") { type = NavType.StringType })
+                    ) {
+                         StoreEditScreen(navController = navController)
+                    }
+
                     // 许可设置页面
                     composable(Screen.LicenseSettings.route) {
                         LicenseSettingsScreen(

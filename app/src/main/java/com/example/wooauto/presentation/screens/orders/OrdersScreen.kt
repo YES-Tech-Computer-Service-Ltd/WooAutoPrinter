@@ -31,12 +31,13 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.outlined.Store
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -113,7 +114,7 @@ fun StatusDropdown(
 			.padding(horizontal = 10.dp, vertical = 8.dp)
 	) {
 		Row(verticalAlignment = Alignment.CenterVertically) {
-			Icon(imageVector = Icons.Default.List, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+			Icon(imageVector = Icons.AutoMirrored.Filled.List, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
 			Spacer(modifier = Modifier.size(6.dp))
 			Text(text = current.second, style = MaterialTheme.typography.bodyMedium)
 			Spacer(modifier = Modifier.size(4.dp))
@@ -148,8 +149,6 @@ fun OrdersScreen(
     
     // 提前获取需要使用的字符串资源
     val apiNotConfiguredMessage = stringResource(R.string.api_notification_not_configured)
-    val ordersTitle = stringResource(id = R.string.orders)
-    val searchOrdersPlaceholder = stringResource(id = R.string.search_orders_hint)
     // 读取 orders/{section}，用于控制默认状态和过滤条显示
     val ordersSection = remember(currentRoute) {
         if (currentRoute.startsWith("orders/")) currentRoute.removePrefix("orders/") else "history"
@@ -203,7 +202,7 @@ fun OrdersScreen(
     }
     
     // 记录TopBar的实际高度
-    var topBarHeight by remember { mutableStateOf(0.dp) }
+    // var topBarHeight by remember { mutableStateOf(0.dp) }
     
     // 观察导航事件
     val navigationEvent by viewModel.navigationEvent.collectAsState()
@@ -314,8 +313,8 @@ fun OrdersScreen(
     // 简化的导航监听 - 只在真正需要时刷新
     DisposableEffect(navController) {
         val listener = NavController.OnDestinationChangedListener { _, destination, _ ->
-            val currentRoute = destination.route
-            if (currentRoute == NavigationItem.Orders.route && isInitialized.value) {
+            val destRoute = destination.route
+            if (destRoute == NavigationItem.Orders.route && isInitialized.value) {
                 UiLog.d("OrdersScreen", "导航回订单页面，检查是否需要刷新")
                 // 只有在订单列表为空时才刷新，避免不必要的API调用
                 if (orders.isEmpty() && !isLoading) {
@@ -332,31 +331,6 @@ fun OrdersScreen(
         onDispose {
             navController.removeOnDestinationChangedListener(listener)
         }
-    }
-    
-    // 根据当前语言环境提供状态选项
-    val statusOptions = if (locale.language == "zh") {
-        listOf(
-            "processing" to "处理中",
-            "pending" to "待付款",
-            "on-hold" to "暂挂",
-            "completed" to "已完成",
-            "cancelled" to "已取消",
-            "refunded" to "已退款",
-            "failed" to "失败",
-            "" to "全部订单"
-        )
-    } else {
-        listOf(
-            "processing" to "Processing",
-            "pending" to "Pending",
-            "on-hold" to "On Hold",
-            "completed" to "Completed",
-            "cancelled" to "Cancelled",
-            "refunded" to "Refunded",
-            "failed" to "Failed",
-            "" to "All Orders"
-        )
     }
     
     Scaffold(
@@ -485,9 +459,7 @@ fun OrdersScreen(
                             orders = orders,
                             selectedStatus = statusFilter,
                             searchQuery = searchQuery,
-                            onSearchQueryChange = { searchQuery = it },
                             lastDays = lastDaysFilter,
-                            onLastDaysChange = { lastDaysFilter = it },
                             onSelectOrder = { order ->
                                 viewModel.getOrderDetails(order.id)
                                 showOrderDetail = true
@@ -727,9 +699,7 @@ private fun OrdersList(
     orders: List<Order>,
     selectedStatus: String,
     searchQuery: String,
-    onSearchQueryChange: (String) -> Unit = {},
     lastDays: Int? = null,
-    onLastDaysChange: (Int?) -> Unit = {},
     onSelectOrder: (Order) -> Unit,
     onStatusSelected: (String) -> Unit,
     currencySymbol: String = "C$",
@@ -779,7 +749,7 @@ private fun OrdersList(
                         "pending" -> Icons.Default.Schedule
                         "cancelled" -> Icons.Default.Close
                         "on-hold" -> Icons.Default.Schedule
-                        else -> Icons.Default.List
+                        else -> Icons.AutoMirrored.Filled.List
                     }
                     
                     val statusColor = when(status) {
@@ -1002,7 +972,8 @@ private fun OrdersList(
 fun OrderCard(
     order: Order,
     onClick: () -> Unit,
-    currencySymbol: String = "C$"
+    currencySymbol: String = "C$",
+    viewModel: OrdersViewModel = hiltViewModel()
 ) {
     Card(
         modifier = Modifier

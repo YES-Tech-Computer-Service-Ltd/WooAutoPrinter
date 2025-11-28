@@ -82,6 +82,13 @@ interface PrinterManager {
     suspend fun testConnection(config: PrinterConfig): Boolean
     
     /**
+     * 全面测试打印机连接状态（双向通信测试）
+     * @param config 打印机配置
+     * @return 测试结果日志
+     */
+    suspend fun checkPrinterStatusFull(config: PrinterConfig): String
+    
+    /**
      * 中文字符测试打印
      * @param config 打印机配置
      * @return 打印结果，成功返回true

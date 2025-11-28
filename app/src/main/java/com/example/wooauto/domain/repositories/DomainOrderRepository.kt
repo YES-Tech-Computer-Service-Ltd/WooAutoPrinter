@@ -39,6 +39,11 @@ interface DomainOrderRepository {
     suspend fun refreshOrders(status: String? = null, afterDate: Date? = null): Result<List<Order>>
 
     /**
+     * 使用特定配置刷新订单 (用于多店铺支持)
+     */
+    suspend fun refreshOrdersWithConfig(config: WooCommerceConfig?, status: String? = null, afterDate: Date? = null): Result<List<Order>>
+
+    /**
      * 更新订单状态
      * @param orderId 订单ID
      * @param newStatus 新的订单状态
@@ -179,4 +184,4 @@ interface DomainOrderRepository {
      * Debug: 获取指定订单的原始REST API元数据（格式化字符串）
      */
     suspend fun getRawOrderMetadata(orderId: Long): String?
-} 
+}

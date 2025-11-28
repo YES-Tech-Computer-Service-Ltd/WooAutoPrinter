@@ -55,6 +55,7 @@ import androidx.lifecycle.lifecycleScope
 import com.example.wooauto.domain.models.Order
 import com.example.wooauto.domain.repositories.DomainOrderRepository
 import com.example.wooauto.domain.repositories.DomainSettingRepository
+import com.example.wooauto.domain.repositories.StoreRepository
 import com.example.wooauto.presentation.WooAutoApp
 import com.example.wooauto.presentation.theme.WooAutoTheme
 import com.example.wooauto.utils.LocaleManager
@@ -84,6 +85,9 @@ class MainActivity : AppCompatActivity(), OrderNotificationManager.NotificationC
     
     @Inject
     lateinit var settingsRepository: DomainSettingRepository
+
+    @Inject
+    lateinit var storeRepository: StoreRepository
     
     // 用于存储新订单的状态
     private var showNewOrderDialog by mutableStateOf(false)
@@ -189,6 +193,15 @@ class MainActivity : AppCompatActivity(), OrderNotificationManager.NotificationC
         
         // 请求所需权限 - 延迟到首帧后
         lifecycleScope.launch {
+            // 检查并迁移遗留数据（多店铺支持）
+            launch {
+                try {
+                    storeRepository.checkAndMigrateLegacyData()
+                } catch (e: Exception) {
+                    UiLog.e(TAG, "Migration failed: ${e.message}")
+                }
+            }
+
             launch {
                 delay(600)
                 requestRequiredPermissions()

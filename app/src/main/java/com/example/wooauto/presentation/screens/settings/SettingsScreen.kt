@@ -7,8 +7,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Language
+import androidx.compose.material.icons.outlined.Store
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -135,43 +135,24 @@ fun SettingsScreen(
                             "general" -> {
                                 // 将 General 相关项合并到一个卡片内，视觉更整齐
                     SettingsCategoryCard {
-                                    // API 配置
-                        SettingsNavigationItem(
-                            title = stringResource(R.string.api_configuration),
-                                        subTitle = if (siteUrl.isNotEmpty() && consumerKey.isNotEmpty() && consumerSecret.isNotEmpty()) stringResource(
-                                            R.string.api_configured
-                                        ) else stringResource(R.string.api_not_configured),
-                            icon = Icons.Filled.Cloud,
-                            onClick = {
-                                com.example.wooauto.utils.UiLog.d("设置导航", "点击了API配置项")
-                                showWebsiteSettingsDialog = true
-                            }
-                        )
+                                    // Store Management
+                                    SettingsNavigationItem(
+                                        title = stringResource(R.string.store_management_title),
+                                        subTitle = stringResource(R.string.store_management_desc),
+                                        icon = Icons.Outlined.Store, // Make sure this import is available
+                                        isLocked = !hasEligibility,
+                                        onClick = {
+                                            if (hasEligibility) {
+                                                com.example.wooauto.utils.UiLog.d("设置导航", "点击了店铺管理")
+                                                navController.navigate(com.example.wooauto.presentation.navigation.Screen.StoreList.route)
+                                            } else {
+                                                coroutineScope.launch {
+                                                    snackbarHostState.showSnackbar(licenseRequiredMessage)
+                                                }
+                                            }
+                                        }
+                                    )
                     
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    HorizontalDivider()
-                                    Spacer(modifier = Modifier.height(8.dp))
-                    
-                                    // Store Settings
-                        SettingsNavigationItem(
-                                        title = stringResource(R.string.store_settings),
-                                        icon = Icons.Default.Store,
-                                        subTitle = stringResource(R.string.store_settings_desc),
-                            isLocked = !hasEligibility,
-                            onClick = {
-                                if (hasEligibility) {
-                                                com.example.wooauto.utils.UiLog.d("设置导航", "点击了店铺信息设置项")
-                                                navController.navigate("settings/general/store")
-                                } else {
-                                    coroutineScope.launch {
-                                                    snackbarHostState.showSnackbar(
-                                                        licenseRequiredMessage
-                                                    )
-                                    }
-                                }
-                            }
-                        )
-
                                     Spacer(modifier = Modifier.height(8.dp))
                                     HorizontalDivider()
                                     Spacer(modifier = Modifier.height(8.dp))
@@ -196,7 +177,7 @@ fun SettingsScreen(
                         
                                     // 进入“屏幕设置”二级页
                                     SettingItem(
-                                        icon = Icons.Outlined.Language, // 参数占位，不显示图标
+                                        icon = Icons.Outlined.Language, // 使用 Language 图标作为占位符
                                         title = stringResource(id = R.string.display_settings),
                                         subtitle = run {
                                             val keepOn = viewModel.keepScreenOn.collectAsState().value
@@ -755,7 +736,7 @@ fun SettingsScreen(
                         HorizontalDivider()
                         Spacer(modifier = Modifier.height(8.dp))
                         SettingsNavigationItem(
-                            icon = Icons.Outlined.Info,
+                            icon = Icons.Default.Info,
                             title = stringResource(R.string.about),
                             subTitle = run {
                                 val currentVersion =

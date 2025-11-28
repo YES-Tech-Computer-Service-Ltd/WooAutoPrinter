@@ -8,6 +8,8 @@ import com.example.wooauto.data.repository.SettingsRepositoryImpl
 import com.example.wooauto.domain.repositories.DomainProductRepository
 import com.example.wooauto.data.repositories.TemplateConfigRepositoryImpl
 import com.example.wooauto.domain.repositories.DomainTemplateConfigRepository
+import com.example.wooauto.data.repository.StoreRepositoryImpl
+import com.example.wooauto.domain.repositories.StoreRepository
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -65,4 +67,13 @@ abstract class RepositoryModule {
     abstract fun bindTemplateConfigRepository(
         impl: TemplateConfigRepositoryImpl
     ): DomainTemplateConfigRepository
+
+    /**
+     * 绑定 StoreRepository 接口与其实现
+     */
+    @Binds
+    @Singleton
+    abstract fun bindStoreRepository(
+        repository: StoreRepositoryImpl
+    ): StoreRepository
 } 

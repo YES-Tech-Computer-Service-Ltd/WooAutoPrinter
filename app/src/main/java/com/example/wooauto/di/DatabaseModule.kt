@@ -5,6 +5,7 @@ import androidx.room.Room
 import com.example.wooauto.data.local.dao.OrderDao
 import com.example.wooauto.data.local.dao.ProductDao
 import com.example.wooauto.data.local.dao.SettingDao
+import com.example.wooauto.data.local.dao.StoreDao
 import com.example.wooauto.data.local.dao.TemplateConfigDao
 import com.example.wooauto.data.local.db.AppDatabase
 import dagger.Module
@@ -80,5 +81,15 @@ object DatabaseModule {
     @Provides
     fun provideTemplateConfigDao(database: AppDatabase): TemplateConfigDao {
         return database.templateConfigDao()
+    }
+
+    /**
+     * 提供StoreDao实例
+     * @param database 数据库实例
+     * @return StoreDao实例
+     */
+    @Provides
+    fun provideStoreDao(database: AppDatabase): StoreDao {
+        return database.storeDao()
     }
 } 

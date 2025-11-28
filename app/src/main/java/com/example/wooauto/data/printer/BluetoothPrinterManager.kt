@@ -65,13 +65,21 @@ import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.sync.withLock
 import com.example.wooauto.utils.ThermalPrinterFormatter
 
+import com.example.wooauto.presentation.managers.AlertManager
+import javax.inject.Provider
+
 @Singleton
 class BluetoothPrinterManager @Inject constructor(
     @ApplicationContext private val context: Context,
     private val settingRepository: DomainSettingRepository,
     private val orderRepository: DomainOrderRepository,
-    private val templateManager: OrderPrintTemplate
+    private val templateManager: OrderPrintTemplate,
+    private val alertManagerProvider: Provider<AlertManager>
 ) : PrinterManager {
+
+    // 使用属性委托或 getter 来延迟获取 AlertManager
+    private val alertManager: AlertManager
+        get() = alertManagerProvider.get()
 
     // 创建协程作用域
     private val managerScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -2055,6 +2063,16 @@ class BluetoothPrinterManager @Inject constructor(
                     try {
                         val currentTime = System.currentTimeMillis()
 
+                        // 检查蓝牙适配器状态
+                        val adapter = getBluetoothAdapter()
+                        if (adapter == null || !adapter.isEnabled) {
+                            Log.w(TAG, "系统轮询检测到蓝牙已关闭，更新状态为断开")
+                            updatePrinterStatus(config, PrinterStatus.DISCONNECTED)
+                            // 保持心跳循环，等待蓝牙重新开启
+                            delay(HEARTBEAT_INTERVAL)
+                            continue
+                        }
+
                         // 1. 优先以连接对象为准判断连接性，避免依赖UI状态造成竞态
                         val hasConnection = currentConnection != null
                         val isSocketConnected = try {
@@ -2073,8 +2091,13 @@ class BluetoothPrinterManager @Inject constructor(
                             try {
                                 sendHeartbeatCommand()
                                 writeOk = true
+                                // 如果状态不是已连接，恢复为已连接
+                                if (getPrinterStatus(config) != PrinterStatus.CONNECTED) {
+                                    updatePrinterStatus(config, PrinterStatus.CONNECTED)
+                                }
                             } catch (e: Exception) {
                                 Log.e(TAG, "系统轮询写入失败（打印机）: ${e.message}")
+                                alertManager.addPrinterError("心跳写入失败 (${config.name})", e)
                                 updatePrinterStatus(config, PrinterStatus.DISCONNECTED)
                                 throw e
                             } finally {
@@ -2132,6 +2155,7 @@ class BluetoothPrinterManager @Inject constructor(
                             e.message?.contains("software caused connection abort", ignoreCase = true) == true ||
                             e.message?.contains("connection timed out", ignoreCase = true) == true ||
                             e is EscPosConnectionException) {
+                            alertManager.addPrinterError("心跳检测到断连 (${config.name})", e)
                             updatePrinterStatus(config, PrinterStatus.DISCONNECTED)
                             reconnectAttempts++
                             Log.d(TAG, "检测到连接断开，增加重连计数: $reconnectAttempts")
@@ -2226,7 +2250,29 @@ class BluetoothPrinterManager @Inject constructor(
                                 val state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR)
                                 if (state == BluetoothAdapter.STATE_TURNING_OFF || state == BluetoothAdapter.STATE_OFF) {
                                     Log.d(TAG, "蓝牙适配器关闭，标记断开")
-                                    updatePrinterStatus(config, PrinterStatus.DISCONNECTED)
+                                    
+                                    // 更新当前活跃打印机的状态
+                                    val currentConfig = currentPrinterConfig
+                                    if (currentConfig != null) {
+                                        updatePrinterStatus(currentConfig, PrinterStatus.DISCONNECTED)
+                                    }
+                                    
+                                    // 同时遍历所有已知状态的打印机并设为断开
+                                    val addresses = printerStatusMap.keys.toList()
+                                    for (address in addresses) {
+                                        // 创建临时的配置对象，因为我们只有地址
+                                        val tempConfig = PrinterConfig(id = "", name = "", address = address)
+                                        updatePrinterStatus(tempConfig, PrinterStatus.DISCONNECTED)
+                                    }
+                                    
+                                    // 断开底层连接
+                                    try {
+                                        currentPrinter = null
+                                        currentConnection = null
+                                        starDriver.disconnect()
+                                    } catch (e: Exception) {
+                                        Log.e(TAG, "关闭蓝牙时清理连接异常: ${e.message}")
+                                    }
                                 }
                             }
                         }
@@ -2363,6 +2409,170 @@ class BluetoothPrinterManager @Inject constructor(
             updatePrinterStatus(config, PrinterStatus.ERROR)
             false
         }
+    }
+
+    /**
+     * 全面测试打印机连接状态（双向通信测试）
+     */
+    override suspend fun checkPrinterStatusFull(config: PrinterConfig): String = withContext(Dispatchers.IO) {
+        val sb = StringBuilder()
+        sb.append("【连接状态测试报告】\n")
+        sb.append("目标设备: ${config.name} (${config.address})\n")
+        sb.append("时间: ${java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(Date())}\n")
+        sb.append("--------------------------------\n")
+
+        try {
+            // 1. 基础连接检查
+            if (getPrinterStatus(config) != PrinterStatus.CONNECTED) {
+                sb.append("❌ 状态错误: 显示为未连接\n")
+                return@withContext sb.toString()
+            } else {
+                sb.append("✅ 状态正常: 显示为已连接\n")
+            }
+
+            val connection = currentConnection
+            if (connection == null) {
+                sb.append("❌ 错误: 连接对象为空 (currentConnection is null)\n")
+                return@withContext sb.toString()
+            }
+
+            if (!connection.isConnected()) {
+                 sb.append("❌ 错误: 底层连接已断开\n")
+                 return@withContext sb.toString()
+            }
+            sb.append("✅ 底层连接: 活跃\n")
+
+            // 2. 尝试获取 Socket 输入流 (反射)
+            sb.append("正在获取输入流...\n")
+            var socket: android.bluetooth.BluetoothSocket? = null
+            try {
+                // 尝试反射获取 socket 字段 (通常在 BluetoothConnection 或其父类中)
+                // Dantsu 库中 BluetoothConnection 有 socket 字段
+                var clazz: Class<*>? = connection.javaClass
+                var field: java.lang.reflect.Field? = null
+                
+                while (clazz != null && field == null) {
+                    try {
+                        field = clazz.getDeclaredField("socket")
+                    } catch (e: NoSuchFieldException) {
+                        clazz = clazz.superclass
+                    }
+                }
+
+                if (field != null) {
+                    field.isAccessible = true
+                    socket = field.get(connection) as? android.bluetooth.BluetoothSocket
+                    sb.append("✅ 获取Socket对象成功\n")
+                } else {
+                    sb.append("⚠️ 警告: 反射未找到 socket 字段，尝试 bluetoothSocket\n")
+                    // 尝试其他可能的字段名
+                     try {
+                        val field2 = connection.javaClass.getDeclaredField("bluetoothSocket")
+                        field2.isAccessible = true
+                        socket = field2.get(connection) as? android.bluetooth.BluetoothSocket
+                    } catch (e: Exception) {
+                        sb.append("❌ 反射失败: 未找到 socket 字段\n")
+                    }
+                }
+            } catch (e: Exception) {
+                sb.append("❌ 反射异常: ${e.message}\n")
+            }
+
+            if (socket == null) {
+                sb.append("⚠️ 无法进行双向测试 (无法访问Socket)\n")
+                sb.append("尝试执行标准单向测试...\n")
+                 try {
+                     connection.write(byteArrayOf(0x1B, 0x40))
+                     sb.append("✅ 发送初始化命令成功 (单向)\n")
+                 } catch (e: Exception) {
+                     sb.append("❌ 发送命令失败: ${e.message}\n")
+                 }
+                 return@withContext sb.toString()
+            }
+
+            val inputStream = socket.inputStream
+            val outputStream = socket.outputStream
+            
+            // 3. 清理缓冲区
+            try {
+                val available = inputStream.available()
+                if (available > 0) {
+                    val buffer = ByteArray(available)
+                    inputStream.read(buffer)
+                    sb.append("ℹ️ 清理缓冲区: ${available} bytes\n")
+                }
+            } catch (e: Exception) {
+                 sb.append("⚠️ 读取缓冲区异常: ${e.message}\n")
+            }
+
+            // 4. 发送 DLE EOT 1 (打印机状态)
+            // 10 04 01
+            sb.append("\n>> 发送指令: 10 04 01 (查询状态)\n")
+            try {
+                outputStream.write(byteArrayOf(0x10, 0x04, 0x01))
+                outputStream.flush()
+                
+                // 等待响应
+                var received = false
+                val endTime = System.currentTimeMillis() + 1500 // 1.5s 超时
+                while (System.currentTimeMillis() < endTime) {
+                    if (inputStream.available() > 0) {
+                        val buffer = ByteArray(1024)
+                        val len = inputStream.read(buffer)
+                        if (len > 0) {
+                            val hex = buffer.take(len).joinToString(" ") { "%02X".format(it) }
+                            sb.append("<< 收到响应: $hex\n")
+                            received = true
+                            break
+                        }
+                    }
+                    delay(50)
+                }
+                if (!received) sb.append("<< 无响应 (超时)\n")
+            } catch (e: Exception) {
+                sb.append("❌ 通信异常: ${e.message}\n")
+            }
+
+            // 5. 发送 DLE EOT 2 (离线状态)
+            // 10 04 02
+            sb.append("\n>> 发送指令: 10 04 02 (离线查询)\n")
+            try {
+                outputStream.write(byteArrayOf(0x10, 0x04, 0x02))
+                outputStream.flush()
+                
+                var received = false
+                val endTime = System.currentTimeMillis() + 1000
+                while (System.currentTimeMillis() < endTime) {
+                    if (inputStream.available() > 0) {
+                        val buffer = ByteArray(1024)
+                        val len = inputStream.read(buffer)
+                        if (len > 0) {
+                            val hex = buffer.take(len).joinToString(" ") { "%02X".format(it) }
+                            sb.append("<< 收到响应: $hex\n")
+                            received = true
+                            break
+                        }
+                    }
+                    delay(50)
+                }
+                if (!received) sb.append("<< 无响应 (超时)\n")
+            } catch (e: Exception) {
+                 sb.append("❌ 通信异常: ${e.message}\n")
+            }
+            
+            // 6. 发送 GS I 69 (打印机型号 - 这是一个可选指令，有些打印机不支持)
+            // 1D 49 45 -> Hex: 29 73 69
+            // 很多便宜的打印机不支持这个，但可以试试
+            
+            sb.append("\n--------------------------------\n")
+            sb.append("结论: 测试完成。\n如果看到 '<< 收到响应'，说明打印机支持双向通信。\n如果全无响应，说明打印机可能只连接了发送端(TX)，或不支持ESC/POS状态回传指令。")
+
+        } catch (e: Exception) {
+            sb.append("\n❌ 测试过程发生严重异常: ${e.message}\n")
+            Log.e(TAG, "Full status check failed", e)
+        }
+        
+        return@withContext sb.toString()
     }
 
     /**
