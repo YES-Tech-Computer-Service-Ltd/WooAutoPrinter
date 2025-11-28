@@ -119,7 +119,7 @@ class ProductRepositoryImpl @Inject constructor(
             Log.d("ProductRepositoryImpl", "调用API获取产品列表")
             
             try {
-                // 先获取所有产品（优化：单次获取50个已经比较大了，但考虑到产品结构，保持50个，依赖HTTP/2优化并发）
+                // 先获取所有产品（降低单次负载，减少超时概率）
                 val allProducts = api.getProducts(1, 50)
                 Log.d("ProductRepositoryImpl", "成功获取所有产品列表，共 ${allProducts.size} 个产品")
                 
