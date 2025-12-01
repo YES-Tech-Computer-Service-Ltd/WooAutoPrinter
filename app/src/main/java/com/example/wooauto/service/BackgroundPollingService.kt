@@ -831,37 +831,89 @@ class BackgroundPollingService : Service() {
             
             // 记录上次轮询时间，用于日志
             val lastPollTime = latestPolledDate
+            latestPolledDate = Date() // 更新最后轮询时间为当前时间
             
-            // Multi-Store Logic: Poll ALL active stores
-            // We cannot rely on orderRepository.refreshProcessingOrdersForPolling() single call because it only handles one store context now.
-            // We need to get all active stores and poll each one.
+            UiLog.d(TAG, "开始多站点轮询...")
             
-            // Since we are in Service, we can access storeRepository via orderRepository if we add a method, 
-            // or inject StoreRepository directly.
-            // For cleaner architecture, let's inject StoreRepository.
+            // 1. 获取所有激活的商店
+            val activeStores = try {
+                storeRepository.getAllStores().first().filter { it.isActive }
+            } catch (e: Exception) {
+                Log.e(TAG, "获取商店列表失败: ${e.message}")
+                emptyList()
+            }
             
-            // (Assuming StoreRepository is injected, let's add it to the class properties)
-            // But I need to add the injection first.
+            if (activeStores.isEmpty()) {
+                // 如果没有配置商店，尝试使用旧的单站点配置（为了兼容性）
+                UiLog.d(TAG, "未找到多站点配置，尝试使用默认单站点配置")
+                val result = orderRepository.refreshProcessingOrdersForPolling(lastPollTime)
+                if (result.isSuccess) {
+                    val orders = result.getOrDefault(emptyList())
+                    if (orders.isNotEmpty()) {
+                        val newCount = processNewOrders(orders, 0L) // 0L 表示默认商店
+                        if (newCount > 0) {
+                            UiLog.d(TAG, "单站点轮询发现 $newCount 个新订单")
+                            sendNewOrdersBroadcast(newCount)
+                            sendOrdersUpdatedBroadcast()
+                        }
+                    }
+                }
+                return
+            }
             
-            // Fallback if injection not ready: rely on orderRepository.refreshProcessingOrdersForPolling() 
-            // which should be updated to handle multi-store polling internally or we iterate here?
-            // OrderRepository interface was designed for UI context mostly.
-            // Ideally, Service should iterate stores and use OrderRepository to fetch for each.
+            UiLog.d(TAG, "找到 ${activeStores.size} 个激活的商店，开始轮询")
+            var totalNewOrders = 0
             
-            // Let's use the new method refreshOrdersWithConfig() but we need the config for each store.
-            // Since I haven't injected StoreRepository yet, I will do it now.
+            // 2. 遍历每个商店进行轮询
+            for (store in activeStores) {
+                try {
+                    UiLog.d(TAG, "正在轮询商店: ${store.name} (${store.siteUrl})")
+                    
+                    // 构建配置对象
+                    val config = com.example.wooauto.data.remote.WooCommerceConfig(
+                        siteUrl = store.siteUrl,
+                        consumerKey = store.consumerKey,
+                        consumerSecret = store.consumerSecret
+                    )
+                    
+                    // 使用 refreshOrdersWithConfig 获取订单
+                    // 注意：我们只查询 'processing' 状态的订单
+                    val result = orderRepository.refreshOrdersWithConfig(
+                        config = config, 
+                        status = "processing", 
+                        afterDate = lastPollTime // 增量更新
+                    )
+                    
+                    if (result.isSuccess) {
+                        val orders = result.getOrDefault(emptyList())
+                        if (orders.isNotEmpty()) {
+                            UiLog.d(TAG, "商店 ${store.name} 获取到 ${orders.size} 个订单")
+                            val count = processNewOrders(orders, store.id)
+                            totalNewOrders += count
+                        } else {
+                            UiLog.d(TAG, "商店 ${store.name} 没有新订单")
+                        }
+                    } else {
+                        Log.w(TAG, "商店 ${store.name} 轮询失败: ${result.exceptionOrNull()?.message}")
+                    }
+                    
+                    // 商店间短暂延迟，避免并发过高
+                    delay(500)
+                    
+                } catch (e: Exception) {
+                    Log.e(TAG, "轮询商店 ${store.name} 时发生异常: ${e.message}", e)
+                }
+            }
             
-            // Temporary placeholder logic until StoreRepository is injected:
-            // Just call the repo method which currently (in my previous edit) iterates stores if no config provided?
-            // NO, I changed OrderRepositoryImpl to use getApi() which uses PRIMARY store.
+            // 3. 如果有新订单，发送广播
+            if (totalNewOrders > 0) {
+                UiLog.d(TAG, "多站点轮询结束，共发现 $totalNewOrders 个新订单")
+                sendNewOrdersBroadcast(totalNewOrders)
+                sendOrdersUpdatedBroadcast()
+            } else {
+                UiLog.d(TAG, "多站点轮询结束，无新订单")
+            }
             
-            // So, we MUST iterate stores here.
-            
-            // Step 1: Fetch all active stores (need StoreRepository)
-            // Step 2: For each store, create config, call orderRepository.refreshOrdersWithConfig()
-            // Step 3: Aggregate results
-            
-            // I will update the file to inject StoreRepository and implement this loop.
         } catch (e: Exception) {
             Log.e(TAG, "轮询过程中发生异常: ${e.message}", e)
         }
@@ -922,80 +974,85 @@ class BackgroundPollingService : Service() {
     }
 
     private suspend fun processNewOrders(orders: List<Order>, storeId: Long = 0): Int {
-        var newOrderCount = 0
-        var skippedAlreadyProcessed = 0
-        var skippedNotRecent = 0
-        
-        // 确定应用启动后的首次轮询
-        val isFirstPolling = latestPolledDate == null
-        
-        // 获取当前时间
-        val currentTime = System.currentTimeMillis()
-        // 计算5分钟前的时间戳，用于过滤旧订单
-        val fiveMinutesAgo = currentTime - (5 * 60 * 1000)
-        
-        for (order in orders) {
-            // ... (existing processing logic)
-            val isProcessed = synchronized(processedOrderIds) {
-                processedOrderIds.contains(order.id)
-            }
-            val isInPrinting = printingOrderIds.contains(order.id)
+        // 在IO线程中执行繁重的过滤和处理逻辑
+        return withContext(Dispatchers.IO) {
+            var newOrderCount = 0
+            var skippedAlreadyProcessed = 0
+            var skippedNotRecent = 0
             
-            val isNewOrder = !(isProcessed || isInPrinting)
+            // 确定应用启动后的首次轮询
+            val isFirstPolling = latestPolledDate == null
             
-            val isRecentOrder = if (isFirstPolling) {
-                order.dateCreated.time > fiveMinutesAgo
-            } else {
-                true 
-            }
-
-            if (isNewOrder && isRecentOrder) {
-                // ... (existing logic)
-                val latestOrder = orderRepository.getOrderById(order.id)
-                val effectiveIsPrinted = latestOrder?.isPrinted ?: order.isPrinted
-                val effectiveIsRead = latestOrder?.isRead ?: order.isRead
-
-                val finalOrder = order.copy(
-                    isPrinted = effectiveIsPrinted,
-                    isRead = effectiveIsRead,
-                    storeId = storeId // Ensure storeId is set
-                )
-
-                val shouldNotify = !finalOrder.isRead
-
-                val shouldPrint = !finalOrder.isPrinted && finalOrder.status == "processing"
-                if (shouldPrint) {
-                    printOrder(finalOrder)
+            // 获取当前时间
+            val currentTime = System.currentTimeMillis()
+            // 计算5分钟前的时间戳，用于过滤旧订单
+            val fiveMinutesAgo = currentTime - (5 * 60 * 1000)
+            
+            for (order in orders) {
+                // ... (existing processing logic)
+                val isProcessed = synchronized(processedOrderIds) {
+                    processedOrderIds.contains(order.id)
                 }
-
-                if (shouldNotify) {
-                    sendNewOrderNotification(finalOrder)
-                    orderRepository.markOrderNotificationShown(finalOrder.id)
-                    newOrderCount++
-                    
-                    // Notify GlobalStoreManager about new order for this store
-                    // Send broadcast with storeId so UI can update red dot
-                    val intent = Intent("com.example.wooauto.STORE_NOTIFICATION")
-                    intent.putExtra("storeId", storeId)
-                    LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
+                val isInPrinting = printingOrderIds.contains(order.id)
+                
+                val isNewOrder = !(isProcessed || isInPrinting)
+                
+                val isRecentOrder = if (isFirstPolling) {
+                    order.dateCreated.time > fiveMinutesAgo
+                } else {
+                    true 
                 }
-
-                synchronized(processedOrderIds) {
-                    processedOrderIds.add(finalOrder.id)
-                    if (processedOrderIds.size > MAX_PROCESSED_IDS) {
-                        removeOldestProcessedId()
+    
+                if (isNewOrder && isRecentOrder) {
+                    // ... (existing logic)
+                    val latestOrder = orderRepository.getOrderById(order.id)
+                    val effectiveIsPrinted = latestOrder?.isPrinted ?: order.isPrinted
+                    val effectiveIsRead = latestOrder?.isRead ?: order.isRead
+    
+                    val finalOrder = order.copy(
+                        isPrinted = effectiveIsPrinted,
+                        isRead = effectiveIsRead,
+                        storeId = storeId // Ensure storeId is set
+                    )
+    
+                    val shouldNotify = !finalOrder.isRead
+    
+                    val shouldPrint = !finalOrder.isPrinted && finalOrder.status == "processing"
+                    if (shouldPrint) {
+                        printOrder(finalOrder)
+                    }
+    
+                    if (shouldNotify) {
+                        // 切换回主线程发送通知（虽然notify内部可能处理了线程，但为了安全起见）
+                        // 或者在IO线程发送也没问题，但需要确认Context
+                        sendNewOrderNotification(finalOrder)
+                        orderRepository.markOrderNotificationShown(finalOrder.id)
+                        newOrderCount++
+                        
+                        // Notify GlobalStoreManager about new order for this store
+                        // Send broadcast with storeId so UI can update red dot
+                        val intent = Intent("com.example.wooauto.STORE_NOTIFICATION")
+                        intent.putExtra("storeId", storeId)
+                        LocalBroadcastManager.getInstance(this@BackgroundPollingService).sendBroadcast(intent)
+                    }
+    
+                    synchronized(processedOrderIds) {
+                        processedOrderIds.add(finalOrder.id)
+                        if (processedOrderIds.size > MAX_PROCESSED_IDS) {
+                            removeOldestProcessedId()
+                        }
+                    }
+                } else {
+                    if (!isNewOrder) {
+                        skippedAlreadyProcessed++
+                    } else {
+                        skippedNotRecent++
                     }
                 }
-            } else {
-                if (!isNewOrder) {
-                    skippedAlreadyProcessed++
-                } else {
-                    skippedNotRecent++
-                }
             }
+            // ... (log)
+            newOrderCount
         }
-        // ... (log)
-        return newOrderCount
     }
     
     /**

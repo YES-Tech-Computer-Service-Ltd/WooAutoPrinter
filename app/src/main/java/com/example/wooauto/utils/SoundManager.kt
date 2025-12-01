@@ -1440,8 +1440,11 @@ class SoundManager @Inject constructor(
     /** 外部设置：接单持续提示 */
     fun setKeepRingingUntilAccept(enabled: Boolean) {
         keepRingingUntilAccept = enabled
-        if (!enabled && isLoopingForAcceptance) {
-            stopAllSounds()
+        if (!enabled) {
+            // 只有当禁用此功能时才需要停止循环
+            isLoopingForAcceptance = false
+            continuousRingingJob?.cancel()
+            continuousRingingJob = null
         }
     }
 

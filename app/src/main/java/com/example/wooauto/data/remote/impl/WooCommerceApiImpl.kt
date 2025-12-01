@@ -80,6 +80,30 @@ class WooCommerceApiImpl(
         val trustManager = trustAllCerts[0] as javax.net.ssl.X509TrustManager
         
         val clientBuilder = OkHttpClient.Builder()
+            // 【核心修复】强制使用IPv4，解决IPv6解析成功但连接超时的问题
+            .dns(object : okhttp3.Dns {
+                override fun lookup(hostname: String): List<java.net.InetAddress> {
+                    return try {
+                        // 获取所有IP地址
+                        val allAddresses = okhttp3.Dns.SYSTEM.lookup(hostname)
+                        // 过滤出IPv4地址 (Inet4Address)
+                        val ipv4Addresses = allAddresses.filter { it is java.net.Inet4Address }
+                        
+                        if (ipv4Addresses.isNotEmpty()) {
+                            UiLog.d("WooCommerceApiImpl", "DNS解析: $hostname -> IPv4: $ipv4Addresses (过滤了IPv6)")
+                            ipv4Addresses
+                        } else {
+                            // 如果没有IPv4，只能返回所有（通常是IPv6），死马当活马医
+                            UiLog.w("WooCommerceApiImpl", "DNS解析: $hostname 没有IPv4地址，回退到默认结果: $allAddresses")
+                            allAddresses
+                        }
+                    } catch (e: Exception) {
+                        // DNS解析失败，抛出异常
+                        UiLog.e("WooCommerceApiImpl", "DNS解析失败: $hostname, ${e.message}")
+                        throw e
+                    }
+                }
+            })
             .addInterceptor(loggingInterceptor)
             // 添加自定义User-Agent拦截器
             .addInterceptor { chain ->
@@ -344,7 +368,12 @@ class WooCommerceApiImpl(
                     }
                 }
             } catch (e: java.io.IOException) {
-                Log.e("WooCommerceApiImpl", "IO错误，尝试重试 (${currentRetry+1}/$maxRetries): ${e.message}")
+                val isCanceled = e.message?.contains("Canceled") == true
+                Log.e("WooCommerceApiImpl", "IO错误 (Canceled=$isCanceled)，尝试重试 (${currentRetry+1}/$maxRetries): ${e.message}")
+                // 如果是Canceled，打印堆栈以查看是由哪个拦截器或超时触发的
+                if (isCanceled) {
+                    Log.e("WooCommerceApiImpl", "请求被取消详情", e)
+                }
                 lastException = e
                 currentRetry++
                 // 检查是否是连接重置错误
@@ -380,12 +409,37 @@ class WooCommerceApiImpl(
                 
                 val request = Request.Builder()
                     .url(urlBuilder.build())
+                    .header("Connection", "close") // 【关键修复】强制不复用连接，避免连接池污染导致的堵塞
                     .post(requestBody)
                     .build()
                 
                 UiLog.d("API请求", "POST ${urlBuilder.build()} - $jsonBody")
+                UiLog.d("API调试", "准备发送POST请求，使用独立Client(无复用)。线程: ${Thread.currentThread().name}")
                 
-                val response = client.newCall(request).execute()
+                // 针对POST请求，创建一个新的、干净的OkHttpClient实例
+                val startTime = System.currentTimeMillis()
+                val postClient = client.newBuilder()
+                    .callTimeout(120, TimeUnit.SECONDS)
+                    .connectTimeout(60, TimeUnit.SECONDS)
+                    .readTimeout(60, TimeUnit.SECONDS)
+                    .writeTimeout(60, TimeUnit.SECONDS)
+                    .retryOnConnectionFailure(false) // POST请求不自动重试，避免副作用
+                    .connectionPool(okhttp3.ConnectionPool(0, 1, TimeUnit.NANOSECONDS)) // 禁用连接池
+                    // 移除日志拦截器以排除干扰，或者仅在DEBUG且需要时添加
+                    .build()
+                
+                UiLog.d("API调试", "POST Client创建完成，开始执行...")
+                
+                val response = try {
+                    postClient.newCall(request).execute()
+                } catch (e: Exception) {
+                    UiLog.e("API调试", "POST请求底层执行异常: ${e.javaClass.simpleName} - ${e.message}")
+                    throw e
+                }
+                
+                val endTime = System.currentTimeMillis()
+                UiLog.d("API调试", "POST请求完成，耗时: ${endTime - startTime}ms, Code: ${response.code}")
+                
                 val responseBody = response.body?.string() ?: throw Exception("响应体为空")
                 
                 if (!response.isSuccessful) {

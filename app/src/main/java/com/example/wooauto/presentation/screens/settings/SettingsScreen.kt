@@ -6,7 +6,13 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.NetworkCheck
+import androidx.compose.material.icons.filled.AddCircleOutline
+import androidx.compose.material.icons.filled.GetApp
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Print
+import androidx.compose.material.icons.filled.RemoveCircleOutline
+import androidx.compose.material.icons.filled.VpnKey
 import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Store
 import androidx.compose.material3.Card
@@ -732,6 +738,20 @@ fun SettingsScreen(
                             }
                         }
 
+                        Spacer(modifier = Modifier.height(8.dp))
+                        HorizontalDivider()
+                        Spacer(modifier = Modifier.height(8.dp))
+                        SettingsNavigationItem(
+                            icon = Icons.Default.NetworkCheck,
+                            title = "网络诊断", // 临时硬编码，解决资源引用问题
+                            subTitle = "点击运行网络连接测试",
+                            onClick = {
+                                coroutineScope.launch {
+                                    snackbarHostState.showSnackbar("正在运行网络诊断，请查看Logcat...")
+                                    viewModel.runNetworkDiagnosis()
+                                }
+                            }
+                        )
                         Spacer(modifier = Modifier.height(8.dp))
                         HorizontalDivider()
                         Spacer(modifier = Modifier.height(8.dp))

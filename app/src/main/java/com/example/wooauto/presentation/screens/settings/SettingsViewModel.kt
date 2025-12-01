@@ -1552,8 +1552,78 @@ class SettingsViewModel @Inject constructor(
     }
     
     /**
-     * 获取关于信息文本，包括版本和更新状态
+     * 执行网络诊断测试
      */
+    fun runNetworkDiagnosis() {
+        viewModelScope.launch(Dispatchers.IO) {
+            UiLog.d(TAG, "=== 开始网络诊断 ===")
+            try {
+                val runtime = Runtime.getRuntime()
+                
+                // 1. 测试DNS解析
+                UiLog.d(TAG, "[诊断] 1. DNS解析测试: dragonemperordimsum.ca")
+                try {
+                    val inetAddress = java.net.InetAddress.getByName("dragonemperordimsum.ca")
+                    UiLog.d(TAG, "[诊断]    成功: IP=${inetAddress.hostAddress}")
+                } catch (e: Exception) {
+                    UiLog.e(TAG, "[诊断]    失败: ${e.message}")
+                }
+                
+                // 2. 测试Ping (ICMP)
+                UiLog.d(TAG, "[诊断] 2. Ping测试: dragonemperordimsum.ca")
+                try {
+                    val process = runtime.exec("/system/bin/ping -c 3 dragonemperordimsum.ca")
+                    val exitValue = process.waitFor()
+                    val output = process.inputStream.bufferedReader().use { it.readText() }
+                    if (exitValue == 0) {
+                        UiLog.d(TAG, "[诊断]    成功:\n$output")
+                    } else {
+                        UiLog.e(TAG, "[诊断]    失败 (Exit=$exitValue):\n$output")
+                    }
+                } catch (e: Exception) {
+                    UiLog.e(TAG, "[诊断]    Ping执行异常: ${e.message}")
+                }
+                
+                // 3. 测试HTTP/HTTPS连接 (使用Java原生URLConnection，排除OkHttp干扰)
+                UiLog.d(TAG, "[诊断] 3. 原生URLConnection测试 (HTTPS GET)")
+                try {
+                    val url = java.net.URL("https://dragonemperordimsum.ca/wp-json/wc/v3/")
+                    val conn = url.openConnection() as javax.net.ssl.HttpsURLConnection
+                    conn.connectTimeout = 10000
+                    conn.readTimeout = 10000
+                    conn.requestMethod = "GET"
+                    conn.connect()
+                    UiLog.d(TAG, "[诊断]    连接成功: ResponseCode=${conn.responseCode}, Message=${conn.responseMessage}")
+                    conn.disconnect()
+                } catch (e: Exception) {
+                    UiLog.e(TAG, "[诊断]    连接失败: ${e.message}", e)
+                }
+                
+                // 4. 测试端口连通性 (Socket)
+                UiLog.d(TAG, "[诊断] 4. Socket端口测试 (443)")
+                try {
+                    val socket = java.net.Socket()
+                    socket.connect(java.net.InetSocketAddress("dragonemperordimsum.ca", 443), 5000)
+                    UiLog.d(TAG, "[诊断]    Socket连接成功")
+                    socket.close()
+                } catch (e: Exception) {
+                    UiLog.e(TAG, "[诊断]    Socket连接失败: ${e.message}")
+                }
+                
+                UiLog.d(TAG, "=== 网络诊断结束 ===")
+                
+                // 通知UI（如果需要）
+                withContext(Dispatchers.Main) {
+                    _statusMessage.value = "网络诊断已完成，请查看日志"
+                }
+                
+                
+            } catch (e: Exception) {
+                UiLog.e(TAG, "网络诊断过程异常", e)
+            }
+        }
+    }
+    
     fun getAboutInfoText(): String {
         // 如果正在检查更新，显示正在获取版本信息
         if (_isCheckingUpdate.value) {
@@ -1582,7 +1652,7 @@ class SettingsViewModel @Inject constructor(
                 context.getString(R.string.version_is_latest))
         }
     }
-    
+
     /**
      * 设置自动更新
      */
