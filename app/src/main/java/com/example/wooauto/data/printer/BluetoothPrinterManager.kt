@@ -64,13 +64,16 @@ import java.util.concurrent.Executors
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.sync.withLock
 import com.example.wooauto.utils.ThermalPrinterFormatter
+import com.example.wooauto.utils.GlobalErrorManager
+import android.provider.Settings
 
 @Singleton
 class BluetoothPrinterManager @Inject constructor(
     @ApplicationContext private val context: Context,
     private val settingRepository: DomainSettingRepository,
     private val orderRepository: DomainOrderRepository,
-    private val templateManager: OrderPrintTemplate
+    private val templateManager: OrderPrintTemplate,
+    private val globalErrorManager: GlobalErrorManager
 ) : PrinterManager {
 
     // 创建协程作用域
@@ -82,6 +85,12 @@ class BluetoothPrinterManager @Inject constructor(
 
     // 延迟初始化蓝牙适配器，只在需要时获取
     private var bluetoothAdapter: BluetoothAdapter? = null
+    
+    // 蓝牙断开报警防抖任务
+    private var disconnectAlertJob: Job? = null
+    // 标记是否为用户主动断开，避免误报
+    private var isUserInitiatedDisconnect = false
+    
     private var bluetoothInitialized = false
     
     /**
@@ -352,6 +361,9 @@ class BluetoothPrinterManager @Inject constructor(
     }
     
     private suspend fun connectInternal(config: PrinterConfig): Boolean {
+        // 重置主动断开标志，因为这是新的连接尝试
+        isUserInitiatedDisconnect = false
+        
         try {
             // 防止重复连接
             if (isConnecting) {
@@ -367,6 +379,57 @@ class BluetoothPrinterManager @Inject constructor(
             if (adapter == null || !adapter.isEnabled) {
                 Log.e(TAG, "蓝牙未开启或不可用")
                 updatePrinterStatus(config, PrinterStatus.ERROR)
+                
+                // 修复：如果尝试连接时发现蓝牙没开，且不是用户主动断开，也应该报警
+                // 这种情况通常发生在自动重连时发现蓝牙被关了
+                if (!isUserInitiatedDisconnect) {
+                    // 为了避免日志刷屏导致重复弹窗，我们可以检查一下最后一次报错时间或者状态
+                    // 但由于 globalErrorManager 本身会处理 UI 展示，这里只要触发即可
+                    // 为了安全起见，可以加一个简单的限流，或者复用前面的防抖逻辑
+                    // 考虑到 connect() 会被轮询频繁调用，这里必须防抖
+                    
+                    // 简单的限流：只有当状态发生变化或者距离上次报错有一段时间才报？
+                    // 其实这里直接用 status 变化来驱动最好。
+                    // updatePrinterStatus 会更新状态流。
+                    // 我们可以在这里触发一个一次性的检查任务
+                    
+                    managerScope.launch {
+                         // 稍微延迟一点，确保 updatePrinterStatus 生效
+                         delay(500)
+                         // 如果还没开，就报警
+                         val currentAdapter = getBluetoothAdapter()
+                         if (currentAdapter == null || !currentAdapter.isEnabled) {
+                             // 只有在当前没有显示弹窗的时候才弹？GlobalErrorManager 会处理
+                             // 这里我们只负责发事件。
+                             // 但为了防止轮询导致的疯狂弹窗，我们需要检查一下是否刚刚报过警
+                             // 这里借用 disconnectAlertJob 来做防抖
+                             if (disconnectAlertJob?.isActive != true) {
+                                 disconnectAlertJob = launch {
+                                     delay(2000) // 2秒防抖
+                                     val dAdapter = getBluetoothAdapter()
+                                     if (dAdapter == null || !dAdapter.isEnabled) {
+                                         UiLog.e(TAG, "【连接失败】蓝牙未开启，触发报警")
+                                         globalErrorManager.showError(
+                                            title = "蓝牙未开启",
+                                            userMessage = "系统蓝牙未开启，无法连接打印机。请开启蓝牙。",
+                                            debugMessage = "Reason: Connect attempt failed because BT is disabled.",
+                                            onSettingsAction = { 
+                                                try {
+                                                    val intent = Intent(Settings.ACTION_BLUETOOTH_SETTINGS)
+                                                    intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                                    context.startActivity(intent)
+                                                } catch (e: Exception) {
+                                                    Log.e(TAG, "无法打开蓝牙设置: ${e.message}")
+                                                }
+                                            }
+                                        )
+                                     }
+                                 }
+                             }
+                         }
+                    }
+                }
+
                 // 启动心跳以便后续自动重连
                 startHeartbeat(config)
                 return false
@@ -978,6 +1041,9 @@ class BluetoothPrinterManager @Inject constructor(
     }
 
     override suspend fun disconnect(config: PrinterConfig) {
+        // 标记为主动断开，抑制断联弹窗
+        isUserInitiatedDisconnect = true
+        
         withContext(Dispatchers.IO) {
             try {
                 // 停止心跳机制
@@ -2026,7 +2092,7 @@ class BluetoothPrinterManager @Inject constructor(
         if (externalPollingEnabled) {
             // 外部系统轮询已接管，仅更新当前配置，避免重复循环
             currentPrinterConfig = config
-            Log.d(TAG, "外部系统轮询启用，跳过内部系统轮询启动")
+            // Log.d(TAG, "外部系统轮询启用，跳过内部系统轮询启动")
             return
         }
         // 若已有相同打印机的心跳在运行，则不重复启动，避免短时间被取消
@@ -2199,18 +2265,65 @@ class BluetoothPrinterManager @Inject constructor(
                                     @Suppress("DEPRECATION")
                                     intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE)
                                 }
-                                if (device?.address == config.address) {
-                                    Log.d(TAG, "接收到设备断开广播，标记为断开")
+                                
+                                val isTargetDevice = device?.address == config.address
+                                val isFallback = device == null && currentPrinterConfig?.address == config.address && currentConnection != null
+                                
+                                if (isTargetDevice || isFallback) {
+                                    Log.d(TAG, "接收到设备断开广播，标记为断开 (Target=$isTargetDevice, Fallback=$isFallback)")
                                     updatePrinterStatus(config, PrinterStatus.DISCONNECTED)
-                                } else if (device == null) {
-                                    // 权限不足或系统未附带设备信息，做兜底处理
-                                    if (currentPrinterConfig?.address == config.address && currentConnection != null) {
-                                        Log.d(TAG, "接收到断开广播（无设备信息），兜底标记当前打印机为断开")
-                                        updatePrinterStatus(config, PrinterStatus.DISCONNECTED)
+                                    
+                                    // 防抖弹窗逻辑
+                                    if (!isUserInitiatedDisconnect) {
+                                        disconnectAlertJob?.cancel()
+                                        disconnectAlertJob = managerScope.launch {
+                                            delay(5000) // 5秒防抖，等待自动重连机会
+                                            
+                                            val currentStatus = getPrinterStatus(config)
+                                            // 修正：即使状态是 CONNECTING 也应该检查是否实际上失败了
+                                            // 5秒后如果不是 CONNECTED，就应该报警
+                                            // 如果是 CONNECTING，说明正在重连，但5秒都没连上，可能也需要报警或者继续观察
+                                            // 这里简化逻辑：只要不是 CONNECTED 并且没有被取消，就报警
+                                            // 同时也需要排除正在重连的情况，避免打断自动重连
+                                            
+                                            Log.d(TAG, "防抖结束检查状态: $currentStatus, 主动断开: $isUserInitiatedDisconnect")
+
+                                            if (currentStatus != PrinterStatus.CONNECTED && !isUserInitiatedDisconnect) {
+                                                // 如果是 CONNECTING，说明 SystemPollingManager 正在努力重连
+                                                // 我们给它更多时间，或者检查重连是否已经持续太久
+                                                // 简单的做法：如果是 CONNECTING，我们再给一次机会，或者直接由 SystemPollingManager 失败后处理
+                                                // 但 SystemPollingManager 失败只是打印日志，不会弹窗
+                                                
+                                                // 决定：只要 5 秒后还没连上 (Connected)，就弹窗
+                                                // 这样用户知道出问题了。如果随后连上了，弹窗还在也没关系，用户点确定就行
+                                                // 或者可以监听连接成功关闭弹窗（太复杂）
+                                                
+                                                UiLog.e(TAG, "【蓝牙断联】触发全局弹窗报警 (状态: $currentStatus)")
+                                                globalErrorManager.showError(
+                                                    title = "打印机连接中断",
+                                                    userMessage = "蓝牙打印机已断开，新订单将无法自动打印。请检查打印机电源和状态。",
+                                                    debugMessage = "Reason: ACL_DISCONNECTED broadcast received and timed out (5s).\nDevice: ${config.name}\nAddress: ${config.address}",
+                                                    onSettingsAction = { 
+                                                        try {
+                                                            val intent = Intent(Settings.ACTION_BLUETOOTH_SETTINGS)
+                                                            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                                            context.startActivity(intent)
+                                                        } catch (e: Exception) {
+                                                            Log.e(TAG, "无法打开蓝牙设置: ${e.message}")
+                                                        }
+                                                    }
+                                                )
+                                            }
+                                        }
+                                    } else {
+                                        UiLog.d(TAG, "用户主动断开，忽略断联弹窗")
                                     }
                                 }
                             }
                             BluetoothDevice.ACTION_ACL_CONNECTED -> {
+                                // 连接恢复，立即取消待触发的报警
+                                disconnectAlertJob?.cancel()
+                                
                                 val device = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                                     intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE, BluetoothDevice::class.java)
                                 } else {
@@ -2227,6 +2340,25 @@ class BluetoothPrinterManager @Inject constructor(
                                 if (state == BluetoothAdapter.STATE_TURNING_OFF || state == BluetoothAdapter.STATE_OFF) {
                                     Log.d(TAG, "蓝牙适配器关闭，标记断开")
                                     updatePrinterStatus(config, PrinterStatus.DISCONNECTED)
+                                    
+                                    // 蓝牙关闭是大事，直接报警，不需要防抖 (因为蓝牙关闭了肯定连不上)
+                                    if (!isUserInitiatedDisconnect) {
+                                         UiLog.e(TAG, "【蓝牙关闭】触发全局弹窗报警")
+                                         globalErrorManager.showError(
+                                            title = "蓝牙已关闭",
+                                            userMessage = "检测到系统蓝牙已关闭，打印机无法工作。请开启蓝牙。",
+                                            debugMessage = "Reason: Bluetooth Adapter turned OFF.",
+                                            onSettingsAction = { 
+                                                try {
+                                                    val intent = Intent(Settings.ACTION_BLUETOOTH_SETTINGS)
+                                                    intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                                    context.startActivity(intent)
+                                                } catch (e: Exception) {
+                                                    Log.e(TAG, "无法打开蓝牙设置: ${e.message}")
+                                                }
+                                            }
+                                        )
+                                    }
                                 }
                             }
                         }
