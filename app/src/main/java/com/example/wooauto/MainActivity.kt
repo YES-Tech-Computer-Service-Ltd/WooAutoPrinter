@@ -59,6 +59,8 @@ import com.example.wooauto.presentation.WooAutoApp
 import com.example.wooauto.presentation.theme.WooAutoTheme
 import com.example.wooauto.utils.LocaleManager
 import com.example.wooauto.utils.OrderNotificationManager
+import com.example.wooauto.utils.GlobalErrorManager
+import com.example.wooauto.presentation.components.ErrorDetailsDialog
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -85,10 +87,20 @@ class MainActivity : AppCompatActivity(), OrderNotificationManager.NotificationC
     @Inject
     lateinit var settingsRepository: DomainSettingRepository
     
+    @Inject
+    lateinit var globalErrorManager: GlobalErrorManager
+    
     // 用于存储新订单的状态
     private var showNewOrderDialog by mutableStateOf(false)
     private var currentNewOrder by mutableStateOf<Order?>(null)
     private var currentPendingOrderCount by mutableStateOf(1)
+
+    // 全局错误弹窗状态
+    private var showGlobalErrorDialog by mutableStateOf(false)
+    private var globalErrorTitle by mutableStateOf("")
+    private var globalUserMessage by mutableStateOf("")
+    private var globalDebugMessage by mutableStateOf("")
+    private var globalErrorSettingsAction: (() -> Unit)? = null
     
     // 屏幕常亮状态
     private var isKeepScreenOnEnabled by mutableStateOf(false)
@@ -220,6 +232,17 @@ class MainActivity : AppCompatActivity(), OrderNotificationManager.NotificationC
     @Composable
     private fun MainAppContent() {
         WooAutoTheme {
+            // 监听全局错误事件
+            LaunchedEffect(Unit) {
+                globalErrorManager.errorEvents.collect { event ->
+                    globalErrorTitle = event.title
+                    globalUserMessage = event.userMessage
+                    globalDebugMessage = event.debugMessage
+                    globalErrorSettingsAction = event.onSettingsAction
+                    showGlobalErrorDialog = true
+                }
+            }
+
             Surface(
                 modifier = Modifier.fillMaxSize(),
                 color = MaterialTheme.colorScheme.background
@@ -266,6 +289,29 @@ class MainActivity : AppCompatActivity(), OrderNotificationManager.NotificationC
                                     orderNotificationManager.markOrderAsRead(targetId)
                                 } catch (_: Exception) {}
                             }
+                        }
+                    )
+                }
+
+                // 全局错误弹窗
+                if (showGlobalErrorDialog) {
+                    ErrorDetailsDialog(
+                        title = globalErrorTitle,
+                        userMessage = globalUserMessage,
+                        debugMessage = globalDebugMessage,
+                        showSettingsButton = globalErrorSettingsAction != null,
+                        showAckButton = true,
+                        settingsButtonText = "设置",
+                        ackButtonText = "知道了",
+                        onSettingsClick = {
+                            globalErrorSettingsAction?.invoke()
+                            showGlobalErrorDialog = false
+                        },
+                        onAckClick = {
+                            showGlobalErrorDialog = false
+                        },
+                        onDismissRequest = {
+                            // 强制用户点击按钮处理，禁止点击外部关闭
                         }
                     )
                 }
@@ -567,7 +613,7 @@ fun NewOrderPopup(
                     modifier = Modifier
                         .weight(1f)
                         .height(60.dp)
-                ) {
+                    ) {
                     Icon(imageVector = Icons.Default.Close, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(stringResource(R.string.close_bilingual))
@@ -575,4 +621,4 @@ fun NewOrderPopup(
             }
         }
     }
-} 
+}

@@ -40,6 +40,7 @@ import com.example.wooauto.data.remote.interceptors.NetworkStatusInterceptor
 import com.example.wooauto.data.remote.ConnectionResetHandler
 import dagger.hilt.android.qualifiers.ApplicationContext
 import com.example.wooauto.data.remote.ssl.SslUtil
+import com.example.wooauto.data.remote.dns.Ipv4PreferredDns
 
 /**
  * 网络模块
@@ -140,6 +141,7 @@ class NetworkModule {
             UiLog.d("NetworkModule", "系统信息: ${System.getProperty("os.version")}, SDK: ${android.os.Build.VERSION.SDK_INT}")
 
             val builder = OkHttpClient.Builder()
+                .dns(Ipv4PreferredDns)
                 .addInterceptor(loggingInterceptor)
                 .addInterceptor(authInterceptor)
                 .addInterceptor(sslErrorInterceptor)
