@@ -66,7 +66,8 @@ fun PrinterDetailsScreen(
                     id = UUID.randomUUID().toString(),
                     name = "",
                     address = "",
-                    type = PrinterConfig.PRINTER_TYPE_BLUETOOTH
+                    type = PrinterConfig.PRINTER_TYPE_BLUETOOTH,
+                    paperWidth = PrinterConfig.PAPER_WIDTH_80MM
                 )
             } else {
                 viewModel.getPrinterConfig(printerId!!) ?: PrinterConfig(
