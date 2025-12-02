@@ -42,6 +42,9 @@ import android.os.PowerManager
 import com.example.wooauto.utils.PowerManagementUtils
 import com.example.wooauto.utils.SoundManager
 
+import android.provider.Settings
+import com.example.wooauto.utils.GlobalErrorManager
+
 @AndroidEntryPoint
 class BackgroundPollingService : Service() {
 
@@ -76,6 +79,7 @@ class BackgroundPollingService : Service() {
     @Inject lateinit var settingsRepository: DomainSettingRepository
     @Inject lateinit var systemPollingManager: SystemPollingManager
     @Inject lateinit var soundManager: SoundManager
+    @Inject lateinit var globalErrorManager: GlobalErrorManager
 
     // 使用IO调度器创建协程作用域，减少主线程负担
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
@@ -825,6 +829,23 @@ class BackgroundPollingService : Service() {
      */
     private suspend fun pollOrders() {
         try {
+            // 1. 轮询前先检查网络，如果网络不可用直接跳过并报错
+            if (!checkNetworkConnectivity()) {
+                Log.w(TAG, "轮询前检查：网络不可用，跳过请求")
+                // 触发网络错误弹窗
+                globalErrorManager.showError(
+                    title = getString(R.string.error_network),
+                    userMessage = getString(R.string.update_check_failed),
+                    debugMessage = "轮询前检测: 网络连接不可用\nWiFi状态: ${wifiManager?.wifiState}",
+                    onSettingsAction = {
+                        val intent = Intent(Settings.ACTION_WIFI_SETTINGS)
+                        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                        startActivity(intent)
+                    }
+                )
+                return
+            }
+
             // 更新轮询活动时间戳
             updatePollingActivity()
             
@@ -870,6 +891,25 @@ class BackgroundPollingService : Service() {
                 // 处理错误
                 val error = result.exceptionOrNull()
                 Log.e(TAG, "轮询订单失败: ${error?.message}", error)
+                
+                // 2. 处理 API 异常并触发弹窗
+                // 针对 UnknownHostException (断网/DNS) 或 ConnectException (连不上) 触发弹窗
+                if (error is java.net.UnknownHostException || 
+                    error?.message?.contains("Unable to resolve host") == true ||
+                    error?.message?.contains("Network is unreachable") == true ||
+                    error is java.net.ConnectException) {
+                    
+                     globalErrorManager.showError(
+                        title = getString(R.string.error_network),
+                        userMessage = "无法连接到商店服务器，请检查网络或域名配置。",
+                        debugMessage = "API请求失败:\n${error.message}\n\n如果是 UnknownHostException，通常意味着没有网络或域名解析失败。",
+                        onSettingsAction = {
+                             val intent = Intent(Settings.ACTION_WIFI_SETTINGS)
+                             intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                             startActivity(intent)
+                        }
+                    )
+                }
             }
         } catch (e: Exception) {
             Log.e(TAG, "轮询过程中发生异常: ${e.message}", e)
@@ -1688,7 +1728,6 @@ class BackgroundPollingService : Service() {
                 networkRetryCount++
                 Log.w(TAG, "【网络心跳】处理网络断开，重试次数: $networkRetryCount/$MAX_NETWORK_RETRY_COUNT")
                 
-                if (networkRetryCount <= MAX_NETWORK_RETRY_COUNT) {
                     // 尝试重新获取WiFi锁
                     Log.d(TAG, "【网络心跳】重新获取WiFi锁")
                     releaseWifiLock()
@@ -1739,12 +1778,13 @@ class BackgroundPollingService : Service() {
                             }
                         }
                     } else {
-                        Log.w(TAG, "【网络心跳】网络连接仍未恢复，将继续监控")
-                    }
-                } else {
-                    Log.e(TAG, "【网络心跳】网络重连失败，已达到最大重试次数")
-                    // 显示网络问题通知
+                    Log.w(TAG, "【网络心跳】网络连接仍未恢复")
+                    // 只要重试次数达到阈值，就触发报警
+                    if (networkRetryCount >= MAX_NETWORK_RETRY_COUNT) {
+                        Log.e(TAG, "【网络心跳】网络重连失败，已达到最大重试次数，触发报警")
                     showNetworkIssueNotification()
+                        // 不重置计数，直到网络真正恢复
+                    }
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "【网络心跳】处理网络断开异常: ${e.message}", e)
@@ -1769,6 +1809,25 @@ class BackgroundPollingService : Service() {
             notificationManager.notify(1004, notification)
             
             Log.d(TAG, "【网络心跳】已显示网络问题通知")
+            
+            // 【新增】触发全局 UI 弹窗 (心跳检测失败)
+            val debugInfo = StringBuilder()
+            debugInfo.append("【网络心跳】检测到断网\n")
+            debugInfo.append("重试次数: $MAX_NETWORK_RETRY_COUNT\n")
+            debugInfo.append("WiFi状态: ${wifiManager?.wifiState}\n")
+            debugInfo.append("请检查路由器或移动数据设置。")
+
+            globalErrorManager.showError(
+                title = getString(R.string.error_network), 
+                userMessage = getString(R.string.update_check_failed), 
+                debugMessage = debugInfo.toString(),
+                onSettingsAction = {
+                    val intent = Intent(Settings.ACTION_WIFI_SETTINGS)
+                    intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    startActivity(intent)
+                }
+            )
+            
         } catch (e: Exception) {
             Log.e(TAG, "【网络心跳】显示网络问题通知失败: ${e.message}", e)
         }
