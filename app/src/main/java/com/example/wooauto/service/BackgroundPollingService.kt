@@ -833,10 +833,11 @@ class BackgroundPollingService : Service() {
             if (!checkNetworkConnectivity()) {
                 Log.w(TAG, "轮询前检查：网络不可用，跳过请求")
                 // 触发网络错误弹窗
-                globalErrorManager.showError(
+                globalErrorManager.reportError(
+                    source = com.example.wooauto.utils.ErrorSource.NETWORK,
                     title = getString(R.string.error_network),
-                    userMessage = getString(R.string.update_check_failed),
-                    debugMessage = "轮询前检测: 网络连接不可用\nWiFi状态: ${wifiManager?.wifiState}",
+                    message = getString(R.string.update_check_failed),
+                    debugInfo = "轮询前检测: 网络连接不可用\nWiFi状态: ${wifiManager?.wifiState}",
                     onSettingsAction = {
                         val intent = Intent(Settings.ACTION_WIFI_SETTINGS)
                         intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
@@ -899,10 +900,11 @@ class BackgroundPollingService : Service() {
                     error?.message?.contains("Network is unreachable") == true ||
                     error is java.net.ConnectException) {
                     
-                     globalErrorManager.showError(
+                     globalErrorManager.reportError(
+                        source = com.example.wooauto.utils.ErrorSource.NETWORK,
                         title = getString(R.string.error_network),
-                        userMessage = "无法连接到商店服务器，请检查网络或域名配置。",
-                        debugMessage = "API请求失败:\n${error.message}\n\n如果是 UnknownHostException，通常意味着没有网络或域名解析失败。",
+                        message = "无法连接到商店服务器，请检查网络或域名配置。",
+                        debugInfo = "API请求失败:\n${error.message}\n\n如果是 UnknownHostException，通常意味着没有网络或域名解析失败。",
                         onSettingsAction = {
                              val intent = Intent(Settings.ACTION_WIFI_SETTINGS)
                              intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
@@ -1329,6 +1331,9 @@ class BackgroundPollingService : Service() {
                 super.onAvailable(network)
                 val wasOffline = !isNetworkAvailable
                 isNetworkAvailable = true
+                
+                // 网络恢复，清除网络错误
+                globalErrorManager.resolveError(com.example.wooauto.utils.ErrorSource.NETWORK)
 
                 // 只有在确实从离线状态恢复且当前正在轮询时，才触发一次额外轮询
                 if (wasOffline && isPollingActive && initialPollingComplete) {
@@ -1760,6 +1765,9 @@ class BackgroundPollingService : Service() {
                         Log.i(TAG, "【网络心跳】网络连接已恢复")
                         networkRetryCount = 0
                         
+                        // 网络恢复，清除错误状态
+                        globalErrorManager.resolveError(com.example.wooauto.utils.ErrorSource.NETWORK)
+                        
                         // 网络恢复后，触发一次立即轮询
                         if (isPollingActive) {
                             Log.d(TAG, "【网络心跳】网络恢复后触发立即轮询")
@@ -1817,10 +1825,11 @@ class BackgroundPollingService : Service() {
             debugInfo.append("WiFi状态: ${wifiManager?.wifiState}\n")
             debugInfo.append("请检查路由器或移动数据设置。")
 
-            globalErrorManager.showError(
+            globalErrorManager.reportError(
+                source = com.example.wooauto.utils.ErrorSource.NETWORK,
                 title = getString(R.string.error_network), 
-                userMessage = getString(R.string.update_check_failed), 
-                debugMessage = debugInfo.toString(),
+                message = getString(R.string.update_check_failed), 
+                debugInfo = debugInfo.toString(),
                 onSettingsAction = {
                     val intent = Intent(Settings.ACTION_WIFI_SETTINGS)
                     intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK

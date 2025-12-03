@@ -61,6 +61,7 @@ import com.example.wooauto.utils.LocaleManager
 import com.example.wooauto.utils.OrderNotificationManager
 import com.example.wooauto.utils.GlobalErrorManager
 import com.example.wooauto.presentation.components.ErrorDetailsDialog
+import com.example.wooauto.utils.AppError
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -232,14 +233,49 @@ class MainActivity : AppCompatActivity(), OrderNotificationManager.NotificationC
     @Composable
     private fun MainAppContent() {
         WooAutoTheme {
-            // 监听全局错误事件
-            LaunchedEffect(Unit) {
-                globalErrorManager.errorEvents.collect { event ->
-                    globalErrorTitle = event.title
-                    globalUserMessage = event.userMessage
-                    globalDebugMessage = event.debugMessage
-                    globalErrorSettingsAction = event.onSettingsAction
+            // 监听全局错误状态
+            val activeErrorsState = globalErrorManager.activeErrors.collectAsState()
+            val activeErrors = activeErrorsState.value
+            // 记录已确认的错误ID，避免重复弹窗
+            val ackedErrorIds = remember { mutableSetOf<String>() }
+
+            LaunchedEffect(activeErrors) {
+                // 检查是否有"未确认"的活跃错误
+                val hasUnackedErrors = activeErrors.values.any { !ackedErrorIds.contains(it.id) }
+                
+                if (hasUnackedErrors) {
+                    // 有新错误，生成聚合信息并显示
+                    val displayList = activeErrors.values.sortedBy { it.source }
+                    
+                    if (displayList.size > 1) {
+                         globalErrorTitle = "检测到 ${displayList.size} 个系统异常"
+                         // 聚合显示
+                         val sb = StringBuilder()
+                         displayList.forEach { err ->
+                             sb.append("❌ ${err.title}\n${err.message}\n\n")
+                         }
+                         globalUserMessage = sb.toString().trimEnd()
+                         
+                         val debugSb = StringBuilder()
+                         displayList.forEach { err ->
+                             debugSb.append("=== [${err.source}] ===\n${err.debugInfo ?: "无调试信息"}\n\n")
+                         }
+                         globalDebugMessage = debugSb.toString().trimEnd()
+                         
+                         // 优先取第一个动作
+                         globalErrorSettingsAction = displayList.firstOrNull()?.onSettingsAction
+                    } else if (displayList.isNotEmpty()) {
+                        val error = displayList.first()
+                        globalErrorTitle = error.title
+                        globalUserMessage = error.message
+                        globalDebugMessage = error.debugInfo ?: ""
+                        globalErrorSettingsAction = error.onSettingsAction
+                    }
                     showGlobalErrorDialog = true
+                } else if (activeErrors.isEmpty()) {
+                    // 如果所有错误都解决了，自动关闭弹窗并重置确认记录
+                    showGlobalErrorDialog = false
+                    ackedErrorIds.clear()
                 }
             }
 
@@ -308,6 +344,8 @@ class MainActivity : AppCompatActivity(), OrderNotificationManager.NotificationC
                             showGlobalErrorDialog = false
                         },
                         onAckClick = {
+                            // 标记当前所有错误为已确认
+                            ackedErrorIds.addAll(activeErrors.values.map { it.id })
                             showGlobalErrorDialog = false
                         },
                         onDismissRequest = {

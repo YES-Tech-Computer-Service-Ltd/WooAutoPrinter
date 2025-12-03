@@ -4,12 +4,14 @@ import android.Manifest
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
+import android.bluetooth.BluetoothSocket
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.SystemClock
 import android.util.Log
 import com.example.wooauto.utils.UiLog
 import androidx.core.app.ActivityCompat
@@ -22,6 +24,8 @@ import com.dantsu.escposprinter.exceptions.EscPosEncodingException
 import com.dantsu.escposprinter.exceptions.EscPosParserException
 import com.example.wooauto.domain.models.Order
 import com.example.wooauto.domain.models.PrinterConfig
+import com.example.wooauto.domain.printer.PrinterConnectionCheckResult
+import com.example.wooauto.domain.printer.PrinterConnectionState
 import com.example.wooauto.domain.printer.PrinterDevice
 import com.example.wooauto.domain.printer.PrinterManager
 import com.example.wooauto.domain.printer.PrinterStatus
@@ -57,6 +61,7 @@ import android.graphics.Color
 import android.graphics.Paint
 import androidx.annotation.RequiresPermission
 import java.io.ByteArrayOutputStream
+import java.io.InputStream
 import java.util.Date
 import kotlin.math.max
 import kotlinx.coroutines.sync.Mutex
@@ -192,6 +197,7 @@ class BluetoothPrinterManager @Inject constructor(
         // 连接超时时间 (毫秒)
         private const val CONNECT_TIMEOUT = 20000L // 增加到20秒
         private const val CONNECTION_TIMEOUT = 15000L // 增加到15秒
+        private const val STATUS_QUERY_TIMEOUT_MS = 1500L
 
         // 最大重试次数
         private const val MAX_RETRY_COUNT = 3 // 减少重试次数，避免过度重试
@@ -409,10 +415,11 @@ class BluetoothPrinterManager @Inject constructor(
                                      val dAdapter = getBluetoothAdapter()
                                      if (dAdapter == null || !dAdapter.isEnabled) {
                                          UiLog.e(TAG, "【连接失败】蓝牙未开启，触发报警")
-                                         globalErrorManager.showError(
+                                         globalErrorManager.reportError(
+                                            source = com.example.wooauto.utils.ErrorSource.BLUETOOTH,
                                             title = "蓝牙未开启",
-                                            userMessage = "系统蓝牙未开启，无法连接打印机。请开启蓝牙。",
-                                            debugMessage = "Reason: Connect attempt failed because BT is disabled.",
+                                            message = "系统蓝牙未开启，无法连接打印机。请开启蓝牙。",
+                                            debugInfo = "Reason: Connect attempt failed because BT is disabled.",
                                             onSettingsAction = { 
                                                 try {
                                                     val intent = Intent(Settings.ACTION_BLUETOOTH_SETTINGS)
@@ -2279,6 +2286,13 @@ class BluetoothPrinterManager @Inject constructor(
                                         disconnectAlertJob = managerScope.launch {
                                             delay(5000) // 5秒防抖，等待自动重连机会
                                             
+                                            // [新增逻辑] 如果蓝牙已关闭，则不报打印机断联，避免与"蓝牙已关闭"弹窗重复
+                                            val adapter = getBluetoothAdapter()
+                                            if (adapter == null || !adapter.isEnabled) {
+                                                Log.d(TAG, "防抖结束，检测到蓝牙已关闭，忽略打印机层面的断联报警")
+                                                return@launch
+                                            }
+
                                             val currentStatus = getPrinterStatus(config)
                                             // 修正：即使状态是 CONNECTING 也应该检查是否实际上失败了
                                             // 5秒后如果不是 CONNECTED，就应该报警
@@ -2299,10 +2313,11 @@ class BluetoothPrinterManager @Inject constructor(
                                                 // 或者可以监听连接成功关闭弹窗（太复杂）
                                                 
                                                 UiLog.e(TAG, "【蓝牙断联】触发全局弹窗报警 (状态: $currentStatus)")
-                                                globalErrorManager.showError(
+                                                globalErrorManager.reportError(
+                                                    source = com.example.wooauto.utils.ErrorSource.PRINTER_CONN,
                                                     title = "打印机连接中断",
-                                                    userMessage = "蓝牙打印机已断开，新订单将无法自动打印。请检查打印机电源和状态。",
-                                                    debugMessage = "Reason: ACL_DISCONNECTED broadcast received and timed out (5s).\nDevice: ${config.name}\nAddress: ${config.address}",
+                                                    message = "蓝牙打印机已断开，新订单将无法自动打印。请检查打印机电源和状态。",
+                                                    debugInfo = "Reason: ACL_DISCONNECTED broadcast received and timed out (5s).\nDevice: ${config.name}\nAddress: ${config.address}",
                                                     onSettingsAction = { 
                                                         try {
                                                             val intent = Intent(Settings.ACTION_BLUETOOTH_SETTINGS)
@@ -2324,6 +2339,9 @@ class BluetoothPrinterManager @Inject constructor(
                                 // 连接恢复，立即取消待触发的报警
                                 disconnectAlertJob?.cancel()
                                 
+                                // 清除打印机断联错误
+                                globalErrorManager.resolveError(com.example.wooauto.utils.ErrorSource.PRINTER_CONN)
+                                
                                 val device = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                                     intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE, BluetoothDevice::class.java)
                                 } else {
@@ -2344,10 +2362,11 @@ class BluetoothPrinterManager @Inject constructor(
                                     // 蓝牙关闭是大事，直接报警，不需要防抖 (因为蓝牙关闭了肯定连不上)
                                     if (!isUserInitiatedDisconnect) {
                                          UiLog.e(TAG, "【蓝牙关闭】触发全局弹窗报警")
-                                         globalErrorManager.showError(
+                                         globalErrorManager.reportError(
+                                            source = com.example.wooauto.utils.ErrorSource.BLUETOOTH,
                                             title = "蓝牙已关闭",
-                                            userMessage = "检测到系统蓝牙已关闭，打印机无法工作。请开启蓝牙。",
-                                            debugMessage = "Reason: Bluetooth Adapter turned OFF.",
+                                            message = "检测到系统蓝牙已关闭，打印机无法工作。请开启蓝牙。",
+                                            debugInfo = "Reason: Bluetooth Adapter turned OFF.",
                                             onSettingsAction = { 
                                                 try {
                                                     val intent = Intent(Settings.ACTION_BLUETOOTH_SETTINGS)
@@ -2359,6 +2378,9 @@ class BluetoothPrinterManager @Inject constructor(
                                             }
                                         )
                                     }
+                                } else if (state == BluetoothAdapter.STATE_ON) {
+                                    // 蓝牙恢复开启，自动清除蓝牙错误
+                                    globalErrorManager.resolveError(com.example.wooauto.utils.ErrorSource.BLUETOOTH)
                                 }
                             }
                         }
@@ -2496,6 +2518,431 @@ class BluetoothPrinterManager @Inject constructor(
             false
         }
     }
+
+    override suspend fun queryRealtimeStatus(config: PrinterConfig): PrinterConnectionCheckResult {
+        return try {
+            val vendor = getVendorForAddress(config.address)
+            when (vendor) {
+                PrinterVendor.STAR -> queryStarRealtimeStatus(config)
+                else -> queryEscPosRealtimeStatus(config)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "打印机状态检测异常: ${e.message}", e)
+            PrinterConnectionCheckResult(
+                state = PrinterConnectionState.ERROR,
+                summary = "检测失败: ${e.message ?: "未知错误"}"
+            )
+        }
+    }
+
+    private suspend fun queryStarRealtimeStatus(config: PrinterConfig): PrinterConnectionCheckResult {
+        val connected = ensurePrinterConnected(config)
+        if (!connected) {
+            return PrinterConnectionCheckResult(
+                state = PrinterConnectionState.ERROR,
+                summary = "无法连接到打印机"
+            )
+        }
+        val ok = withContext(Dispatchers.IO) {
+            runCatching { starDriver.testConnection() }.getOrDefault(false)
+        }
+        return if (ok) {
+            PrinterConnectionCheckResult(
+                state = PrinterConnectionState.ONLINE,
+                summary = "打印机在线",
+                detail = "Star 驱动返回正常状态"
+            )
+        } else {
+            PrinterConnectionCheckResult(
+                state = PrinterConnectionState.ERROR,
+                summary = "无法获取打印机状态"
+            )
+        }
+    }
+
+    private suspend fun queryEscPosRealtimeStatus(config: PrinterConfig): PrinterConnectionCheckResult {
+        if (!ensurePrinterConnected(config)) {
+            return PrinterConnectionCheckResult(
+                state = PrinterConnectionState.ERROR,
+                summary = "无法连接到打印机"
+            )
+        }
+
+        val connection = currentConnection ?: return PrinterConnectionCheckResult(
+            state = PrinterConnectionState.ERROR,
+            summary = "无有效连接对象"
+        )
+
+        val socket = extractBluetoothSocket(connection) ?: return PrinterConnectionCheckResult(
+            state = PrinterConnectionState.ERROR,
+            summary = "无法访问蓝牙Socket"
+        )
+
+        val inputStream = try {
+            socket.inputStream
+        } catch (e: Exception) {
+            Log.e(TAG, "获取输入流失败: ${e.message}")
+            return PrinterConnectionCheckResult(
+                state = PrinterConnectionState.ERROR,
+                summary = "读取打印机响应失败"
+            )
+        }
+
+        val traceRecords = mutableListOf<String>()
+        var lastResponseHex: String? = null
+        var lastResponseDec: String? = null
+        var lastCommandId: String? = null
+        var responseCount = 0
+
+        return withContext(Dispatchers.IO) {
+            for (query in escPosStatusQueries) {
+                val response = sendEscPosStatusCommand(connection, inputStream, query.command, query.timeoutMs)
+                if (response == null || response.isEmpty()) {
+                    traceRecords += "${query.id}: 无响应"
+                    continue
+                }
+
+                responseCount++
+                val hex = response.toHexString()
+                val dec = response.toDecimalString()
+                traceRecords += "${query.id}: $hex"
+                lastResponseHex = hex
+                lastResponseDec = dec
+                lastCommandId = query.id
+
+                val parsed = query.parser(response)
+                if (parsed != null) {
+                    val trace = traceRecords.joinToString("\n").takeIf { it.isNotBlank() }
+                    return@withContext parsed.copy(
+                        detail = mergeStatusDetails(parsed.detail, trace),
+                        commandUsed = query.id,
+                        rawResponseHex = hex,
+                        rawResponseDec = dec
+                    )
+                }
+            }
+
+            val trace = traceRecords.joinToString("\n").takeIf { it.isNotBlank() }
+            if (responseCount > 0) {
+                PrinterConnectionCheckResult(
+                    state = PrinterConnectionState.ONLINE,
+                    summary = "打印机已响应，但无法解析具体状态",
+                    detail = trace,
+                    commandUsed = lastCommandId,
+                    rawResponseHex = lastResponseHex,
+                    rawResponseDec = lastResponseDec
+                )
+            } else {
+                PrinterConnectionCheckResult(
+                    state = PrinterConnectionState.ERROR,
+                    summary = "未收到打印机状态回应",
+                    detail = trace
+                )
+            }
+        }
+    }
+
+    private suspend fun sendEscPosStatusCommand(
+        connection: BluetoothConnection,
+        inputStream: InputStream,
+        command: ByteArray,
+        timeoutMs: Long
+    ): ByteArray? {
+        return try {
+            drainInputStream(inputStream)
+            connection.write(command)
+            readStatusResponse(inputStream, timeoutMs)
+        } catch (e: Exception) {
+            Log.e(TAG, "发送状态命令失败: ${e.message}")
+            null
+        }
+    }
+
+    private suspend fun readStatusResponse(inputStream: InputStream, timeoutMs: Long): ByteArray? {
+        val buffer = ByteArrayOutputStream()
+        val start = SystemClock.elapsedRealtime()
+        while (SystemClock.elapsedRealtime() - start < timeoutMs) {
+            val available = runCatching { inputStream.available() }.getOrElse {
+                Log.w(TAG, "读取状态可用数据失败: ${it.message}")
+                return null
+            }
+
+            if (available > 0) {
+                val chunk = ByteArray(minOf(available, 256))
+                val read = inputStream.read(chunk)
+                if (read > 0) {
+                    buffer.write(chunk, 0, read)
+                    if (inputStream.available() == 0) {
+                        return buffer.toByteArray()
+                    }
+                }
+            }
+            delay(40)
+        }
+
+        return if (buffer.size() > 0) buffer.toByteArray() else null
+    }
+
+    private fun drainInputStream(inputStream: InputStream) {
+        try {
+            while (inputStream.available() > 0) {
+                val skip = ByteArray(minOf(inputStream.available(), 256))
+                inputStream.read(skip)
+            }
+        } catch (_: Exception) {
+        }
+    }
+
+    private fun extractBluetoothSocket(connection: BluetoothConnection): BluetoothSocket? {
+        return try {
+            val field = BluetoothConnection::class.java.getDeclaredField("socket")
+            field.isAccessible = true
+            field.get(connection) as? BluetoothSocket
+        } catch (e: Exception) {
+            Log.w(TAG, "无法访问蓝牙socket: ${e.message}")
+            null
+        }
+    }
+
+    private fun mergeStatusDetails(primary: String?, trace: String?): String? {
+        val parts = listOfNotNull(
+            primary?.takeIf { it.isNotBlank() },
+            trace?.takeIf { it.isNotBlank() }
+        )
+        return if (parts.isEmpty()) null else parts.joinToString("\n")
+    }
+
+    private data class EscPosStatusQuery(
+        val id: String,
+        val description: String,
+        val command: ByteArray,
+        val parser: (ByteArray) -> PrinterConnectionCheckResult?,
+        val timeoutMs: Long = STATUS_QUERY_TIMEOUT_MS
+    )
+
+    private val escPosStatusQueries = listOf(
+        EscPosStatusQuery(
+            id = "DLE EOT 1",
+            description = "打印机基础状态",
+            command = byteArrayOf(0x10, 0x04, 0x01),
+            parser = this::parsePrinterGeneralStatus
+        ),
+        EscPosStatusQuery(
+            id = "DLE EOT 2",
+            description = "脱机状态",
+            command = byteArrayOf(0x10, 0x04, 0x02),
+            parser = this::parseOfflineStatus
+        ),
+        EscPosStatusQuery(
+            id = "DLE EOT 3",
+            description = "错误状态",
+            command = byteArrayOf(0x10, 0x04, 0x03),
+            parser = this::parseErrorStatus
+        ),
+        EscPosStatusQuery(
+            id = "DLE EOT 4",
+            description = "纸张状态",
+            command = byteArrayOf(0x10, 0x04, 0x04),
+            parser = this::parsePaperStatus
+        ),
+        EscPosStatusQuery(
+            id = "GS r 1",
+            description = "纸张传感器",
+            command = byteArrayOf(0x1D, 0x72, 0x01),
+            parser = this::parseSensorStatus
+        ),
+        EscPosStatusQuery(
+            id = "GS I 0",
+            description = "设备信息",
+            command = byteArrayOf(0x1D, 0x49, 0x00),
+            parser = this::parseDeviceInfoStatus,
+            timeoutMs = 2500L
+        )
+    )
+
+    private fun parsePrinterGeneralStatus(response: ByteArray): PrinterConnectionCheckResult? {
+        if (response.isEmpty()) return null
+        val value = response[0].toInt() and 0xFF
+        val notices = mutableListOf<String>()
+        val warnings = mutableListOf<String>()
+
+        if (value and 0x01 != 0) {
+            notices += "钱箱引脚3为高电平"
+        }
+        if (value and 0x02 != 0) {
+            notices += "钱箱引脚2为高电平"
+        }
+        if (value and 0x10 != 0) {
+            warnings += "打印机忙或脱机"
+        }
+        if (value and 0x20 != 0) {
+            warnings += "等待恢复上线（面板被暂停）"
+        }
+        if (value and 0x40 != 0) {
+            warnings += "面板正在走纸"
+        }
+        val hasError = value and 0x80 != 0
+
+        val state = when {
+            hasError -> PrinterConnectionState.ERROR
+            value and 0x10 != 0 -> PrinterConnectionState.OFFLINE
+            warnings.isNotEmpty() -> PrinterConnectionState.WARNING
+            else -> PrinterConnectionState.ONLINE
+        }
+
+        val detailParts = mutableListOf<String>()
+        if (warnings.isNotEmpty()) detailParts += warnings.joinToString("、")
+        if (hasError) detailParts += "打印机出现错误"
+        if (notices.isNotEmpty()) detailParts += notices.joinToString("、")
+        if (response.size > 1) {
+            val extraBytes = response.drop(1).joinToString(" ") { String.format("%02X", it) }
+            detailParts += "附加字节: $extraBytes"
+        }
+
+        val summary = when (state) {
+            PrinterConnectionState.ONLINE -> "打印机在线"
+            PrinterConnectionState.WARNING -> "打印机在线（存在提示）"
+            PrinterConnectionState.OFFLINE -> "打印机忙或脱机"
+            PrinterConnectionState.ERROR -> "打印机报告错误"
+        }
+
+        return PrinterConnectionCheckResult(
+            state = state,
+            summary = summary,
+            detail = detailParts.takeIf { it.isNotEmpty() }?.joinToString("\n")
+        )
+    }
+
+    private fun parseOfflineStatus(response: ByteArray): PrinterConnectionCheckResult? {
+        if (response.isEmpty()) return null
+        val value = response[0].toInt() and 0xFF
+        val issues = mutableListOf<String>()
+        if (value and 0x01 != 0) issues += "打印机脱机"
+        if (value and 0x02 != 0) issues += "机盖打开"
+        if (value and 0x04 != 0) issues += "进纸键被按下"
+        if (value and 0x08 != 0) issues += "检测到缺纸"
+        if (value and 0x10 != 0) issues += "切刀错误"
+        if (value and 0x20 != 0) issues += "不可恢复错误"
+        if (value and 0x40 != 0) issues += "可恢复错误"
+
+        val state = when {
+            value and 0x01 != 0 || value and 0x08 != 0 || value and 0x20 != 0 -> PrinterConnectionState.OFFLINE
+            issues.isNotEmpty() -> PrinterConnectionState.WARNING
+            else -> PrinterConnectionState.ONLINE
+        }
+
+        val summary = when (state) {
+            PrinterConnectionState.ONLINE -> "打印机在线"
+            PrinterConnectionState.WARNING -> "打印机在线但存在警告"
+            PrinterConnectionState.OFFLINE -> "打印机处于脱机状态"
+            PrinterConnectionState.ERROR -> "打印机异常"
+        }
+
+        return PrinterConnectionCheckResult(
+            state = state,
+            summary = summary,
+            detail = issues.takeIf { it.isNotEmpty() }?.joinToString("、")
+        )
+    }
+
+    private fun parseErrorStatus(response: ByteArray): PrinterConnectionCheckResult? {
+        if (response.isEmpty()) return null
+        val value = response[0].toInt() and 0xFF
+        if (value == 0) {
+            return PrinterConnectionCheckResult(
+                state = PrinterConnectionState.ONLINE,
+                summary = "未检测到打印机错误"
+            )
+        }
+
+        val issues = mutableListOf<String>()
+        if (value and 0x01 != 0) issues += "存在可恢复错误"
+        if (value and 0x02 != 0) issues += "切刀错误"
+        if (value and 0x04 != 0) issues += "不可恢复错误"
+        if (value and 0x08 != 0) issues += "需要自动恢复"
+
+        val state = if (value and 0x04 != 0) PrinterConnectionState.ERROR else PrinterConnectionState.WARNING
+        val summary = if (state == PrinterConnectionState.ERROR) "检测到打印机错误" else "打印机返回警告"
+
+        return PrinterConnectionCheckResult(
+            state = state,
+            summary = summary,
+            detail = issues.joinToString("、")
+        )
+    }
+
+    private fun parsePaperStatus(response: ByteArray): PrinterConnectionCheckResult? {
+        if (response.isEmpty()) return null
+        val value = response[0].toInt() and 0xFF
+        val issues = mutableListOf<String>()
+        if (value and 0x01 != 0) issues += "纸张将用尽"
+        if (value and 0x02 != 0) issues += "缺纸"
+
+        val state = when {
+            value and 0x02 != 0 -> PrinterConnectionState.OFFLINE
+            value and 0x01 != 0 -> PrinterConnectionState.WARNING
+            else -> PrinterConnectionState.ONLINE
+        }
+
+        val summary = when (state) {
+            PrinterConnectionState.ONLINE -> "纸张状态正常"
+            PrinterConnectionState.WARNING -> "纸张即将用尽"
+            PrinterConnectionState.OFFLINE -> "打印机缺纸"
+            PrinterConnectionState.ERROR -> "未知纸张状态"
+        }
+
+        return PrinterConnectionCheckResult(
+            state = state,
+            summary = summary,
+            detail = issues.takeIf { it.isNotEmpty() }?.joinToString("、")
+        )
+    }
+
+    private fun parseSensorStatus(response: ByteArray): PrinterConnectionCheckResult? {
+        if (response.isEmpty()) return null
+        val value = response[0].toInt() and 0xFF
+        val issues = mutableListOf<String>()
+        if (value and 0x01 != 0) issues += "前传感器：纸将用尽"
+        if (value and 0x02 != 0) issues += "前传感器：缺纸"
+        if (value and 0x04 != 0) issues += "后传感器：纸将用尽"
+        if (value and 0x08 != 0) issues += "后传感器：缺纸"
+
+        val state = when {
+            value and 0x02 != 0 || value and 0x08 != 0 -> PrinterConnectionState.OFFLINE
+            value and 0x01 != 0 || value and 0x04 != 0 -> PrinterConnectionState.WARNING
+            else -> PrinterConnectionState.ONLINE
+        }
+
+        val summary = when (state) {
+            PrinterConnectionState.ONLINE -> "传感器状态正常"
+            PrinterConnectionState.WARNING -> "传感器提示纸张不足"
+            PrinterConnectionState.OFFLINE -> "传感器检测到缺纸"
+            PrinterConnectionState.ERROR -> "传感器异常"
+        }
+
+        return PrinterConnectionCheckResult(
+            state = state,
+            summary = summary,
+            detail = issues.takeIf { it.isNotEmpty() }?.joinToString("、")
+        )
+    }
+
+    private fun parseDeviceInfoStatus(response: ByteArray): PrinterConnectionCheckResult? {
+        if (response.isEmpty()) return null
+        val text = runCatching { String(response, Charsets.UTF_8).trim() }.getOrDefault("")
+        if (text.isBlank()) return null
+        return PrinterConnectionCheckResult(
+            state = PrinterConnectionState.ONLINE,
+            summary = "打印机返回设备信息",
+            detail = text
+        )
+    }
+
+    private fun ByteArray.toHexString(): String =
+        joinToString(" ") { String.format("%02X", it) }
+
+    private fun ByteArray.toDecimalString(): String =
+        joinToString(" ") { ((it.toInt() and 0xFF)).toString() }
 
     /**
      * 最小走纸（1-2行），用于唤醒打印机

@@ -82,6 +82,11 @@ interface PrinterManager {
     suspend fun testConnection(config: PrinterConfig): Boolean
     
     /**
+     * 实时查询打印机状态（ESC/POS/厂商指令）
+     */
+    suspend fun queryRealtimeStatus(config: PrinterConfig): PrinterConnectionCheckResult
+    
+    /**
      * 中文字符测试打印
      * @param config 打印机配置
      * @return 打印结果，成功返回true

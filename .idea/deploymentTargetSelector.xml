@@ -15,17 +15,17 @@
           <targets>
             <Target type="DEFAULT_BOOT">
               <handle>
-                <DeviceId pluginId="PhysicalDevice" identifier="serial=X25072608HA1009437" />
-              </handle>
-            </Target>
-            <Target type="DEFAULT_BOOT">
-              <handle>
-                <DeviceId pluginId="LocalEmulator" identifier="path=C:\Users\wuche\.android\avd\Medium_Tablet_2.avd" />
+                <DeviceId pluginId="PhysicalDevice" identifier="serial=X25072608HB2001276" />
               </handle>
             </Target>
             <Target type="DEFAULT_BOOT">
               <handle>
                 <DeviceId pluginId="PhysicalDevice" identifier="serial=ENJO1CGLEF" />
+              </handle>
+            </Target>
+            <Target type="DEFAULT_BOOT">
+              <handle>
+                <DeviceId pluginId="LocalEmulator" identifier="path=C:\Users\wuche\.android\avd\Medium_Tablet_2.avd" />
               </handle>
             </Target>
           </targets>

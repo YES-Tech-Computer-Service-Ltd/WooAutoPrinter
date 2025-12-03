@@ -12,6 +12,7 @@ import com.example.wooauto.R // Import R for string resources
 import com.example.wooauto.data.printer.BluetoothPrinterManager
 import com.example.wooauto.data.remote.WooCommerceConfig
 import com.example.wooauto.domain.models.PrinterConfig
+import com.example.wooauto.domain.printer.PrinterConnectionCheckResult
 import com.example.wooauto.domain.printer.PrinterDevice
 import com.example.wooauto.domain.printer.PrinterManager
 import com.example.wooauto.domain.printer.PrinterStatus
@@ -153,6 +154,8 @@ class SettingsViewModel @Inject constructor(
     // 添加连接错误信息状态
     private val _connectionErrorMessage = MutableStateFlow<String?>(null)
     val connectionErrorMessage: StateFlow<String?> = _connectionErrorMessage.asStateFlow()
+    private val _connectionCheckInProgress = MutableStateFlow<String?>(null)
+    val connectionCheckInProgress: StateFlow<String?> = _connectionCheckInProgress.asStateFlow()
 
     // 自动化任务状态 (只保留自动打印相关的)
     // private val _automaticOrderProcessing = MutableStateFlow(false)
@@ -839,6 +842,15 @@ class SettingsViewModel @Inject constructor(
             } catch (e: Exception) {
                 Log.e("SettingsViewModel", "断开打印机连接失败", e)
             }
+        }
+    }
+
+    suspend fun checkPrinterConnection(config: PrinterConfig): PrinterConnectionCheckResult {
+        return try {
+            _connectionCheckInProgress.value = config.id
+            printerManager.queryRealtimeStatus(config)
+        } finally {
+            _connectionCheckInProgress.value = null
         }
     }
     

@@ -18,9 +18,12 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -85,6 +88,8 @@ import androidx.navigation.NavController
 import com.example.wooauto.R
 import com.example.wooauto.domain.models.PrinterConfig
 import com.example.wooauto.domain.printer.PrinterStatus
+import com.example.wooauto.domain.printer.PrinterConnectionCheckResult
+import com.example.wooauto.domain.printer.PrinterConnectionState
 import com.example.wooauto.domain.printer.PrinterDevice
 import com.example.wooauto.data.printer.BluetoothPrinterManager
 import com.example.wooauto.presentation.navigation.Screen
@@ -103,12 +108,14 @@ private fun PrinterList(
     currentPrinterConfig: PrinterConfig?,
     printerStatus: PrinterStatus,
     isPrinting: Boolean,
+    connectionCheckInProgressId: String?,
     onConnect: (PrinterConfig) -> Unit,
     onEdit: (PrinterConfig) -> Unit,
     onDelete: (PrinterConfig) -> Unit,
     onTestPrint: (PrinterConfig) -> Unit,
     onChineseTestPrint: (PrinterConfig) -> Unit,
     onSetDefault: (PrinterConfig, Boolean) -> Unit,
+    onCheckConnection: (PrinterConfig) -> Unit,
     modifier: Modifier = Modifier
 ) {
     LazyColumn(
@@ -120,12 +127,14 @@ private fun PrinterList(
                 printerConfig = printer,
                 isConnected = printerStatus == PrinterStatus.CONNECTED && currentPrinterConfig?.id == printer.id,
                 isPrinting = isPrinting && currentPrinterConfig?.id == printer.id,
+                isCheckingConnection = connectionCheckInProgressId == printer.id,
                 onConnect = { onConnect(printer) },
                 onEdit = { onEdit(printer) },
                 onDelete = { onDelete(printer) },
                 onTestPrint = { onTestPrint(printer) },
                 onChineseTestPrint = { onChineseTestPrint(printer) },
-                onSetDefault = { isDefault -> onSetDefault(printer, isDefault) }
+                onSetDefault = { isDefault -> onSetDefault(printer, isDefault) },
+                onCheckConnection = { onCheckConnection(printer) }
             )
         }
     }
@@ -138,6 +147,7 @@ private fun PrinterSettingsContent(
     currentPrinterConfig: PrinterConfig?,
     printerStatus: PrinterStatus,
     isPrinting: Boolean,
+    connectionCheckInProgressId: String?,
     isScanning: Boolean,
     availablePrinters: List<PrinterDevice>,
     connectionErrorMessage: String?,
@@ -150,6 +160,7 @@ private fun PrinterSettingsContent(
     onTestPrint: (PrinterConfig) -> Unit,
     onChineseTestPrint: (PrinterConfig) -> Unit,
     onSetDefault: (PrinterConfig, Boolean) -> Unit,
+    onCheckConnection: (PrinterConfig) -> Unit,
     onClearError: () -> Unit,
     onAddPrinter: () -> Unit,
     onScan: () -> Unit,
@@ -185,12 +196,14 @@ private fun PrinterSettingsContent(
                     currentPrinterConfig = currentPrinterConfig,
                     printerStatus = printerStatus,
                     isPrinting = isPrinting,
+                    connectionCheckInProgressId = connectionCheckInProgressId,
                     onConnect = onConnect,
                     onEdit = onEdit,
                     onDelete = onDelete,
                     onTestPrint = onTestPrint,
                     onChineseTestPrint = onChineseTestPrint,
                     onSetDefault = onSetDefault,
+                    onCheckConnection = onCheckConnection,
                     modifier = Modifier.weight(1f)
                 )
                 
@@ -239,12 +252,14 @@ fun PrinterSettingsScreen(
     val isScanning by viewModel.isScanning.collectAsState()
     val availablePrinters by viewModel.availablePrinters.collectAsState()
     val connectionErrorMessage by viewModel.connectionErrorMessage.collectAsState()
+    val connectionCheckInProgressId by viewModel.connectionCheckInProgress.collectAsState()
     
     var showDeleteDialog by remember { mutableStateOf(false) }
     var printerToDelete by remember { mutableStateOf<PrinterConfig?>(null) }
     var showScanDialog by remember { mutableStateOf(false) }
     var showConfigurationDialog by remember { mutableStateOf(false) }
     var selectedPrinterForConfig by remember { mutableStateOf<PrinterConfig?>(null) }
+    var connectionResultDialog by remember { mutableStateOf<PrinterConnectionCheckResult?>(null) }
     
     val printerConnectedSuccessMsg = stringResource(id = R.string.printer_connected_success)
     val printerDisconnectedMsg = stringResource(id = R.string.printer_disconnected)
@@ -298,6 +313,7 @@ fun PrinterSettingsScreen(
             currentPrinterConfig = currentPrinterConfig,
             printerStatus = printerStatus,
             isPrinting = isPrinting,
+            connectionCheckInProgressId = connectionCheckInProgressId,
             isScanning = isScanning,
             availablePrinters = availablePrinters,
             connectionErrorMessage = connectionErrorMessage,
@@ -366,6 +382,12 @@ fun PrinterSettingsScreen(
                     lifecycleScope.launch {
                         snackbarHostState.showSnackbar(setAsDefaultSuccessMsg)
                     }
+                }
+            },
+            onCheckConnection = { printer ->
+                lifecycleScope.launch {
+                    val result = viewModel.checkPrinterConnection(printer)
+                    connectionResultDialog = result
                 }
             },
             onClearError = { viewModel.clearConnectionError() },
@@ -440,7 +462,97 @@ fun PrinterSettingsScreen(
                 }
             }
         }
+
+        connectionResultDialog?.let { result ->
+            ConnectionCheckResultDialog(
+                result = result,
+                onDismiss = { connectionResultDialog = null }
+            )
+        }
     }
+}
+
+@Composable
+private fun ConnectionCheckResultDialog(
+    result: PrinterConnectionCheckResult,
+    onDismiss: () -> Unit
+) {
+    val scrollState = rememberScrollState()
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(id = R.string.printer_connection_check_title)) },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 360.dp)
+                    .verticalScroll(scrollState)
+            ) {
+                Text(
+                    text = result.summary,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = stringResource(
+                        id = R.string.printer_connection_check_state,
+                        printerConnectionStateLabel(result.state)
+                    ),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                result.detail?.let {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = stringResource(id = R.string.printer_connection_check_detail_label),
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = it,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+                result.commandUsed?.let {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = stringResource(id = R.string.printer_connection_check_command, it),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+                result.rawResponseHex?.let {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = stringResource(id = R.string.printer_connection_check_raw_hex, it),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+                result.rawResponseDec?.let {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = stringResource(id = R.string.printer_connection_check_raw_dec, it),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = stringResource(id = R.string.close))
+            }
+        }
+    )
+}
+
+@Composable
+private fun printerConnectionStateLabel(state: PrinterConnectionState): String {
+    val resId = when (state) {
+        PrinterConnectionState.ONLINE -> R.string.printer_connection_state_online
+        PrinterConnectionState.WARNING -> R.string.printer_connection_state_warning
+        PrinterConnectionState.OFFLINE -> R.string.printer_connection_state_offline
+        PrinterConnectionState.ERROR -> R.string.printer_connection_state_error
+    }
+    return stringResource(id = resId)
 }
 
 @Composable
@@ -772,12 +884,14 @@ private fun PrinterConfigItem(
     printerConfig: PrinterConfig,
     isConnected: Boolean,
     isPrinting: Boolean,
+    isCheckingConnection: Boolean,
     onConnect: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
     onTestPrint: () -> Unit,
     onChineseTestPrint: () -> Unit,
-    onSetDefault: (Boolean) -> Unit
+    onSetDefault: (Boolean) -> Unit,
+    onCheckConnection: () -> Unit
 ) {
     Card(
         modifier = Modifier
@@ -857,6 +971,40 @@ private fun PrinterConfigItem(
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier
+                        .clickable(enabled = !isCheckingConnection) { onCheckConnection() }
+                        .padding(12.dp)
+                        .weight(1f)
+                ) {
+                    if (isCheckingConnection) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(28.dp),
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.BluetoothSearching,
+                            contentDescription = stringResource(id = R.string.printer_connection_check_button),
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = if (isCheckingConnection) {
+                            stringResource(id = R.string.printer_connection_checking)
+                        } else {
+                            stringResource(id = R.string.printer_connection_check_button)
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
                 // 设置按钮
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -1067,12 +1215,14 @@ public fun PrinterSettingsDialogContent(
     val isScanning by viewModel.isScanning.collectAsState()
     val availablePrinters by viewModel.availablePrinters.collectAsState()
     val connectionErrorMessage by viewModel.connectionErrorMessage.collectAsState()
+    val connectionCheckInProgressId by viewModel.connectionCheckInProgress.collectAsState()
     
     var showDeleteDialog by remember { mutableStateOf(false) }
     var printerToDelete by remember { mutableStateOf<PrinterConfig?>(null) }
     var showScanDialog by remember { mutableStateOf(false) }
     var showConfigurationDialog by remember { mutableStateOf(false) }
     var selectedPrinterForConfig by remember { mutableStateOf<PrinterConfig?>(null) }
+    var connectionResultDialog by remember { mutableStateOf<PrinterConnectionCheckResult?>(null) }
     
     val printerConnectedSuccessMsg = stringResource(id = R.string.printer_connected_success)
     val printerDisconnectedMsg = stringResource(id = R.string.printer_disconnected)
@@ -1127,6 +1277,7 @@ public fun PrinterSettingsDialogContent(
             currentPrinterConfig = currentPrinterConfig,
             printerStatus = printerStatus,
             isPrinting = isPrinting,
+            connectionCheckInProgressId = connectionCheckInProgressId,
             isScanning = isScanning,
             availablePrinters = availablePrinters,
             connectionErrorMessage = connectionErrorMessage,
@@ -1195,6 +1346,12 @@ public fun PrinterSettingsDialogContent(
                     lifecycleScope.launch {
                         snackbarHostState.showSnackbar(setAsDefaultSuccessMsg)
                     }
+                }
+            },
+            onCheckConnection = { printer ->
+                lifecycleScope.launch {
+                    val result = viewModel.checkPrinterConnection(printer)
+                    connectionResultDialog = result
                 }
             },
             onClearError = { viewModel.clearConnectionError() },
@@ -1268,6 +1425,13 @@ public fun PrinterSettingsDialogContent(
                     )
                 }
             }
+        }
+
+        connectionResultDialog?.let { result ->
+            ConnectionCheckResultDialog(
+                result = result,
+                onDismiss = { connectionResultDialog = null }
+            )
         }
     }
 } 
