@@ -197,7 +197,7 @@ class BluetoothPrinterManager @Inject constructor(
         // 连接超时时间 (毫秒)
         private const val CONNECT_TIMEOUT = 20000L // 增加到20秒
         private const val CONNECTION_TIMEOUT = 15000L // 增加到15秒
-        private const val STATUS_QUERY_TIMEOUT_MS = 1500L
+        private const val STATUS_QUERY_TIMEOUT_MS = 3000L
 
         // 最大重试次数
         private const val MAX_RETRY_COUNT = 3 // 减少重试次数，避免过度重试
@@ -2649,7 +2649,8 @@ class BluetoothPrinterManager @Inject constructor(
         timeoutMs: Long
     ): ByteArray? {
         return try {
-            drainInputStream(inputStream)
+            // 移除 drainInputStream，防止在部分设备上误删即将到达的响应
+            // drainInputStream(inputStream)
             connection.write(command)
             readStatusResponse(inputStream, timeoutMs)
         } catch (e: Exception) {
