@@ -2520,20 +2520,11 @@ class BluetoothPrinterManager @Inject constructor(
     }
 
     override suspend fun queryRealtimeStatus(config: PrinterConfig): PrinterConnectionCheckResult {
-        Log.d(TAG, "【状态检查入口】queryRealtimeStatus 被调用，目标: ${config.name}")
         return try {
             val vendor = getVendorForAddress(config.address)
-            Log.d(TAG, "【状态检查入口】厂商识别结果: $vendor")
-            
             when (vendor) {
-                PrinterVendor.STAR -> {
-                    Log.d(TAG, "【状态检查入口】分发到 Star 驱动")
-                    queryStarRealtimeStatus(config)
-                }
-                else -> {
-                    Log.d(TAG, "【状态检查入口】分发到 ESC/POS 驱动")
-                    queryEscPosRealtimeStatus(config)
-                }
+                PrinterVendor.STAR -> queryStarRealtimeStatus(config)
+                else -> queryEscPosRealtimeStatus(config)
             }
         } catch (e: Exception) {
             Log.e(TAG, "打印机状态检测异常: ${e.message}", e)
@@ -2570,9 +2561,7 @@ class BluetoothPrinterManager @Inject constructor(
     }
 
     private suspend fun queryEscPosRealtimeStatus(config: PrinterConfig): PrinterConnectionCheckResult {
-        Log.d(TAG, "【状态检查】开始执行 queryEscPosRealtimeStatus")
         if (!ensurePrinterConnected(config)) {
-            Log.w(TAG, "【状态检查】打印机未连接，直接返回错误")
             return PrinterConnectionCheckResult(
                 state = PrinterConnectionState.ERROR,
                 summary = "无法连接到打印机"
@@ -2607,16 +2596,12 @@ class BluetoothPrinterManager @Inject constructor(
 
         return withContext(Dispatchers.IO) {
             for (query in escPosStatusQueries) {
-                Log.d(TAG, "【状态检查】准备发送指令: ${query.id} (${query.description})")
                 val response = sendEscPosStatusCommand(connection, inputStream, query.command, query.timeoutMs)
-                
                 if (response == null || response.isEmpty()) {
-                    Log.w(TAG, "【状态检查】指令 ${query.id} 无响应")
                     traceRecords += "${query.id}: 无响应"
                     continue
                 }
 
-                Log.d(TAG, "【状态检查】指令 ${query.id} 收到响应: ${response.toHexString()}")
                 responseCount++
                 val hex = response.toHexString()
                 val dec = response.toDecimalString()
@@ -2627,7 +2612,6 @@ class BluetoothPrinterManager @Inject constructor(
 
                 val parsed = query.parser(response)
                 if (parsed != null) {
-                    Log.i(TAG, "【状态检查】解析成功: ${parsed.summary}")
                     val trace = traceRecords.joinToString("\n").takeIf { it.isNotBlank() }
                     return@withContext parsed.copy(
                         detail = mergeStatusDetails(parsed.detail, trace),
@@ -2635,8 +2619,6 @@ class BluetoothPrinterManager @Inject constructor(
                         rawResponseHex = hex,
                         rawResponseDec = dec
                     )
-                } else {
-                    Log.w(TAG, "【状态检查】无法解析响应数据")
                 }
             }
 
@@ -2683,49 +2665,53 @@ class BluetoothPrinterManager @Inject constructor(
         return withContext(Dispatchers.IO) {
             val buffer = ByteArrayOutputStream()
             val start = SystemClock.elapsedRealtime()
-            
-            Log.d(TAG, "【状态检查】readStatusResponse 开始读取 (纯非阻塞模式)，超时设定: ${timeoutMs}ms")
 
             try {
                 while (SystemClock.elapsedRealtime() - start < timeoutMs) {
-                    // 1. 只使用 available (非阻塞)，绝对不调用可能导致死锁的 inputStream.read()
+                    // 1. 优先尝试 available (非阻塞)
                     val available = runCatching { inputStream.available() }.getOrElse { 0 }
-                    
                     if (available > 0) {
-                        Log.v(TAG, "【状态检查】发现 available 数据: $available bytes")
                         val chunk = ByteArray(minOf(available, 1024))
-                        val read = inputStream.read(chunk) // 有 available 保证，这里的 read 不会阻塞
+                        val read = inputStream.read(chunk)
                         if (read > 0) {
-                            Log.v(TAG, "【状态检查】读取到 chunk: $read bytes")
                             buffer.write(chunk, 0, read)
-                            
-                            // 读到了数据，稍微等一下看有没有更多
+                            // 读到了数据，稍微等一下看有没有更多，没有就返回
                             delay(20)
-                            
-                            // 如果读完这一波没有更多了，就认为读完了
-                            if (runCatching { inputStream.available() }.getOrElse { 0 } == 0) {
-                                Log.d(TAG, "【状态检查】数据读取完毕，总长度: ${buffer.size()}")
+                            if (inputStream.available() == 0) {
                                 return@withContext buffer.toByteArray()
                             }
                         }
                     } else {
-                        // 没有数据，等待重试
-                        // 注意：这里不尝试阻塞读取，防止在某些设备上线程卡死
+                        // 2. 如果没有 available，且这是第一次读取（buffer为空），尝试阻塞读取一个字节
+                        // 这是一个冒险的操作，因为 read() 会阻塞线程，但我们在 IO Dispatcher 中
+                        // 这种方式可以解决 available() 永远返回 0 的问题
+                        if (buffer.size() == 0) {
+                            // 使用协程的 withTimeout 来防止 read() 永久阻塞
+                            // 给它 100ms 的机会去阻塞读取
+                            try {
+                                withTimeoutOrNull(100) {
+                                    // 只能读一个字节来探测
+                                    val oneByte = inputStream.read()
+                                    if (oneByte != -1) {
+                                        buffer.write(oneByte)
+                                        // 读到了第一个字节，后续数据通常会很快到达，回到循环头继续读
+                                    }
+                                    null // 无论读没读到，都不返回整个函数
+                                }
+                            } catch (e: Exception) {
+                                // 超时或异常，忽略，继续循环
+                            }
+                        }
+                        
+                        // 稍微休息，避免 CPU 空转
                         delay(50)
                     }
                 }
-                Log.w(TAG, "【状态检查】读取循环超时 (${timeoutMs}ms)")
             } catch (e: Exception) {
-                Log.w(TAG, "【状态检查】读取状态异常: ${e.message}")
+                Log.w(TAG, "读取状态异常: ${e.message}")
             }
 
-            if (buffer.size() > 0) {
-                Log.d(TAG, "【状态检查】超时退出，返回已读数据: ${buffer.size()} bytes")
-                buffer.toByteArray()
-            } else {
-                Log.w(TAG, "【状态检查】超时退出，无数据")
-                null
-            }
+            if (buffer.size() > 0) buffer.toByteArray() else null
         }
     }
 
@@ -2767,27 +2753,43 @@ class BluetoothPrinterManager @Inject constructor(
     )
 
     private val escPosStatusQueries = listOf(
-        // DLE EOT 2: 最核心的状态查询指令 (脱机、缺纸、开盖)
-        // 包含: 打印机脱机、机盖打开、按住进纸键、检测到缺纸、错误状态等
-        // 这一条指令通常足以覆盖95%的日常状态监控需求
+        EscPosStatusQuery(
+            id = "DLE EOT 1",
+            description = "打印机基础状态",
+            command = byteArrayOf(0x10, 0x04, 0x01),
+            parser = this::parsePrinterGeneralStatus
+        ),
         EscPosStatusQuery(
             id = "DLE EOT 2",
-            description = "脱机/缺纸状态",
+            description = "脱机状态",
             command = byteArrayOf(0x10, 0x04, 0x02),
             parser = this::parseOfflineStatus
         ),
-        // DLE EOT 3: 辅助查询不可恢复错误 (切刀堵塞等)
-        // 当 DLE EOT 2 报告 Error 时，此指令可提供更具体的硬件错误信息
         EscPosStatusQuery(
             id = "DLE EOT 3",
-            description = "硬件错误状态",
+            description = "错误状态",
             command = byteArrayOf(0x10, 0x04, 0x03),
             parser = this::parseErrorStatus
+        ),
+        EscPosStatusQuery(
+            id = "DLE EOT 4",
+            description = "纸张状态",
+            command = byteArrayOf(0x10, 0x04, 0x04),
+            parser = this::parsePaperStatus
+        ),
+        EscPosStatusQuery(
+            id = "GS r 1",
+            description = "纸张传感器",
+            command = byteArrayOf(0x1D, 0x72, 0x01),
+            parser = this::parseSensorStatus
+        ),
+        EscPosStatusQuery(
+            id = "GS I 0",
+            description = "设备信息",
+            command = byteArrayOf(0x1D, 0x49, 0x00),
+            parser = this::parseDeviceInfoStatus,
+            timeoutMs = 2500L
         )
-        // 移除 DLE EOT 1 (基础状态): 信息价值低，多为钱箱引脚状态
-        // 移除 DLE EOT 4 (纸张): DLE EOT 2 已包含缺纸信息，避免冗余
-        // 移除 GS r 1 (ASB): 避免主动状态回传干扰一问一答逻辑
-        // 移除 GS I 0 (设备信息): 响应慢且变长，严禁在心跳轮询中使用
     )
 
     private fun parsePrinterGeneralStatus(response: ByteArray): PrinterConnectionCheckResult? {

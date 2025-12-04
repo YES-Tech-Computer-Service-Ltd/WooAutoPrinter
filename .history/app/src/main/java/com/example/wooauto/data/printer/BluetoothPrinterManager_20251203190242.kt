@@ -2520,20 +2520,11 @@ class BluetoothPrinterManager @Inject constructor(
     }
 
     override suspend fun queryRealtimeStatus(config: PrinterConfig): PrinterConnectionCheckResult {
-        Log.d(TAG, "【状态检查入口】queryRealtimeStatus 被调用，目标: ${config.name}")
         return try {
             val vendor = getVendorForAddress(config.address)
-            Log.d(TAG, "【状态检查入口】厂商识别结果: $vendor")
-            
             when (vendor) {
-                PrinterVendor.STAR -> {
-                    Log.d(TAG, "【状态检查入口】分发到 Star 驱动")
-                    queryStarRealtimeStatus(config)
-                }
-                else -> {
-                    Log.d(TAG, "【状态检查入口】分发到 ESC/POS 驱动")
-                    queryEscPosRealtimeStatus(config)
-                }
+                PrinterVendor.STAR -> queryStarRealtimeStatus(config)
+                else -> queryEscPosRealtimeStatus(config)
             }
         } catch (e: Exception) {
             Log.e(TAG, "打印机状态检测异常: ${e.message}", e)
@@ -2684,46 +2675,61 @@ class BluetoothPrinterManager @Inject constructor(
             val buffer = ByteArrayOutputStream()
             val start = SystemClock.elapsedRealtime()
             
-            Log.d(TAG, "【状态检查】readStatusResponse 开始读取 (纯非阻塞模式)，超时设定: ${timeoutMs}ms")
+            Log.d(TAG, "【状态检查】readStatusResponse 开始读取，超时设定: ${timeoutMs}ms")
 
             try {
                 while (SystemClock.elapsedRealtime() - start < timeoutMs) {
-                    // 1. 只使用 available (非阻塞)，绝对不调用可能导致死锁的 inputStream.read()
+                    // 1. 优先尝试 available (非阻塞)
                     val available = runCatching { inputStream.available() }.getOrElse { 0 }
-                    
                     if (available > 0) {
                         Log.v(TAG, "【状态检查】发现 available 数据: $available bytes")
                         val chunk = ByteArray(minOf(available, 1024))
-                        val read = inputStream.read(chunk) // 有 available 保证，这里的 read 不会阻塞
+                        val read = inputStream.read(chunk)
                         if (read > 0) {
                             Log.v(TAG, "【状态检查】读取到 chunk: $read bytes")
                             buffer.write(chunk, 0, read)
-                            
-                            // 读到了数据，稍微等一下看有没有更多
+                            // 读到了数据，稍微等一下看有没有更多，没有就返回
                             delay(20)
-                            
-                            // 如果读完这一波没有更多了，就认为读完了
-                            if (runCatching { inputStream.available() }.getOrElse { 0 } == 0) {
+                            if (inputStream.available() == 0) {
                                 Log.d(TAG, "【状态检查】数据读取完毕，总长度: ${buffer.size()}")
                                 return@withContext buffer.toByteArray()
                             }
                         }
                     } else {
-                        // 没有数据，等待重试
-                        // 注意：这里不尝试阻塞读取，防止在某些设备上线程卡死
+                        // 2. 如果没有 available，且这是第一次读取（buffer为空），尝试阻塞读取一个字节
+                        if (buffer.size() == 0) {
+                            try {
+                                withTimeoutOrNull(100) {
+                                    // 只能读一个字节来探测
+                                    val oneByte = inputStream.read()
+                                    if (oneByte != -1) {
+                                        Log.v(TAG, "【状态检查】阻塞读取探测成功: 0x${String.format("%02X", oneByte)}")
+                                        buffer.write(oneByte)
+                                        // 读到了第一个字节，后续数据通常会很快到达，回到循环头继续读
+                                    } else {
+                                        Log.w(TAG, "【状态检查】阻塞读取返回 -1 (EOF)")
+                                    }
+                                    null 
+                                }
+                            } catch (e: Exception) {
+                                // 超时或异常，忽略，继续循环
+                            }
+                        }
+                        
+                        // 稍微休息，避免 CPU 空转
                         delay(50)
                     }
                 }
-                Log.w(TAG, "【状态检查】读取循环超时 (${timeoutMs}ms)")
+                Log.w(TAG, "【状态检查】读取循环超时")
             } catch (e: Exception) {
                 Log.w(TAG, "【状态检查】读取状态异常: ${e.message}")
             }
 
             if (buffer.size() > 0) {
-                Log.d(TAG, "【状态检查】超时退出，返回已读数据: ${buffer.size()} bytes")
+                Log.d(TAG, "【状态检查】读取结束 (超时或异常)，已读数据: ${buffer.size()} bytes")
                 buffer.toByteArray()
             } else {
-                Log.w(TAG, "【状态检查】超时退出，无数据")
+                Log.w(TAG, "【状态检查】读取结束，无数据")
                 null
             }
         }
