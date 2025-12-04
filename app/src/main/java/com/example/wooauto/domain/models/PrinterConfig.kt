@@ -21,7 +21,7 @@ data class PrinterConfig(
     val type: String = PRINTER_TYPE_BLUETOOTH,
     
     // 纸张宽度（毫米）
-    val paperWidth: Int = PAPER_WIDTH_57MM,
+    val paperWidth: Int = PAPER_WIDTH_80MM,
     
     
     

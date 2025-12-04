@@ -1,12 +1,18 @@
 package com.example.wooauto.service
 
+import android.bluetooth.BluetoothAdapter
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.util.Log
 import com.example.wooauto.BuildConfig
 import com.example.wooauto.domain.models.PrinterConfig
 import com.example.wooauto.domain.printer.PrinterManager
 import com.example.wooauto.domain.printer.PrinterStatus
 import com.example.wooauto.utils.UiLog
+import com.example.wooauto.utils.GlobalErrorManager
+import com.example.wooauto.utils.ErrorSource
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -29,13 +35,14 @@ import javax.inject.Singleton
 class SystemPollingManager @Inject constructor(
 	@ApplicationContext private val context: Context,
 	private val printerManager: PrinterManager,
+	private val globalErrorManager: GlobalErrorManager,
 ) {
 	companion object {
 		private const val TAG = "SystemPollingManager"
 		private const val NETWORK_HEARTBEAT_INTERVAL_MS = 30_000L
 		private const val WATCHDOG_INTERVAL_MS = 30_000L
 		private const val POLLING_HEALTH_CHECK_INTERVAL_MS = 30_000L
-		private const val PRINTER_HEALTH_INTERVAL_MS = 5_000L
+		private const val PRINTER_HEALTH_INTERVAL_MS = 60_000L // 5秒 -> 1分钟
 	}
 
 	private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
@@ -44,6 +51,7 @@ class SystemPollingManager @Inject constructor(
 	private var watchdogJob: Job? = null
 	private var pollingHealthMonitorJob: Job? = null
 	private var printerHealthJob: Job? = null
+	private var bluetoothStateReceiver: BroadcastReceiver? = null
 
 	// PollingHealthMonitor 配置与状态
 	data class PollingHealthMonitorConfig(
@@ -63,6 +71,7 @@ class SystemPollingManager @Inject constructor(
 		startNetworkHeartbeat()
 		startWatchdog()
 		startPrinterHealth(defaultPrinterProvider)
+		startBluetoothMonitor()
 	}
 
 	fun stopAll() {
@@ -70,6 +79,7 @@ class SystemPollingManager @Inject constructor(
 		watchdogJob?.cancel(); watchdogJob = null
 		pollingHealthMonitorJob?.cancel(); pollingHealthMonitorJob = null
 		printerHealthJob?.cancel(); printerHealthJob = null
+		stopBluetoothMonitor()
 	}
 
 	private fun startNetworkHeartbeat() {
@@ -199,6 +209,66 @@ class SystemPollingManager @Inject constructor(
 					delay(PRINTER_HEALTH_INTERVAL_MS)
 				}
 			}
+		}
+	}
+
+	private fun startBluetoothMonitor() {
+		if (bluetoothStateReceiver != null) return
+		val initialEnabled = try {
+			BluetoothAdapter.getDefaultAdapter()?.isEnabled == true
+		} catch (_: Exception) { false }
+		handleBluetoothState(initialEnabled)
+
+		val filter = IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED)
+		val receiver = object : BroadcastReceiver() {
+			override fun onReceive(context: Context?, intent: Intent?) {
+				if (intent?.action != BluetoothAdapter.ACTION_STATE_CHANGED) return
+				val state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR)
+				when (state) {
+					BluetoothAdapter.STATE_ON, BluetoothAdapter.STATE_TURNING_ON -> handleBluetoothState(true)
+					BluetoothAdapter.STATE_OFF, BluetoothAdapter.STATE_TURNING_OFF -> handleBluetoothState(false)
+				}
+			}
+		}
+
+		try {
+			context.registerReceiver(receiver, filter)
+			bluetoothStateReceiver = receiver
+			UiLog.d(TAG, "系统轮询/蓝牙：已启动蓝牙状态监听")
+		} catch (e: Exception) {
+			Log.e(TAG, "系统轮询/蓝牙：注册状态监听失败: ${e.message}", e)
+		}
+	}
+
+	private fun stopBluetoothMonitor() {
+		try {
+			bluetoothStateReceiver?.let { context.unregisterReceiver(it) }
+		} catch (e: Exception) {
+			Log.w(TAG, "系统轮询/蓝牙：注销状态监听失败: ${e.message}")
+		} finally {
+			bluetoothStateReceiver = null
+		}
+	}
+
+	private fun handleBluetoothState(enabled: Boolean) {
+		if (enabled) {
+			globalErrorManager.resolveError(ErrorSource.BLUETOOTH)
+		} else {
+			globalErrorManager.reportError(
+				source = ErrorSource.BLUETOOTH,
+				title = "蓝牙已关闭",
+				message = "检测到系统蓝牙已关闭，打印功能将不可用。请开启蓝牙。",
+				debugInfo = "SystemPollingManager detected Bluetooth adapter OFF.",
+				onSettingsAction = {
+					try {
+						val intent = Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS)
+						intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+						context.startActivity(intent)
+					} catch (e: Exception) {
+						Log.e(TAG, "系统轮询/蓝牙：无法打开蓝牙设置: ${e.message}")
+					}
+				}
+			)
 		}
 	}
 }

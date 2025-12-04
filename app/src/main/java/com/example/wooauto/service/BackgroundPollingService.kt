@@ -42,6 +42,9 @@ import android.os.PowerManager
 import com.example.wooauto.utils.PowerManagementUtils
 import com.example.wooauto.utils.SoundManager
 
+import android.provider.Settings
+import com.example.wooauto.utils.GlobalErrorManager
+
 @AndroidEntryPoint
 class BackgroundPollingService : Service() {
 
@@ -76,6 +79,7 @@ class BackgroundPollingService : Service() {
     @Inject lateinit var settingsRepository: DomainSettingRepository
     @Inject lateinit var systemPollingManager: SystemPollingManager
     @Inject lateinit var soundManager: SoundManager
+    @Inject lateinit var globalErrorManager: GlobalErrorManager
 
     // 使用IO调度器创建协程作用域，减少主线程负担
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
@@ -825,6 +829,24 @@ class BackgroundPollingService : Service() {
      */
     private suspend fun pollOrders() {
         try {
+            // 1. 轮询前先检查网络，如果网络不可用直接跳过并报错
+            if (!checkNetworkConnectivity()) {
+                Log.w(TAG, "轮询前检查：网络不可用，跳过请求")
+                // 触发网络错误弹窗
+                globalErrorManager.reportError(
+                    source = com.example.wooauto.utils.ErrorSource.NETWORK,
+                    title = getString(R.string.error_network),
+                    message = getString(R.string.update_check_failed),
+                    debugInfo = "轮询前检测: 网络连接不可用\nWiFi状态: ${wifiManager?.wifiState}",
+                    onSettingsAction = {
+                        val intent = Intent(Settings.ACTION_WIFI_SETTINGS)
+                        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                        startActivity(intent)
+                    }
+                )
+                return
+            }
+
             // 更新轮询活动时间戳
             updatePollingActivity()
             
@@ -870,6 +892,26 @@ class BackgroundPollingService : Service() {
                 // 处理错误
                 val error = result.exceptionOrNull()
                 Log.e(TAG, "轮询订单失败: ${error?.message}", error)
+                
+                // 2. 处理 API 异常并触发弹窗
+                // 针对 UnknownHostException (断网/DNS) 或 ConnectException (连不上) 触发弹窗
+                if (error is java.net.UnknownHostException || 
+                    error?.message?.contains("Unable to resolve host") == true ||
+                    error?.message?.contains("Network is unreachable") == true ||
+                    error is java.net.ConnectException) {
+                    
+                     globalErrorManager.reportError(
+                        source = com.example.wooauto.utils.ErrorSource.NETWORK,
+                        title = getString(R.string.error_network),
+                        message = "无法连接到商店服务器，请检查网络或域名配置。",
+                        debugInfo = "API请求失败:\n${error.message}\n\n如果是 UnknownHostException，通常意味着没有网络或域名解析失败。",
+                        onSettingsAction = {
+                             val intent = Intent(Settings.ACTION_WIFI_SETTINGS)
+                             intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                             startActivity(intent)
+                        }
+                    )
+                }
             }
         } catch (e: Exception) {
             Log.e(TAG, "轮询过程中发生异常: ${e.message}", e)
@@ -935,7 +977,8 @@ class BackgroundPollingService : Service() {
         var skippedAlreadyProcessed = 0
         var skippedNotRecent = 0
         
-        
+        // 【优化】创建一个列表来收集需要发送通知的订单
+        val ordersToNotify = mutableListOf<Order>()
         
         // 确定应用启动后的首次轮询
         val isFirstPolling = latestPolledDate == null
@@ -987,9 +1030,10 @@ class BackgroundPollingService : Service() {
                     printOrder(finalOrder)
                 }
 
-                // 仅当需要提醒时才发送系统通知与弹窗广播，并标记通知已显示
+
+                // 【优化】仅收集需要通知的订单，不再立即发送
                 if (shouldNotify) {
-                    sendNewOrderNotification(finalOrder)
+                    ordersToNotify.add(finalOrder)
                     orderRepository.markOrderNotificationShown(finalOrder.id)
                     newOrderCount++
                 }
@@ -1016,8 +1060,101 @@ class BackgroundPollingService : Service() {
                 "本轮订单处理：新订单=${newOrderCount}, 跳过-已处理=${skippedAlreadyProcessed}, 跳过-非最近=${skippedNotRecent}, 总数=${orders.size}"
             )
         }
+
+        // 【优化】循环结束后，统一处理通知逻辑，避免轰炸 SystemUI
+        if (ordersToNotify.isNotEmpty()) {
+            processNotificationsSafely(ordersToNotify)
+        }
+
         return newOrderCount
     }
+
+    /**
+     * 【新增】安全地处理通知发送
+     * 根据订单数量决定是发送单条详情还是汇总通知
+     */
+    private suspend fun processNotificationsSafely(orders: List<Order>) {
+        try {
+            if (orders.size == 1) {
+                // 只有一个订单，发送原来的详细通知
+                sendNewOrderNotification(orders.first())
+            } else {
+                // 多个订单，发送汇总通知，避免 ANR
+                sendSummaryNotification(orders)
+                
+                // 同时也发送广播告诉 UI 有新订单（如果需要弹窗，可以只弹最新的一个或者合并弹窗）
+                // 这里为了兼容，我们可以选择只对最新的一个发广播，或者给所有都发但加延迟
+                orders.forEachIndexed { index, order -> 
+                    // 广播通常比 Notification 轻量，但加上延迟更保险
+                    if (index > 0) delay(50) 
+                    sendNewOrderBroadcastOnly(order)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "发送通知失败: ${e.message}", e)
+        }
+    }
+
+    /**
+     * 【新增】发送汇总通知
+     */
+    private fun sendSummaryNotification(orders: List<Order>) {
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val pendingIntent = PendingIntent.getActivity(
+            this,
+            0,
+            Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_IMMUTABLE
+        )
+
+        // 计算总金额
+        val totalAmount = orders.sumOf { it.total.toDoubleOrNull() ?: 0.0 }
+        val formattedTotal = String.format("%.2f", totalAmount)
+
+        val notification = NotificationCompat.Builder(this, NEW_ORDER_CHANNEL_ID)
+            .setContentTitle(getString(R.string.new_order_received)) // 或者 "收到 ${orders.size} 个新订单"
+            .setContentText("收到 ${orders.size} 个新订单，总额: $formattedTotal")
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setDefaults(NotificationCompat.DEFAULT_ALL)
+            .setAutoCancel(true)
+            .setContentIntent(pendingIntent)
+            // 如果需要，可以使用 InboxStyle 展示更多细节
+            .setStyle(NotificationCompat.InboxStyle()
+                .setBigContentTitle("收到 ${orders.size} 个新订单")
+                .run {
+                    // 最多显示前 5 行
+                    orders.take(5).forEach { 
+                        addLine("#${it.number} - ${it.total}")
+                    }
+                    if (orders.size > 5) {
+                        setSummaryText("以及其他 ${orders.size - 5} 个订单...")
+                    }
+                    this
+                }
+            )
+            .build()
+
+        UiLog.d(TAG, "[Notify] 发送汇总通知: count=${orders.size} total=$formattedTotal")
+        // 使用一个固定的 ID (如 2000) 发送汇总通知，覆盖旧的
+        notificationManager.notify(2000, notification)
+    }
+
+    /**
+     * 【新增】只发送广播，不发通知栏 Notification
+     * 从原来的 sendNewOrderNotification 中拆分出来
+     */
+    private fun sendNewOrderBroadcastOnly(order: Order) {
+        val intent = Intent("com.example.wooauto.NEW_ORDER_RECEIVED").apply {
+            `package` = packageName
+        }
+        intent.putExtra("orderId", order.id)
+        sendBroadcast(intent)
+        try {
+            LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
+        } catch (_: Exception) {}
+    }
+
     
     /**
      * 移除最旧的处理过的订单ID
@@ -1289,6 +1426,9 @@ class BackgroundPollingService : Service() {
                 super.onAvailable(network)
                 val wasOffline = !isNetworkAvailable
                 isNetworkAvailable = true
+                
+                // 网络恢复，清除网络错误
+                globalErrorManager.resolveError(com.example.wooauto.utils.ErrorSource.NETWORK)
 
                 // 只有在确实从离线状态恢复且当前正在轮询时，才触发一次额外轮询
                 if (wasOffline && isPollingActive && initialPollingComplete) {
@@ -1688,7 +1828,6 @@ class BackgroundPollingService : Service() {
                 networkRetryCount++
                 Log.w(TAG, "【网络心跳】处理网络断开，重试次数: $networkRetryCount/$MAX_NETWORK_RETRY_COUNT")
                 
-                if (networkRetryCount <= MAX_NETWORK_RETRY_COUNT) {
                     // 尝试重新获取WiFi锁
                     Log.d(TAG, "【网络心跳】重新获取WiFi锁")
                     releaseWifiLock()
@@ -1721,6 +1860,9 @@ class BackgroundPollingService : Service() {
                         Log.i(TAG, "【网络心跳】网络连接已恢复")
                         networkRetryCount = 0
                         
+                        // 网络恢复，清除错误状态
+                        globalErrorManager.resolveError(com.example.wooauto.utils.ErrorSource.NETWORK)
+                        
                         // 网络恢复后，触发一次立即轮询
                         if (isPollingActive) {
                             Log.d(TAG, "【网络心跳】网络恢复后触发立即轮询")
@@ -1739,12 +1881,13 @@ class BackgroundPollingService : Service() {
                             }
                         }
                     } else {
-                        Log.w(TAG, "【网络心跳】网络连接仍未恢复，将继续监控")
-                    }
-                } else {
-                    Log.e(TAG, "【网络心跳】网络重连失败，已达到最大重试次数")
-                    // 显示网络问题通知
+                    Log.w(TAG, "【网络心跳】网络连接仍未恢复")
+                    // 只要重试次数达到阈值，就触发报警
+                    if (networkRetryCount >= MAX_NETWORK_RETRY_COUNT) {
+                        Log.e(TAG, "【网络心跳】网络重连失败，已达到最大重试次数，触发报警")
                     showNetworkIssueNotification()
+                        // 不重置计数，直到网络真正恢复
+                    }
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "【网络心跳】处理网络断开异常: ${e.message}", e)
@@ -1769,6 +1912,26 @@ class BackgroundPollingService : Service() {
             notificationManager.notify(1004, notification)
             
             Log.d(TAG, "【网络心跳】已显示网络问题通知")
+            
+            // 【新增】触发全局 UI 弹窗 (心跳检测失败)
+            val debugInfo = StringBuilder()
+            debugInfo.append("【网络心跳】检测到断网\n")
+            debugInfo.append("重试次数: $MAX_NETWORK_RETRY_COUNT\n")
+            debugInfo.append("WiFi状态: ${wifiManager?.wifiState}\n")
+            debugInfo.append("请检查路由器或移动数据设置。")
+
+            globalErrorManager.reportError(
+                source = com.example.wooauto.utils.ErrorSource.NETWORK,
+                title = getString(R.string.error_network), 
+                message = getString(R.string.update_check_failed), 
+                debugInfo = debugInfo.toString(),
+                onSettingsAction = {
+                    val intent = Intent(Settings.ACTION_WIFI_SETTINGS)
+                    intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    startActivity(intent)
+                }
+            )
+            
         } catch (e: Exception) {
             Log.e(TAG, "【网络心跳】显示网络问题通知失败: ${e.message}", e)
         }

@@ -33,10 +33,14 @@ import com.example.wooauto.data.remote.ConnectionResetHandler
 import com.example.wooauto.data.remote.ssl.SslUtil
 import com.example.wooauto.BuildConfig
 
+import com.example.wooauto.utils.GlobalErrorManager
+import com.example.wooauto.utils.ErrorSource
+
 class WooCommerceApiImpl(
     private val config: WooCommerceConfig,
     private val sslErrorInterceptor: SSLErrorInterceptor? = null,
-    private val connectionResetHandler: ConnectionResetHandler? = null
+    private val connectionResetHandler: ConnectionResetHandler? = null,
+    private val globalErrorManager: GlobalErrorManager? = null
 ) : WooCommerceApi {
     
     // 创建一个List<OrderDto>的Type，用于注册类型适配器
@@ -80,6 +84,30 @@ class WooCommerceApiImpl(
         val trustManager = trustAllCerts[0] as javax.net.ssl.X509TrustManager
         
         val clientBuilder = OkHttpClient.Builder()
+            // 【核心修复】强制使用IPv4，解决IPv6解析成功但连接超时的问题
+            .dns(object : okhttp3.Dns {
+                override fun lookup(hostname: String): List<java.net.InetAddress> {
+                    return try {
+                        // 获取所有IP地址
+                        val allAddresses = okhttp3.Dns.SYSTEM.lookup(hostname)
+                        // 过滤出IPv4地址 (Inet4Address)
+                        val ipv4Addresses = allAddresses.filter { it is java.net.Inet4Address }
+
+                        if (ipv4Addresses.isNotEmpty()) {
+                            UiLog.d("WooCommerceApiImpl", "DNS解析: $hostname -> IPv4: $ipv4Addresses (过滤了IPv6)")
+                            ipv4Addresses
+                        } else {
+                            // 如果没有IPv4，只能返回所有（通常是IPv6）
+                            UiLog.w("WooCommerceApiImpl", "DNS解析: $hostname 没有IPv4地址，回退到默认结果: $allAddresses")
+                            allAddresses
+                        }
+                    } catch (e: Exception) {
+                        // DNS解析失败，抛出异常
+                        UiLog.e("WooCommerceApiImpl", "DNS解析失败: $hostname, ${e.message}")
+                        throw e
+                    }
+                }
+            })
             .addInterceptor(loggingInterceptor)
             // 添加自定义User-Agent拦截器
             .addInterceptor { chain ->
@@ -189,6 +217,59 @@ class WooCommerceApiImpl(
         }
     }
     
+    // 辅助方法：报告 API 错误
+    private fun reportApiError(endpoint: String, error: Throwable) {
+        val source = when {
+            endpoint.contains("orders") -> ErrorSource.API_ORDER
+            endpoint.contains("products") -> ErrorSource.API_PRODUCT
+            else -> ErrorSource.API
+        }
+        
+        val title = when (source) {
+            ErrorSource.API_ORDER -> "订单获取失败"
+            ErrorSource.API_PRODUCT -> "产品数据同步失败"
+            else -> "API 请求失败"
+        }
+        
+        val message = if (error is ApiError) {
+            when (error.code) {
+                401, 403 -> "认证失败: 请检查API密钥权限 (401/403)"
+                404 -> "接口未找到: 请检查站点URL设置 (404)"
+                // 添加更多常见状态码
+                400 -> "请求无效: 参数错误 (400)"
+                500, 502 -> "店铺服务器内部错误 (500/502)"
+                503 -> "店铺服务暂时不可用 (503)"
+                504 -> "网关超时 (504)"
+                else -> "服务器返回错误: ${error.code} - ${error.message}"
+            }
+        } else {
+            when {
+                error is java.net.UnknownHostException -> "无法连接到服务器: 域名解析失败"
+                error is java.net.ConnectException -> "无法连接到服务器: 连接被拒绝"
+                error is java.net.SocketTimeoutException -> "连接超时: 请检查网络状况"
+                error.message?.contains("SSL") == true -> "安全连接失败: SSL证书问题"
+                else -> "网络请求异常: ${error.message}"
+            }
+        }
+        
+        globalErrorManager?.reportError(
+            source = source,
+            title = title,
+            message = message,
+            debugInfo = "Endpoint: $endpoint\nError: ${error.message}"
+        )
+    }
+
+    // 辅助方法：请求成功后清除错误
+    private fun resolveApiError(endpoint: String) {
+        val source = when {
+            endpoint.contains("orders") -> ErrorSource.API_ORDER
+            endpoint.contains("products") -> ErrorSource.API_PRODUCT
+            else -> ErrorSource.API
+        }
+        globalErrorManager?.resolveError(source)
+    }
+
     private suspend inline fun <reified T> executeGetRequest(endpoint: String, queryParams: Map<String, String> = emptyMap()): T {
         // 最大重试次数
         val maxRetries = 3
@@ -199,23 +280,17 @@ class WooCommerceApiImpl(
             try {
                 return withContext(Dispatchers.IO) {
                     try {
-                        // 如果不是第一次尝试，添加指数退避延迟
+                        // ... (保留原有的指数退避逻辑)
                         if (currentRetry > 0) {
-                            // 使用指数退避延迟：1秒，2秒，4秒...
                             val delayMs = (2f.pow(currentRetry - 1) * 1000).toLong()
                             UiLog.d("WooCommerceApiImpl", "重试请求，延迟 $delayMs ms")
                             delay(delayMs)
                         }
                         
                         val baseUrl = buildBaseUrl()
-                        // 确保不存在双斜杠
+                        // ... (保留原有的URL构建逻辑)
                         val cleanEndpoint = if (endpoint.startsWith("/")) endpoint.substring(1) else endpoint
                         val fullApiUrl = "$baseUrl$cleanEndpoint"
-                        // 注释掉详细URL构建日志
-                        /*
-                        Log.d("WooCommerceApiImpl", "【URL构建】基本URL: $baseUrl, 终端点: $cleanEndpoint")
-                        Log.d("WooCommerceApiImpl", "【URL构建】合并URL: $fullApiUrl")
-                        */
                         
                         val urlBuilder = fullApiUrl.toHttpUrl().newBuilder()
                         
@@ -224,35 +299,15 @@ class WooCommerceApiImpl(
                         
                         // 添加其他查询参数
                         queryParams.forEach { (key, value) ->
-                            // 特殊处理状态参数，确保以正确格式添加
                             if (key == "status") {
                                 UiLog.d("WooCommerceApiImpl", "【URL构建】添加状态参数值: '$value'")
-                                // 直接使用addQueryParameter而不是addEncodedQueryParameter避免可能的编码问题
                                 urlBuilder.addQueryParameter(key, value)
                             } else {
-                                // 注释掉详细参数日志
-                                // Log.d("WooCommerceApiImpl", "【URL构建】添加参数: $key=$value")
                                 urlBuilder.addQueryParameter(key, value)
                             }
                         }
                         
                         val fullUrl = urlBuilder.build().toString()
-                        // 仅在关键情况记录URL
-                        if (BuildConfig.DEBUG && false) { // 添加false条件使其不执行
-                            UiLog.d("WooCommerceApiImpl", "【URL构建】最终URL: $fullUrl")
-                        }
-                        
-                        // 注释掉状态参数监控的特别日志
-                        /*
-                        // 特别监控状态参数
-                        if (queryParams.containsKey("status")) {
-                            val statusValue = queryParams["status"]
-                            Log.d("WooCommerceApiImpl", "【状态请求】监控 - 状态参数值: '$statusValue', URL中的状态参数: ${fullUrl.contains("status=")}")
-                            
-                            val statusSuffix = fullUrl.substringAfter("status=", "未找到后缀")
-                            Log.d("WooCommerceApiImpl", "【状态请求】监控 - URL中的status参数值: '$statusSuffix'")
-                        }
-                        */
                         
                         val request = Request.Builder()
                             .url(fullUrl)
@@ -268,22 +323,19 @@ class WooCommerceApiImpl(
                         }
                         
                         val result = try {
-                            // 针对集合类型的特殊处理
+                            // ... (保留原有的解析逻辑)
                             when {
                                 isCollectionType<T>() -> {
-                                    // 处理集合类型
                                     when {
                                         isListOfOrderDto<T>() -> {
                                             UiLog.d("WooCommerceApiImpl", "解析List<OrderDto>类型响应")
                                             gson.fromJson<T>(responseBody, orderDtoListType)
                                         }
                                         else -> {
-                                            // 通用集合处理，使用TypeToken
                                             gson.fromJson<T>(responseBody, object : TypeToken<T>() {}.type)
                                         }
                                     }
                                 }
-                                // 处理单个对象类型
                                 T::class == OrderDto::class -> {
                                     UiLog.d("WooCommerceApiImpl", "解析OrderDto类型响应")
                                     gson.fromJson(responseBody, OrderDto::class.java) as T
@@ -296,7 +348,6 @@ class WooCommerceApiImpl(
                                     UiLog.d("WooCommerceApiImpl", "解析CategoryDto类型响应")
                                     gson.fromJson(responseBody, CategoryDto::class.java) as T
                                 }
-                                // 默认处理
                                 else -> {
                                     gson.fromJson<T>(responseBody, object : TypeToken<T>() {}.type)
                                 }
@@ -306,64 +357,68 @@ class WooCommerceApiImpl(
                             throw e
                         }
                         
+                        // 请求成功，清除相关错误
+                        resolveApiError(endpoint)
+                        
                         result
                     } catch (e: Exception) {
-                        // 所有内部异常在这里被捕获并向上传递
                         Log.e("WooCommerceApiImpl", "【API错误】请求或解析出错: ${e.message}")
                         throw e
                     }
                 }
-            } catch (e: java.net.SocketTimeoutException) {
-                Log.e("WooCommerceApiImpl", "请求超时，尝试重试 (${currentRetry+1}/$maxRetries): ${e.message}")
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) {
+                    throw e
+                }
+
+                // 捕获所有异常（包括超时、SSL、IO等）并记录为最后一次异常
                 lastException = e
-                currentRetry++
-            } catch (e: javax.net.ssl.SSLException) {
-                Log.e("WooCommerceApiImpl", "SSL错误，尝试重试 (${currentRetry+1}/$maxRetries): ${e.message}")
-                lastException = e
-                currentRetry++
-                // 记录连接重置事件
-                if (e.message?.contains("reset") == true || e.message?.contains("peer") == true) {
-                    connectionResetHandler?.recordConnectionReset()
-                    // 分析错误原因
-                    val analysis = connectionResetHandler?.analyzeResetError(e) ?: "未知SSL错误"
-                    Log.e("WooCommerceApiImpl", "连接重置分析: $analysis")
+                
+                // 针对特定异常类型的日志记录
+                when (e) {
+                    is ApiError -> {
+                        // 核心优化：如果是 ApiError 且是 4xx 错误（客户端错误），不要重试，直接抛出
+                        // 401: 认证失败, 403: 权限不足, 404: 路径错误
+                        if (e.code in 400..499) {
+                            Log.e("WooCommerceApiImpl", "遇到 4xx 错误 (${e.code})，停止重试，直接上报")
+                            reportApiError(endpoint, e) // 立即上报给用户
+                            throw e
+                        }
+                        // 增加：5xx 服务器错误也应该提示用户，虽然我们会重试
+                        if (e.code in 500..599) {
+                             // 5xx 错误在重试阶段暂不上报，以免网络波动导致频繁弹窗
+                             // 但如果所有重试都失败（在循环外），那里会统一上报
+                             Log.w("WooCommerceApiImpl", "API服务器错误 (${e.code})，准备重试")
+                        }
+                        Log.e("WooCommerceApiImpl", "API服务器错误 (${e.code})，尝试重试 (${currentRetry+1}/$maxRetries): ${e.message}")
+                    }
+                    is java.net.SocketTimeoutException -> Log.e("WooCommerceApiImpl", "请求超时，尝试重试 (${currentRetry+1}/$maxRetries): ${e.message}")
+                    is javax.net.ssl.SSLException -> {
+                        Log.e("WooCommerceApiImpl", "SSL错误，尝试重试 (${currentRetry+1}/$maxRetries): ${e.message}")
+                        if (e.message?.contains("reset") == true || e.message?.contains("peer") == true) {
+                            connectionResetHandler?.recordConnectionReset()
+                        }
+                    }
+                    is java.io.IOException -> Log.e("WooCommerceApiImpl", "IO错误，尝试重试 (${currentRetry+1}/$maxRetries): ${e.message}")
+                    else -> Log.e("WooCommerceApiImpl", "请求异常: ${e.message}")
                 }
                 
-                // 检查是否是SSL握手错误
-                if (e.message?.contains("handshake") == true) {
-                    Log.e("WooCommerceApiImpl", "SSL握手错误，可能是TLS版本问题。当前API级别: ${android.os.Build.VERSION.SDK_INT}")
-                    
-                    // 对于Android N(API 24)的特殊处理提示
-                    if (android.os.Build.VERSION.SDK_INT == android.os.Build.VERSION_CODES.N) {
-                        Log.e("WooCommerceApiImpl", "Android 7.0 (Nougat) 特有的SSL握手问题，请确保已配置适当的ConnectionSpec")
-                    }
-                    
-                    // 对于Android 5.1(API 22)以下的特殊处理提示
-                    if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.LOLLIPOP_MR1) {
-                        Log.e("WooCommerceApiImpl", "Android 5.1以下设备的SSL问题，请确保已配置TLS 1.2及适当的ConnectionSpec")
-                    }
-                }
-            } catch (e: java.io.IOException) {
-                Log.e("WooCommerceApiImpl", "IO错误，尝试重试 (${currentRetry+1}/$maxRetries): ${e.message}")
-                lastException = e
                 currentRetry++
-                // 检查是否是连接重置错误
-                if (e.message?.contains("reset") == true || e.message?.contains("peer") == true) {
-                    connectionResetHandler?.recordConnectionReset()
-                    // 分析错误原因
-                    val analysis = connectionResetHandler?.analyzeResetError(e) ?: "未知IO错误"
-                    Log.e("WooCommerceApiImpl", "连接重置分析: $analysis")
-                }
-            } catch (e: Exception) {
-                // 对于其他异常，直接抛出不重试
-                Log.e("WooCommerceApiImpl", "请求失败，不重试: ${e.message}")
-                throw e
+                
+                // 如果不是 ApiError（非业务逻辑错误），可以尝试重试
+                // ApiError 通常意味着 4xx/5xx，重试可能没用，但也取决于具体策略
+                // 这里为了简单，保持原有重试逻辑，但如果达到最大重试次数，在下面统一抛出
             }
         }
         
-        // 如果所有重试都失败，抛出最后捕获的异常
+        // 如果代码运行到这里，说明所有重试都失败了
         Log.e("WooCommerceApiImpl", "所有重试都失败，放弃请求")
-        throw lastException ?: Exception("请求失败，已尝试 $maxRetries 次")
+        val finalError = lastException ?: Exception("请求失败，已尝试 $maxRetries 次")
+        
+        // 上报错误到全局管理器
+        reportApiError(endpoint, finalError)
+        
+        throw finalError
     }
     
     private suspend inline fun <reified T> executePostRequest(endpoint: String, body: Map<String, Any>): T {
@@ -389,9 +444,19 @@ class WooCommerceApiImpl(
                 val responseBody = response.body?.string() ?: throw Exception("响应体为空")
                 
                 if (!response.isSuccessful) {
-                    Log.e("API错误", "HTTP错误: ${response.code}")
-                    throw ApiError.fromHttpCode(response.code, "API错误: ${response.code}")
+                    val errorMsg = "HTTP ${response.code}"
+                    Log.e("API错误", errorMsg)
+                    val apiError = ApiError.fromHttpCode(response.code, "API错误: ${response.code} - $responseBody")
+                    
+                    // 对于 POST 请求，通常是更改订单状态等关键操作
+                    // 如果失败，应当立即上报
+                    reportApiError(endpoint, apiError)
+                    
+                    throw apiError
                 }
+                
+                // POST 请求成功，也清除相关错误（例如之前可能因为网络不好报错了）
+                resolveApiError(endpoint)
                 
                 // 使用精确的类型解析方式
                 val result = when {
@@ -401,9 +466,18 @@ class WooCommerceApiImpl(
                     else -> gson.fromJson(responseBody, object : TypeToken<T>() {}.type)
                 }
                 
+                // 请求成功，清除相关错误
+                resolveApiError(endpoint)
+                
                 result
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) {
+                    throw e
+                }
                 Log.e("API错误", "POST请求失败: ${e.message}", e)
+                
+                // 上报 POST 请求错误
+                reportApiError(endpoint, e)
                 
                 if (e is ApiError) {
                     throw e

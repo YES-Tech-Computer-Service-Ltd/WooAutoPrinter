@@ -59,6 +59,9 @@ import com.example.wooauto.presentation.WooAutoApp
 import com.example.wooauto.presentation.theme.WooAutoTheme
 import com.example.wooauto.utils.LocaleManager
 import com.example.wooauto.utils.OrderNotificationManager
+import com.example.wooauto.utils.GlobalErrorManager
+import com.example.wooauto.presentation.components.ErrorDetailsDialog
+import com.example.wooauto.utils.AppError
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -85,10 +88,20 @@ class MainActivity : AppCompatActivity(), OrderNotificationManager.NotificationC
     @Inject
     lateinit var settingsRepository: DomainSettingRepository
     
+    @Inject
+    lateinit var globalErrorManager: GlobalErrorManager
+    
     // 用于存储新订单的状态
     private var showNewOrderDialog by mutableStateOf(false)
     private var currentNewOrder by mutableStateOf<Order?>(null)
     private var currentPendingOrderCount by mutableStateOf(1)
+
+    // 全局错误弹窗状态
+    private var showGlobalErrorDialog by mutableStateOf(false)
+    private var globalErrorTitle by mutableStateOf("")
+    private var globalUserMessage by mutableStateOf("")
+    private var globalDebugMessage by mutableStateOf("")
+    private var globalErrorSettingsAction: (() -> Unit)? = null
     
     // 屏幕常亮状态
     private var isKeepScreenOnEnabled by mutableStateOf(false)
@@ -220,6 +233,52 @@ class MainActivity : AppCompatActivity(), OrderNotificationManager.NotificationC
     @Composable
     private fun MainAppContent() {
         WooAutoTheme {
+            // 监听全局错误状态
+            val activeErrorsState = globalErrorManager.activeErrors.collectAsState()
+            val activeErrors = activeErrorsState.value
+            // 记录已确认的错误ID，避免重复弹窗
+            val ackedErrorIds = remember { mutableSetOf<String>() }
+
+            LaunchedEffect(activeErrors) {
+                // 检查是否有"未确认"的活跃错误
+                val hasUnackedErrors = activeErrors.values.any { !ackedErrorIds.contains(it.id) }
+                
+                if (hasUnackedErrors) {
+                    // 有新错误，生成聚合信息并显示
+                    val displayList = activeErrors.values.sortedBy { it.source }
+                    
+                    if (displayList.size > 1) {
+                         globalErrorTitle = "检测到 ${displayList.size} 个系统异常"
+                         // 聚合显示
+                         val sb = StringBuilder()
+                         displayList.forEach { err ->
+                             sb.append("❌ ${err.title}\n${err.message}\n\n")
+                         }
+                         globalUserMessage = sb.toString().trimEnd()
+                         
+                         val debugSb = StringBuilder()
+                         displayList.forEach { err ->
+                             debugSb.append("=== [${err.source}] ===\n${err.debugInfo ?: "无调试信息"}\n\n")
+                         }
+                         globalDebugMessage = debugSb.toString().trimEnd()
+                         
+                         // 优先取第一个动作
+                         globalErrorSettingsAction = displayList.firstOrNull()?.onSettingsAction
+                    } else if (displayList.isNotEmpty()) {
+                        val error = displayList.first()
+                        globalErrorTitle = error.title
+                        globalUserMessage = error.message
+                        globalDebugMessage = error.debugInfo ?: ""
+                        globalErrorSettingsAction = error.onSettingsAction
+                    }
+                    showGlobalErrorDialog = true
+                } else if (activeErrors.isEmpty()) {
+                    // 如果所有错误都解决了，自动关闭弹窗并重置确认记录
+                    showGlobalErrorDialog = false
+                    ackedErrorIds.clear()
+                }
+            }
+
             Surface(
                 modifier = Modifier.fillMaxSize(),
                 color = MaterialTheme.colorScheme.background
@@ -266,6 +325,31 @@ class MainActivity : AppCompatActivity(), OrderNotificationManager.NotificationC
                                     orderNotificationManager.markOrderAsRead(targetId)
                                 } catch (_: Exception) {}
                             }
+                        }
+                    )
+                }
+
+                // 全局错误弹窗
+                if (showGlobalErrorDialog) {
+                    ErrorDetailsDialog(
+                        title = globalErrorTitle,
+                        userMessage = globalUserMessage,
+                        debugMessage = globalDebugMessage,
+                        showSettingsButton = globalErrorSettingsAction != null,
+                        showAckButton = true,
+                        settingsButtonText = "设置",
+                        ackButtonText = "知道了",
+                        onSettingsClick = {
+                            globalErrorSettingsAction?.invoke()
+                            showGlobalErrorDialog = false
+                        },
+                        onAckClick = {
+                            // 标记当前所有错误为已确认
+                            ackedErrorIds.addAll(activeErrors.values.map { it.id })
+                            showGlobalErrorDialog = false
+                        },
+                        onDismissRequest = {
+                            // 强制用户点击按钮处理，禁止点击外部关闭
                         }
                     )
                 }
@@ -567,7 +651,7 @@ fun NewOrderPopup(
                     modifier = Modifier
                         .weight(1f)
                         .height(60.dp)
-                ) {
+                    ) {
                     Icon(imageVector = Icons.Default.Close, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(stringResource(R.string.close_bilingual))
@@ -575,4 +659,4 @@ fun NewOrderPopup(
             }
         }
     }
-} 
+}
