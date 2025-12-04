@@ -2599,16 +2599,6 @@ class BluetoothPrinterManager @Inject constructor(
             )
         }
 
-        val outputStream = try {
-            socket.outputStream
-        } catch (e: Exception) {
-            Log.e(TAG, "获取输出流失败: ${e.message}")
-            return PrinterConnectionCheckResult(
-                state = PrinterConnectionState.ERROR,
-                summary = "发送打印机指令失败"
-            )
-        }
-
         val traceRecords = mutableListOf<String>()
         var lastResponseHex: String? = null
         var lastResponseDec: String? = null
@@ -2881,30 +2871,16 @@ class BluetoothPrinterManager @Inject constructor(
         if (response.isEmpty()) return null
         val value = response[0].toInt() and 0xFF
         val issues = mutableListOf<String>()
-        
-        // ESC/POS DLE EOT 2 状态位解析
-        // 0x12 (0001 0010) = 正常 (Bit 1=1, Bit 4=1 均为固定位)
-        
-        // Bit 0: 0 (Fixed)
-        // Bit 1: 1 (Fixed) - 注意：旧代码曾错误地将其解析为机盖打开
-        // Bit 2: 机盖状态 (0=合上, 1=打开) - 标准打印机使用此位
-        // Bit 3: 进纸键 (0=未按, 1=按下)
-        // Bit 4: 1 (Fixed)
-        // Bit 5: 缺纸 (0=有纸, 1=缺纸) - GLPrinter 等部分机型用此位同时表示缺纸或开盖
-        // Bit 6: 错误 (0=无, 1=有)
-        // Bit 7: 0 (Fixed)
-        
-        // 兼容性检测逻辑
-        if (value and 0x04 != 0) issues += "机盖打开" // 适配标准设备
-        if (value and 0x08 != 0) issues += "进纸键被按下"
-        if (value and 0x20 != 0) issues += "检测到缺纸/开盖" // 适配 GLPrinter (0x32) 及标准设备的缺纸
-        if (value and 0x40 != 0) issues += "打印机错误"
-        
-        // 严格的离线判断 (Bit 2, 5, 6 任意一个置位即视为离线/异常)
-        val isOffline = (value and 0x04 != 0) || (value and 0x20 != 0) || (value and 0x40 != 0)
+        if (value and 0x01 != 0) issues += "打印机脱机"
+        if (value and 0x02 != 0) issues += "机盖打开"
+        if (value and 0x04 != 0) issues += "进纸键被按下"
+        if (value and 0x08 != 0) issues += "检测到缺纸"
+        if (value and 0x10 != 0) issues += "切刀错误"
+        if (value and 0x20 != 0) issues += "不可恢复错误"
+        if (value and 0x40 != 0) issues += "可恢复错误"
 
         val state = when {
-            isOffline -> PrinterConnectionState.OFFLINE
+            value and 0x01 != 0 || value and 0x08 != 0 || value and 0x20 != 0 -> PrinterConnectionState.OFFLINE
             issues.isNotEmpty() -> PrinterConnectionState.WARNING
             else -> PrinterConnectionState.ONLINE
         }
