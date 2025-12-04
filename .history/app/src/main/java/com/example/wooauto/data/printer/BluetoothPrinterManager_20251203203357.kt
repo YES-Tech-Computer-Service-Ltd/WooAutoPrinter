@@ -1574,20 +1574,8 @@ class BluetoothPrinterManager @Inject constructor(
         // 避免底层蓝牙已断但状态尚未更新导致需要手动去设置页重连的情况
         val testOk = withTimeoutOrNull(3000) {
             try {
-                // 修复：不要调用 testConnection()，因为它会递归调用 queryRealtimeStatus -> ensurePrinterConnected 导致死循环 (StackOverflowError)
-                // 这里只进行最基础的 Socket 连通性测试，不涉及复杂的双向状态查询
-                val conn = currentConnection
-                if (conn != null && conn.isConnected) {
-                    // 尝试写入一个初始化指令 (ESC @)，只要写入不抛出异常，就认为 Socket 写通道是活跃的
-                    // 注意：这里不读取返回，因为 ensurePrinterConnected 的目的是“确保能发数据”
-                    // 深度状态检查交给 testConnection (它会调用 queryRealtimeStatus) 去做
-                    conn.write(byteArrayOf(0x1B, 0x40)) 
-                    true
-                } else {
-                    false
-                }
+                testConnection(config)
             } catch (e: Exception) {
-                Log.w(TAG, "ensurePrinterConnected 基础连通性测试失败: ${e.message}")
                 false
             }
         } ?: false

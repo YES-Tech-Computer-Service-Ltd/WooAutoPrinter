@@ -232,24 +232,15 @@ class WooCommerceApiImpl(
         }
         
         val message = if (error is ApiError) {
-            when (error.code) {
+            when (error.httpCode) {
                 401, 403 -> "认证失败: 请检查API密钥权限 (401/403)"
                 404 -> "接口未找到: 请检查站点URL设置 (404)"
-                // 添加更多常见状态码
-                400 -> "请求无效: 参数错误 (400)"
                 500, 502 -> "店铺服务器内部错误 (500/502)"
                 503 -> "店铺服务暂时不可用 (503)"
-                504 -> "网关超时 (504)"
-                else -> "服务器返回错误: ${error.code} - ${error.message}"
+                else -> "服务器返回错误: ${error.httpCode} - ${error.message}"
             }
         } else {
-            when {
-                error is java.net.UnknownHostException -> "无法连接到服务器: 域名解析失败"
-                error is java.net.ConnectException -> "无法连接到服务器: 连接被拒绝"
-                error is java.net.SocketTimeoutException -> "连接超时: 请检查网络状况"
-                error.message?.contains("SSL") == true -> "安全连接失败: SSL证书问题"
-                else -> "网络请求异常: ${error.message}"
-            }
+            "网络请求异常: ${error.message}"
         }
         
         globalErrorManager?.reportError(
@@ -375,18 +366,12 @@ class WooCommerceApiImpl(
                     is ApiError -> {
                         // 核心优化：如果是 ApiError 且是 4xx 错误（客户端错误），不要重试，直接抛出
                         // 401: 认证失败, 403: 权限不足, 404: 路径错误
-                        if (e.code in 400..499) {
-                            Log.e("WooCommerceApiImpl", "遇到 4xx 错误 (${e.code})，停止重试，直接上报")
+                        if (e.httpCode in 400..499) {
+                            Log.e("WooCommerceApiImpl", "遇到 4xx 错误 (${e.httpCode})，停止重试，直接上报")
                             reportApiError(endpoint, e) // 立即上报给用户
                             throw e
                         }
-                        // 增加：5xx 服务器错误也应该提示用户，虽然我们会重试
-                        if (e.code in 500..599) {
-                             // 5xx 错误在重试阶段暂不上报，以免网络波动导致频繁弹窗
-                             // 但如果所有重试都失败（在循环外），那里会统一上报
-                             Log.w("WooCommerceApiImpl", "API服务器错误 (${e.code})，准备重试")
-                        }
-                        Log.e("WooCommerceApiImpl", "API服务器错误 (${e.code})，尝试重试 (${currentRetry+1}/$maxRetries): ${e.message}")
+                        Log.e("WooCommerceApiImpl", "API服务器错误 (${e.httpCode})，尝试重试 (${currentRetry+1}/$maxRetries): ${e.message}")
                     }
                     is java.net.SocketTimeoutException -> Log.e("WooCommerceApiImpl", "请求超时，尝试重试 (${currentRetry+1}/$maxRetries): ${e.message}")
                     is javax.net.ssl.SSLException -> {

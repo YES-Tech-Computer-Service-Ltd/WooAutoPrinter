@@ -1574,20 +1574,8 @@ class BluetoothPrinterManager @Inject constructor(
         // 避免底层蓝牙已断但状态尚未更新导致需要手动去设置页重连的情况
         val testOk = withTimeoutOrNull(3000) {
             try {
-                // 修复：不要调用 testConnection()，因为它会递归调用 queryRealtimeStatus -> ensurePrinterConnected 导致死循环 (StackOverflowError)
-                // 这里只进行最基础的 Socket 连通性测试，不涉及复杂的双向状态查询
-                val conn = currentConnection
-                if (conn != null && conn.isConnected) {
-                    // 尝试写入一个初始化指令 (ESC @)，只要写入不抛出异常，就认为 Socket 写通道是活跃的
-                    // 注意：这里不读取返回，因为 ensurePrinterConnected 的目的是“确保能发数据”
-                    // 深度状态检查交给 testConnection (它会调用 queryRealtimeStatus) 去做
-                    conn.write(byteArrayOf(0x1B, 0x40)) 
-                    true
-                } else {
-                    false
-                }
+                testConnection(config)
             } catch (e: Exception) {
-                Log.w(TAG, "ensurePrinterConnected 基础连通性测试失败: ${e.message}")
                 false
             }
         } ?: false
@@ -2509,40 +2497,16 @@ class BluetoothPrinterManager @Inject constructor(
 
             if (isHealthy) {
 //                Log.d(TAG, "打印机深度健康检查通过: ${result.summary}")
-                
-                // 健康检查通过，清除之前的打印机连接错误（如果有）
-                globalErrorManager.resolveError(com.example.wooauto.utils.ErrorSource.PRINTER_CONN)
-                
                 true
             } else {
                 Log.w(TAG, "打印机健康检查失败: ${result.summary} (${result.detail})")
                 // 更新为错误状态，以便触发 SystemPollingManager 或其他机制进行重连/报错
                 updatePrinterStatus(config, PrinterStatus.ERROR)
-                
-                // 主动向全局错误管理器报告打印机硬件故障
-                // 这样即使用户没有在打印订单，仅仅是轮询检测到了缺纸/开盖，也能弹窗提示
-                globalErrorManager.reportError(
-                    source = com.example.wooauto.utils.ErrorSource.PRINTER_CONN,
-                    title = "打印机状态异常",
-                    message = "${result.summary}\n${result.detail ?: "请检查打印机连接或纸张状态"}",
-                    debugInfo = "Reason: Health Check Failed. ${result.detail}",
-                    onSettingsAction = null // 硬件问题通常不需要跳设置页，用户需要去检查物理设备
-                )
-                
                 false
             }
         } catch (e: Exception) {
             Log.e(TAG, "测试打印机连接异常: ${e.message}", e)
             updatePrinterStatus(config, PrinterStatus.ERROR)
-            
-            // 发生异常也视为连接失败，上报错误
-             globalErrorManager.reportError(
-                source = com.example.wooauto.utils.ErrorSource.PRINTER_CONN,
-                title = "打印机连接中断",
-                message = "无法连接到打印机，请确保打印机已开机并处于连接范围内。",
-                debugInfo = "Exception: ${e.message}"
-            )
-            
             false
         }
     }
@@ -2845,9 +2809,16 @@ class BluetoothPrinterManager @Inject constructor(
             description = "硬件错误状态",
             command = byteArrayOf(0x10, 0x04, 0x03),
             parser = this::parseErrorStatus
+        ),
+        // DLE EOT 4: 纸张传感器状态 (纸将尽预警)
+        // 提供"纸将尽" (Near End) 的早期警告，避免打印中途缺纸
+        EscPosStatusQuery(
+            id = "DLE EOT 4",
+            description = "纸张传感器状态",
+            command = byteArrayOf(0x10, 0x04, 0x04),
+            parser = this::parsePaperStatus
         )
         // 移除 DLE EOT 1 (基础状态): 信息价值低，多为钱箱引脚状态
-        // 移除 DLE EOT 4 (纸张): DLE EOT 2 已包含缺纸信息，避免冗余
         // 移除 GS r 1 (ASB): 避免主动状态回传干扰一问一答逻辑
         // 移除 GS I 0 (设备信息): 响应慢且变长，严禁在心跳轮询中使用
     )
@@ -2910,25 +2881,19 @@ class BluetoothPrinterManager @Inject constructor(
         val value = response[0].toInt() and 0xFF
         val issues = mutableListOf<String>()
         
-        // ESC/POS DLE EOT 2 状态位解析
-        // 0x12 (0001 0010) = 正常 (Bit 1=1, Bit 4=1 均为固定位)
+        // ESC/POS DLE EOT 2 状态位解析 (Mask 修正版)
+        // Bit 2 (0x04): 机盖状态 (0=合上, 1=打开)
+        // Bit 3 (0x08): 进纸键 (0=未按, 1=按下)
+        // Bit 5 (0x20): 缺纸停止 (0=有纸, 1=缺纸)
+        // Bit 6 (0x40): 错误状态 (0=无, 1=有)
         
-        // Bit 0: 0 (Fixed)
-        // Bit 1: 1 (Fixed) - 注意：旧代码曾错误地将其解析为机盖打开
-        // Bit 2: 机盖状态 (0=合上, 1=打开) - 标准打印机使用此位
-        // Bit 3: 进纸键 (0=未按, 1=按下)
-        // Bit 4: 1 (Fixed)
-        // Bit 5: 缺纸 (0=有纸, 1=缺纸) - GLPrinter 等部分机型用此位同时表示缺纸或开盖
-        // Bit 6: 错误 (0=无, 1=有)
-        // Bit 7: 0 (Fixed)
-        
-        // 兼容性检测逻辑
-        if (value and 0x04 != 0) issues += "机盖打开" // 适配标准设备
-        if (value and 0x08 != 0) issues += "进纸键被按下"
-        if (value and 0x20 != 0) issues += "检测到缺纸/开盖" // 适配 GLPrinter (0x32) 及标准设备的缺纸
-        if (value and 0x40 != 0) issues += "打印机错误"
+        if (value and 0x04 != 0) issues += "机盖已打开"
+        if (value and 0x08 != 0) issues += "正在按进纸键"
+        if (value and 0x20 != 0) issues += "打印机缺纸"
+        if (value and 0x40 != 0) issues += "打印机一般错误"
         
         // 严格的离线判断 (Bit 2, 5, 6 任意一个置位即视为离线/异常)
+        // Bit 3 (进纸键) 只是忙碌状态，暂不视为离线
         val isOffline = (value and 0x04 != 0) || (value and 0x20 != 0) || (value and 0x40 != 0)
 
         val state = when {
@@ -2939,8 +2904,8 @@ class BluetoothPrinterManager @Inject constructor(
 
         val summary = when (state) {
             PrinterConnectionState.ONLINE -> "打印机在线"
-            PrinterConnectionState.WARNING -> "打印机在线但存在警告"
-            PrinterConnectionState.OFFLINE -> "打印机处于脱机状态"
+            PrinterConnectionState.WARNING -> "打印机忙碌"
+            PrinterConnectionState.OFFLINE -> "打印机脱机或缺纸"
             PrinterConnectionState.ERROR -> "打印机异常"
         }
 
@@ -2954,25 +2919,36 @@ class BluetoothPrinterManager @Inject constructor(
     private fun parseErrorStatus(response: ByteArray): PrinterConnectionCheckResult? {
         if (response.isEmpty()) return null
         val value = response[0].toInt() and 0xFF
-        if (value == 0) {
+        
+        // ESC/POS DLE EOT 3 错误状态解析 (修正掩码)
+        // Bit 2 (0x04): 机械错误 (如切刀卡死)
+        // Bit 3 (0x08): 切刀错误
+        // Bit 5 (0x20): 不可恢复错误
+        // Bit 6 (0x40): 可自动恢复错误 (如过热)
+
+        val issues = mutableListOf<String>()
+        if (value and 0x04 != 0) issues += "机械结构故障"
+        if (value and 0x08 != 0) issues += "切刀卡死"
+        if (value and 0x20 != 0) issues += "不可恢复的硬件故障"
+        if (value and 0x40 != 0) issues += "打印头过热或电压异常"
+
+        if (issues.isEmpty()) {
             return PrinterConnectionCheckResult(
                 state = PrinterConnectionState.ONLINE,
-                summary = "未检测到打印机错误"
+                summary = "未检测到详细硬件错误"
             )
         }
 
-        val issues = mutableListOf<String>()
-        if (value and 0x01 != 0) issues += "存在可恢复错误"
-        if (value and 0x02 != 0) issues += "切刀错误"
-        if (value and 0x04 != 0) issues += "不可恢复错误"
-        if (value and 0x08 != 0) issues += "需要自动恢复"
-
-        val state = if (value and 0x04 != 0) PrinterConnectionState.ERROR else PrinterConnectionState.WARNING
-        val summary = if (state == PrinterConnectionState.ERROR) "检测到打印机错误" else "打印机返回警告"
-
+        // 任何 EOT 3 错误通常都是比较严重的 Warning 或 Error
+        val state = if ((value and 0x20 != 0) || (value and 0x04 != 0)) {
+             PrinterConnectionState.ERROR 
+        } else {
+             PrinterConnectionState.WARNING 
+        }
+        
         return PrinterConnectionCheckResult(
             state = state,
-            summary = summary,
+            summary = if (state == PrinterConnectionState.ERROR) "检测到硬件错误" else "打印机警告",
             detail = issues.joinToString("、")
         )
     }
@@ -2980,21 +2956,29 @@ class BluetoothPrinterManager @Inject constructor(
     private fun parsePaperStatus(response: ByteArray): PrinterConnectionCheckResult? {
         if (response.isEmpty()) return null
         val value = response[0].toInt() and 0xFF
+        
+        // ESC/POS DLE EOT 4 纸张状态解析 (修正掩码)
+        // Bit 2,3 (0x04, 0x08): 纸将尽传感器 (1=Near End)
+        // Bit 5,6 (0x20, 0x40): 纸尽传感器 (1=Paper End)
+
         val issues = mutableListOf<String>()
-        if (value and 0x01 != 0) issues += "纸张将用尽"
-        if (value and 0x02 != 0) issues += "缺纸"
+        val isNearEnd = (value and 0x0C) != 0 // 0x04 | 0x08
+        val isPaperEnd = (value and 0x60) != 0 // 0x20 | 0x40
+        
+        if (isNearEnd) issues += "纸张即将用尽"
+        if (isPaperEnd) issues += "缺纸"
 
         val state = when {
-            value and 0x02 != 0 -> PrinterConnectionState.OFFLINE
-            value and 0x01 != 0 -> PrinterConnectionState.WARNING
+            isPaperEnd -> PrinterConnectionState.OFFLINE
+            isNearEnd -> PrinterConnectionState.WARNING
             else -> PrinterConnectionState.ONLINE
         }
 
         val summary = when (state) {
-            PrinterConnectionState.ONLINE -> "纸张状态正常"
+            PrinterConnectionState.ONLINE -> "纸张充足"
             PrinterConnectionState.WARNING -> "纸张即将用尽"
             PrinterConnectionState.OFFLINE -> "打印机缺纸"
-            PrinterConnectionState.ERROR -> "未知纸张状态"
+            PrinterConnectionState.ERROR -> "纸张状态异常"
         }
 
         return PrinterConnectionCheckResult(
