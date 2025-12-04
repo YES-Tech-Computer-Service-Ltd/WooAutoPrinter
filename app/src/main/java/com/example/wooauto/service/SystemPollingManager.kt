@@ -42,7 +42,7 @@ class SystemPollingManager @Inject constructor(
 		private const val NETWORK_HEARTBEAT_INTERVAL_MS = 30_000L
 		private const val WATCHDOG_INTERVAL_MS = 30_000L
 		private const val POLLING_HEALTH_CHECK_INTERVAL_MS = 30_000L
-		private const val PRINTER_HEALTH_INTERVAL_MS = 5_000L
+		private const val PRINTER_HEALTH_INTERVAL_MS = 60_000L // 5秒 -> 1分钟
 	}
 
 	private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())

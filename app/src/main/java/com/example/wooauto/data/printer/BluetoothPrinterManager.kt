@@ -3052,46 +3052,48 @@ class BluetoothPrinterManager @Inject constructor(
 
     /**
      * 最小走纸（1-2行），用于唤醒打印机
+     * 修改：使用标准打印流程进行保活检查
      */
     override suspend fun feedPaperMinimal(config: PrinterConfig, lines: Int): Boolean = withContext(Dispatchers.IO) {
         try {
-            val safeLines = lines.coerceIn(1, 2)
+            // 1. 准备打印内容
+            val locale = java.util.Locale.getDefault()
+            val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd EEEE HH:mm", locale)
+            val timestamp = dateFormat.format(java.util.Date())
+            
+            // 根据语言设置显示不同内容
+            val isChinese = locale.language == "zh"
+            val title = if (isChinese) "[设备保活检查]" else "[Printer Keep-Alive Check]"
+            // 格式化内容：居中显示，稍微美观一点
+            val textToPrint = "[C]<b>$title</b>\n[C]$timestamp\n"
+
             val vendor = getVendorForAddress(config.address)
             if (vendor == PrinterVendor.STAR) {
                 if (!ensureStarConnected(config)) return@withContext false
-                return@withContext starDriver.feedMinimal(safeLines)
+                return@withContext starDriver.feedMinimal(lines.coerceIn(1, 2))
             }
 
             if (!ensurePrinterConnected(config)) return@withContext false
-            val connection = currentConnection ?: return@withContext false
+            
+            // 2. 复用标准打印内容方法 (Best Practice)
+            // printContent 方法内部已经封装了:
+            // - 确保连接有效
+            // - 格式化解析 (Dantsu 库)
+            // - 分块发送机制
+            // - 自动处理中文编码
+            // - 确保正确结尾 (ensureProperEnding -> 包含切纸指令)
+            val success = printContent(textToPrint, config)
 
-            try {
-                if (!connection.isConnected()) connection.connect()
-
-                // 按照正式打印流程的唤醒顺序来推进
-                connection.write(byteArrayOf(0x1B, 0x40)) // ESC @ 初始化
-                Thread.sleep(80)
-
-                connection.write(byteArrayOf(0x18)) // CAN 清缓冲
-                Thread.sleep(60)
-
-                connection.write(byteArrayOf(0x1B, 0x64, safeLines.toByte())) // ESC d n 行走纸
-                Thread.sleep(60)
-
-                // 利用格式化打印（与真实打印同路径）输出一个空行，确保缓冲刷新
-                runCatching { currentPrinter?.printFormattedText(" \n") }.onFailure {
-                    Log.w(TAG, "最小走纸触发打印失败: ${it.message}")
-                }
-
-                Log.d(TAG, "最小走纸完成（${safeLines}行）")
+            if (success) {
+                Log.d(TAG, "保活检查打印完成: $timestamp")
                 true
-            } catch (e: Exception) {
-                Log.e(TAG, "最小走纸失败: ${e.message}", e)
+            } else {
+                Log.e(TAG, "保活检查打印失败")
                 updatePrinterStatus(config, PrinterStatus.ERROR)
                 false
             }
         } catch (e: Exception) {
-            Log.e(TAG, "最小走纸异常: ${e.message}", e)
+            Log.e(TAG, "保活检查异常: ${e.message}", e)
             false
         }
     }

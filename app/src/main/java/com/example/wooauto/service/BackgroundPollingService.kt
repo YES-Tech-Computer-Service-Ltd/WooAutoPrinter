@@ -977,7 +977,8 @@ class BackgroundPollingService : Service() {
         var skippedAlreadyProcessed = 0
         var skippedNotRecent = 0
         
-        
+        // 【优化】创建一个列表来收集需要发送通知的订单
+        val ordersToNotify = mutableListOf<Order>()
         
         // 确定应用启动后的首次轮询
         val isFirstPolling = latestPolledDate == null
@@ -1029,9 +1030,10 @@ class BackgroundPollingService : Service() {
                     printOrder(finalOrder)
                 }
 
-                // 仅当需要提醒时才发送系统通知与弹窗广播，并标记通知已显示
+
+                // 【优化】仅收集需要通知的订单，不再立即发送
                 if (shouldNotify) {
-                    sendNewOrderNotification(finalOrder)
+                    ordersToNotify.add(finalOrder)
                     orderRepository.markOrderNotificationShown(finalOrder.id)
                     newOrderCount++
                 }
@@ -1058,8 +1060,101 @@ class BackgroundPollingService : Service() {
                 "本轮订单处理：新订单=${newOrderCount}, 跳过-已处理=${skippedAlreadyProcessed}, 跳过-非最近=${skippedNotRecent}, 总数=${orders.size}"
             )
         }
+
+        // 【优化】循环结束后，统一处理通知逻辑，避免轰炸 SystemUI
+        if (ordersToNotify.isNotEmpty()) {
+            processNotificationsSafely(ordersToNotify)
+        }
+
         return newOrderCount
     }
+
+    /**
+     * 【新增】安全地处理通知发送
+     * 根据订单数量决定是发送单条详情还是汇总通知
+     */
+    private suspend fun processNotificationsSafely(orders: List<Order>) {
+        try {
+            if (orders.size == 1) {
+                // 只有一个订单，发送原来的详细通知
+                sendNewOrderNotification(orders.first())
+            } else {
+                // 多个订单，发送汇总通知，避免 ANR
+                sendSummaryNotification(orders)
+                
+                // 同时也发送广播告诉 UI 有新订单（如果需要弹窗，可以只弹最新的一个或者合并弹窗）
+                // 这里为了兼容，我们可以选择只对最新的一个发广播，或者给所有都发但加延迟
+                orders.forEachIndexed { index, order -> 
+                    // 广播通常比 Notification 轻量，但加上延迟更保险
+                    if (index > 0) delay(50) 
+                    sendNewOrderBroadcastOnly(order)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "发送通知失败: ${e.message}", e)
+        }
+    }
+
+    /**
+     * 【新增】发送汇总通知
+     */
+    private fun sendSummaryNotification(orders: List<Order>) {
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val pendingIntent = PendingIntent.getActivity(
+            this,
+            0,
+            Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_IMMUTABLE
+        )
+
+        // 计算总金额
+        val totalAmount = orders.sumOf { it.total.toDoubleOrNull() ?: 0.0 }
+        val formattedTotal = String.format("%.2f", totalAmount)
+
+        val notification = NotificationCompat.Builder(this, NEW_ORDER_CHANNEL_ID)
+            .setContentTitle(getString(R.string.new_order_received)) // 或者 "收到 ${orders.size} 个新订单"
+            .setContentText("收到 ${orders.size} 个新订单，总额: $formattedTotal")
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setDefaults(NotificationCompat.DEFAULT_ALL)
+            .setAutoCancel(true)
+            .setContentIntent(pendingIntent)
+            // 如果需要，可以使用 InboxStyle 展示更多细节
+            .setStyle(NotificationCompat.InboxStyle()
+                .setBigContentTitle("收到 ${orders.size} 个新订单")
+                .run {
+                    // 最多显示前 5 行
+                    orders.take(5).forEach { 
+                        addLine("#${it.number} - ${it.total}")
+                    }
+                    if (orders.size > 5) {
+                        setSummaryText("以及其他 ${orders.size - 5} 个订单...")
+                    }
+                    this
+                }
+            )
+            .build()
+
+        UiLog.d(TAG, "[Notify] 发送汇总通知: count=${orders.size} total=$formattedTotal")
+        // 使用一个固定的 ID (如 2000) 发送汇总通知，覆盖旧的
+        notificationManager.notify(2000, notification)
+    }
+
+    /**
+     * 【新增】只发送广播，不发通知栏 Notification
+     * 从原来的 sendNewOrderNotification 中拆分出来
+     */
+    private fun sendNewOrderBroadcastOnly(order: Order) {
+        val intent = Intent("com.example.wooauto.NEW_ORDER_RECEIVED").apply {
+            `package` = packageName
+        }
+        intent.putExtra("orderId", order.id)
+        sendBroadcast(intent)
+        try {
+            LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
+        } catch (_: Exception) {}
+    }
+
     
     /**
      * 移除最旧的处理过的订单ID

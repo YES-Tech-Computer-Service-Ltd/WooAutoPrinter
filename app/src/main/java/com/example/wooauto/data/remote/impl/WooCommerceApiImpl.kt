@@ -367,6 +367,10 @@ class WooCommerceApiImpl(
                     }
                 }
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) {
+                    throw e
+                }
+
                 // 捕获所有异常（包括超时、SSL、IO等）并记录为最后一次异常
                 lastException = e
                 
@@ -467,6 +471,9 @@ class WooCommerceApiImpl(
                 
                 result
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) {
+                    throw e
+                }
                 Log.e("API错误", "POST请求失败: ${e.message}", e)
                 
                 // 上报 POST 请求错误
