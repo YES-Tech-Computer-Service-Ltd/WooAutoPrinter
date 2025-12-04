@@ -2739,23 +2739,15 @@ class BluetoothPrinterManager @Inject constructor(
         }
     }
 
-    /**
-     * 全面检查打印机状态（生成诊断报告）
-     * 委托给 PrinterDiagnosticTool 处理
-     */
-    override suspend fun checkPrinterStatusFull(config: PrinterConfig): String {
-        // 1. 基础状态检查
-        val currentStatus = getPrinterStatus(config)
-        if (currentStatus != PrinterStatus.CONNECTED) {
-            return "❌ 状态错误: 显示为未连接 (当前状态: ${currentStatus.name})"
+    private fun extractBluetoothSocket(connection: BluetoothConnection): BluetoothSocket? {
+        return try {
+            val field = BluetoothConnection::class.java.getDeclaredField("socket")
+            field.isAccessible = true
+            field.get(connection) as? BluetoothSocket
+        } catch (e: Exception) {
+            Log.w(TAG, "无法访问蓝牙socket: ${e.message}")
+            null
         }
-
-        // 2. 使用诊断工具运行测试
-        return PrinterDiagnosticTool.runFullDiagnostics(
-            config = config,
-            connection = currentConnection,
-            isConnectedChecker = { currentConnection?.isConnected == true }
-        )
     }
 
     private fun mergeStatusDetails(primary: String?, trace: String?): String? {

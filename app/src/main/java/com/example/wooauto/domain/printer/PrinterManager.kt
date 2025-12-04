@@ -100,6 +100,14 @@ interface PrinterManager {
      * @return 执行结果，成功返回true
      */
     suspend fun feedPaperMinimal(config: PrinterConfig, lines: Int = 1): Boolean
+
+    /**
+     * 全面检查打印机状态（生成诊断报告）
+     * 用于调试连接问题
+     * @param config 打印机配置
+     * @return 诊断日志字符串
+     */
+    suspend fun checkPrinterStatusFull(config: PrinterConfig): String
 }
 
 /**
