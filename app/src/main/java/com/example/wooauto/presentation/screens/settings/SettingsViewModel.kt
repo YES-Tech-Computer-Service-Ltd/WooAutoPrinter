@@ -251,6 +251,7 @@ class SettingsViewModel @Inject constructor(
                     _appBrightnessPercent.value = p
                 }
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 Log.e(TAG, "加载亮度设置失败", e)
             }
         }
@@ -260,6 +261,7 @@ class SettingsViewModel @Inject constructor(
                 _keepAliveFeedEnabled.value = settingsRepository.getKeepAliveFeedEnabled()
                 _keepAliveFeedIntervalHours.value = settingsRepository.getKeepAliveFeedIntervalHours()
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 Log.e(TAG, "加载最小走纸设置失败", e)
             }
         }
@@ -390,6 +392,7 @@ class SettingsViewModel @Inject constructor(
                 
                 UiLog.d("SettingsViewModel", "成功加载设置: $config")
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 Log.e("SettingsViewModel", "加载设置失败", e)
             }
         }
@@ -612,14 +615,15 @@ class SettingsViewModel @Inject constructor(
                     if (status != PrinterStatus.CONNECTED) {
                         viewModelScope.launch {
                             try {
-                        withTimeoutOrNull(10000) {
-                            withContext(Dispatchers.IO) { printerManager.connect(defaultPrinter) }
-                        }
+                                withTimeoutOrNull(10000) {
+                                    withContext(Dispatchers.IO) { printerManager.connect(defaultPrinter) }
+                                }
                             } catch (_: Exception) { }
                         }
                     }
                 }
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 Log.e("SettingsViewModel", "加载打印机配置失败", e)
             }
         }
@@ -1114,6 +1118,7 @@ class SettingsViewModel @Inject constructor(
                 
                 UiLog.d("SettingsViewModel", "加载商店信息成功")
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 Log.e("SettingsViewModel", "加载商店信息失败", e)
             }
         }
@@ -1201,6 +1206,7 @@ class SettingsViewModel @Inject constructor(
                 // _dailyBackup.value = settingsRepository.getDailyBackup()
                 UiLog.d(TAG, "成功加载自动化设置: autoPrint=${_automaticPrinting.value}, defaultTemplate=${_defaultTemplateType.value}")
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 Log.e(TAG, "加载自动化设置失败", e)
             }
         }
@@ -1517,6 +1523,7 @@ class SettingsViewModel @Inject constructor(
                     }
                 }
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 Log.e(TAG, "检查更新失败", e)
                 _isCheckingUpdate.value = false
             }
@@ -1655,6 +1662,7 @@ class SettingsViewModel @Inject constructor(
                 _soundEnabled.value = soundSettings.soundEnabled
                 UiLog.d("SettingsViewModel", "加载声音设置成功: 音量=${soundSettings.notificationVolume}, 类型=${soundSettings.soundType}, 启用=${soundSettings.soundEnabled}")
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 Log.e("SettingsViewModel", "加载声音设置失败", e)
             }
         }
@@ -1707,6 +1715,7 @@ class SettingsViewModel @Inject constructor(
                 
                 UiLog.d(TAG, "许可证信息加载完成: 资格状态=${licenseManager.eligibilityInfo.value?.status}")
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 Log.e(TAG, "加载许可证信息失败", e)
             }
         }
