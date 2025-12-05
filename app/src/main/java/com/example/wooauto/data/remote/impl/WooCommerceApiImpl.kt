@@ -83,27 +83,71 @@ class WooCommerceApiImpl(
         // 获取TrustManager
         val trustManager = trustAllCerts[0] as javax.net.ssl.X509TrustManager
         
+        // 准备 DoH (DNS over HTTPS) 客户端
+        // 这是一个独立的、专门用于 DNS 查询的轻量级客户端
+        // 优化：设置较短的超时时间，确保 DoH 失败时能快速回退到系统 DNS
+        val bootstrapClient = OkHttpClient.Builder()
+            .connectTimeout(5, TimeUnit.SECONDS)
+            .readTimeout(5, TimeUnit.SECONDS)
+            .build()
+            
+        val dnsOverHttps = okhttp3.dnsoverhttps.DnsOverHttps.Builder()
+            .client(bootstrapClient)
+            .url("https://dns.google/dns-query".toHttpUrl())
+            .bootstrapDnsHosts(
+                java.net.InetAddress.getByName("8.8.8.8"),
+                java.net.InetAddress.getByName("8.8.4.4")
+            )
+            .build()
+
         val clientBuilder = OkHttpClient.Builder()
-            // 【核心修复】强制使用IPv4，解决IPv6解析成功但连接超时的问题
+            // 【核心修复】引入 DoH 并结合 IPv4 优先策略
+            // 解决路由器 DNS 不稳定导致的 UnknownHostException 问题
             .dns(object : okhttp3.Dns {
                 override fun lookup(hostname: String): List<java.net.InetAddress> {
                     return try {
-                        // 获取所有IP地址
-                        val allAddresses = okhttp3.Dns.SYSTEM.lookup(hostname)
-                        // 过滤出IPv4地址 (Inet4Address)
+                        val startTime = System.currentTimeMillis()
+                        UiLog.d("WooCommerceApiImpl", "DNS解析开始: $hostname, 尝试使用 DoH (Google)")
+                        
+                        // 1. 首先尝试使用 DoH 解析
+                        val dohAddresses = try {
+                            val result = dnsOverHttps.lookup(hostname)
+                            if (result.isNotEmpty()) {
+                                val dohTime = System.currentTimeMillis() - startTime
+                                UiLog.d("WooCommerceApiImpl", "✅ [DoH-Google] 解析成功: $result, 耗时: ${dohTime}ms")
+                            }
+                            result
+                        } catch (e: Exception) {
+                            val errorTime = System.currentTimeMillis() - startTime
+                            UiLog.w("WooCommerceApiImpl", "⚠️ [DoH-Google] 解析失败: ${e.message}, 耗时: ${errorTime}ms, 降级使用系统 DNS")
+                            emptyList()
+                        }
+                        
+                        // 2. 如果 DoH 失败，回退到系统 DNS
+                        val allAddresses = if (dohAddresses.isNotEmpty()) {
+                            dohAddresses
+                        } else {
+                            val sysStart = System.currentTimeMillis()
+                            val result = okhttp3.Dns.SYSTEM.lookup(hostname)
+                            val sysTime = System.currentTimeMillis() - sysStart
+                            UiLog.d("WooCommerceApiImpl", "ℹ️ [System-DNS] 解析结果: $result, 耗时: ${sysTime}ms")
+                            result
+                        }
+
+                        // 3. 过滤出 IPv4 地址 (Inet4Address) 保持之前的连接稳定性
                         val ipv4Addresses = allAddresses.filter { it is java.net.Inet4Address }
 
                         if (ipv4Addresses.isNotEmpty()) {
-                            UiLog.d("WooCommerceApiImpl", "DNS解析: $hostname -> IPv4: $ipv4Addresses (过滤了IPv6)")
+                            UiLog.d("WooCommerceApiImpl", "最终使用 IPv4: $ipv4Addresses (过滤了 IPv6)")
                             ipv4Addresses
                         } else {
-                            // 如果没有IPv4，只能返回所有（通常是IPv6）
-                            UiLog.w("WooCommerceApiImpl", "DNS解析: $hostname 没有IPv4地址，回退到默认结果: $allAddresses")
+                            // 如果没有 IPv4，只能返回所有（通常是 IPv6）
+                            UiLog.w("WooCommerceApiImpl", "没有找到 IPv4 地址，回退到完整列表: $allAddresses")
                             allAddresses
                         }
                     } catch (e: Exception) {
-                        // DNS解析失败，抛出异常
-                        UiLog.e("WooCommerceApiImpl", "DNS解析失败: $hostname, ${e.message}")
+                        // 彻底失败
+                        UiLog.e("WooCommerceApiImpl", "❌ DNS 解析彻底失败: $hostname, ${e.message}")
                         throw e
                     }
                 }
@@ -119,11 +163,13 @@ class WooCommerceApiImpl(
                     .build()
                 chain.proceed(request)
             }
-            .connectTimeout(60, TimeUnit.SECONDS)
-            .readTimeout(60, TimeUnit.SECONDS)
-            .writeTimeout(60, TimeUnit.SECONDS)
+            // 优化：将超时时间从 60s 缩短到 30s，避免在网络卡死时长时间无响应
+            // 对于订单轮询，快速失败重试比长时间等待体验更好
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
             // 添加SSL握手超时设置
-            .callTimeout(120, TimeUnit.SECONDS)
+            .callTimeout(60, TimeUnit.SECONDS)
             // 强制使用HTTP/1.1协议，解决服务器端对HTTP/2的不兼容导致的500错误
             .protocols(listOf(okhttp3.Protocol.HTTP_1_1)) 
             // 添加自定义SSL工厂以解决SSL握手问题 - 正确提供TrustManager
