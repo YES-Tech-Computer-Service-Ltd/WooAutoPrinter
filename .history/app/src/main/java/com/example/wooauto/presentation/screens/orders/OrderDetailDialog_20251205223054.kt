@@ -1444,10 +1444,7 @@ private fun tryFormatDateString(raw: String): String? {
     )
     inputs.forEach { pattern ->
         try {
-            // 强制使用 Locale.US，以确保能解析 "December", "Jan", "Nov" 等英文月份
-            // 这是因为 WooFood 插件通常以英文格式存储日期 (e.g. "December 2, 2025")
-            // 如果使用默认 Locale (如中文)，SimpleDateFormat 无法解析英文月份
-            val df = java.text.SimpleDateFormat(pattern, java.util.Locale.US)
+            val df = java.text.SimpleDateFormat(pattern, java.util.Locale.getDefault())
             df.isLenient = true
             val date = df.parse(raw)
             if (date != null) {

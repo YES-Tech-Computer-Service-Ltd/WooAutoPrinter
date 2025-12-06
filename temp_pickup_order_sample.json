@@ -1,0 +1,319 @@
+{
+    "id": 1708,
+    "parent_id": 0,
+    "status": "completed",
+    "currency": "CAD",
+    "version": "9.5.2",
+    "prices_include_tax": false,
+    "date_created": "2025-12-01T16:30:34",
+    "date_modified": "2025-12-01T18:08:11",
+    "discount_total": "0.00",
+    "discount_tax": "0.00",
+    "shipping_total": "0.00",
+    "shipping_tax": "0.00",
+    "cart_tax": "3.08",
+    "total": "30.98",
+    "total_tax": "3.08",
+    "customer_id": 5,
+    "order_key": "wc_order_y9s1DPhTVpBLf",
+    "billing": {
+        "first_name": "Chenhao",
+        "last_name": "Wu",
+        "company": "",
+        "address_1": "345 Main St N unit C",
+        "address_2": "Room 220",
+        "city": "Moose Jaw",
+        "state": "SK",
+        "postcode": "S6H 0W2",
+        "country": "CA",
+        "email": "chenhaowu@yestech.ca",
+        "phone": "13065277222"
+    },
+    "shipping": {
+        "first_name": "",
+        "last_name": "",
+        "company": "",
+        "address_1": "",
+        "address_2": "",
+        "city": "",
+        "state": "",
+        "postcode": "",
+        "country": "",
+        "phone": ""
+    },
+    "payment_method": "cod",
+    "payment_method_title": "Cash on delivery",
+    "transaction_id": "",
+    "customer_ip_address": "204.191.56.231",
+    "customer_user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36",
+    "created_via": "checkout",
+    "customer_note": "",
+    "date_completed": "2025-12-01T18:08:11",
+    "date_paid": "2025-12-01T18:08:11",
+    "cart_hash": "9e1db1b8e9e4c12c0dab7eb6f0feba39",
+    "number": "1708",
+    "meta_data": [
+        {
+            "id": 4155,
+            "key": "_wc_order_attribution_device_type",
+            "value": "Desktop"
+        },
+        {
+            "id": 4153,
+            "key": "_wc_order_attribution_session_count",
+            "value": "3"
+        },
+        {
+            "id": 4150,
+            "key": "_wc_order_attribution_session_entry",
+            "value": "https://blanchedalmond-hamster-446110.hostingersite.com/"
+        },
+        {
+            "id": 4152,
+            "key": "_wc_order_attribution_session_pages",
+            "value": "2"
+        },
+        {
+            "id": 4151,
+            "key": "_wc_order_attribution_session_start_time",
+            "value": "2025-12-01 16:00:55"
+        },
+        {
+            "id": 4148,
+            "key": "_wc_order_attribution_source_type",
+            "value": "typein"
+        },
+        {
+            "id": 4154,
+            "key": "_wc_order_attribution_user_agent",
+            "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36"
+        },
+        {
+            "id": 4149,
+            "key": "_wc_order_attribution_utm_source",
+            "value": "(direct)"
+        },
+        {
+            "id": 4142,
+            "key": "exwfood_date_deli",
+            "value": "December 2, 2025"
+        },
+        {
+            "id": 4143,
+            "key": "exwfood_date_deli_unix",
+            "value": "1764633600"
+        },
+        {
+            "id": 4144,
+            "key": "exwfood_datetime_deli_unix",
+            "value": "1764673200"
+        },
+        {
+            "id": 4147,
+            "key": "exwfood_order_method",
+            "value": "takeaway"
+        },
+        {
+            "id": 4146,
+            "key": "exwfood_time_deli",
+            "value": "11:00 - 11:20"
+        },
+        {
+            "id": 4145,
+            "key": "exwfood_timeslot",
+            "value": "11:00|11:20"
+        },
+        {
+            "id": 4139,
+            "key": "is_vat_exempt",
+            "value": "no"
+        }
+    ],
+    "line_items": [
+        {
+            "id": 1138,
+            "name": "T1 Suey Choy with Garlic Sauce",
+            "product_id": 1417,
+            "variation_id": 0,
+            "quantity": 1,
+            "tax_class": "",
+            "subtotal": "13.95",
+            "subtotal_tax": "1.54",
+            "total": "13.95",
+            "total_tax": "1.54",
+            "taxes": [
+                {
+                    "id": 19,
+                    "total": "0.6975",
+                    "subtotal": "0.6975"
+                },
+                {
+                    "id": 14,
+                    "total": "0.837",
+                    "subtotal": "0.837"
+                }
+            ],
+            "meta_data": [],
+            "sku": "",
+            "price": 13.95,
+            "image": {
+                "id": "",
+                "src": ""
+            },
+            "parent_name": null
+        },
+        {
+            "id": 1139,
+            "name": "T2 Zucchini with Mushrooms",
+            "product_id": 1418,
+            "variation_id": 0,
+            "quantity": 1,
+            "tax_class": "",
+            "subtotal": "13.95",
+            "subtotal_tax": "1.54",
+            "total": "13.95",
+            "total_tax": "1.54",
+            "taxes": [
+                {
+                    "id": 19,
+                    "total": "0.6975",
+                    "subtotal": "0.6975"
+                },
+                {
+                    "id": 14,
+                    "total": "0.837",
+                    "subtotal": "0.837"
+                }
+            ],
+            "meta_data": [],
+            "sku": "",
+            "price": 13.95,
+            "image": {
+                "id": "",
+                "src": ""
+            },
+            "parent_name": null
+        }
+    ],
+    "tax_lines": [
+        {
+            "id": 1140,
+            "rate_code": "CA-SK-GST(5%)-1",
+            "rate_id": 19,
+            "label": "GST(5%)",
+            "compound": false,
+            "tax_total": "1.40",
+            "shipping_tax_total": "0.00",
+            "rate_percent": 5,
+            "meta_data": [
+                {
+                    "id": 10356,
+                    "key": "_wcpdf_rate_percentage",
+                    "value": "5.0000",
+                    "display_key": "_wcpdf_rate_percentage",
+                    "display_value": "5.0000"
+                },
+                {
+                    "id": 10357,
+                    "key": "_wcpdf_ubl_tax_category",
+                    "value": "",
+                    "display_key": "_wcpdf_ubl_tax_category",
+                    "display_value": ""
+                },
+                {
+                    "id": 10358,
+                    "key": "_wcpdf_ubl_tax_scheme",
+                    "value": "",
+                    "display_key": "_wcpdf_ubl_tax_scheme",
+                    "display_value": ""
+                },
+                {
+                    "id": 10359,
+                    "key": "_wcpdf_ubl_tax_reason",
+                    "value": "",
+                    "display_key": "_wcpdf_ubl_tax_reason",
+                    "display_value": ""
+                }
+            ]
+        },
+        {
+            "id": 1141,
+            "rate_code": "CA-SK-PST (6%)-2",
+            "rate_id": 14,
+            "label": "PST (6%)",
+            "compound": false,
+            "tax_total": "1.68",
+            "shipping_tax_total": "0.00",
+            "rate_percent": 6,
+            "meta_data": [
+                {
+                    "id": 10360,
+                    "key": "_wcpdf_rate_percentage",
+                    "value": "6.0000",
+                    "display_key": "_wcpdf_rate_percentage",
+                    "display_value": "6.0000"
+                },
+                {
+                    "id": 10361,
+                    "key": "_wcpdf_ubl_tax_category",
+                    "value": "",
+                    "display_key": "_wcpdf_ubl_tax_category",
+                    "display_value": ""
+                },
+                {
+                    "id": 10362,
+                    "key": "_wcpdf_ubl_tax_scheme",
+                    "value": "",
+                    "display_key": "_wcpdf_ubl_tax_scheme",
+                    "display_value": ""
+                },
+                {
+                    "id": 10363,
+                    "key": "_wcpdf_ubl_tax_reason",
+                    "value": "",
+                    "display_key": "_wcpdf_ubl_tax_reason",
+                    "display_value": ""
+                }
+            ]
+        }
+    ],
+    "shipping_lines": [],
+    "fee_lines": [],
+    "coupon_lines": [],
+    "refunds": [],
+    "payment_url": "https://blanchedalmond-hamster-446110.hostingersite.com/checkout/order-pay/1708/?pay_for_order=true&key=wc_order_y9s1DPhTVpBLf",
+    "is_editable": false,
+    "needs_payment": false,
+    "needs_processing": true,
+    "date_created_gmt": "2025-12-01T22:30:34",
+    "date_modified_gmt": "2025-12-02T00:08:11",
+    "date_completed_gmt": "2025-12-02T00:08:11",
+    "date_paid_gmt": "2025-12-02T00:08:11",
+    "currency_symbol": "$",
+    "_links": {
+        "self": [
+            {
+                "href": "https://blanchedalmond-hamster-446110.hostingersite.com/wp-json/wc/v3/orders/1708",
+                "targetHints": {
+                    "allow": [
+                        "GET",
+                        "POST",
+                        "PUT",
+                        "PATCH",
+                        "DELETE"
+                    ]
+                }
+            }
+        ],
+        "collection": [
+            {
+                "href": "https://blanchedalmond-hamster-446110.hostingersite.com/wp-json/wc/v3/orders"
+            }
+        ],
+        "customer": [
+            {
+                "href": "https://blanchedalmond-hamster-446110.hostingersite.com/wp-json/wc/v3/customers/5"
+            }
+        ]
+    }
+}

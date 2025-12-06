@@ -372,8 +372,7 @@ fun OrderDto.processWooFoodInfo(): WooFoodInfo? {
     // 元数据键名可能的变体
     val orderMethodKeys = listOf("exwfood_order_method", "_order_type", "order_type", "_woofood_order_type")
     val deliveryTimeKeys = listOf("exwfood_time_deli", "exwfood_delivery_time", "delivery_time", "_delivery_time", "_woofood_delivery_time")
-    // 2025-12-06: 清理无效键名，仅保留 WooFood 标准键
-    val deliveryDateKeys = listOf("exwfood_date_deli", "exwfood_date_pick")
+    val deliveryDateKeys = listOf("exwfood_date_deli", "exwfood_date_pick", "pickup_date", "delivery_date", "_delivery_date", "_woofood_delivery_date")
     val deliveryAddressKeys = listOf("exwfood_delivery_address", "delivery_address", "_delivery_address", "_woofood_delivery_address")
     val deliveryFeeKeys = listOf("exwfood_delivery_fee", "delivery_fee", "_delivery_fee", "_woofood_delivery_fee")
     val tipKeys = listOf("exwfood_tip", "tip", "_tip", "_woofood_tip")

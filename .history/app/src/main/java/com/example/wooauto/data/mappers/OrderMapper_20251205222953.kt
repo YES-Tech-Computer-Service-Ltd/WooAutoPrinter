@@ -469,7 +469,6 @@ object OrderMapper {
         return com.example.wooauto.domain.models.WooFoodInfo(
             orderMethod = orderMethod,
             deliveryTime = timeInfo,
-            deliveryDate = entity.woofoodInfo?.deliveryDate, // 优先使用实体中已保存的日期
             deliveryAddress = if (isDelivery) entity.shippingAddress else null,
             deliveryFee = deliveryFee,
             tip = tipAmount,
@@ -774,7 +773,6 @@ object OrderMapper {
             WooFoodInfoEntity(
                 orderMethod = it.orderMethod,
                 deliveryTime = it.deliveryTime,
-                deliveryDate = it.deliveryDate, // 【关键修复】添加 deliveryDate 映射
                 deliveryAddress = it.deliveryAddress,
                 deliveryFee = it.deliveryFee,
                 tip = it.tip,

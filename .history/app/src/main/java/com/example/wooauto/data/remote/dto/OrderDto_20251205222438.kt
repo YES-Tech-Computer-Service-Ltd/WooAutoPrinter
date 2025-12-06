@@ -281,15 +281,15 @@ fun OrderDto.toOrder(): Order {
     val noteBuilder = StringBuilder()
     if (!customerNote.isNullOrBlank()) noteBuilder.append(customerNote)
     
-    // 【日期修复】：虽然我们现在将日期存入 WooFoodInfo 结构化字段
-    // 但为了兼容旧版代码或其他可能依赖备注的地方，我们仍然保留这个注入逻辑作为双重保险
-    // 2025-12-06: 已移除 pickup_date 和 delivery_date 等猜测性键名，仅保留 exwfood_date_deli 和 exwfood_date_pick
-    val dateDeliKeys = listOf("exwfood_date_deli", "exwfood_date_pick")
+    // 【日期修复】：手动提取 WooFood 的 exwfood_date_deli 并附加到备注，以便 OrderDetailDialog 解析
+    // 这样做避免了修改数据库模型，同时解决了 UI 无法显示自取日期的问题
+    val dateDeliKeys = listOf("exwfood_date_deli", "exwfood_date_pick", "pickup_date", "delivery_date")
     val dateDeliValue = findMetadataValue(dateDeliKeys)?.toString()
     
     if (dateDeliValue != null) {
         if (noteBuilder.isNotEmpty()) noteBuilder.append("\n")
         noteBuilder.append("exwfood_date_deli: ").append(dateDeliValue)
+        // Log.d("OrderDto", "【兼容修复】已将日期元数据注入备注: $dateDeliValue")
     }
 
     return Order(
@@ -372,8 +372,6 @@ fun OrderDto.processWooFoodInfo(): WooFoodInfo? {
     // 元数据键名可能的变体
     val orderMethodKeys = listOf("exwfood_order_method", "_order_type", "order_type", "_woofood_order_type")
     val deliveryTimeKeys = listOf("exwfood_time_deli", "exwfood_delivery_time", "delivery_time", "_delivery_time", "_woofood_delivery_time")
-    // 2025-12-06: 清理无效键名，仅保留 WooFood 标准键
-    val deliveryDateKeys = listOf("exwfood_date_deli", "exwfood_date_pick")
     val deliveryAddressKeys = listOf("exwfood_delivery_address", "delivery_address", "_delivery_address", "_woofood_delivery_address")
     val deliveryFeeKeys = listOf("exwfood_delivery_fee", "delivery_fee", "_delivery_fee", "_woofood_delivery_fee")
     val tipKeys = listOf("exwfood_tip", "tip", "_tip", "_woofood_tip")
@@ -383,8 +381,7 @@ fun OrderDto.processWooFoodInfo(): WooFoodInfo? {
 //    Log.d("OrderDto", "订单#$number 订单方式: $orderMethod")
     
     val deliveryTime = findMetadataValue(deliveryTimeKeys)?.toString()
-    val deliveryDate = findMetadataValue(deliveryDateKeys)?.toString()
-//    Log.d("OrderDto", "订单#$number 配送时间: $deliveryTime, 日期: $deliveryDate")
+//    Log.d("OrderDto", "订单#$number 配送时间: $deliveryTime")
     
     val deliveryAddress = findMetadataValue(deliveryAddressKeys)?.toString()
     
@@ -515,7 +512,6 @@ fun OrderDto.processWooFoodInfo(): WooFoodInfo? {
     return WooFoodInfo(
         orderMethod = orderMethod ?: if (isDelivery) "delivery" else "pickup",
         deliveryTime = deliveryTime,
-        deliveryDate = deliveryDate,
         deliveryAddress = deliveryAddress,
         deliveryFee = deliveryFee,
         tip = tip,

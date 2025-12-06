@@ -774,7 +774,6 @@ object OrderMapper {
             WooFoodInfoEntity(
                 orderMethod = it.orderMethod,
                 deliveryTime = it.deliveryTime,
-                deliveryDate = it.deliveryDate, // 【关键修复】添加 deliveryDate 映射
                 deliveryAddress = it.deliveryAddress,
                 deliveryFee = it.deliveryFee,
                 tip = it.tip,
