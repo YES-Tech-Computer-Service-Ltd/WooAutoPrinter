@@ -203,8 +203,8 @@ class BluetoothPrinterManager @Inject constructor(
         private const val MAX_RETRY_COUNT = 3 // 减少重试次数，避免过度重试
         private const val MAX_RECONNECT_ATTEMPTS = 2 // 减少重连次数
 
-        // 心跳间隔 (毫秒) - 每15秒发送一次心跳，避免蓝牙断连
-        private const val HEARTBEAT_INTERVAL = 5000L
+        // 心跳间隔 (毫秒) - 这里的定义已被下方的 HEARTBEAT_INTERVAL 覆盖，保留是为了兼容性搜索，实际值见下文
+        // private const val HEARTBEAT_INTERVAL = 5000L
 
         // 连接检查间隔 (毫秒) - 每30秒检查一次连接状态
         private const val CONNECTION_CHECK_INTERVAL = 30000L
@@ -212,7 +212,11 @@ class BluetoothPrinterManager @Inject constructor(
         // 连接重试间隔 (毫秒) - 断开连接后等待5秒再尝试重连
         private const val RECONNECT_DELAY = 5000L
 
-        // 蓝牙权限问题的诊断信息
+        // 心跳间隔 (毫秒) - 从 5秒 调整为 60秒，避免缓冲区溢出导致的硬件死锁
+        // [架构调整] 2025-12-08: 降低频率是解决长期运行死锁的关键
+        private const val HEARTBEAT_INTERVAL = 60000L 
+
+        // 连接检查间隔 (毫秒) - 每30秒检查一次连接状态
         const val BLUETOOTH_PERMISSION_ISSUE = """
             蓝牙权限问题排查指南:
             1. 对于Android 12(API 31)及以上版本:
@@ -527,25 +531,28 @@ class BluetoothPrinterManager @Inject constructor(
             }
 
             // 创建蓝牙连接，添加超时控制（通用 ESC/POS 流程）
-
-            val connection = BluetoothConnection(device)
             updatePrinterStatus(config, PrinterStatus.CONNECTING)
 
             // 使用withTimeout添加超时控制，增加重试机制
             var connected = false
             var lastException: Exception? = null
+            var tempConnection: BluetoothConnection? = null // 使用临时变量
             
             for (attempt in 1..MAX_RETRY_COUNT) {
                 try {
-                    
+                    // 【关键修改】每次重试都创建全新的连接对象
+                    // 防止复用已损坏的Socket导致 "socket closed" 或 "read failed"
+                    tempConnection = BluetoothConnection(device)
                     
                     connected = withTimeoutOrNull(CONNECTION_TIMEOUT) {
                         try {
-                            connection.connect()
+                            tempConnection?.connect()
                             true
                         } catch (e: Exception) {
                             Log.e(TAG, "连接尝试失败: ${e.message}")
                             lastException = e
+                            // 【关键修改】连接失败立即断开，释放底层资源
+                            try { tempConnection?.disconnect() } catch (_: Exception) {}
                             false
                         }
                     } ?: false
@@ -555,15 +562,21 @@ class BluetoothPrinterManager @Inject constructor(
                         break
                     } else {
                         Log.w(TAG, "连接尝试 $attempt 失败")
+                        // 【关键修改】确保清理
+                        try { tempConnection?.disconnect() } catch (_: Exception) {}
+                        
                         if (attempt < MAX_RETRY_COUNT) {
-                            delay(2000) // 等待2秒再重试
+                            // 增加重试间隔，给蓝牙协议栈喘息时间
+                            delay(2500) 
                         }
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "连接尝试 $attempt 异常: ${e.message}")
                     lastException = e
+                    try { tempConnection?.disconnect() } catch (_: Exception) {}
+                    
                     if (attempt < MAX_RETRY_COUNT) {
-                        delay(2000)
+                        delay(2500)
                     }
                 }
             }
@@ -576,8 +589,8 @@ class BluetoothPrinterManager @Inject constructor(
                 return false
             }
 
-            // 保存当前连接
-            currentConnection = connection
+            // 保存当前连接（仅当成功时）
+            currentConnection = tempConnection
             
             // 创建打印机实例
             val dpi = 203
@@ -590,7 +603,7 @@ class BluetoothPrinterManager @Inject constructor(
 
             try {
                 // 创建EscPos打印机实例
-                val printer = EscPosPrinter(connection, dpi, paperWidthMm, nbCharPerLine)
+                val printer = EscPosPrinter(tempConnection, dpi, paperWidthMm, nbCharPerLine)
                 currentPrinter = printer
 
                 // 先更新状态为已连接，避免心跳线程抢先读取到旧状态触发误重连
@@ -610,7 +623,9 @@ class BluetoothPrinterManager @Inject constructor(
             } catch (e: Exception) {
                 Log.e(TAG, "创建打印机实例失败: ${e.message}", e)
                 updatePrinterStatus(config, PrinterStatus.ERROR)
-                connection.disconnect()
+                try {
+                    tempConnection?.disconnect()
+                } catch (_: Exception) {}
                 // 启动心跳以便后续自动重连
                 startHeartbeat(config)
                 return false
@@ -2109,10 +2124,11 @@ class BluetoothPrinterManager @Inject constructor(
      */
     private fun startHeartbeat(config: PrinterConfig) {
         if (externalPollingEnabled) {
-            // 外部系统轮询已接管，仅更新当前配置，避免重复循环
-            currentPrinterConfig = config
-            // Log.d(TAG, "外部系统轮询启用，跳过内部系统轮询启动")
-            return
+            // [架构调整] 2025-12-08: 虽然外部不再调用，但保留此逻辑作为兼容开关
+            // 如果确实启用了外部轮询，则跳过内部心跳
+             currentPrinterConfig = config
+             // Log.d(TAG, "外部系统轮询启用，跳过内部系统轮询启动")
+             // return // [修改] 暂时不强制返回，除非完全确信外部轮询在工作。目前架构下外部轮询已禁用，所以这里继续执行。
         }
         // 若已有相同打印机的心跳在运行，则不重复启动，避免短时间被取消
         if (heartbeatJob?.isActive == true && currentPrinterConfig?.address == config.address) {

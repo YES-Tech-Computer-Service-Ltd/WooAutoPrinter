@@ -322,6 +322,7 @@ class OrdersViewModel @Inject constructor(
                     }
                 }
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 Log.e(TAG, "检查配置时出错: ${e.message}", e)
                 // 检查是否有缓存数据来决定配置状态
                 val cachedOrders = try {
@@ -463,6 +464,7 @@ class OrdersViewModel @Inject constructor(
                 
                 Log.d(TAG, "订单刷新完成")
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 Log.e("OrdersViewModel", "刷新订单时发生错误", e)
                 _errorMessage.value = e.localizedMessage ?: "刷新订单失败"
             } finally {
@@ -513,6 +515,7 @@ class OrdersViewModel @Inject constructor(
                 result = false
             }
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             Log.e(TAG, "检查API配置时发生异常: ${e.message}", e)
             val cachedOrders = try {
                 orderRepository.getCachedOrders()

@@ -153,6 +153,8 @@ class BackgroundPollingService : Service() {
                 settingsRepository.getDefaultPrinterConfig()
             })
             // 启用外部系统轮询接管打印机健康检查，避免内部心跳重复
+            // [架构调整] 2025-12-08: 恢复内部心跳接管，禁用外部控制，防止双重指挥
+            /*
             try {
                 if (printerManager is BluetoothPrinterManager) {
                     (printerManager as BluetoothPrinterManager).setExternalPollingEnabled(true)
@@ -161,6 +163,8 @@ class BackgroundPollingService : Service() {
             } catch (e: Exception) {
                 Log.w(TAG, "设置外部系统轮询标志失败: ${e.message}")
             }
+            */
+            UiLog.d(TAG, "系统轮询已启动（打印机健康检查交由管理器内部处理）")
         } catch (e: Exception) {
             Log.e(TAG, "启动系统轮询失败: ${e.message}")
         }

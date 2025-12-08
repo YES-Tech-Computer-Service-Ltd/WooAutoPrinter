@@ -25,7 +25,7 @@ import java.util.Date
 import javax.inject.Inject
 import javax.inject.Singleton
 import com.example.wooauto.data.remote.ApiError
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import java.text.SimpleDateFormat
@@ -33,6 +33,7 @@ import java.util.Locale
 import java.util.Calendar
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 
 @Singleton
 class OrderRepositoryImpl @Inject constructor(
@@ -198,6 +199,7 @@ class OrderRepositoryImpl @Inject constructor(
             
             return@withContext Result.success(updatedOrder)
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             Log.e("OrderRepositoryImpl", "更新订单状态失败", e)
             return@withContext Result.failure(e)
         }
@@ -415,6 +417,7 @@ class OrderRepositoryImpl @Inject constructor(
             
             return@withContext Result.success(orders)
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             val error = when (e) {
                 is ApiError -> e
                 else -> ApiError.fromException(e)
@@ -588,6 +591,7 @@ class OrderRepositoryImpl @Inject constructor(
                 throw e
             }
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             val error = when (e) {
                 is ApiError -> e
                 else -> ApiError.fromException(e)
@@ -672,6 +676,7 @@ class OrderRepositoryImpl @Inject constructor(
             Log.d("OrderRepositoryImpl", "【打印状态操作】完成标记订单为已打印: $orderId")
             return@withContext true
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             Log.e("OrderRepositoryImpl", "【打印状态操作】标记订单为已打印失败", e)
             return@withContext false
         }
@@ -711,6 +716,7 @@ class OrderRepositoryImpl @Inject constructor(
             
             return@withContext true
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             Log.e("OrderRepositoryImpl", "标记订单为未打印失败", e)
             return@withContext false
         }
@@ -735,6 +741,7 @@ class OrderRepositoryImpl @Inject constructor(
             
             return@withContext Result.success(Unit)
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             val error = when (e) {
                 is ApiError -> e
                 else -> ApiError.fromException(e)
@@ -779,6 +786,7 @@ class OrderRepositoryImpl @Inject constructor(
             
             return@withContext true
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             Log.e("OrderRepositoryImpl", "标记订单为已读失败", e)
             return@withContext false
         }
@@ -818,6 +826,7 @@ class OrderRepositoryImpl @Inject constructor(
             
             return@withContext true
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             Log.e("OrderRepositoryImpl", "标记订单为未读失败", e)
             return@withContext false
         }
@@ -899,6 +908,7 @@ class OrderRepositoryImpl @Inject constructor(
             api.getOrders(page = 1, perPage = 1)
             true // 如果没有异常，则认为连接成功
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             Log.e("OrderRepositoryImpl", "API连接测试失败", e)
             false
         }

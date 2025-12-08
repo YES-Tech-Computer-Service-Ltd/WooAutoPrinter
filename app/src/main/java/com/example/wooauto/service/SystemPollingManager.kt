@@ -188,6 +188,11 @@ class SystemPollingManager @Inject constructor(
 		printerHealthJob = scope.launch {
 			while (isActive) {
 				try {
+					// [架构调整] 2025-12-08
+					// 为解决蓝牙打印机硬件死锁问题，已将心跳保活职责回归到 BluetoothPrinterManager 内部（高内聚方案）。
+					// 这里的外部轮询暂时禁用，避免双重指挥和频率冲突。
+					// 未来如果支持多打印机并发管理，可在此处恢复统一调度。
+					/*
 					val config = try { defaultPrinterProvider() } catch (_: Exception) { null }
 					if (config != null) {
 						// 仅触发检查与恢复，具体状态更新在 PrinterManager 内部完成
@@ -203,6 +208,7 @@ class SystemPollingManager @Inject constructor(
 							Log.e(TAG, "系统轮询/打印机：检查异常: ${e.message}", e)
 						}
 					}
+					*/
 				} catch (e: Exception) {
 					Log.e(TAG, "系统轮询/打印机：循环异常: ${e.message}", e)
 				} finally {
