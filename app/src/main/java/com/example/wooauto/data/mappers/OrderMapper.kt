@@ -329,55 +329,85 @@ object OrderMapper {
         var orderMethod: String? = null
         var isDelivery = false
         
-        // 查找元数据标记
-        if (entity.customerNote.contains("exwfood_order_method", ignoreCase = true)) {
-            val orderMethodPattern = "exwfood_order_method[：:]*\\s*([\\w]+)".toRegex(RegexOption.IGNORE_CASE)
-            val match = orderMethodPattern.find(entity.customerNote)
-            if (match != null && match.groupValues.size > 1) {
-                val extractedMethod = match.groupValues[1].trim().lowercase()
-                // 严格区分自取和外卖
-                isDelivery = extractedMethod == "delivery"
-                orderMethod = if (isDelivery) "delivery" else "takeaway"
-            }
-        }
-        
-        // 如果元数据中没有找到，则通过其他信息判断
+        // 确定是否为外卖
         if (orderMethod == null) {
-            // 检查是否有shipping地址 - 有地址通常意味着配送订单
-            val hasShippingAddress = entity.shippingAddress.isNotEmpty() 
-                && !entity.shippingAddress.equals(entity.billingAddress)
-            
-            // 检查备注中是否有自取相关关键词 - 前面已经检查过了，这里是额外确认
-            val hasPickupKeywords = entity.customerNote.contains("自取", ignoreCase = true) || 
-                          entity.customerNote.lowercase().contains("pickup") ||
-                          entity.customerNote.lowercase().contains("takeaway") ||
-                          entity.customerNote.lowercase().contains("pick up") ||
-                          entity.paymentMethodTitle.contains("自取", ignoreCase = true)
-            
-            // 检查备注中是否有外卖相关关键词
-            val hasDeliveryKeywords = entity.customerNote.contains("外卖", ignoreCase = true) || 
-                           entity.customerNote.contains("配送", ignoreCase = true) || 
-                           entity.customerNote.lowercase().contains("delivery") ||
-                           entity.customerNote.lowercase().contains("deliver to") ||
-                           entity.customerNote.contains("送餐", ignoreCase = true) ||
-                           entity.customerNote.contains("送货", ignoreCase = true) ||
-                           entity.customerNote.lowercase().contains("shipping") ||
-                           entity.customerNote.lowercase().contains("transport") ||
-                           entity.paymentMethodTitle.contains("外卖", ignoreCase = true) ||
-                           entity.paymentMethodTitle.contains("配送", ignoreCase = true) ||
-                           entity.paymentMethodTitle.contains("到付", ignoreCase = true)
-            
-            // 确定订单类型：如果明确有自取关键词，则为自取；如果有配送地址或配送关键词，则为外卖
-            isDelivery = if (hasPickupKeywords) false else (hasShippingAddress || hasDeliveryKeywords)
-            orderMethod = if (isDelivery) "delivery" else "takeaway"
+             // 检查元数据 exwfood_order_method
+             val metaOrderMethod = entity.customerNote.lines()
+                 .find { it.startsWith("exwfood_order_method:", ignoreCase = true) }
+                 ?.substringAfter(":")?.trim()?.lowercase()
+             
+             if (metaOrderMethod != null) {
+                 isDelivery = metaOrderMethod == "delivery"
+                 // 显式判断 dinein
+                 val isDineIn = metaOrderMethod == "dinein"
+                 
+                 orderMethod = when {
+                     isDelivery -> "delivery"
+                     isDineIn -> "dinein"
+                     else -> "takeaway"
+                 }
+             } else {
+                 // 检查shipping地址
+                 val hasShippingAddress = entity.shippingAddress.isNotEmpty() 
+                     && !entity.shippingAddress.equals(entity.billingAddress)
+                 
+                 // 检查备注中是否有自取相关关键词
+                 val hasPickupKeywords = entity.customerNote.contains("自取", ignoreCase = true) || 
+                               entity.customerNote.lowercase().contains("pickup") ||
+                               entity.customerNote.lowercase().contains("takeaway") ||
+                               entity.customerNote.lowercase().contains("pick up") ||
+                               entity.paymentMethodTitle.contains("自取", ignoreCase = true)
+                 
+                 // 检查备注中是否有外卖相关关键词
+                 val hasDeliveryKeywords = entity.customerNote.contains("外卖", ignoreCase = true) || 
+                                entity.customerNote.contains("配送", ignoreCase = true) || 
+                                entity.customerNote.lowercase().contains("delivery") ||
+                                entity.customerNote.lowercase().contains("deliver to") ||
+                                entity.customerNote.contains("送餐", ignoreCase = true) ||
+                                entity.customerNote.contains("送货", ignoreCase = true) ||
+                                entity.customerNote.lowercase().contains("shipping") ||
+                                entity.customerNote.lowercase().contains("transport") ||
+                                entity.paymentMethodTitle.contains("外卖", ignoreCase = true) ||
+                                entity.paymentMethodTitle.contains("配送", ignoreCase = true) ||
+                                entity.paymentMethodTitle.contains("到付", ignoreCase = true)
+                 
+                 val hasDineInKeywords = entity.customerNote.contains("堂食", ignoreCase = true) ||
+                                entity.customerNote.contains("dine in", ignoreCase = true) ||
+                                entity.customerNote.contains("dine-in", ignoreCase = true) ||
+                                entity.customerNote.contains("table", ignoreCase = true)
+                 
+                 isDelivery = if (hasPickupKeywords || hasDineInKeywords) false else (hasShippingAddress || hasDeliveryKeywords)
+                 
+                 orderMethod = when {
+                     isDelivery -> "delivery"
+                     hasDineInKeywords -> "dinein"
+                     else -> "takeaway"
+                 }
+             }
         }
         
         // 提取时间信息
-        val timeInfo = extractTimeInfoFromMetadata(entity.customerNote)
+        // 使用元数据 exwfood_time_deli 如果存在
+        val metaTimeDeli = entity.customerNote.lines()
+            .find { it.startsWith("exwfood_time_deli:", ignoreCase = true) }
+            ?.substringAfter(":")?.trim()
+
+        val timeInfo = metaTimeDeli ?: extractTimeInfoFromMetadata(entity.customerNote)
         
         // 从订单的customerNote中提取外卖费和小费信息
         var deliveryFee: String? = null
         var tipAmount: String? = null
+
+        // 确定配送地址：如果是外卖且 shipping 为空，则回退到 billing
+        val finalDeliveryAddress = if (isDelivery) {
+             if (entity.shippingAddress.isNotBlank() && !entity.shippingAddress.all { !it.isLetterOrDigit() }) {
+                  entity.shippingAddress
+             } else {
+                  entity.billingAddress
+             }
+        } else {
+             null
+        }
         
         // 从元数据提取外卖费 - 只有是外卖订单时才提取
         if (isDelivery) {
@@ -466,7 +496,7 @@ object OrderMapper {
         return com.example.wooauto.domain.models.WooFoodInfo(
             orderMethod = orderMethod,
             deliveryTime = timeInfo,
-            deliveryAddress = if (isDelivery) entity.shippingAddress else null,
+            deliveryAddress = finalDeliveryAddress,
             deliveryFee = deliveryFee,
             tip = tipAmount,
             isDelivery = isDelivery

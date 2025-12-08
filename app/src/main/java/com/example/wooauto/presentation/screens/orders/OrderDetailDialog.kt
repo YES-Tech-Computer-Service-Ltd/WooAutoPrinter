@@ -99,14 +99,13 @@ fun OrderDetailDialog(
         properties = DialogProperties(
             dismissOnBackPress = true,
             dismissOnClickOutside = true,
-            usePlatformDefaultWidth = false
+            usePlatformDefaultWidth = false // 启用全屏
         )
     ) {
-        Card(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
-            shape = RoundedCornerShape(16.dp)
+        // 使用 Surface 并填满整个屏幕大小，移除 Card 的圆角和外边距
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.surface
         ) {
             Column(
                 modifier = Modifier
@@ -330,37 +329,28 @@ fun OrderDetailDialog(
                         
                         // 显示WooFood信息（如果有）
                         displayOrder.woofoodInfo?.let { wooFoodInfo ->
-                            // 添加一个显眼的订单方式标签
-                            val orderMethodColor = if (wooFoodInfo.isDelivery) {
-                                Color(0xFF2196F3) // 蓝色用于外卖
-                            } else {
-                                Color(0xFF4CAF50) // 绿色用于自取
+                            // 根据新的 orderMethod 区分颜色和文案
+                            val orderMethodColor = when(wooFoodInfo.orderMethod) {
+                                "delivery" -> Color(0xFF2196F3) // 蓝色用于外卖
+                                "dinein" -> Color(0xFFFF9800)   // 橙色用于堂食
+                                else -> Color(0xFF4CAF50)       // 绿色用于自取
+                            }
+                            
+                            val orderMethodText = when(wooFoodInfo.orderMethod) {
+                                "delivery" -> stringResource(R.string.delivery_order)
+                                "dinein" -> "Dine-in Order" // TODO: Add resource string
+                                else -> stringResource(R.string.pickup_order)
+                            }
+                            
+                            val orderMethodIcon = when(wooFoodInfo.orderMethod) {
+                                "delivery" -> Icons.Default.LocalShipping
+                                "dinein" -> Icons.Default.RestaurantMenu
+                                else -> Icons.Default.ShoppingBag
                             }
                             
                             // 临时调试：仅针对#1700显示完整元数据与备注预览
-    if (false && displayOrder.number == "1700") {
-                                val previewNote = displayOrder.notes.take(2000)
-                                var rawMeta by remember { mutableStateOf<String?>(null) }
-                                // 调试抓取原始元数据已禁用
-                                OrderDetailRow(
-                                    label = "Meta",
-                                    value = (rawMeta ?: previewNote).ifBlank { stringResource(R.string.not_provided) },
-                                    icon = {
-                                        Icon(
-                                            imageVector = Icons.Default.Info,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(16.dp),
-                                            tint = MaterialTheme.colorScheme.primary
-                                        )
-                                    }
-                                )
-                            }
+                            // ... (debug code omitted)
 
-                            val orderMethodText = if (wooFoodInfo.isDelivery) 
-                                stringResource(R.string.delivery_order) 
-                            else 
-                                stringResource(R.string.pickup_order)
-                            
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -380,10 +370,7 @@ fun OrderDetailDialog(
                                         horizontalArrangement = Arrangement.Center
                                     ) {
                                         Icon(
-                                            imageVector = if (wooFoodInfo.isDelivery) 
-                                                Icons.Default.LocalShipping 
-                                            else 
-                                                Icons.Default.Restaurant,
+                                            imageVector = orderMethodIcon,
                                             contentDescription = orderMethodText,
                                             modifier = Modifier.size(18.dp),
                                             tint = orderMethodColor
@@ -401,7 +388,8 @@ fun OrderDetailDialog(
                                 }
                             }
                             
-                            // 显示地址或者自取信息
+                            // 内容区分显示逻辑
+                            // 1. Delivery: 显示配送地址
                             if (wooFoodInfo.isDelivery) {
                                 wooFoodInfo.deliveryAddress?.let { address ->
                                     OrderDetailRow(
@@ -417,13 +405,20 @@ fun OrderDetailDialog(
                                         }
                                     )
                                 }
-                            } else {
+                            } 
+                            // 2. Dine-in: 不显示地址，可能显示桌号（如果有提取到的话）
+                            else if (wooFoodInfo.orderMethod == "dinein") {
+                                // 目前暂时没有专门的桌号字段，如果 notes 里有可以提取
+                                // 暂无需显示额外地址信息
+                            }
+                            // 3. Pickup: 显示店铺地址或自取提示
+                            else {
                                 OrderDetailRow(
                                     label = stringResource(R.string.pickup_location),
-                                    value = displayOrder.billingInfo.split("\n").firstOrNull() ?: stringResource(R.string.in_store_pickup),
+                                    value = stringResource(R.string.in_store_pickup), // 简化显示
                                     icon = {
                                         Icon(
-                                            imageVector = Icons.Default.LocationOn,
+                                            imageVector = Icons.Default.Store,
                                             contentDescription = stringResource(R.string.pickup_location),
                                             modifier = Modifier.size(16.dp),
                                             tint = MaterialTheme.colorScheme.primary
@@ -432,40 +427,43 @@ fun OrderDetailDialog(
                                 )
                             }
                             
-                            // 统一显示预计时间（配送/自取）——始终包含日期（优先预约日期，否则下单日期），并带相对日期
-                            wooFoodInfo.deliveryTime?.let { time ->
-                                val scheduledDateStr = extractScheduledDateFromNotes(displayOrder.notes)
-                                val dateOnly = parseDateOnly(scheduledDateStr) ?: stripTime(displayOrder.dateCreated)
-                                val dateStr = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(dateOnly)
-                                val strings = StatusStrings(
-                                    urgentTitle = stringResource(R.string.status_urgent_title),
-                                    todayLaterTitle = stringResource(R.string.status_today_later_title),
-                                    preOrderTitle = stringResource(R.string.status_preorder_title),
-                                    today = stringResource(R.string.relative_today),
-                                    tomorrow = stringResource(R.string.relative_tomorrow),
-                                    dayAfterTomorrow = stringResource(R.string.relative_day_after_tomorrow),
-                                    daysLaterFormat = stringResource(R.string.relative_days_later),
-                                    dateWithRelativeFormat = stringResource(R.string.status_date_with_relative)
-                                )
-                                val relative = computeRelativeDayLabel(
-                                    createdAt = displayOrder.dateCreated,
-                                    scheduled = dateOnly,
-                                    strings = strings
-                                )
-                                val datePortion = if (relative != null) String.format(strings.dateWithRelativeFormat, dateStr, relative) else dateStr
-                                val dateTimeText = "$datePortion $time"
-                                OrderDetailRow(
-                                    label = if (wooFoodInfo.isDelivery) stringResource(R.string.delivery_time) else stringResource(R.string.pickup_time),
-                                    value = dateTimeText,
-                                    icon = {
-                                        Icon(
-                                            imageVector = Icons.Default.Schedule,
-                                            contentDescription = if (wooFoodInfo.isDelivery) stringResource(R.string.delivery_time) else stringResource(R.string.pickup_time),
-                                            modifier = Modifier.size(16.dp),
-                                            tint = MaterialTheme.colorScheme.primary
-                                        )
-                                    }
-                                )
+                            // 统一显示预计时间
+                            // 逻辑：Delivery 和 Pickup 都显示时间，Dine-in 暂时隐藏（通常堂食是即时的）
+                            if (wooFoodInfo.orderMethod != "dinein") {
+                                wooFoodInfo.deliveryTime?.let { time ->
+                                    val scheduledDateStr = extractScheduledDateFromNotes(displayOrder.notes)
+                                    val dateOnly = parseDateOnly(scheduledDateStr) ?: stripTime(displayOrder.dateCreated)
+                                    val dateStr = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(dateOnly)
+                                    val strings = StatusStrings(
+                                        urgentTitle = stringResource(R.string.status_urgent_title),
+                                        todayLaterTitle = stringResource(R.string.status_today_later_title),
+                                        preOrderTitle = stringResource(R.string.status_preorder_title),
+                                        today = stringResource(R.string.relative_today),
+                                        tomorrow = stringResource(R.string.relative_tomorrow),
+                                        dayAfterTomorrow = stringResource(R.string.relative_day_after_tomorrow),
+                                        daysLaterFormat = stringResource(R.string.relative_days_later),
+                                        dateWithRelativeFormat = stringResource(R.string.status_date_with_relative)
+                                    )
+                                    val relative = computeRelativeDayLabel(
+                                        createdAt = displayOrder.dateCreated,
+                                        scheduled = dateOnly,
+                                        strings = strings
+                                    )
+                                    val datePortion = if (relative != null) String.format(strings.dateWithRelativeFormat, dateStr, relative) else dateStr
+                                    val dateTimeText = "$datePortion $time"
+                                    OrderDetailRow(
+                                        label = if (wooFoodInfo.isDelivery) stringResource(R.string.delivery_time) else stringResource(R.string.pickup_time),
+                                        value = dateTimeText,
+                                        icon = {
+                                            Icon(
+                                                imageVector = Icons.Default.Schedule,
+                                                contentDescription = if (wooFoodInfo.isDelivery) stringResource(R.string.delivery_time) else stringResource(R.string.pickup_time),
+                                                modifier = Modifier.size(16.dp),
+                                                tint = MaterialTheme.colorScheme.primary
+                                            )
+                                        }
+                                    )
+                                }
                             }
                         }
                         
@@ -539,11 +537,13 @@ fun OrderDetailDialog(
                         
                         // 更全面的小费名称匹配
                         val tipLine = displayOrder.feeLines.find { 
-                            it.name.equals("Show Your Appreciation", ignoreCase = true) ||
-                            it.name.contains("小费", ignoreCase = true) || 
-                            it.name.contains("tip", ignoreCase = true) ||
-                            it.name.contains("gratuity", ignoreCase = true) ||
-                            it.name.contains("appreciation", ignoreCase = true)
+                            val name = it.name.lowercase()
+                            name.contains("show your appreciation") ||
+                            name.contains("appreciation") ||
+                            name.contains("tip") ||
+                            name.contains("gratuity") ||
+                            name.contains("小费") ||
+                            name.contains("感谢")
                         }
                         
                         // Debug logs removed
@@ -619,11 +619,14 @@ fun OrderDetailDialog(
                                               feeLine.name.contains("delivery", ignoreCase = true)
                             
                             val isTip = tipLine?.id == feeLine.id ||
-                                      feeLine.name.equals("Show Your Appreciation", ignoreCase = true) ||
-                                      feeLine.name.contains("小费", ignoreCase = true) || 
-                                      feeLine.name.contains("tip", ignoreCase = true) || 
-                                      feeLine.name.contains("gratuity", ignoreCase = true) ||
-                                      feeLine.name.contains("appreciation", ignoreCase = true)
+                                      feeLine.name.lowercase().let { name ->
+                                          name.contains("show your appreciation") ||
+                                          name.contains("appreciation") ||
+                                          name.contains("tip") ||
+                                          name.contains("gratuity") ||
+                                          name.contains("小费") ||
+                                          name.contains("感谢")
+                                      }
                             
                             if (!isDeliveryFee && !isTip) {
                                                             OrderDetailRow(                                label = feeLine.name,                                value = "$currencySymbol${feeLine.total}",

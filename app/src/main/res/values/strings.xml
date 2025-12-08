@@ -54,6 +54,7 @@
     <string name="order_note">Note</string>
     <string name="delivery_order">Delivery Order</string>
     <string name="pickup_order">Pickup Order</string>
+    <string name="dine_in_order">Dine-in Order</string>
     <string name="delivery_address">Delivery Address</string>
     <string name="pickup_location">Pickup Location</string>
     <string name="product_list">Product List</string>
