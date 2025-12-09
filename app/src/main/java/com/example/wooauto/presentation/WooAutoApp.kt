@@ -14,6 +14,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -78,7 +79,7 @@ data class SearchEvent(val query: String, val screenRoute: String)
 data class RefreshEvent(val screenRoute: String)
 
 // 订单详情事件
-data class OpenOrderDetailEvent(val order: Order)
+data class OpenOrderDetailEvent(val order: Order, val mode: DetailMode = DetailMode.AUTO)
 
 // 应用级事件总线
 object EventBus {
@@ -99,8 +100,8 @@ object EventBus {
         _refreshEvents.emit(RefreshEvent(screenRoute))
     }
     
-    suspend fun emitOpenOrderDetail(order: Order) {
-        _openOrderDetailEvents.emit(OpenOrderDetailEvent(order))
+    suspend fun emitOpenOrderDetail(order: Order, mode: DetailMode = DetailMode.AUTO) {
+        _openOrderDetailEvents.emit(OpenOrderDetailEvent(order, mode))
     }
 }
 
@@ -155,6 +156,7 @@ fun AppContent() {
     // 监听打开详情事件
     LaunchedEffect(Unit) {
         EventBus.openOrderDetailEvents.collect { event ->
+            ordersViewModel.openOrderDetails(event.order.id, event.mode)
             detailOrder.value = event.order
             showOrderDetail.value = true
         }
@@ -497,6 +499,7 @@ fun AppContent() {
         
         // 订单详情全屏覆盖层 (zIndex=50，低于 NewOrderPopup 999)
         // 放在最外层 Box 的末尾，确保覆盖在 SideBar 和 TopBar 之上
+        val selectedDetailMode by ordersViewModel.selectedDetailMode.collectAsState()
         if (showOrderDetail.value && detailOrder.value != null) {
             OrderDetailDialog(
                 order = detailOrder.value!!,
@@ -504,14 +507,16 @@ fun AppContent() {
                     showOrderDetail.value = false
                     detailOrder.value = null
                 },
-                mode = DetailMode.AUTO,
+                mode = selectedDetailMode,
                 onStatusChange = { orderId, newStatus ->
                     ordersViewModel.updateOrderStatus(orderId, newStatus)
                 },
                 onMarkAsPrinted = { orderId ->
                     ordersViewModel.markOrderAsPrinted(orderId)
                 },
-                onMarkAsRead = null
+                onMarkAsRead = { orderId ->
+                    ordersViewModel.markOrderAsRead(orderId)
+                }
             )
         }
     }

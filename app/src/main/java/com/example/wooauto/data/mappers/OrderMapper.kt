@@ -3,6 +3,7 @@ package com.example.wooauto.data.mappers
 import android.util.Log
 import com.example.wooauto.BuildConfig
 import com.example.wooauto.data.local.entities.FeeLineEntity
+import com.example.wooauto.data.local.entities.ItemOptionEntity
 import com.example.wooauto.data.local.entities.OrderEntity
 import com.example.wooauto.data.local.entities.OrderLineItemEntity
 import com.example.wooauto.data.local.entities.TaxLineEntity
@@ -10,6 +11,7 @@ import com.example.wooauto.data.local.entities.WooFoodInfoEntity
 import com.example.wooauto.data.remote.models.BillingResponse
 import com.example.wooauto.data.remote.models.OrderResponse
 import com.example.wooauto.data.remote.models.ShippingResponse
+import com.example.wooauto.domain.models.ItemOption
 import com.example.wooauto.domain.models.Order
 import com.example.wooauto.domain.models.OrderItem
 import com.google.gson.Gson
@@ -35,31 +37,28 @@ object OrderMapper {
      */
     fun mapResponseToEntity(response: OrderResponse): OrderEntity {
         // 调试日志已移除
-        // 提取元数据信息并构建元数据字符串
         val metadataBuilder = StringBuilder()
-        
-        // 处理元数据中的订单方式和配送时间
+        val metaEntries = response.metaData.map { it.key to it.value }
+        val parsedMeta = WooFoodMetadataParser.parse(metaEntries)
+
+        parsedMeta.orderMethod?.let {
+            metadataBuilder.appendLine("exwfood_order_method: $it")
+        }
+        parsedMeta.deliveryDate?.let {
+            metadataBuilder.appendLine("exwfood_date_deli_normalized: $it")
+        }
+        parsedMeta.deliveryTime?.let {
+            metadataBuilder.appendLine("exwfood_time_deli: $it")
+        }
+
+        // 记录其他与配送相关的元数据，方便排查
         response.metaData.forEach { meta ->
-            when (meta.key) {
-                "exwfood_order_method" -> {
-                    val orderMethod = meta.value.toString()
-                    metadataBuilder.appendLine("exwfood_order_method: $orderMethod")
-                }
-                "exwfood_time_deli" -> {
-                    val orderTime = meta.value.toString()
-                    metadataBuilder.appendLine("exwfood_time_deli: $orderTime")
-                }
-                // 添加其他可能有用的元数据
-                else -> {
-                    if (meta.key.contains("woofood", ignoreCase = true) || 
-                        meta.key.contains("delivery", ignoreCase = true) || 
-                        meta.key.contains("shipping", ignoreCase = true) ||
-                        meta.key.contains("tip", ignoreCase = true) ||
-                        meta.key.contains("exwfood", ignoreCase = true)) {
-                        
-                        metadataBuilder.appendLine("${meta.key}: ${meta.value}")
-                    }
-                }
+            if (meta.key.contains("woofood", ignoreCase = true) ||
+                meta.key.contains("delivery", ignoreCase = true) ||
+                meta.key.contains("shipping", ignoreCase = true) ||
+                meta.key.contains("tip", ignoreCase = true) ||
+                meta.key.contains("exwfood", ignoreCase = true)) {
+                metadataBuilder.appendLine("${meta.key}: ${meta.value}")
             }
         }
         
@@ -139,15 +138,35 @@ object OrderMapper {
         
         // 映射订单项
         val lineItems = response.lineItems.map { item ->
+            // 提取商品选项/元数据
+            val options = item.metaData.map { meta ->
+                ItemOptionEntity(
+                    name = meta.key,
+                    value = meta.value.toString()
+                )
+            }
+
             OrderLineItemEntity(
                 productId = item.productId,
                 name = item.name,
                 quantity = item.quantity,
                 price = item.price,
                 total = item.total,
-                sku = "" // 如果需要可以添加sku
+                sku = "", // 如果需要可以添加sku
+                options = options
             )
         }
+
+        val isDeliveryByFee = deliveryFeeAmount != "0.00" && deliveryFeeAmount.isNotEmpty()
+        val woofoodInfoEntity = WooFoodInfoEntity(
+            orderMethod = parsedMeta.orderMethod,
+            deliveryDate = parsedMeta.deliveryDate,
+            deliveryTime = parsedMeta.deliveryTime,
+            deliveryAddress = null, // 地址信息依旧由后续逻辑决定
+            deliveryFee = deliveryFeeAmount,
+            tip = tipAmount,
+            isDelivery = parsedMeta.isDelivery || isDeliveryByFee
+        )
 
         val entity = OrderEntity(
             id = response.id,
@@ -171,7 +190,8 @@ object OrderMapper {
             paymentMethodTitle = response.paymentMethodTitle,
             isPrinted = false,
             notificationShown = false,
-            lastUpdated = System.currentTimeMillis()
+            lastUpdated = System.currentTimeMillis(),
+            woofoodInfo = woofoodInfoEntity // 存入解析到的 woofoodInfo
         )
         // 调试日志已移除
         return entity
@@ -192,6 +212,13 @@ object OrderMapper {
     fun mapEntityToDomain(entity: OrderEntity): Order {
         // 将OrderLineItemEntity列表转换为OrderItem列表
         val orderItems = entity.lineItems.map { lineItem ->
+            val options = lineItem.options.map { option ->
+                ItemOption(
+                    name = option.name,
+                    value = option.value
+                )
+            }
+
             OrderItem(
                 id = 0, // OrderLineItemEntity没有id字段
                 productId = lineItem.productId,
@@ -200,7 +227,8 @@ object OrderMapper {
                 price = lineItem.price,
                 subtotal = lineItem.price, // 假设小计等于单价
                 total = lineItem.total,
-                image = ""
+                image = "",
+                options = options
             )
         }
         
@@ -259,6 +287,7 @@ object OrderMapper {
                 
                 com.example.wooauto.domain.models.WooFoodInfo(
                     orderMethod = woofoodInfo.orderMethod,
+                    deliveryDate = woofoodInfo.deliveryDate,
                     deliveryTime = woofoodInfo.deliveryTime,
                     deliveryAddress = woofoodInfo.deliveryAddress,
                     deliveryFee = finalDeliveryFee,
@@ -276,6 +305,7 @@ object OrderMapper {
                 
                 com.example.wooauto.domain.models.WooFoodInfo(
                     orderMethod = "delivery",
+                    deliveryDate = null,
                     deliveryTime = null,
                     deliveryAddress = null,
                     deliveryFee = deliveryFeeFromFeeLine,
@@ -300,6 +330,19 @@ object OrderMapper {
      * 解析WooFood信息
      */
     private fun parseWooFoodInfo(entity: OrderEntity): com.example.wooauto.domain.models.WooFoodInfo? {
+        // 1. 如果实体中已经保存了WooFoodInfo，直接使用
+        if (entity.woofoodInfo != null) {
+            return com.example.wooauto.domain.models.WooFoodInfo(
+                orderMethod = entity.woofoodInfo.orderMethod,
+                deliveryDate = entity.woofoodInfo.deliveryDate,
+                deliveryTime = entity.woofoodInfo.deliveryTime,
+                deliveryAddress = entity.woofoodInfo.deliveryAddress,
+                deliveryFee = entity.woofoodInfo.deliveryFee,
+                tip = entity.woofoodInfo.tip,
+                isDelivery = entity.woofoodInfo.isDelivery
+            )
+        }
+
         // 先检查明确的自取关键词
         val isPickupByKeywords = entity.customerNote.contains("自取", ignoreCase = true) || 
                          entity.customerNote.lowercase().contains("pickup") ||
@@ -317,6 +360,7 @@ object OrderMapper {
         if (isPickupByKeywords) {
             return com.example.wooauto.domain.models.WooFoodInfo(
                 orderMethod = "takeaway",
+                deliveryDate = null, // 不猜测日期
                 deliveryTime = extractTimeInfoFromMetadata(entity.customerNote),
                 deliveryAddress = null,
                 deliveryFee = null,  // 自取订单没有配送费
@@ -495,6 +539,7 @@ object OrderMapper {
         
         return com.example.wooauto.domain.models.WooFoodInfo(
             orderMethod = orderMethod,
+            deliveryDate = null,
             deliveryTime = timeInfo,
             deliveryAddress = finalDeliveryAddress,
             deliveryFee = deliveryFee,
@@ -785,13 +830,21 @@ object OrderMapper {
         
         // 将领域模型中的OrderItem转换为OrderLineItemEntity
         val lineItems = order.items.map { item ->
+            val options = item.options.map { option ->
+                ItemOptionEntity(
+                    name = option.name,
+                    value = option.value
+                )
+            }
+
             OrderLineItemEntity(
                 productId = item.productId,
                 name = item.name,
                 quantity = item.quantity,
                 price = item.price,
                 total = item.total,
-                sku = "" // 如果OrderItem中有sku字段，应该使用item.sku
+                sku = "", // 如果OrderItem中有sku字段，应该使用item.sku
+                options = options
             )
         }
         
@@ -799,6 +852,7 @@ object OrderMapper {
         val woofoodInfoEntity = order.woofoodInfo?.let {
             WooFoodInfoEntity(
                 orderMethod = it.orderMethod,
+                deliveryDate = it.deliveryDate,
                 deliveryTime = it.deliveryTime,
                 deliveryAddress = it.deliveryAddress,
                 deliveryFee = it.deliveryFee,

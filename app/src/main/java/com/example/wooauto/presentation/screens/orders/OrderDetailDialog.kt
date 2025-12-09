@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -35,6 +36,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.example.wooauto.R
+import com.example.wooauto.domain.models.ItemOption
 import com.example.wooauto.domain.models.Order
 import com.example.wooauto.domain.models.OrderItem
 import com.example.wooauto.domain.templates.TemplateType
@@ -45,6 +47,7 @@ import androidx.compose.ui.draw.clip
 import com.example.wooauto.licensing.LicenseStatus
 import com.example.wooauto.licensing.EligibilityStatus
 import com.example.wooauto.presentation.screens.templatePreview.TemplateConfigViewModel
+import java.util.Locale
 
 /**
  * 订单详情对话框 - 重构版
@@ -133,6 +136,8 @@ fun OrderDetailDialog(
                     val isDelivery = displayOrder.woofoodInfo?.isDelivery == true || orderMethod == "delivery"
                                    
                     if (isWideScreen) {
+                        val productionWeight = 0.65f
+                        val infoWeight = 1f - productionWeight
                         Row(
                 modifier = Modifier
                     .fillMaxSize()
@@ -142,21 +147,21 @@ fun OrderDetailDialog(
                             if (isDelivery) {
                                 // === 外卖布局 ===
                                 // 左栏 (55-60%): 生产核心
-                                Box(modifier = Modifier.weight(0.6f).fillMaxHeight()) {
+                                Box(modifier = Modifier.weight(productionWeight).fillMaxHeight()) {
                                     ProductionColumn(displayOrder, currencySymbol)
                                 }
                                 // 右栏 (40-45%): 履约信息 + 支付
-                                Box(modifier = Modifier.weight(0.4f).fillMaxHeight()) {
+                                Box(modifier = Modifier.weight(infoWeight).fillMaxHeight()) {
                                     FulfillmentColumn(displayOrder, currencySymbol, isDelivery = true)
                         }
                             } else {
                                 // === 自提/堂食布局 ===
                                 // 左栏: 接待核心 (人/时间/支付)
-                                Box(modifier = Modifier.weight(0.45f).fillMaxHeight()) {
+                                Box(modifier = Modifier.weight(infoWeight).fillMaxHeight()) {
                                     FulfillmentColumn(displayOrder, currencySymbol, isDelivery = false)
                                 }
                                 // 右栏: 生产核心
-                                Box(modifier = Modifier.weight(0.55f).fillMaxHeight()) {
+                                Box(modifier = Modifier.weight(productionWeight).fillMaxHeight()) {
                                     ProductionColumn(displayOrder, currencySymbol)
                                 }
                             }
@@ -333,35 +338,41 @@ fun OrderDetailFooter(
         color = MaterialTheme.colorScheme.surface,
         modifier = Modifier.zIndex(1f)
     ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
                 // 添加导航栏内边距，防止按钮被系统导航条遮挡
                 .windowInsetsPadding(WindowInsets.navigationBars)
                 .padding(16.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // 左侧：更改状态 (次要操作)
-            OutlinedButton(
-                onClick = onStatusChangeClick,
-                                    modifier = Modifier
-                    .weight(0.3f)
-                    .height(56.dp),
-                enabled = hasEligibility,
-                shape = RoundedCornerShape(8.dp)
-            ) {
-                Text(
-                    text = stringResource(R.string.change_order_status),
-                    style = MaterialTheme.typography.titleMedium
-                )
+            val isProcessingStatus = order.status.equals("processing", ignoreCase = true)
+            val effectiveMode = when {
+                mode == DetailMode.NEW -> DetailMode.NEW
+                mode == DetailMode.PROCESSING -> DetailMode.PROCESSING
+                isProcessingStatus && order.isRead -> DetailMode.PROCESSING
+                else -> DetailMode.AUTO
+            }
+
+            val isNewMode = effectiveMode == DetailMode.NEW
+            val isProcessingMode = effectiveMode == DetailMode.PROCESSING
+            val statusButtonText = when {
+                isNewMode -> stringResource(R.string.start_processing)
+                isProcessingMode -> stringResource(R.string.mark_completed)
+                else -> stringResource(R.string.change_order_status)
             }
             
-            // 右侧：打印并接单/处理 (主要操作)
-            // 根据 mode 调整文案，但保持主要操作地位
-            val mainButtonText = stringResource(R.string.print_order)
-            
             Button(
-                onClick = onPrintClick,
+                onClick = {
+                    if (isNewMode) {
+                        onMarkAsRead?.invoke(order.id)
+                        onStatusUpdate(order.id, "processing")
+                    } else if (isProcessingMode) {
+                        onStatusUpdate(order.id, "completed")
+                    } else {
+                        onStatusChangeClick()
+                    }
+                },
                 modifier = Modifier
                     .weight(0.7f)
                     .height(56.dp),
@@ -370,16 +381,33 @@ fun OrderDetailFooter(
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.primary
                 )
-                                    ) {
-                Icon(imageVector = Icons.Default.Print, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
-                                        Text(
-                    text = mainButtonText,
+            ) {
+                Text(
+                    text = statusButtonText,
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
-                                        )
+                )
             }
-                                    }
+            
+            // 右侧：打印订单 (次要操作)
+            val printButtonText = stringResource(R.string.print_order)
+            
+            OutlinedButton(
+                onClick = onPrintClick,
+                modifier = Modifier
+                    .weight(0.3f)
+                    .height(56.dp),
+                enabled = hasEligibility,
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Icon(imageVector = Icons.Default.Print, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = printButtonText,
+                    style = MaterialTheme.typography.titleMedium
+                )
+            }
+        }
                                 }
                             }
                             
@@ -395,6 +423,7 @@ fun ProductionColumn(order: Order, currencySymbol: String) {
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         ProductionCard(order, currencySymbol)
+        PaymentCard(order, currencySymbol)
     }
 }
 
@@ -414,9 +443,6 @@ fun FulfillmentColumn(order: Order, currencySymbol: String, isDelivery: Boolean)
         
         // 2. 顾客与地址卡片
         CustomerInfoCard(order, isDelivery)
-        
-        // 3. 支付详情卡片
-        PaymentCard(order, currencySymbol)
     }
 }
 
@@ -448,7 +474,7 @@ fun ProductionCard(order: Order, currencySymbol: String) {
             
             // 列表
             order.items.forEachIndexed { index, item ->
-                ProductionItemRow(item)
+                ProductionItemRow(item, currencySymbol)
                 if (index < order.items.size - 1) {
                     HorizontalDivider(
                         modifier = Modifier.padding(vertical = 12.dp),
@@ -496,8 +522,24 @@ fun ProductionCard(order: Order, currencySymbol: String) {
 }
 
 @Composable
-fun ProductionItemRow(item: OrderItem) {
-    Row(modifier = Modifier.fillMaxWidth()) {
+fun ProductionItemRow(item: OrderItem, currencySymbol: String) {
+    val formattedTotal = remember(item.total, item.price, item.quantity, currencySymbol) {
+        val normalizedTotal = item.total.trim()
+        val numericTotal = normalizedTotal.toDoubleOrNull()
+            ?: item.price.trim().toDoubleOrNull()?.let { it * item.quantity }
+
+        numericTotal?.let { totalValue ->
+            val rounded = String.format(Locale.getDefault(), "%.2f", totalValue)
+            "$currencySymbol$rounded"
+        } ?: normalizedTotal.takeIf { it.isNotBlank() }
+            ?.let { "$currencySymbol$it" }
+        ?: "$currencySymbol--"
+    }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.Top
+    ) {
         // 数量方块：科学防错设计
         // 1x (常规): 浅灰底黑字
         // >1x (例外): 黑底白字 (高对比度，防止少做)
@@ -518,9 +560,8 @@ fun ProductionItemRow(item: OrderItem) {
                 color = qtyTextColor
             )
         }
-        
         Spacer(modifier = Modifier.width(12.dp))
-        
+
         Column(modifier = Modifier.weight(1f)) {
             // 菜名
                         Text(
@@ -531,13 +572,52 @@ fun ProductionItemRow(item: OrderItem) {
             )
             
             if (item.options.isNotEmpty()) {
+                val (instructionOptions, standardOptions) = remember(item.options) {
+                    val instructionKeywords = listOf("instruction", "special", "备注", "note", "要求", "说明")
+                    val instructions = mutableListOf<ItemOption>()
+                    val standard = mutableListOf<ItemOption>()
+                    item.options.forEach { option ->
+                        val key = option.name.lowercase(Locale.ROOT)
+                        if (instructionKeywords.any { key.contains(it) }) {
+                            instructions.add(option)
+                        } else {
+                            standard.add(option)
+                        }
+                    }
+                    instructions to standard
+                }
                 Spacer(modifier = Modifier.height(8.dp))
                 ContainerBox(
-                    backgroundColor = Color(0xFFFFF9C4), // 淡黄色
-                    borderColor = Color(0xFFFBC02D)
+                    backgroundColor = Color(0xFFFFFDE7), // 同系更浅色
+                    borderColor = Color(0xFFFBC02D).copy(alpha = 0.4f)
                 ) {
                     Column(modifier = Modifier.fillMaxWidth()) {
-                        item.options.forEachIndexed { index, opt ->
+                        Text(
+                            text = stringResource(R.string.item_options_label),
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF795548)
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        instructionOptions.forEachIndexed { index, opt ->
+                            Text(
+                                text = "${stringResource(R.string.item_special_instruction_label)}: ${opt.value}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontStyle = FontStyle.Italic,
+                                color = Color(0xFFD84315),
+                                fontWeight = FontWeight.Medium
+                            )
+                            if (index < instructionOptions.size - 1) {
+                                Spacer(modifier = Modifier.height(4.dp))
+                            }
+                        }
+
+                        if (instructionOptions.isNotEmpty() && standardOptions.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+
+                        standardOptions.forEachIndexed { index, opt ->
                             Row(verticalAlignment = Alignment.Top) {
                                 Text(
                                     text = "• ",
@@ -548,11 +628,11 @@ fun ProductionItemRow(item: OrderItem) {
                                 Text(
                                     text = "${opt.name}: ${opt.value}",
                                     style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Medium, // 使用中等字重，比之前更醒目
+                                    fontWeight = FontWeight.Medium,
                                     color = Color.Black
                                 )
                             }
-                            if (index < item.options.size - 1) {
+                            if (index < standardOptions.size - 1) {
                                 Spacer(modifier = Modifier.height(4.dp))
                             }
                         }
@@ -570,6 +650,17 @@ fun ProductionItemRow(item: OrderItem) {
             }
             */
         }
+
+        Spacer(modifier = Modifier.width(8.dp))
+
+        Text(
+            text = formattedTotal,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = Color.Black,
+            textAlign = TextAlign.End,
+            modifier = Modifier.widthIn(min = 60.dp)
+        )
     }
                         }
                         
@@ -580,7 +671,19 @@ fun ProductionItemRow(item: OrderItem) {
 fun TimeAndTypeCard(order: Order, isDelivery: Boolean) {
     val wooInfo = order.woofoodInfo
     val asapLabel = stringResource(R.string.expected_time_asap)
-    val expectedTime = wooInfo?.deliveryTime?.takeIf { it.isNotBlank() } ?: asapLabel
+    val deliveryDisplayInfo = remember(
+        wooInfo?.deliveryDate,
+        wooInfo?.deliveryTime,
+        order.dateCreated.time
+    ) {
+        DeliveryDisplayFormatter.format(wooInfo, order.dateCreated, Locale.getDefault())
+    }
+    val expectedTime = deliveryDisplayInfo.timeLabel.takeIf { it.isNotBlank() } ?: asapLabel
+    val dateHeadlineColor = when {
+        !deliveryDisplayInfo.hasDate -> MaterialTheme.colorScheme.onSurfaceVariant
+        deliveryDisplayInfo.isFutureOrToday -> MaterialTheme.colorScheme.primary
+        else -> MaterialTheme.colorScheme.onSurface
+    }
     
     // 简单的紧急程度判断 (仅示例逻辑)
     val isUrgent = expectedTime.contains("Urgent", ignoreCase = true) ||
@@ -603,9 +706,25 @@ fun TimeAndTypeCard(order: Order, isDelivery: Boolean) {
             )
             Spacer(modifier = Modifier.height(4.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
+                Icon(
+                    imageVector = Icons.Default.DateRange,
+                    contentDescription = null,
+                    tint = dateHeadlineColor,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = deliveryDisplayInfo.headline,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium,
+                    color = dateHeadlineColor
+                )
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
                     imageVector = Icons.Default.Schedule, 
-                                        contentDescription = null,
+                    contentDescription = null,
                     tint = timeColor,
                     modifier = Modifier.size(24.dp)
                 )
@@ -615,8 +734,8 @@ fun TimeAndTypeCard(order: Order, isDelivery: Boolean) {
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
                     color = timeColor
-                                    )
-                                }
+                )
+            }
             
             Spacer(modifier = Modifier.height(16.dp))
             HorizontalDivider(color = Color(0xFFEEEEEE))
@@ -705,29 +824,59 @@ fun CustomerInfoCard(order: Order, isDelivery: Boolean) {
                 }
             }
             
-            // 地址 (仅外卖显示)
+            // 地址 (仅外卖显示，默认折叠)
             if (isDelivery) {
-                Spacer(modifier = Modifier.height(16.dp))
-                HorizontalDivider(color = Color(0xFFEEEEEE))
-                Spacer(modifier = Modifier.height(16.dp))
-                
                 val address = order.woofoodInfo?.deliveryAddress ?: order.billingInfo
                 if (address?.isNotBlank() == true) {
-                    // 修正错误：Row 没有 crossAxisAlignment，改为 Alignment.Top
-                    Row(verticalAlignment = Alignment.Top) {
-                                            Icon(
-                            imageVector = Icons.Default.LocationOn,
-                            contentDescription = null,
-                            tint = Color.Red,
-                            modifier = Modifier.padding(top = 2.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = address,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Medium
-                                            )
-                                        }
+                    var showAddress by remember { mutableStateOf(false) }
+                    Spacer(modifier = Modifier.height(16.dp))
+                    HorizontalDivider(color = Color(0xFFEEEEEE))
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color(0xFFF9F9F9))
+                            .clickable { showAddress = !showAddress }
+                            .padding(horizontal = 12.dp, vertical = 10.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.LocationOn,
+                                contentDescription = null,
+                                tint = Color.Red,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = stringResource(
+                                    if (showAddress) R.string.hide_delivery_address else R.string.show_delivery_address
+                                ),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFFB71C1C),
+                                modifier = Modifier.weight(1f)
+                            )
+                            Icon(
+                                imageVector = if (showAddress) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                contentDescription = null,
+                                tint = Color.Gray
+                            )
+                        }
+
+                        if (showAddress) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = address,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
                 }
             }
                                 }
@@ -746,24 +895,6 @@ fun PaymentCard(order: Order, currencySymbol: String) {
         shape = RoundedCornerShape(8.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            // 1. 总览 (Header)
-                        Row(
-                modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                    text = stringResource(R.string.payment_total_label),
-                    style = MaterialTheme.typography.titleLarge,
-                    color = Color.Gray
-                )
-                            Text(
-                    text = "$currencySymbol${order.total}",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-            
             // 支付状态
             val isPaid = order.paymentMethod.contains("Cash", ignoreCase = true).not() // 简化判断
             val statusText = if (isPaid) {
@@ -773,21 +904,39 @@ fun PaymentCard(order: Order, currencySymbol: String) {
             }
             val statusColor = if (isPaid) Color(0xFF388E3C) else Color(0xFFD32F2F)
             val statusBg = if (isPaid) Color(0xFFE8F5E9) else Color(0xFFFFEBEE)
-            
-            Spacer(modifier = Modifier.height(8.dp))
-                            Box(
-                                modifier = Modifier
-                    .background(statusBg, RoundedCornerShape(4.dp))
-                                    .padding(horizontal = 8.dp, vertical = 4.dp)
-                    .align(Alignment.End)
-                            ) {
-                                Text(
-                                    text = statusText,
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = statusColor
-                                )
-                            }
+
+            // 1. 总览 (Header)
+                        Row(
+                modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = stringResource(R.string.payment_total_label),
+                        style = MaterialTheme.typography.titleLarge,
+                        color = Color.Gray
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Box(
+                        modifier = Modifier
+                            .background(statusBg, RoundedCornerShape(4.dp))
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = statusText,
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = statusColor
+                        )
+                    }
+                }
+                            Text(
+                    text = "$currencySymbol${order.total}",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            }
             
                         Spacer(modifier = Modifier.height(16.dp))
             HorizontalDivider(color = Color(0xFFEEEEEE))
@@ -824,16 +973,13 @@ fun PaymentCard(order: Order, currencySymbol: String) {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Row {
-                    Text("❤️ ", fontSize = 16.sp)
-                                Text(
-                        text = stringResource(R.string.tip_amount),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = if (tipAmount != "0.00") Color(0xFFE91E63) else Color.Gray
-                                )
-                }
-                                Text(
+                Text(
+                    text = stringResource(R.string.tip_amount),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = if (tipAmount != "0.00") Color(0xFFE91E63) else Color.Gray
+                )
+                Text(
                     text = "$currencySymbol$tipAmount",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,

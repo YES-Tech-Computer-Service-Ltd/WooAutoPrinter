@@ -79,7 +79,6 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import com.example.wooauto.domain.models.Order
 import com.example.wooauto.navigation.NavigationItem
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
 import java.util.Locale
 import com.example.wooauto.R
 import com.example.wooauto.utils.LocalAppLocale
@@ -491,7 +490,7 @@ fun OrdersScreen(
                             onSelectOrder = { order ->
                                 // 发送全局事件打开订单详情
                                 kotlinx.coroutines.GlobalScope.launch {
-                                    EventBus.emitOpenOrderDetail(order)
+                                    EventBus.emitOpenOrderDetail(order, DetailMode.AUTO)
                                 }
                             },
                             onStatusSelected = { status ->
@@ -988,6 +987,19 @@ fun OrderCard(
     onClick: () -> Unit,
     currencySymbol: String = "C$"
 ) {
+    val deliveryDisplayInfo = remember(
+        order.woofoodInfo?.deliveryDate,
+        order.woofoodInfo?.deliveryTime,
+        order.dateCreated.time
+    ) {
+        DeliveryDisplayFormatter.format(order.woofoodInfo, order.dateCreated, Locale.getDefault())
+    }
+    val dateHeadlineColor = when {
+        !deliveryDisplayInfo.hasDate -> MaterialTheme.colorScheme.onSurfaceVariant
+        deliveryDisplayInfo.isFutureOrToday -> MaterialTheme.colorScheme.primary
+        else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+    }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -1068,29 +1080,37 @@ fun OrderCard(
                 
                 Spacer(modifier = Modifier.height(4.dp))
                 
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // 日期图标
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
                         imageVector = Icons.Default.DateRange,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp),
+                        tint = dateHeadlineColor
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = deliveryDisplayInfo.headline,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = dateHeadlineColor
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(2.dp))
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Schedule,
                         contentDescription = null,
                         modifier = Modifier.size(14.dp),
                         tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
-                    
-                    // 日期
-                    val dateFormat = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
                     Text(
-                        text = dateFormat.format(order.dateCreated),
+                        text = deliveryDisplayInfo.timeLabel,
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                     )
-                    
                     Spacer(modifier = Modifier.width(8.dp))
-                    
-                    // 金额图标
                     Icon(
                         imageVector = Icons.Default.AttachMoney,
                         contentDescription = null,
@@ -1098,7 +1118,6 @@ fun OrderCard(
                         tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
-                    
                     Text(
                         text = "$currencySymbol${order.total}",
                         style = MaterialTheme.typography.bodyMedium,

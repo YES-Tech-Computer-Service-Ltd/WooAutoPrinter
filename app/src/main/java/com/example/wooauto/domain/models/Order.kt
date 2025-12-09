@@ -32,6 +32,7 @@ data class Order(
  */
 data class WooFoodInfo(
     val orderMethod: String?, // 订单方式，例如"配送"或"自取"
+    val deliveryDate: String?, // 配送日期
     val deliveryTime: String?, // 配送时间
     val deliveryAddress: String?, // 配送地址
     val deliveryFee: String?, // 配送费用
@@ -39,7 +40,7 @@ data class WooFoodInfo(
     val isDelivery: Boolean // 是否是外卖订单
 ) {
     override fun toString(): String {
-        return "WooFoodInfo(orderMethod=$orderMethod, deliveryTime=$deliveryTime, " +
+        return "WooFoodInfo(orderMethod=$orderMethod, deliveryDate=$deliveryDate, deliveryTime=$deliveryTime, " +
                "deliveryFee=$deliveryFee, tip=$tip, isDelivery=$isDelivery)"
     }
 }

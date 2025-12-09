@@ -217,7 +217,7 @@ fun UnreadOrdersDialog(
                                     // 关闭未读对话框并显示详情
                                     onDismiss()
                                     scope.launch {
-                                        com.example.wooauto.presentation.EventBus.emitOpenOrderDetail(order)
+                                        com.example.wooauto.presentation.EventBus.emitOpenOrderDetail(order, DetailMode.NEW)
                                     }
                                 },
                                 currencySymbol = currencySymbol

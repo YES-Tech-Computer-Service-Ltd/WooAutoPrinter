@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -44,6 +45,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
+import java.util.Locale
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -118,7 +120,7 @@ fun OrdersActivePlaceholderScreen(
                                 },
                                 onOpenDetails = {
                                     scope.launch {
-                                        com.example.wooauto.presentation.EventBus.emitOpenOrderDetail(order)
+                                        com.example.wooauto.presentation.EventBus.emitOpenOrderDetail(order, DetailMode.NEW)
                                     }
                                 }
                             )
@@ -155,7 +157,7 @@ fun OrdersActivePlaceholderScreen(
                                 onStartProcessing = { },
                                 onOpenDetails = {
                                     scope.launch {
-                                        com.example.wooauto.presentation.EventBus.emitOpenOrderDetail(order)
+                                        com.example.wooauto.presentation.EventBus.emitOpenOrderDetail(order, DetailMode.PROCESSING)
                                     }
                                 }
                             )
@@ -372,22 +374,47 @@ private fun ActiveOrderCard(
                         color = MaterialTheme.colorScheme.onSurface
                     )
                 }
-                // 时间显示：优先显示 WooFood 的 deliveryTime (预期时间)，否则显示 dateCreated (下单时间)
-                val expectedTime = order.woofoodInfo?.deliveryTime?.takeIf { it.isNotBlank() }
-                val displayTime = expectedTime ?: java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.getDefault()).format(order.dateCreated)
+                val deliveryDisplayInfo = remember(
+                    order.woofoodInfo?.deliveryDate,
+                    order.woofoodInfo?.deliveryTime,
+                    order.dateCreated.time
+                ) {
+                    DeliveryDisplayFormatter.format(order.woofoodInfo, order.dateCreated, Locale.getDefault())
+                }
+                val dateHeadlineColor = when {
+                    !deliveryDisplayInfo.hasDate -> MaterialTheme.colorScheme.onSurfaceVariant
+                    deliveryDisplayInfo.isFutureOrToday -> MaterialTheme.colorScheme.primary
+                    else -> MaterialTheme.colorScheme.onSurface
+                }
                 
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.DateRange,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = displayTime,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.DateRange,
+                            contentDescription = null,
+                            tint = dateHeadlineColor
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = deliveryDisplayInfo.headline,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = dateHeadlineColor
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Schedule,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = deliveryDisplayInfo.timeLabel,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
                 if (order.total.isNotEmpty()) {
                     Row(verticalAlignment = Alignment.CenterVertically) {

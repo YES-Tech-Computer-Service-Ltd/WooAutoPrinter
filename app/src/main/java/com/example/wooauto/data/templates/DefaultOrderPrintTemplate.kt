@@ -650,6 +650,7 @@ class DefaultOrderPrintTemplate @Inject constructor(
             notes = "58MM printer test order - all functions normal",
             woofoodInfo = WooFoodInfo(
                 orderMethod = "Takeaway",
+                deliveryDate = null,
                 deliveryTime = null,
                 deliveryAddress = null,
                 deliveryFee = null,
@@ -740,6 +741,7 @@ class DefaultOrderPrintTemplate @Inject constructor(
             notes = "80MM thermal printer comprehensive test order.\nAll printing functions including alignment, formatting, and cutting are being tested.\nIf this prints correctly, your printer is working properly.",
             woofoodInfo = WooFoodInfo(
                 orderMethod = "Delivery",
+                deliveryDate = null,
                 deliveryTime = "45-60 minutes",
                 deliveryAddress = "123 Business Avenue, Unit 100, Business District, ST 12345",
                 deliveryFee = "$5.00",
@@ -800,6 +802,7 @@ class DefaultOrderPrintTemplate @Inject constructor(
             notes = "Default printer test order for compatibility",
             woofoodInfo = WooFoodInfo(
                 orderMethod = "Takeaway",
+                deliveryDate = null,
                 deliveryTime = null,
                 deliveryAddress = null,
                 deliveryFee = null,
@@ -875,6 +878,7 @@ class DefaultOrderPrintTemplate @Inject constructor(
             notes = "中文测试订单 - 请确保中文字符正确显示",
             woofoodInfo = WooFoodInfo(
                 orderMethod = "外卖",
+                deliveryDate = null,
                 deliveryTime = "60分钟内",
                 deliveryAddress = "北京市朝阳区建国路1号",
                 deliveryFee = "￥8.00",
@@ -955,6 +959,7 @@ class DefaultOrderPrintTemplate @Inject constructor(
             notes = "中文测试订单 - 包含各种中文字符：简体，繁體，符号￥€$，数字１２３４５６７８９０",
             woofoodInfo = WooFoodInfo(
                 orderMethod = "外卖配送",
+                deliveryDate = null,
                 deliveryTime = "45分钟内送达",
                 deliveryAddress = "上海市浦东新区陆家嘴金融贸易区世纪大道100号2楼201室",
                 deliveryFee = "￥12.00",
@@ -1016,6 +1021,7 @@ class DefaultOrderPrintTemplate @Inject constructor(
             notes = "默认中文测试订单 - 测试GB18030编码支持",
             woofoodInfo = WooFoodInfo(
                 orderMethod = "自取",
+                deliveryDate = null,
                 deliveryTime = null,
                 deliveryAddress = null,
                 deliveryFee = null,

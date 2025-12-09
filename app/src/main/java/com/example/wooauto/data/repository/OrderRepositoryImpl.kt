@@ -973,6 +973,7 @@ class OrderRepositoryImpl @Inject constructor(
 
     // 添加辅助函数：将OrderEntity转换为Order模型
     private fun mapToOrderModel(entity: com.example.wooauto.data.local.entities.OrderEntity): Order {
+        val mapped = OrderMapper.mapEntityToDomain(entity)
         // 计算小计金额：应该是商品总价，不包含税费和其他费用
         val calculatedSubtotal = try {
             // 尝试从订单行项目计算小计总额
@@ -999,77 +1000,11 @@ class OrderRepositoryImpl @Inject constructor(
         
         // 记录日志用于调试
 //        Log.d("OrderRepositoryImpl", "订单#${entity.number} - 映射实体到模型，feeLines数量: ${entity.feeLines.size}")
-        entity.feeLines.forEach { _ ->
-            // 确保费用行中的配送费信息同步到WooFoodInfo（仅当实体未携带时才尝试同步）
-            // 注意：此处仅用于调试/显示的一致性，不改变业务字段来源
-            // 不在此处写回实体/数据库，避免副作用
-        }
+        entity.feeLines.forEach { _ -> }
         
-        // 将实体中的费用行转换为领域模型费用行
-        val domainFeeLines = entity.feeLines.map { feeLine ->
-            com.example.wooauto.domain.models.FeeLine(
-                id = feeLine.id,
-                name = feeLine.name,
-                total = feeLine.total,
-                totalTax = feeLine.totalTax
-            )
-        }
         
-        // 将实体中的税费行转换为领域模型税费行
-        val domainTaxLines = entity.taxLines.map { taxLine ->
-            com.example.wooauto.domain.models.TaxLine(
-                id = taxLine.id,
-                label = taxLine.label,
-                ratePercent = taxLine.ratePercent,
-                taxTotal = taxLine.taxTotal
-            )
-        }
-        
-        // 从实体中的WooFoodInfo创建领域模型WooFoodInfo
-        val wooFoodInfo = entity.woofoodInfo?.let {
-            com.example.wooauto.domain.models.WooFoodInfo(
-                orderMethod = it.orderMethod,
-                deliveryTime = it.deliveryTime,
-                deliveryAddress = it.deliveryAddress,
-                deliveryFee = it.deliveryFee,
-                tip = it.tip,
-                isDelivery = it.isDelivery
-            )
-        } ?: parseWooFoodInfo(entity) // 如果实体没有WooFoodInfo，尝试从其他字段解析
-
-        return Order(
-            id = entity.id,
-            number = entity.number.toString(),
-            status = entity.status,
-            dateCreated = Date(entity.dateCreated),
-            customerName = entity.customerName,
-            contactInfo = entity.contactInfo,
-            billingInfo = entity.billingAddress,
-            paymentMethod = entity.paymentMethod,
-            total = entity.total,
-            items = entity.lineItems.map { item ->
-                OrderItem(
-                    id = 0, // 行项目ID不可用，使用默认值
-                    productId = item.productId,
-                    name = item.name,
-                    quantity = item.quantity,
-                    price = item.price,
-                    total = item.total,
-                    subtotal = item.price, // 单项价格作为小计
-                    image = "", // 图片URL不可用，使用空字符串
-                    options = emptyList() // 选项不可用，使用空列表
-                )
-            },
-            isPrinted = entity.isPrinted,
-            notificationShown = entity.notificationShown,
-            notes = entity.customerNote,
-            subtotal = entity.subtotal.takeIf { it.isNotEmpty() } ?: calculatedSubtotal,
-            totalTax = entity.totalTax,
-            discountTotal = entity.discountTotal,
-            woofoodInfo = wooFoodInfo,
-            feeLines = domainFeeLines,
-            taxLines = domainTaxLines
-        )
+        val finalSubtotal = mapped.subtotal.takeIf { it.isNotBlank() } ?: calculatedSubtotal
+        return mapped.copy(subtotal = finalSubtotal)
     }
     
     /**
@@ -1147,6 +1082,7 @@ class OrderRepositoryImpl @Inject constructor(
         // 创建WooFood信息对象
         return com.example.wooauto.domain.models.WooFoodInfo(
             orderMethod = if (isDelivery) "delivery" else "pickup",
+            deliveryDate = null,
             deliveryTime = timeInfo,
             deliveryAddress = if (isDelivery) entity.shippingAddress else null,
             deliveryFee = deliveryFee,
