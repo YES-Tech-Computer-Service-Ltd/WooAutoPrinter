@@ -206,6 +206,7 @@ fun OrderDetailDialog(
             onStatusSelected = { newStatus ->
                 onStatusChange(displayOrder.id, newStatus)
                 showStatusOptions = false
+                wrappedOnDismiss()
             }
         )
     }
@@ -367,8 +368,10 @@ fun OrderDetailFooter(
                     if (isNewMode) {
                         onMarkAsRead?.invoke(order.id)
                         onStatusUpdate(order.id, "processing")
+                        onDismiss()
                     } else if (isProcessingMode) {
                         onStatusUpdate(order.id, "completed")
+                        onDismiss()
                     } else {
                         onStatusChangeClick()
                     }
@@ -742,12 +745,21 @@ fun TimeAndTypeCard(order: Order, isDelivery: Boolean) {
             Spacer(modifier = Modifier.height(16.dp))
             
             // Order Type
-            val typeColor = if (isDelivery) Color(0xFF1976D2) else Color(0xFF388E3C) // 蓝/绿
-            val typeIcon = if (isDelivery) Icons.Default.LocalShipping else Icons.Default.ShoppingBag
-            val typeText = if (isDelivery) {
-                stringResource(R.string.delivery_type_delivery)
-            } else {
-                stringResource(R.string.delivery_type_pickup)
+            val orderMethod = order.woofoodInfo?.orderMethod?.lowercase()
+            val typeColor = when {
+                orderMethod == "dinein" -> Color(0xFF6A1B9A)
+                isDelivery -> Color(0xFF1976D2)
+                else -> Color(0xFF388E3C)
+            }
+            val typeIcon = when {
+                orderMethod == "dinein" -> Icons.Default.Restaurant
+                isDelivery -> Icons.Default.LocalShipping
+                else -> Icons.Default.ShoppingBag
+            }
+            val typeText = when {
+                orderMethod == "dinein" -> stringResource(R.string.delivery_type_dine_in)
+                isDelivery -> stringResource(R.string.delivery_type_delivery)
+                else -> stringResource(R.string.delivery_type_pickup)
             }
             
             Row(

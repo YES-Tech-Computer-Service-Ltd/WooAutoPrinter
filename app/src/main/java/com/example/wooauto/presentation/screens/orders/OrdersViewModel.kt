@@ -684,9 +684,7 @@ class OrdersViewModel @Inject constructor(
         val oldStatus = oldOrder?.status
 
         // 1. 乐观更新本地状态
-        if (_selectedDetailMode.value == DetailMode.AUTO) {
-            _selectedOrder.value = _selectedOrder.value?.takeIf { it.id == orderId }?.copy(status = newStatus)
-        }
+        _selectedOrder.value = _selectedOrder.value?.takeIf { it.id == orderId }?.copy(status = newStatus)
         _orders.value = _orders.value.map { if (it.id == orderId) it.copy(status = newStatus) else it }
 
         // 2. 异步请求后端
@@ -696,12 +694,8 @@ class OrdersViewModel @Inject constructor(
                 val result = orderRepository.updateOrderStatus(orderId, newStatus)
                 if (result.isSuccess) {
                     Log.d(TAG, "乐观更新-成功更新订单状态")
-                    if (_selectedDetailMode.value == DetailMode.AUTO) {
-                        _selectedOrder.value = result.getOrNull()
-                    } else {
-                        _selectedOrder.value = null
-                        _selectedDetailMode.value = DetailMode.AUTO
-                    }
+                    _selectedOrder.value = result.getOrNull()
+                    _selectedDetailMode.value = DetailMode.AUTO
                     // 刷新订单，确保使用现有的状态过滤
                     refreshOrders()
                     // 接单/完成后立即止音
@@ -714,18 +708,14 @@ class OrdersViewModel @Inject constructor(
                 } else {
                     Log.e(TAG, "乐观更新-更新订单状态失败: ${result.exceptionOrNull()?.message}")
                     // 失败回滚
-                    if (_selectedDetailMode.value == DetailMode.AUTO) {
-                        _selectedOrder.value = _selectedOrder.value?.takeIf { it.id == orderId }?.copy(status = oldStatus ?: newStatus)
-                    }
+                    _selectedOrder.value = _selectedOrder.value?.takeIf { it.id == orderId }?.copy(status = oldStatus ?: newStatus)
                     _orders.value = _orders.value.map { if (it.id == orderId) it.copy(status = oldStatus ?: newStatus) else it }
                     _errorMessage.value = "订单状态更新失败: ${result.exceptionOrNull()?.message ?: ""}"
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "乐观更新-更新订单状态时出错: ${e.message}")
                 // 失败回滚
-                if (_selectedDetailMode.value == DetailMode.AUTO) {
-                    _selectedOrder.value = _selectedOrder.value?.takeIf { it.id == orderId }?.copy(status = oldStatus ?: newStatus)
-                }
+                _selectedOrder.value = _selectedOrder.value?.takeIf { it.id == orderId }?.copy(status = oldStatus ?: newStatus)
                 _orders.value = _orders.value.map { if (it.id == orderId) it.copy(status = oldStatus ?: newStatus) else it }
                 _errorMessage.value = "订单状态更新失败: ${e.message ?: "未知错误"}"
             }

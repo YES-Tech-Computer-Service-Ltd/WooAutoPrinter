@@ -66,6 +66,7 @@
     <string name="expected_time_label">Expected Time</string>
     <string name="delivery_type_delivery">Delivery</string>
     <string name="delivery_type_pickup">Pickup</string>
+    <string name="delivery_type_dine_in">Dine-in service</string>
     <string name="customer_info_section_title">Customer Info</string>
     <string name="payment_total_label">Paid Amount</string>
     <string name="payment_status_paid">Paid</string>
