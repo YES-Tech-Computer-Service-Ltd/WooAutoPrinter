@@ -1,7 +1,6 @@
 package com.example.wooauto.presentation.screens.orders
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -28,7 +27,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -127,10 +125,10 @@ fun OrderDetailDialog(
                         .weight(1f)
                         .fillMaxWidth()
                 ) {
-                    val isWideScreen = this.maxWidth > 600.dp
+                    val isWideScreen = maxWidth > 600.dp
                     // 判断订单类型：Delivery (外卖) vs Pickup (自提/堂食)
-                    val orderMethod = displayOrder.woofoodInfo?.orderMethod?.lowercase() ?: ""
-                    val isDelivery = displayOrder.woofoodInfo?.isDelivery == true || orderMethod == "delivery"
+                    val isDelivery = displayOrder.woofoodInfo?.isDelivery == true || 
+                                   displayOrder.woofoodInfo?.orderMethod?.lowercase() == "delivery"
                                    
                     if (isWideScreen) {
                         Row(
@@ -210,7 +208,6 @@ fun OrderDetailDialog(
         TemplateSelectorDialog(
             onDismiss = { showTemplateOptions = false },
             onConfirm = { selectedCopies ->
-                // 明确参数类型，解决重载歧义
                 viewModel.printOrderWithTemplates(displayOrder.id, selectedCopies)
                 showTemplateOptions = false
             }
@@ -242,46 +239,17 @@ fun OrderDetailHeader(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            // 左侧：订单号 + 打印状态
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            // 左侧：订单号
             Text(
-                text = stringResource(R.string.order_detail_header_title, order.number),
+                text = "Order #${order.number}",
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface
             )
-                
-                Spacer(modifier = Modifier.width(12.dp))
-                
-                // 打印状态标签
-                val isPrinted = order.isPrinted
-                val printStatusText = if (isPrinted) stringResource(R.string.printed_yes) else stringResource(R.string.printed_no)
-                val printStatusColor = if (isPrinted) Color(0xFF2E7D32) else Color(0xFFC62828) // 深绿/深红
-                val printStatusBg = if (isPrinted) Color(0xFFE8F5E9) else Color(0xFFFFEBEE) // 淡绿/淡红
-                
-                Surface(
-                    color = printStatusBg,
-                    shape = RoundedCornerShape(16.dp),
-                    modifier = Modifier.height(24.dp)
-                ) {
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier.padding(horizontal = 10.dp)
-                    ) {
-                        Text(
-                            text = printStatusText,
-                            style = MaterialTheme.typography.labelMedium,
-                            color = printStatusColor,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-            }
             
             // 中间：下单时间
             val dateFormat = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
             val timeStr = try { dateFormat.format(order.dateCreated) } catch(e: Exception) { "" }
-            val displayTime = timeStr.ifBlank { "--" }
             
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
@@ -292,7 +260,7 @@ fun OrderDetailHeader(
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    text = stringResource(R.string.order_detail_header_time, displayTime),
+                    text = "Placed: $timeStr",
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -332,8 +300,6 @@ fun OrderDetailFooter(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                // 添加导航栏内边距，防止按钮被系统导航条遮挡
-                .windowInsetsPadding(WindowInsets.navigationBars)
                 .padding(16.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
@@ -435,7 +401,7 @@ fun ProductionCard(order: Order, currencySymbol: String) {
         Column(modifier = Modifier.padding(16.dp)) {
             // 标题
             Text(
-                text = stringResource(R.string.production_card_title, totalItems),
+                text = "Order Items • $totalItems items",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface
@@ -470,8 +436,8 @@ fun ProductionCard(order: Order, currencySymbol: String) {
                                 modifier = Modifier.size(20.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = stringResource(R.string.order_note_section_title),
+                            Text(
+                                text = "ORDER NOTE",
                                 style = MaterialTheme.typography.labelLarge,
                                 fontWeight = FontWeight.Bold,
                                 color = Color(0xFFF57F17)
@@ -494,24 +460,18 @@ fun ProductionCard(order: Order, currencySymbol: String) {
 @Composable
 fun ProductionItemRow(item: OrderItem) {
     Row(modifier = Modifier.fillMaxWidth()) {
-        // 数量方块：科学防错设计
-        // 1x (常规): 浅灰底黑字
-        // >1x (例外): 黑底白字 (高对比度，防止少做)
-        val isMultiple = item.quantity > 1
-        val qtyBgColor = if (isMultiple) Color(0xFF212121) else Color(0xFFEEEEEE)
-        val qtyTextColor = if (isMultiple) Color.White else Color.Black
-        
+        // 数量方块
         Box(
             modifier = Modifier
                 .size(40.dp)
-                .background(qtyBgColor, RoundedCornerShape(8.dp)),
+                .background(Color(0xFFE0E0E0), RoundedCornerShape(8.dp)),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = "${item.quantity}x",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = qtyTextColor
+                color = Color.Black
             )
         }
         
@@ -526,37 +486,21 @@ fun ProductionItemRow(item: OrderItem) {
                 color = Color.Black
             )
             
+            // 选项 (Options)
             if (item.options.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(8.dp))
-                ContainerBox(
-                    backgroundColor = Color(0xFFFFF9C4), // 淡黄色
-                    borderColor = Color(0xFFFBC02D)
-                ) {
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        item.options.forEachIndexed { index, opt ->
-                            Row(verticalAlignment = Alignment.Top) {
-                                Text(
-                                    text = "• ",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.Black
-                                )
-                                Text(
-                                    text = "${opt.name}: ${opt.value}",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Medium, // 使用中等字重，比之前更醒目
-                                    color = Color.Black
-                                )
-                            }
-                            if (index < item.options.size - 1) {
-                                Spacer(modifier = Modifier.height(4.dp))
-                            }
-                        }
-                    }
+                Spacer(modifier = Modifier.height(4.dp))
+                item.options.forEach { opt ->
+                    Text(
+                        text = "• ${opt.name}: ${opt.value}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.Gray
+                    )
                 }
             }
             
-            // 单品备注 (Item Note) - 保留原有逻辑作为备选
+            // 单品备注 (Item Note) - 假设备注混在选项里或作为独立字段，这里暂时模拟高亮显示
+            // 实际逻辑需检查 item 是否有 note 字段，目前 OrderItem 似乎只有 options
+            // 如果有 note 字段：
             /*
             if (item.note.isNotBlank()) {
                 Spacer(modifier = Modifier.height(8.dp))
@@ -575,13 +519,10 @@ fun ProductionItemRow(item: OrderItem) {
 @Composable
 fun TimeAndTypeCard(order: Order, isDelivery: Boolean) {
     val wooInfo = order.woofoodInfo
-    val asapLabel = stringResource(R.string.expected_time_asap)
-    val expectedTime = wooInfo?.deliveryTime?.takeIf { it.isNotBlank() } ?: asapLabel
+    val expectedTime = wooInfo?.deliveryTime ?: "ASAP"
     
     // 简单的紧急程度判断 (仅示例逻辑)
-    val isUrgent = expectedTime.contains("Urgent", ignoreCase = true) ||
-        expectedTime.contains("ASAP", ignoreCase = true) ||
-        expectedTime.contains(asapLabel, ignoreCase = true)
+    val isUrgent = expectedTime.contains("Urgent") || expectedTime.contains("ASAP")
     val timeColor = if (isUrgent) Color(0xFFD32F2F) else Color.Black
     
     Card(
@@ -593,7 +534,7 @@ fun TimeAndTypeCard(order: Order, isDelivery: Boolean) {
         Column(modifier = Modifier.padding(16.dp)) {
             // Expected Time
             Text(
-                text = stringResource(R.string.expected_time_label),
+                text = "EXPECTED TIME",
                 style = MaterialTheme.typography.labelMedium,
                 color = Color.Gray
             )
@@ -621,11 +562,7 @@ fun TimeAndTypeCard(order: Order, isDelivery: Boolean) {
             // Order Type
             val typeColor = if (isDelivery) Color(0xFF1976D2) else Color(0xFF388E3C) // 蓝/绿
             val typeIcon = if (isDelivery) Icons.Default.LocalShipping else Icons.Default.ShoppingBag
-            val typeText = if (isDelivery) {
-                stringResource(R.string.delivery_type_delivery)
-            } else {
-                stringResource(R.string.delivery_type_pickup)
-            }
+            val typeText = if (isDelivery) "Delivery Order" else "Customer Pickup"
             
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -638,7 +575,7 @@ fun TimeAndTypeCard(order: Order, isDelivery: Boolean) {
                 Icon(imageVector = typeIcon, contentDescription = null, tint = typeColor)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = typeText,
+                    text = typeText.uppercase(),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Black,
                     color = typeColor
@@ -665,7 +602,7 @@ fun CustomerInfoCard(order: Order, isDelivery: Boolean) {
                 Icon(imageVector = Icons.Default.Person, contentDescription = null, tint = Color.Gray)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = stringResource(R.string.customer_info_section_title),
+                    text = "CUSTOMER",
                     style = MaterialTheme.typography.labelLarge,
                     color = Color.Gray,
                     fontWeight = FontWeight.Bold
@@ -709,8 +646,7 @@ fun CustomerInfoCard(order: Order, isDelivery: Boolean) {
                 
                 val address = order.woofoodInfo?.deliveryAddress ?: order.billingInfo
                 if (address?.isNotBlank() == true) {
-                    // 修正错误：Row 没有 crossAxisAlignment，改为 Alignment.Top
-                    Row(verticalAlignment = Alignment.Top) {
+                    Row(crossAxisAlignment = Alignment.Start) {
                         Icon(
                             imageVector = Icons.Default.LocationOn,
                             contentDescription = null,
@@ -749,7 +685,7 @@ fun PaymentCard(order: Order, currencySymbol: String) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = stringResource(R.string.payment_total_label),
+                    text = "Total",
                     style = MaterialTheme.typography.titleLarge,
                     color = Color.Gray
                 )
@@ -762,11 +698,7 @@ fun PaymentCard(order: Order, currencySymbol: String) {
             
             // 支付状态
             val isPaid = order.paymentMethod.contains("Cash", ignoreCase = true).not() // 简化判断
-            val statusText = if (isPaid) {
-                stringResource(R.string.payment_status_paid)
-            } else {
-                stringResource(R.string.payment_status_cash_due)
-            }
+            val statusText = if (isPaid) "PAID" else "UNPAID / CASH"
             val statusColor = if (isPaid) Color(0xFF388E3C) else Color(0xFFD32F2F)
             val statusBg = if (isPaid) Color(0xFFE8F5E9) else Color(0xFFFFEBEE)
             
@@ -790,66 +722,57 @@ fun PaymentCard(order: Order, currencySymbol: String) {
             Spacer(modifier = Modifier.height(16.dp))
             
             // 2. 关键附加费 (Key Extras) - 小费 & 配送费
-            // 小费：匹配多种可能的名称，包括长句式的小费描述
-            val tipLine = order.feeLines.find { 
-                val name = it.name.lowercase()
-                name.contains("tip") || 
-                name.contains("小费") ||
-                name.contains("gratuity") ||
-                name.contains("appreciation") ||
-                // 适配新的长句描述："Help keep our team thriving..."
-                name.contains("thriving") ||
-                name.contains("team") && name.contains("keep")
-            }
-            // 优先取 feeLine，其次取 woofoodInfo，最后默认为 "0.00"
-            val tipAmount = tipLine?.total ?: order.woofoodInfo?.tip?.takeIf { it.isNotEmpty() } ?: "0.00"
+            var hasExtras = false
             
+            // 小费
+            val tipLine = order.feeLines.find { 
+                it.name.contains("tip", ignoreCase = true) || 
+                it.name.contains("小费", ignoreCase = true) 
+            }
             // 配送费
             val deliveryLine = order.feeLines.find { 
-                val name = it.name.lowercase()
-                name.contains("delivery") || 
-                name.contains("shipping") || 
-                name.contains("配送") ||
-                name.contains("外卖") ||
-                name.contains("运费")
+                it.name.contains("delivery", ignoreCase = true) || 
+                it.name.contains("配送", ignoreCase = true)
             }
-            val deliveryAmount = deliveryLine?.total ?: order.woofoodInfo?.deliveryFee?.takeIf { it != "0.00" && it.isNotEmpty() }
             
-            // 始终显示小费行
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row {
-                    Text("❤️ ", fontSize = 16.sp)
+            if (tipLine != null) {
+                hasExtras = true
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row {
+                        Text("❤️ ", fontSize = 16.sp) // 爱心图标
+                        Text(
+                            text = "Tip (小费)",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFE91E63) // 粉色强调
+                        )
+                    }
                     Text(
-                        text = stringResource(R.string.tip_amount),
+                        text = "$currencySymbol${tipLine.total}",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        color = if (tipAmount != "0.00") Color(0xFFE91E63) else Color.Gray
+                        color = Color(0xFFE91E63)
                     )
                 }
-                Text(
-                    text = "$currencySymbol$tipAmount",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = if (tipAmount != "0.00") Color(0xFFE91E63) else Color.Gray
-                )
+                Spacer(modifier = Modifier.height(8.dp))
             }
-            Spacer(modifier = Modifier.height(8.dp))
             
-            if (deliveryAmount != null) {
+            if (deliveryLine != null) {
+                hasExtras = true
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = stringResource(R.string.payment_delivery_fee_label),
+                        text = "Delivery Fee",
                         style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.Medium
                     )
                     Text(
-                        text = "$currencySymbol$deliveryAmount",
+                        text = "$currencySymbol${deliveryLine.total}",
                         style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.Medium
                     )
@@ -857,12 +780,15 @@ fun PaymentCard(order: Order, currencySymbol: String) {
                 Spacer(modifier = Modifier.height(8.dp))
             }
             
-            HorizontalDivider(color = Color(0xFFEEEEEE))
-            Spacer(modifier = Modifier.height(16.dp))
+            if (hasExtras) {
+                Spacer(modifier = Modifier.height(8.dp))
+                HorizontalDivider(color = Color(0xFFEEEEEE))
+                Spacer(modifier = Modifier.height(16.dp))
+            }
             
             // 3. 基础明细 (Accounting)
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                DetailRow(stringResource(R.string.subtotal), "$currencySymbol${order.subtotal}")
+                DetailRow("Subtotal", "$currencySymbol${order.subtotal}")
                 order.taxLines.forEach { tax ->
                     DetailRow("${tax.label} (${tax.ratePercent}%)", "$currencySymbol${tax.taxTotal}")
                 }
@@ -910,256 +836,7 @@ fun FulfillmentInfoCard(order: Order, isDelivery: Boolean) {
     TimeAndTypeCard(order, isDelivery)
 }
 
-// ================= 恢复丢失的 Dialog 组件 =================
-
-/**
- * 状态更改对话框
- */
-@Composable
-fun StatusChangeDialog(
-    currentStatus: String,
-    onDismiss: () -> Unit,
-    onStatusSelected: (String) -> Unit
-) {
-    val statusOptions = listOf(
-        "processing" to stringResource(R.string.order_status_processing),
-        "pending" to stringResource(R.string.order_status_pending),
-        "on-hold" to stringResource(R.string.order_status_on_hold),
-        "completed" to stringResource(R.string.order_status_completed),
-        "cancelled" to stringResource(R.string.order_status_cancelled),
-        "refunded" to stringResource(R.string.order_status_refunded),
-        "failed" to stringResource(R.string.order_status_failed)
-    )
-    
-    Dialog(onDismissRequest = onDismiss) {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp)
-            ) {
-                Text(
-                    text = stringResource(R.string.change_order_status),
-                    style = MaterialTheme.typography.titleLarge
-                )
-                
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                LazyColumn {
-                    items(statusOptions) { (status, label) ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { onStatusSelected(status) }
-                                .padding(vertical = 12.dp, horizontal = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            val isSelected = status == currentStatus
-                            val textColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                            
-                            Text(
-                                text = label,
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = textColor
-                            )
-                            
-                            Spacer(modifier = Modifier.weight(1f))
-                            
-                            if (isSelected) {
-                                Icon(
-                                    imageVector = Icons.Default.CheckCircle,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                        }
-                    }
-                }
-                
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                Button(
-                    onClick = onDismiss,
-                    modifier = Modifier.align(Alignment.End)
-                ) {
-                    Text(stringResource(R.string.cancel))
-                }
-            }
-        }
-    }
-}
-
-/**
- * 打印模板选择对话框
- */
-@Composable
-fun TemplateSelectorDialog(
-    onDismiss: () -> Unit,
-    onConfirm: (Map<String, Int>) -> Unit
-) {
-    val templateConfigViewModel: TemplateConfigViewModel = hiltViewModel()
-    val allConfigs by templateConfigViewModel.allConfigs.collectAsState()
-    val isLoading by templateConfigViewModel.isLoading.collectAsState()
-    
-    LaunchedEffect(Unit) {
-        templateConfigViewModel.loadAllConfigs()
-    }
-    
-    val fullDetailsTemplate = stringResource(R.string.full_details_template)
-    val deliveryTemplate = stringResource(R.string.delivery_template) 
-    val kitchenTemplate = stringResource(R.string.kitchen_template)
-    
-    val templateOptions = remember(allConfigs, fullDetailsTemplate, deliveryTemplate, kitchenTemplate) {
-        val defaultTemplates = listOf(
-            Triple("full_details", fullDetailsTemplate, Icons.AutoMirrored.Filled.Article),
-            Triple("delivery", deliveryTemplate, Icons.Default.LocalShipping),
-            Triple("kitchen", kitchenTemplate, Icons.Default.Restaurant)
-        )
-        
-        val customTemplates = allConfigs
-            .filter { it.templateId.startsWith("custom_") }
-            .map { config ->
-                Triple(config.templateId, config.templateName, Icons.Default.Description)
-            }
-        
-        defaultTemplates + customTemplates
-    }
-    
-    var selectedTemplateIds by remember { mutableStateOf(setOf<String>()) }
-    var copyCounts by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
-    
-    Dialog(onDismissRequest = onDismiss) {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            shape = RoundedCornerShape(16.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp)
-            ) {
-                Text(
-                    text = stringResource(R.string.select_print_template),
-                    style = MaterialTheme.typography.titleLarge
-                )
-                
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                if (isLoading) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(32.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator()
-                    }
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.heightIn(max = 400.dp)
-                    ) {
-                        items(templateOptions) { (templateId, description, icon) ->
-                            val checked = selectedTemplateIds.contains(templateId)
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        selectedTemplateIds = selectedTemplateIds.toMutableSet().apply {
-                                            if (contains(templateId)) remove(templateId) else add(templateId)
-                                        }
-                                        if (!checked && !copyCounts.containsKey(templateId)) {
-                                            copyCounts = copyCounts.toMutableMap().apply { put(templateId, 1) }
-                                        }
-                                    }
-                                    .padding(vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Checkbox(
-                                    checked = checked,
-                                    onCheckedChange = { isChecked ->
-                                        selectedTemplateIds = selectedTemplateIds.toMutableSet().apply {
-                                            if (isChecked) add(templateId) else remove(templateId)
-                                        }
-                                        if (isChecked && !copyCounts.containsKey(templateId)) {
-                                            copyCounts = copyCounts.toMutableMap().apply { put(templateId, 1) }
-                                        }
-                                    }
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Icon(
-                                    imageVector = icon,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                                Spacer(modifier = Modifier.width(16.dp))
-                                Text(
-                                    text = description,
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                
-                                val current = (copyCounts[templateId] ?: 1).coerceAtLeast(1)
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    IconButton(
-                                        onClick = {
-                                            val next = (current - 1).coerceAtLeast(1)
-                                            copyCounts = copyCounts.toMutableMap().apply { put(templateId, next) }
-                                        },
-                                        enabled = checked
-                                    ) { Icon(Icons.Default.RemoveCircleOutline, null) }
-                                    
-                                    Text(
-                                        text = current.toString(),
-                                        color = if (checked) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                                    )
-                                    
-                                    IconButton(
-                                        onClick = {
-                                            val next = (current + 1).coerceAtMost(99)
-                                            copyCounts = copyCounts.toMutableMap().apply { put(templateId, next) }
-                                        },
-                                        enabled = checked
-                                    ) { Icon(Icons.Default.AddCircleOutline, null) }
-                                }
-                            }
-                            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                        }
-                    }
-                }
-                
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Button(
-                        onClick = {
-                            val payload = selectedTemplateIds.associateWith { id -> (copyCounts[id] ?: 1).coerceAtLeast(1) }
-                            onConfirm(payload)
-                        },
-                        enabled = selectedTemplateIds.isNotEmpty()
-                    ) {
-                        Text(stringResource(R.string.print_order))
-                    }
-                    Button(onClick = onDismiss) {
-                        Text(stringResource(R.string.cancel))
-                    }
-                }
-            }
-        }
-    }
-}
-
-// 保留原文件中的工具函数 (精简)
+// 保留原文件中的工具函数
 private fun extractScheduledDateFromNotes(note: String): String? {
     if (note.isBlank()) return null
     return try {

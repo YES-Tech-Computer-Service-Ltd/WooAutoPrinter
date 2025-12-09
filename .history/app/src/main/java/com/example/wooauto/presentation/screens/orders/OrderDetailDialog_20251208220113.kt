@@ -575,13 +575,10 @@ fun ProductionItemRow(item: OrderItem) {
 @Composable
 fun TimeAndTypeCard(order: Order, isDelivery: Boolean) {
     val wooInfo = order.woofoodInfo
-    val asapLabel = stringResource(R.string.expected_time_asap)
-    val expectedTime = wooInfo?.deliveryTime?.takeIf { it.isNotBlank() } ?: asapLabel
+    val expectedTime = wooInfo?.deliveryTime ?: "ASAP"
     
     // 简单的紧急程度判断 (仅示例逻辑)
-    val isUrgent = expectedTime.contains("Urgent", ignoreCase = true) ||
-        expectedTime.contains("ASAP", ignoreCase = true) ||
-        expectedTime.contains(asapLabel, ignoreCase = true)
+    val isUrgent = expectedTime.contains("Urgent") || expectedTime.contains("ASAP")
     val timeColor = if (isUrgent) Color(0xFFD32F2F) else Color.Black
     
     Card(
@@ -593,7 +590,7 @@ fun TimeAndTypeCard(order: Order, isDelivery: Boolean) {
         Column(modifier = Modifier.padding(16.dp)) {
             // Expected Time
             Text(
-                text = stringResource(R.string.expected_time_label),
+                text = "预期时间",
                 style = MaterialTheme.typography.labelMedium,
                 color = Color.Gray
             )
@@ -621,11 +618,7 @@ fun TimeAndTypeCard(order: Order, isDelivery: Boolean) {
             // Order Type
             val typeColor = if (isDelivery) Color(0xFF1976D2) else Color(0xFF388E3C) // 蓝/绿
             val typeIcon = if (isDelivery) Icons.Default.LocalShipping else Icons.Default.ShoppingBag
-            val typeText = if (isDelivery) {
-                stringResource(R.string.delivery_type_delivery)
-            } else {
-                stringResource(R.string.delivery_type_pickup)
-            }
+            val typeText = if (isDelivery) "外卖配送" else "到店自提"
             
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -665,7 +658,7 @@ fun CustomerInfoCard(order: Order, isDelivery: Boolean) {
                 Icon(imageVector = Icons.Default.Person, contentDescription = null, tint = Color.Gray)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = stringResource(R.string.customer_info_section_title),
+                    text = "顾客信息",
                     style = MaterialTheme.typography.labelLarge,
                     color = Color.Gray,
                     fontWeight = FontWeight.Bold
@@ -749,7 +742,7 @@ fun PaymentCard(order: Order, currencySymbol: String) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = stringResource(R.string.payment_total_label),
+                    text = "实付金额",
                     style = MaterialTheme.typography.titleLarge,
                     color = Color.Gray
                 )
@@ -762,11 +755,7 @@ fun PaymentCard(order: Order, currencySymbol: String) {
             
             // 支付状态
             val isPaid = order.paymentMethod.contains("Cash", ignoreCase = true).not() // 简化判断
-            val statusText = if (isPaid) {
-                stringResource(R.string.payment_status_paid)
-            } else {
-                stringResource(R.string.payment_status_cash_due)
-            }
+            val statusText = if (isPaid) "已支付" else "未付 / 需收现"
             val statusColor = if (isPaid) Color(0xFF388E3C) else Color(0xFFD32F2F)
             val statusBg = if (isPaid) Color(0xFFE8F5E9) else Color(0xFFFFEBEE)
             
@@ -823,7 +812,7 @@ fun PaymentCard(order: Order, currencySymbol: String) {
                 Row {
                     Text("❤️ ", fontSize = 16.sp)
                     Text(
-                        text = stringResource(R.string.tip_amount),
+                        text = "小费",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = if (tipAmount != "0.00") Color(0xFFE91E63) else Color.Gray
@@ -844,7 +833,7 @@ fun PaymentCard(order: Order, currencySymbol: String) {
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = stringResource(R.string.payment_delivery_fee_label),
+                        text = "配送费",
                         style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.Medium
                     )
@@ -862,7 +851,7 @@ fun PaymentCard(order: Order, currencySymbol: String) {
             
             // 3. 基础明细 (Accounting)
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                DetailRow(stringResource(R.string.subtotal), "$currencySymbol${order.subtotal}")
+                DetailRow("Subtotal", "$currencySymbol${order.subtotal}")
                 order.taxLines.forEach { tax ->
                     DetailRow("${tax.label} (${tax.ratePercent}%)", "$currencySymbol${tax.taxTotal}")
                 }

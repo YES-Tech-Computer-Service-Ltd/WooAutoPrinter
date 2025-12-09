@@ -83,6 +83,9 @@ class MainActivity : AppCompatActivity(), OrderNotificationManager.NotificationC
     @Inject
     lateinit var soundManager: com.example.wooauto.utils.SoundManager
     
+    // 用于订单详情操作（Activity Scoped）
+    private val ordersViewModel: OrdersViewModel by viewModels()
+    
     private val TAG = "MainActivity"
     
     @Inject
@@ -111,6 +114,10 @@ class MainActivity : AppCompatActivity(), OrderNotificationManager.NotificationC
     
     // 屏幕常亮状态
     private var isKeepScreenOnEnabled by mutableStateOf(false)
+    
+    // 订单详情状态
+    private var showOrderDetail by mutableStateOf(false)
+    private var detailOrder by mutableStateOf<Order?>(null)
     
     // 初始化标志和任务
     private val isInitialized = AtomicBoolean(false)

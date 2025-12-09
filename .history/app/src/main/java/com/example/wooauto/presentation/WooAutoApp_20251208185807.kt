@@ -68,7 +68,6 @@ import com.example.wooauto.presentation.screens.orders.OrdersViewModel
 import com.example.wooauto.presentation.screens.orders.OrderDetailDialog
 import com.example.wooauto.presentation.screens.orders.DetailMode
 
-
 private const val TAG = "WooAutoApp"
 
 // 定义搜索事件数据类
@@ -137,6 +136,11 @@ class WooAutoApp {
         }
     }
 }
+
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.wooauto.presentation.screens.orders.OrdersViewModel
+import com.example.wooauto.presentation.screens.orders.OrderDetailDialog
+import com.example.wooauto.presentation.screens.orders.DetailMode
 
 @RequiresApi(Build.VERSION_CODES.S)
 @Composable

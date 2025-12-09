@@ -63,11 +63,6 @@ import com.example.wooauto.presentation.screens.settings.PrinterSettings.Printer
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.foundation.background
-import androidx.hilt.navigation.compose.hiltViewModel
-import com.example.wooauto.presentation.screens.orders.OrdersViewModel
-import com.example.wooauto.presentation.screens.orders.OrderDetailDialog
-import com.example.wooauto.presentation.screens.orders.DetailMode
-
 
 private const val TAG = "WooAutoApp"
 
@@ -137,6 +132,11 @@ class WooAutoApp {
         }
     }
 }
+
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.wooauto.presentation.screens.orders.OrdersViewModel
+import com.example.wooauto.presentation.screens.orders.OrderDetailDialog
+import com.example.wooauto.presentation.screens.orders.DetailMode
 
 @RequiresApi(Build.VERSION_CODES.S)
 @Composable

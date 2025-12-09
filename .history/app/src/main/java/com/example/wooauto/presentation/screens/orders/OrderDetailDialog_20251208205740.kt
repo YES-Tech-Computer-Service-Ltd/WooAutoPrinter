@@ -242,46 +242,17 @@ fun OrderDetailHeader(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            // 左侧：订单号 + 打印状态
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            // 左侧：订单号
             Text(
-                text = stringResource(R.string.order_detail_header_title, order.number),
+                text = "Order #${order.number}",
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface
             )
-                
-                Spacer(modifier = Modifier.width(12.dp))
-                
-                // 打印状态标签
-                val isPrinted = order.isPrinted
-                val printStatusText = if (isPrinted) stringResource(R.string.printed_yes) else stringResource(R.string.printed_no)
-                val printStatusColor = if (isPrinted) Color(0xFF2E7D32) else Color(0xFFC62828) // 深绿/深红
-                val printStatusBg = if (isPrinted) Color(0xFFE8F5E9) else Color(0xFFFFEBEE) // 淡绿/淡红
-                
-                Surface(
-                    color = printStatusBg,
-                    shape = RoundedCornerShape(16.dp),
-                    modifier = Modifier.height(24.dp)
-                ) {
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier.padding(horizontal = 10.dp)
-                    ) {
-                        Text(
-                            text = printStatusText,
-                            style = MaterialTheme.typography.labelMedium,
-                            color = printStatusColor,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-            }
             
             // 中间：下单时间
             val dateFormat = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
             val timeStr = try { dateFormat.format(order.dateCreated) } catch(e: Exception) { "" }
-            val displayTime = timeStr.ifBlank { "--" }
             
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
@@ -292,7 +263,7 @@ fun OrderDetailHeader(
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    text = stringResource(R.string.order_detail_header_time, displayTime),
+                    text = "Placed: $timeStr",
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -435,7 +406,7 @@ fun ProductionCard(order: Order, currencySymbol: String) {
         Column(modifier = Modifier.padding(16.dp)) {
             // 标题
             Text(
-                text = stringResource(R.string.production_card_title, totalItems),
+                text = "Order Items • $totalItems items",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface
@@ -470,8 +441,8 @@ fun ProductionCard(order: Order, currencySymbol: String) {
                                 modifier = Modifier.size(20.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = stringResource(R.string.order_note_section_title),
+                            Text(
+                                text = "ORDER NOTE",
                                 style = MaterialTheme.typography.labelLarge,
                                 fontWeight = FontWeight.Bold,
                                 color = Color(0xFFF57F17)
@@ -494,24 +465,18 @@ fun ProductionCard(order: Order, currencySymbol: String) {
 @Composable
 fun ProductionItemRow(item: OrderItem) {
     Row(modifier = Modifier.fillMaxWidth()) {
-        // 数量方块：科学防错设计
-        // 1x (常规): 浅灰底黑字
-        // >1x (例外): 黑底白字 (高对比度，防止少做)
-        val isMultiple = item.quantity > 1
-        val qtyBgColor = if (isMultiple) Color(0xFF212121) else Color(0xFFEEEEEE)
-        val qtyTextColor = if (isMultiple) Color.White else Color.Black
-        
+        // 数量方块
         Box(
             modifier = Modifier
                 .size(40.dp)
-                .background(qtyBgColor, RoundedCornerShape(8.dp)),
+                .background(Color(0xFFE0E0E0), RoundedCornerShape(8.dp)),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = "${item.quantity}x",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = qtyTextColor
+                color = Color.Black
             )
         }
         
@@ -526,37 +491,21 @@ fun ProductionItemRow(item: OrderItem) {
                 color = Color.Black
             )
             
+            // 选项 (Options)
             if (item.options.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(8.dp))
-                ContainerBox(
-                    backgroundColor = Color(0xFFFFF9C4), // 淡黄色
-                    borderColor = Color(0xFFFBC02D)
-                ) {
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        item.options.forEachIndexed { index, opt ->
-                            Row(verticalAlignment = Alignment.Top) {
-                                Text(
-                                    text = "• ",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.Black
-                                )
-                                Text(
-                                    text = "${opt.name}: ${opt.value}",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Medium, // 使用中等字重，比之前更醒目
-                                    color = Color.Black
-                                )
-                            }
-                            if (index < item.options.size - 1) {
-                                Spacer(modifier = Modifier.height(4.dp))
-                            }
-                        }
-                    }
+                Spacer(modifier = Modifier.height(4.dp))
+                item.options.forEach { opt ->
+                    Text(
+                        text = "• ${opt.name}: ${opt.value}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.Gray
+                    )
                 }
             }
             
-            // 单品备注 (Item Note) - 保留原有逻辑作为备选
+            // 单品备注 (Item Note) - 假设备注混在选项里或作为独立字段，这里暂时模拟高亮显示
+            // 实际逻辑需检查 item 是否有 note 字段，目前 OrderItem 似乎只有 options
+            // 如果有 note 字段：
             /*
             if (item.note.isNotBlank()) {
                 Spacer(modifier = Modifier.height(8.dp))
@@ -575,13 +524,10 @@ fun ProductionItemRow(item: OrderItem) {
 @Composable
 fun TimeAndTypeCard(order: Order, isDelivery: Boolean) {
     val wooInfo = order.woofoodInfo
-    val asapLabel = stringResource(R.string.expected_time_asap)
-    val expectedTime = wooInfo?.deliveryTime?.takeIf { it.isNotBlank() } ?: asapLabel
+    val expectedTime = wooInfo?.deliveryTime ?: "ASAP"
     
     // 简单的紧急程度判断 (仅示例逻辑)
-    val isUrgent = expectedTime.contains("Urgent", ignoreCase = true) ||
-        expectedTime.contains("ASAP", ignoreCase = true) ||
-        expectedTime.contains(asapLabel, ignoreCase = true)
+    val isUrgent = expectedTime.contains("Urgent") || expectedTime.contains("ASAP")
     val timeColor = if (isUrgent) Color(0xFFD32F2F) else Color.Black
     
     Card(
@@ -593,7 +539,7 @@ fun TimeAndTypeCard(order: Order, isDelivery: Boolean) {
         Column(modifier = Modifier.padding(16.dp)) {
             // Expected Time
             Text(
-                text = stringResource(R.string.expected_time_label),
+                text = "EXPECTED TIME",
                 style = MaterialTheme.typography.labelMedium,
                 color = Color.Gray
             )
@@ -621,11 +567,7 @@ fun TimeAndTypeCard(order: Order, isDelivery: Boolean) {
             // Order Type
             val typeColor = if (isDelivery) Color(0xFF1976D2) else Color(0xFF388E3C) // 蓝/绿
             val typeIcon = if (isDelivery) Icons.Default.LocalShipping else Icons.Default.ShoppingBag
-            val typeText = if (isDelivery) {
-                stringResource(R.string.delivery_type_delivery)
-            } else {
-                stringResource(R.string.delivery_type_pickup)
-            }
+            val typeText = if (isDelivery) "Delivery Order" else "Customer Pickup"
             
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -638,7 +580,7 @@ fun TimeAndTypeCard(order: Order, isDelivery: Boolean) {
                 Icon(imageVector = typeIcon, contentDescription = null, tint = typeColor)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = typeText,
+                    text = typeText.uppercase(),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Black,
                     color = typeColor
@@ -665,7 +607,7 @@ fun CustomerInfoCard(order: Order, isDelivery: Boolean) {
                 Icon(imageVector = Icons.Default.Person, contentDescription = null, tint = Color.Gray)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = stringResource(R.string.customer_info_section_title),
+                    text = "CUSTOMER",
                     style = MaterialTheme.typography.labelLarge,
                     color = Color.Gray,
                     fontWeight = FontWeight.Bold
@@ -749,7 +691,7 @@ fun PaymentCard(order: Order, currencySymbol: String) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = stringResource(R.string.payment_total_label),
+                    text = "Total",
                     style = MaterialTheme.typography.titleLarge,
                     color = Color.Gray
                 )
@@ -762,11 +704,7 @@ fun PaymentCard(order: Order, currencySymbol: String) {
             
             // 支付状态
             val isPaid = order.paymentMethod.contains("Cash", ignoreCase = true).not() // 简化判断
-            val statusText = if (isPaid) {
-                stringResource(R.string.payment_status_paid)
-            } else {
-                stringResource(R.string.payment_status_cash_due)
-            }
+            val statusText = if (isPaid) "PAID" else "UNPAID / CASH"
             val statusColor = if (isPaid) Color(0xFF388E3C) else Color(0xFFD32F2F)
             val statusBg = if (isPaid) Color(0xFFE8F5E9) else Color(0xFFFFEBEE)
             
@@ -821,12 +759,12 @@ fun PaymentCard(order: Order, currencySymbol: String) {
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Row {
-                    Text("❤️ ", fontSize = 16.sp)
+                    Text("❤️ ", fontSize = 16.sp) // 爱心图标
                     Text(
-                        text = stringResource(R.string.tip_amount),
+                        text = "Tip (小费)",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        color = if (tipAmount != "0.00") Color(0xFFE91E63) else Color.Gray
+                        color = if (tipAmount != "0.00") Color(0xFFE91E63) else Color.Gray // 有小费粉色，无小费灰色
                     )
                 }
                 Text(
@@ -844,7 +782,7 @@ fun PaymentCard(order: Order, currencySymbol: String) {
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = stringResource(R.string.payment_delivery_fee_label),
+                        text = "Delivery Fee",
                         style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.Medium
                     )
@@ -862,7 +800,7 @@ fun PaymentCard(order: Order, currencySymbol: String) {
             
             // 3. 基础明细 (Accounting)
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                DetailRow(stringResource(R.string.subtotal), "$currencySymbol${order.subtotal}")
+                DetailRow("Subtotal", "$currencySymbol${order.subtotal}")
                 order.taxLines.forEach { tax ->
                     DetailRow("${tax.label} (${tax.ratePercent}%)", "$currencySymbol${tax.taxTotal}")
                 }

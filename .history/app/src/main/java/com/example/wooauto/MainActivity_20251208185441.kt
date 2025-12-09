@@ -291,6 +291,33 @@ class MainActivity : AppCompatActivity(), OrderNotificationManager.NotificationC
             ) {
                 WooAutoApp.GetContent()
                 
+                // 监听打开详情事件
+                LaunchedEffect(Unit) {
+                    EventBus.openOrderDetailEvents.collect { event ->
+                        detailOrder = event.order
+                        showOrderDetail = true
+                    }
+                }
+                
+                // 订单详情全屏覆盖层 (zIndex=50，低于 NewOrderPopup 999)
+                if (showOrderDetail && detailOrder != null) {
+                    OrderDetailDialog(
+                        order = detailOrder!!,
+                        onDismiss = { 
+                            showOrderDetail = false
+                            detailOrder = null
+                        },
+                        mode = DetailMode.AUTO,
+                        onStatusChange = { orderId, newStatus ->
+                            ordersViewModel.updateOrderStatus(orderId, newStatus)
+                        },
+                        onMarkAsPrinted = { orderId ->
+                            ordersViewModel.markOrderAsPrinted(orderId)
+                        },
+                        onMarkAsRead = null
+                    )
+                }
+                
                 // 强化显示条件：当开启“接单持续提示”且仍有当前订单时，强制显示弹窗，避免外部事件误关
                 val keepRinging = soundManager.isKeepRingingUntilAcceptEnabled()
                 // 使用数据库Flow统计真实的新订单数量（processing + 未读）

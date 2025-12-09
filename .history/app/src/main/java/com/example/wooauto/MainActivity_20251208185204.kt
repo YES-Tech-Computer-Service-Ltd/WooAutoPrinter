@@ -83,6 +83,9 @@ class MainActivity : AppCompatActivity(), OrderNotificationManager.NotificationC
     @Inject
     lateinit var soundManager: com.example.wooauto.utils.SoundManager
     
+    // 用于订单详情操作（Activity Scoped）
+    private val ordersViewModel: OrdersViewModel by viewModels()
+    
     private val TAG = "MainActivity"
     
     @Inject
@@ -111,6 +114,10 @@ class MainActivity : AppCompatActivity(), OrderNotificationManager.NotificationC
     
     // 屏幕常亮状态
     private var isKeepScreenOnEnabled by mutableStateOf(false)
+    
+    // 订单详情状态
+    private var showOrderDetail by mutableStateOf(false)
+    private var detailOrder by mutableStateOf<Order?>(null)
     
     // 初始化标志和任务
     private val isInitialized = AtomicBoolean(false)
@@ -290,6 +297,33 @@ class MainActivity : AppCompatActivity(), OrderNotificationManager.NotificationC
                 color = MaterialTheme.colorScheme.background
             ) {
                 WooAutoApp.GetContent()
+                
+                // 监听打开详情事件
+                LaunchedEffect(Unit) {
+                    EventBus.openOrderDetailEvents.collect { event ->
+                        detailOrder = event.order
+                        showOrderDetail = true
+                    }
+                }
+                
+                // 订单详情全屏覆盖层 (zIndex=50，低于 NewOrderPopup 999)
+                if (showOrderDetail && detailOrder != null) {
+                    OrderDetailDialog(
+                        order = detailOrder!!,
+                        onDismiss = { 
+                            showOrderDetail = false
+                            detailOrder = null
+                        },
+                        mode = DetailMode.AUTO,
+                        onStatusChange = { orderId, newStatus ->
+                            ordersViewModel.updateOrderStatus(orderId, newStatus)
+                        },
+                        onMarkAsPrinted = { orderId ->
+                            ordersViewModel.markOrderAsPrinted(orderId)
+                        },
+                        onMarkAsRead = null
+                    )
+                }
                 
                 // 强化显示条件：当开启“接单持续提示”且仍有当前订单时，强制显示弹窗，避免外部事件误关
                 val keepRinging = soundManager.isKeepRingingUntilAcceptEnabled()

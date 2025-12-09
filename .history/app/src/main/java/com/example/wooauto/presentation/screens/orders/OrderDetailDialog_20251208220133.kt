@@ -665,7 +665,7 @@ fun CustomerInfoCard(order: Order, isDelivery: Boolean) {
                 Icon(imageVector = Icons.Default.Person, contentDescription = null, tint = Color.Gray)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = stringResource(R.string.customer_info_section_title),
+                    text = "顾客信息",
                     style = MaterialTheme.typography.labelLarge,
                     color = Color.Gray,
                     fontWeight = FontWeight.Bold
@@ -749,7 +749,7 @@ fun PaymentCard(order: Order, currencySymbol: String) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = stringResource(R.string.payment_total_label),
+                    text = "实付金额",
                     style = MaterialTheme.typography.titleLarge,
                     color = Color.Gray
                 )
@@ -762,11 +762,7 @@ fun PaymentCard(order: Order, currencySymbol: String) {
             
             // 支付状态
             val isPaid = order.paymentMethod.contains("Cash", ignoreCase = true).not() // 简化判断
-            val statusText = if (isPaid) {
-                stringResource(R.string.payment_status_paid)
-            } else {
-                stringResource(R.string.payment_status_cash_due)
-            }
+            val statusText = if (isPaid) "已支付" else "未付 / 需收现"
             val statusColor = if (isPaid) Color(0xFF388E3C) else Color(0xFFD32F2F)
             val statusBg = if (isPaid) Color(0xFFE8F5E9) else Color(0xFFFFEBEE)
             
@@ -823,7 +819,7 @@ fun PaymentCard(order: Order, currencySymbol: String) {
                 Row {
                     Text("❤️ ", fontSize = 16.sp)
                     Text(
-                        text = stringResource(R.string.tip_amount),
+                        text = "小费",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = if (tipAmount != "0.00") Color(0xFFE91E63) else Color.Gray
@@ -844,7 +840,7 @@ fun PaymentCard(order: Order, currencySymbol: String) {
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = stringResource(R.string.payment_delivery_fee_label),
+                        text = "配送费",
                         style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.Medium
                     )
@@ -862,7 +858,7 @@ fun PaymentCard(order: Order, currencySymbol: String) {
             
             // 3. 基础明细 (Accounting)
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                DetailRow(stringResource(R.string.subtotal), "$currencySymbol${order.subtotal}")
+                DetailRow("Subtotal", "$currencySymbol${order.subtotal}")
                 order.taxLines.forEach { tax ->
                     DetailRow("${tax.label} (${tax.ratePercent}%)", "$currencySymbol${tax.taxTotal}")
                 }
