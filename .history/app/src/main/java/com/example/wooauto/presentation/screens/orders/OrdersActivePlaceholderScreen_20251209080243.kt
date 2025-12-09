@@ -2,7 +2,7 @@ package com.example.wooauto.presentation.screens.orders
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -11,11 +11,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -125,7 +123,6 @@ fun OrdersActivePlaceholderScreen(
                         }
                     }
                 }
-
                 Spacer(modifier = Modifier.width(spacing))
                 Box(
                     modifier = Modifier
@@ -206,8 +203,8 @@ fun OrdersActivePlaceholderScreen(
 
             // show order details dialog is handled by EventBus in WooAutoApp
         }
-    }
-}
+
+	}
 
 private fun cleanNotesForDisplay(notes: String): String {
     if (notes.isBlank()) return notes
@@ -221,53 +218,39 @@ private fun cleanNotesForDisplay(notes: String): String {
         .trim()
 }
 
-@Composable
-private fun SectionHeader(title: String, count: Int, actions: (@Composable () -> Unit)? = null) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(bottom = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = "$title ($count)",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurface
-        )
-        Spacer(modifier = Modifier.weight(1f))
-        actions?.invoke()
-    }
+	// 关闭 OrdersActivePlaceholderScreen 函数体
 }
 
-@Composable
-private fun InfoChip(
-    text: String,
-    textColor: Color,
-    backgroundColor: Color,
-    borderColor: Color = Color.Transparent
-) {
-    Surface(
-        color = backgroundColor,
-        shape = RoundedCornerShape(14.dp),
-        border = if (borderColor == Color.Transparent) null else BorderStroke(1.dp, borderColor)
-    ) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.labelSmall,
-            color = textColor,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
-        )
-    }
-}
+// 结束 OrdersActivePlaceholderScreen 组合函数，以下为文件级别的私有可组合函数
 
-@Composable
-private fun ActiveOrderCard(
-    order: com.example.wooauto.domain.models.Order,
-    isNew: Boolean,
-    currencySymbol: String,
-    onStartProcessing: () -> Unit,
-    onOpenDetails: () -> Unit
-) {
+    // 详情弹窗已移至 EventBus 全局处理
+    // private fun ActiveOrderDetailsHost... removed
+
+    @Composable
+    private fun SectionHeader(title: String, count: Int, actions: (@Composable () -> Unit)? = null) {
+        Row(
+            modifier = Modifier
+				.fillMaxWidth()
+				.padding(bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "$title ($count)",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.weight(1f))
+            actions?.invoke()
+        }
+    }
+
+    @Composable
+    private fun ActiveOrderCard(
+        order: com.example.wooauto.domain.models.Order,
+        isNew: Boolean,
+        onStartProcessing: () -> Unit,
+        onOpenDetails: () -> Unit
+    ) {
         Card(
             modifier = Modifier
 				.fillMaxWidth()
@@ -291,73 +274,6 @@ private fun ActiveOrderCard(
                             style = MaterialTheme.typography.labelMedium
                         )
                     }
-                }
-                
-                val statusText = when (order.status) {
-                    "completed" -> stringResource(com.example.wooauto.R.string.order_status_completed)
-                    "processing" -> stringResource(com.example.wooauto.R.string.order_status_processing)
-                    "pending" -> stringResource(com.example.wooauto.R.string.order_status_pending)
-                    "cancelled" -> stringResource(com.example.wooauto.R.string.order_status_cancelled)
-                    "refunded" -> stringResource(com.example.wooauto.R.string.order_status_refunded)
-                    "failed" -> stringResource(com.example.wooauto.R.string.order_status_failed)
-                    "on-hold" -> stringResource(com.example.wooauto.R.string.order_status_on_hold)
-                    else -> order.status
-                }
-                val statusColor = getStatusColor(order.status)
-                val isPrinted = order.isPrinted
-                val printText = if (isPrinted) {
-                    stringResource(com.example.wooauto.R.string.printed_yes)
-                } else {
-                    stringResource(com.example.wooauto.R.string.printed_no)
-                }
-                val printColor = if (isPrinted) Color(0xFF2E7D32) else Color(0xFFC62828)
-                val printBg = if (isPrinted) Color(0xFFE8F5E9) else Color(0xFFFFEBEE)
-                val isDelivery = order.woofoodInfo?.isDelivery == true ||
-                        order.woofoodInfo?.orderMethod?.equals("delivery", ignoreCase = true) == true
-                val typeText = if (isDelivery) {
-                    stringResource(com.example.wooauto.R.string.delivery_type_delivery)
-                } else {
-                    stringResource(com.example.wooauto.R.string.delivery_type_pickup)
-                }
-                val typeColor = if (isDelivery) Color(0xFF1976D2) else Color(0xFF388E3C)
-                val isPaid = order.paymentMethod.contains("cash", ignoreCase = true).not()
-                val paymentText = if (isPaid) {
-                    stringResource(com.example.wooauto.R.string.payment_status_paid)
-                } else {
-                    stringResource(com.example.wooauto.R.string.payment_status_cash_due)
-                }
-                val paymentColor = if (isPaid) Color(0xFF2E7D32) else Color(0xFFC62828)
-                val paymentBg = if (isPaid) Color(0xFFE8F5E9) else Color(0xFFFFEBEE)
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 8.dp)
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    InfoChip(
-                        text = statusText,
-                        textColor = statusColor,
-                        backgroundColor = statusColor.copy(alpha = 0.12f),
-                        borderColor = statusColor.copy(alpha = 0.4f)
-                    )
-                    InfoChip(
-                        text = typeText,
-                        textColor = typeColor,
-                        backgroundColor = typeColor.copy(alpha = 0.12f),
-                        borderColor = typeColor.copy(alpha = 0.4f)
-                    )
-                    InfoChip(
-                        text = paymentText,
-                        textColor = paymentColor,
-                        backgroundColor = paymentBg
-                    )
-                    InfoChip(
-                        text = printText,
-                        textColor = printColor,
-                        backgroundColor = printBg
-                    )
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
@@ -398,7 +314,7 @@ private fun ActiveOrderCard(
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "$currencySymbol${order.total}",
+                            text = order.total,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -412,7 +328,7 @@ private fun ActiveOrderCard(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(Color(0xFFFFF9C4), RoundedCornerShape(4.dp))
+                            .background(androidx.compose.ui.graphics.Color(0xFFFFF9C4), RoundedCornerShape(4.dp))
                             .padding(8.dp)
                     ) {
                         Column {
@@ -420,22 +336,22 @@ private fun ActiveOrderCard(
                                 Icon(
                                     imageVector = Icons.Default.Warning,
                                     contentDescription = null,
-                                    tint = Color(0xFFF57F17),
+                                    tint = androidx.compose.ui.graphics.Color(0xFFF57F17),
                                     modifier = Modifier.size(16.dp)
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = stringResource(com.example.wooauto.R.string.order_note),
+                                    text = stringResource(com.example.wooauto.R.string.order_note), // 使用资源
                                     style = MaterialTheme.typography.labelMedium,
                                     fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                                    color = Color(0xFFF57F17)
+                                    color = androidx.compose.ui.graphics.Color(0xFFF57F17)
                                 )
                             }
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = orderNote,
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = Color.Black
+                                color = androidx.compose.ui.graphics.Color.Black
                             )
                         }
                     }

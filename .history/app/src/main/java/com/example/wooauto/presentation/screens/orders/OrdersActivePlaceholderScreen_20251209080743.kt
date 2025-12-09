@@ -125,7 +125,6 @@ fun OrdersActivePlaceholderScreen(
                         }
                     }
                 }
-
                 Spacer(modifier = Modifier.width(spacing))
                 Box(
                     modifier = Modifier
@@ -236,27 +235,6 @@ private fun SectionHeader(title: String, count: Int, actions: (@Composable () ->
         )
         Spacer(modifier = Modifier.weight(1f))
         actions?.invoke()
-    }
-}
-
-@Composable
-private fun InfoChip(
-    text: String,
-    textColor: Color,
-    backgroundColor: Color,
-    borderColor: Color = Color.Transparent
-) {
-    Surface(
-        color = backgroundColor,
-        shape = RoundedCornerShape(14.dp),
-        border = if (borderColor == Color.Transparent) null else BorderStroke(1.dp, borderColor)
-    ) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.labelSmall,
-            color = textColor,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
-        )
     }
 }
 
@@ -412,7 +390,7 @@ private fun ActiveOrderCard(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(Color(0xFFFFF9C4), RoundedCornerShape(4.dp))
+                            .background(androidx.compose.ui.graphics.Color(0xFFFFF9C4), RoundedCornerShape(4.dp))
                             .padding(8.dp)
                     ) {
                         Column {
@@ -420,26 +398,47 @@ private fun ActiveOrderCard(
                                 Icon(
                                     imageVector = Icons.Default.Warning,
                                     contentDescription = null,
-                                    tint = Color(0xFFF57F17),
+                                    tint = androidx.compose.ui.graphics.Color(0xFFF57F17),
                                     modifier = Modifier.size(16.dp)
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = stringResource(com.example.wooauto.R.string.order_note),
+                                    text = stringResource(com.example.wooauto.R.string.order_note), // 使用资源
                                     style = MaterialTheme.typography.labelMedium,
                                     fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                                    color = Color(0xFFF57F17)
+                                    color = androidx.compose.ui.graphics.Color(0xFFF57F17)
                                 )
                             }
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = orderNote,
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = Color.Black
+                                color = androidx.compose.ui.graphics.Color.Black
                             )
                         }
                     }
                 }
+
+@Composable
+private fun InfoChip(
+    text: String,
+    textColor: Color,
+    backgroundColor: Color,
+    borderColor: Color = Color.Transparent
+) {
+    Surface(
+        color = backgroundColor,
+        shape = RoundedCornerShape(14.dp),
+        border = if (borderColor == Color.Transparent) null else BorderStroke(1.dp, borderColor)
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelSmall,
+            color = textColor,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+        )
+    }
+}
                 
                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                 Row(

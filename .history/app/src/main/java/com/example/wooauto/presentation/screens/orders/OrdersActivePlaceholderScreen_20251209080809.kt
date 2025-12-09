@@ -125,7 +125,6 @@ fun OrdersActivePlaceholderScreen(
                         }
                     }
                 }
-
                 Spacer(modifier = Modifier.width(spacing))
                 Box(
                     modifier = Modifier
@@ -236,27 +235,6 @@ private fun SectionHeader(title: String, count: Int, actions: (@Composable () ->
         )
         Spacer(modifier = Modifier.weight(1f))
         actions?.invoke()
-    }
-}
-
-@Composable
-private fun InfoChip(
-    text: String,
-    textColor: Color,
-    backgroundColor: Color,
-    borderColor: Color = Color.Transparent
-) {
-    Surface(
-        color = backgroundColor,
-        shape = RoundedCornerShape(14.dp),
-        border = if (borderColor == Color.Transparent) null else BorderStroke(1.dp, borderColor)
-    ) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.labelSmall,
-            color = textColor,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
-        )
     }
 }
 
