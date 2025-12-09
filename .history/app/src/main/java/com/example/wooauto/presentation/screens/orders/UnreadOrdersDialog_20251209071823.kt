@@ -54,6 +54,8 @@ import com.example.wooauto.utils.LocalAppLocale
 import java.text.SimpleDateFormat
 import java.util.Locale
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.setValue
 
 /**
@@ -65,13 +67,10 @@ fun UnreadOrdersDialog(
     onDismiss: () -> Unit,
     viewModel: OrdersViewModel = hiltViewModel()
 ) {
+    val scope = rememberCoroutineScope()
     // 获取未读订单列表
     val unreadOrders by viewModel.unreadOrders.collectAsState()
     val currencySymbol by viewModel.currencySymbol.collectAsState()
-    
-    // 添加订单详情显示状态
-    var selectedOrderForDetail by remember { mutableStateOf<Order?>(null) }
-    var showOrderDetail by remember { mutableStateOf(false) }
     
     // 每次对话框打开时重新加载未读订单
     LaunchedEffect(key1 = Unit) {

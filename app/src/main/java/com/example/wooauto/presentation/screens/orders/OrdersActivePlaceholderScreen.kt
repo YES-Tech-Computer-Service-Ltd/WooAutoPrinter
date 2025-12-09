@@ -41,6 +41,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 
 @Composable
 fun OrdersActivePlaceholderScreen(
@@ -68,6 +70,8 @@ fun OrdersActivePlaceholderScreen(
     val inProcList = viewModel.inProcessingOrders.collectAsState().value
     var showStartAllConfirm by remember { mutableStateOf(false) }
     var showCompleteAllConfirm by remember { mutableStateOf(false) }
+
+    val scope = rememberCoroutineScope()
 
     androidx.compose.material3.Scaffold(
         snackbarHost = { androidx.compose.material3.SnackbarHost(hostState = snackbarHostState) }
@@ -102,10 +106,9 @@ fun OrdersActivePlaceholderScreen(
                                     viewModel.startProcessingFromCard(order.id)
                                 },
                                 onOpenDetails = {
-                                    viewModel.openOrderDetails(
-                                        order.id,
-                                        OrdersViewModel.OrderDetailMode.NEW
-                                    )
+                                    scope.launch {
+                                        com.example.wooauto.presentation.EventBus.emitOpenOrderDetail(order)
+                                    }
                                 }
                             )
                         }
@@ -138,10 +141,9 @@ fun OrdersActivePlaceholderScreen(
                                 isNew = false,
                                 onStartProcessing = { },
                                 onOpenDetails = {
-                                    viewModel.openOrderDetails(
-                                        order.id,
-                                        OrdersViewModel.OrderDetailMode.PROCESSING
-                                    )
+                                    scope.launch {
+                                        com.example.wooauto.presentation.EventBus.emitOpenOrderDetail(order)
+                                    }
                                 }
                             )
                         }
@@ -189,8 +191,7 @@ fun OrdersActivePlaceholderScreen(
                 }
             }
 
-            // show order details dialog if selected
-            ActiveOrderDetailsHost(viewModel)
+            // show order details dialog is handled by EventBus in WooAutoApp
         }
 
 	}
@@ -200,30 +201,8 @@ fun OrdersActivePlaceholderScreen(
 
 // 结束 OrdersActivePlaceholderScreen 组合函数，以下为文件级别的私有可组合函数
 
-    // 详情弹窗（沿用 History 的组件）
-    @Composable
-    private fun ActiveOrderDetailsHost(viewModel: OrdersViewModel) {
-        val selectedOrder = viewModel.selectedOrder.collectAsState().value
-        val mode = viewModel.selectedDetailMode.collectAsState().value
-        if (selectedOrder != null) {
-            OrderDetailDialog(
-                order = selectedOrder,
-                onDismiss = { viewModel.clearSelectedOrder() },
-                mode = when (mode) {
-                    OrdersViewModel.OrderDetailMode.NEW -> DetailMode.NEW
-                    OrdersViewModel.OrderDetailMode.PROCESSING -> DetailMode.PROCESSING
-                    else -> DetailMode.AUTO
-                },
-                onStatusChange = { id, status ->
-                    viewModel.updateOrderStatus(id, status)
-                    // 由 Active 宿主负责真正关闭（不重置模式，避免在刷新期间再弹回）
-                    viewModel.clearSelectedOrder()
-                },
-                onMarkAsPrinted = { id -> viewModel.markOrderAsPrinted(id) },
-                onMarkAsRead = { id -> viewModel.markOrderAsRead(id) }
-            )
-        }
-    }
+    // 详情弹窗已移至 EventBus 全局处理
+    // private fun ActiveOrderDetailsHost... removed
 
     @Composable
     private fun SectionHeader(title: String, count: Int, actions: (@Composable () -> Unit)? = null) {

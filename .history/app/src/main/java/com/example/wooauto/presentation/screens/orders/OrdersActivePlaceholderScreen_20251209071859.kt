@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -32,10 +31,18 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 
 @Composable
 fun OrdersActivePlaceholderScreen(
@@ -61,6 +68,10 @@ fun OrdersActivePlaceholderScreen(
     }
     val newList = viewModel.newProcessingOrders.collectAsState().value
     val inProcList = viewModel.inProcessingOrders.collectAsState().value
+    var showStartAllConfirm by remember { mutableStateOf(false) }
+    var showCompleteAllConfirm by remember { mutableStateOf(false) }
+
+    val scope = rememberCoroutineScope()
 
     androidx.compose.material3.Scaffold(
         snackbarHost = { androidx.compose.material3.SnackbarHost(hostState = snackbarHostState) }
@@ -79,7 +90,13 @@ fun OrdersActivePlaceholderScreen(
 						.fillMaxHeight()
 						.weight(1f)
                 ) {
-                    SectionHeader(title = "New orders", count = newList.size)
+                    SectionHeader(title = stringResource(id = com.example.wooauto.R.string.orders_new), count = newList.size, actions = {
+                        if (newList.size >= 2) {
+                            TextButton(onClick = { showStartAllConfirm = true }) {
+                                Text(text = stringResource(id = com.example.wooauto.R.string.start_all))
+                            }
+                        }
+                    })
                     LazyColumn(modifier = Modifier.fillMaxSize()) {
                         items(newList) { order ->
                             ActiveOrderCard(
@@ -89,10 +106,9 @@ fun OrdersActivePlaceholderScreen(
                                     viewModel.startProcessingFromCard(order.id)
                                 },
                                 onOpenDetails = {
-                                    viewModel.openOrderDetails(
-                                        order.id,
-                                        OrdersViewModel.OrderDetailMode.NEW
-                                    )
+                                    scope.launch {
+                                        com.example.wooauto.presentation.EventBus.emitOpenOrderDetail(order)
+                                    }
                                 }
                             )
                         }
@@ -111,7 +127,13 @@ fun OrdersActivePlaceholderScreen(
 						.fillMaxHeight()
 						.weight(1f)
                 ) {
-                    SectionHeader(title = "In processing", count = inProcList.size)
+                    SectionHeader(title = stringResource(id = com.example.wooauto.R.string.orders_in_processing), count = inProcList.size, actions = {
+                        if (inProcList.size >= 2) {
+                            TextButton(onClick = { showCompleteAllConfirm = true }) {
+                                Text(text = stringResource(id = com.example.wooauto.R.string.complete_all))
+                            }
+                        }
+                    })
                     LazyColumn(modifier = Modifier.fillMaxSize()) {
                         items(inProcList) { order ->
                             ActiveOrderCard(
@@ -119,10 +141,9 @@ fun OrdersActivePlaceholderScreen(
                                 isNew = false,
                                 onStartProcessing = { },
                                 onOpenDetails = {
-                                    viewModel.openOrderDetails(
-                                        order.id,
-                                        OrdersViewModel.OrderDetailMode.PROCESSING
-                                    )
+                                    scope.launch {
+                                        com.example.wooauto.presentation.EventBus.emitOpenOrderDetail(order)
+                                    }
                                 }
                             )
                         }
@@ -130,8 +151,47 @@ fun OrdersActivePlaceholderScreen(
                 }
             }
 
-            // show order details dialog if selected
-            ActiveOrderDetailsHost(viewModel)
+            // 确认对话框：开始处理（新订单）
+            if (showStartAllConfirm) {
+                Dialog(onDismissRequest = { showStartAllConfirm = false }, properties = DialogProperties(dismissOnBackPress = true, dismissOnClickOutside = true)) {
+                    Card(shape = CardDefaults.shape) {
+                        Column(modifier = Modifier.padding(20.dp)) {
+                            Text(text = stringResource(id = com.example.wooauto.R.string.confirm_start_all_title), style = MaterialTheme.typography.titleMedium)
+                            Spacer(modifier = Modifier.width(0.dp))
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                                TextButton(onClick = { showStartAllConfirm = false }) { Text(text = stringResource(id = com.example.wooauto.R.string.cancel)) }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                TextButton(onClick = {
+                                    viewModel.batchStartProcessingForNewOrders()
+                                    showStartAllConfirm = false
+                                }) { Text(text = stringResource(id = com.example.wooauto.R.string.confirm)) }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 确认对话框：批量完成（处理中）
+            if (showCompleteAllConfirm) {
+                Dialog(onDismissRequest = { showCompleteAllConfirm = false }, properties = DialogProperties(dismissOnBackPress = true, dismissOnClickOutside = true)) {
+                    Card(shape = CardDefaults.shape) {
+                        Column(modifier = Modifier.padding(20.dp)) {
+                            Text(text = stringResource(id = com.example.wooauto.R.string.confirm_complete_all_title), style = MaterialTheme.typography.titleMedium)
+                            Spacer(modifier = Modifier.width(0.dp))
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                                TextButton(onClick = { showCompleteAllConfirm = false }) { Text(text = stringResource(id = com.example.wooauto.R.string.cancel)) }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                TextButton(onClick = {
+                                    viewModel.batchCompleteProcessingOrders()
+                                    showCompleteAllConfirm = false
+                                }) { Text(text = stringResource(id = com.example.wooauto.R.string.confirm)) }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // show order details dialog is handled by EventBus in WooAutoApp
         }
 
 	}
@@ -141,33 +201,11 @@ fun OrdersActivePlaceholderScreen(
 
 // 结束 OrdersActivePlaceholderScreen 组合函数，以下为文件级别的私有可组合函数
 
-    // 详情弹窗（沿用 History 的组件）
-    @Composable
-    private fun ActiveOrderDetailsHost(viewModel: OrdersViewModel) {
-        val selectedOrder = viewModel.selectedOrder.collectAsState().value
-        val mode = viewModel.selectedDetailMode.collectAsState().value
-        if (selectedOrder != null) {
-            OrderDetailDialog(
-                order = selectedOrder,
-                onDismiss = { viewModel.clearSelectedOrder() },
-                mode = when (mode) {
-                    OrdersViewModel.OrderDetailMode.NEW -> DetailMode.NEW
-                    OrdersViewModel.OrderDetailMode.PROCESSING -> DetailMode.PROCESSING
-                    else -> DetailMode.AUTO
-                },
-                onStatusChange = { id, status ->
-                    viewModel.updateOrderStatus(id, status)
-                    // 由 Active 宿主负责真正关闭（不重置模式，避免在刷新期间再弹回）
-                    viewModel.clearSelectedOrder()
-                },
-                onMarkAsPrinted = { id -> viewModel.markOrderAsPrinted(id) },
-                onMarkAsRead = { id -> viewModel.markOrderAsRead(id) }
-            )
-        }
-    }
+    // 详情弹窗已移至 EventBus 全局处理
+    // private fun ActiveOrderDetailsHost... removed
 
     @Composable
-    private fun SectionHeader(title: String, count: Int) {
+    private fun SectionHeader(title: String, count: Int, actions: (@Composable () -> Unit)? = null) {
         Row(
             modifier = Modifier
 				.fillMaxWidth()
@@ -179,6 +217,8 @@ fun OrdersActivePlaceholderScreen(
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurface
             )
+            Spacer(modifier = Modifier.weight(1f))
+            actions?.invoke()
         }
     }
 
