@@ -642,16 +642,6 @@ fun ProductionItemRow(item: OrderItem, currencySymbol: String) {
                     }
                 }
             }
-            
-            // 单品备注 (Item Note) - 保留原有逻辑作为备选
-            /*
-            if (item.note.isNotBlank()) {
-                Spacer(modifier = Modifier.height(8.dp))
-                ContainerBox(backgroundColor = Color(0xFFFFF9C4)) {
-                    Text(text = "NOTE: ${item.note}", color = Color(0xFFD32F2F), fontWeight = FontWeight.Bold)
-                                }
-            }
-            */
         }
 
         Spacer(modifier = Modifier.width(8.dp))

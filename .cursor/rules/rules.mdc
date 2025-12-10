@@ -1,0 +1,63 @@
+---
+alwaysApply: true
+description: Consolidated project/process rules for WooAutoPrinter.
+globs:
+  - "**/*"
+---
+
+# Project Implementation & Stability Guidelines
+
+## 0. Meta-Rule: Rule Maintenance
+- **English Only:** All new rules added to this directory or file MUST be written in **English**. This ensures optimal reasoning performance for AI models.
+- **Consistency:** Maintain the existing structure and tone when adding new guidelines.
+
+## 1. Prime Directive: Stability First
+**Do NOT break existing functionality.**
+- Every change must maintain backward compatibility and preserve existing user behaviors.
+- **Zero Regression:** The application must remain buildable and runnable at every step. Do not leave the codebase in a broken state between tool calls.
+
+## 2. Implementation Strategy (The "Check First" Rule)
+Before writing any new code, you MUST follow this sequence:
+1. **Search Existing Code:** Look for similar implementations, helper functions, or patterns already in the codebase.
+2. **Reuse & Extend:** If a similar implementation exists, prefer extending it via small, incremental changes rather than rewriting it from scratch.
+3. **Avoid Unnecessary Refactoring:** Do not refactor working code unless strictly necessary for the current task. "It works" > "It looks perfect".
+
+## 3. Handling Major Changes
+If a requirement forces a fundamental change to existing logic:
+- **Parallel Implementation:** Create a new path (e.g., `NewPrinterManager`) alongside the old one rather than modifying the old one destructively.
+- **Feature Flags:** Use configuration flags to switch between old and new logic safely.
+- **Rollback Plan:** Ensure it is easy to revert to the previous state if the new logic fails.
+
+## 4. Android/Kotlin Specific Guidelines
+- **Coroutines:** Use `Dispatchers.IO` for all database/network/printer operations. Never block the Main thread.
+- **Exception Handling:** Always wrap Bluetooth/Printer IO operations in `try-catch` blocks. Printer connections are unstable by nature; assume they will fail.
+- **Resources:** Always close streams and release connections (BluetoothSockets) in `finally` blocks or use `use { }`.
+- **Testing (Industrial Standard):**
+    - Prefer adding **Unit Tests** for pure logic (e.g., protocol parsing, command generation) to ensure correctness without hardware.
+    - Treat testability as a code quality metric. If logic is hard to test, it probably needs refactoring.
+
+## 6. Documentation & Knowledge Management
+- **Project Map Maintenance:** Whenever you add a new file, rename a class, or refactor a directory, you MUST update `PROJECT_STRUCTURE.md` immediately.
+- **Detail Level:** Do not just list files; describe their **responsibility** and **key functions**. Future AI sessions rely on this map to navigate the codebase efficiently.
+
+# Order Data Source Consistency
+
+## Background
+- **History flow** (`OrdersViewModel.orders`) reads fresh API responses and converts them via `OrderDto.toOrder()`, so `woofoodInfo`, fee lines, and item options remain intact.
+- **Active flow** (`OrdersActivePlaceholderScreen`) reads Room entities through `OrderMapper.mapEntityToDomain()`. If the entity schema omits fields, the Active UI becomes “thinner” than History.
+
+## Rules
+1. **Persist all WooFood metadata in the DB.** Every remote field (`deliveryDate`, `deliveryTime`, `orderMethod`, `isDelivery`, `deliveryFee`, `tip`, etc.) must be stored in `OrderEntity/WooFoodInfoEntity` and mapped back when building the domain model.
+2. **Retain item-level options.** `OrderLineItemEntity` must always include option/add-on metadata so Active order details match the History view.
+3. **No guessing from `customerNote`.** Only parse WooFood data through `WooFoodMetadataParser`. If the API did not supply a date/time, show an explicit placeholder in the UI instead of inferring it.
+4. **Verify both flows for any change.** Whenever modifying mappers, repositories, or order UI, confirm that both Active (DB-backed) and History (API-backed) screens display identical information.
+
+# Request Handling Workflow
+
+1. **Investigate before coding.** Upon receiving any new requirement, locate and read the relevant files, components, and data flows. Do not start editing until you understand the existing implementation.
+2. **Share feasibility and impact.** Summarize what parts of the codebase are involved, why the change is (or is not) feasible, and outline possible approaches. This written analysis must happen before touching the code.
+3. **Wait for confirmation.** Only begin modifying files after the requester explicitly agrees with the proposed plan. If multiple options exist, reach consensus first.
+4. **Surface uncertainties immediately.** If any instruction is unclear or information is missing, describe the confusion explicitly and list the extra details you need instead of guessing.
+5. **Keep execution transparent.** Once implementation starts, continue to explain key steps, assumptions, and validation methods so reviewers can follow the reasoning path.
+
+These steps are mandatory for every feature, UI tweak, or bug fix. Skipping any of them is considered a process violation.
