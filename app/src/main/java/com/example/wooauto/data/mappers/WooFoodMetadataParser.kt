@@ -21,6 +21,7 @@ object WooFoodMetadataParser {
         val orderMethod: String?,
         val deliveryDate: String?,
         val deliveryTime: String?,
+        val dineInPersonCount: String?,
         val isDelivery: Boolean
     )
 
@@ -31,6 +32,7 @@ object WooFoodMetadataParser {
         var orderMethod: String? = null
         var deliveryTime: String? = null
         var deliveryDate: String? = null
+        var dineInPersonCount: String? = null
 
         metaEntries.forEach { (rawKey, rawValue) ->
             val key = rawKey.lowercase(Locale.ROOT)
@@ -42,6 +44,10 @@ object WooFoodMetadataParser {
                 }
                 "exwfood_time_deli", "exwfood_delivery_time", "_woofood_delivery_time" -> {
                     deliveryTime = normalizeTime(value)
+                }
+                "exwfood_person_dinein" -> {
+                    // WooFood dine-in people count (party size). Keep raw string to be robust to upstream formats.
+                    dineInPersonCount = value
                 }
                 "exwfood_datetime_deli_unix",
                 "exwfood_date_deli_unix" -> {
@@ -65,6 +71,7 @@ object WooFoodMetadataParser {
             orderMethod = orderMethod,
             deliveryDate = deliveryDate,
             deliveryTime = deliveryTime,
+            dineInPersonCount = dineInPersonCount,
             isDelivery = isDelivery
         )
     }

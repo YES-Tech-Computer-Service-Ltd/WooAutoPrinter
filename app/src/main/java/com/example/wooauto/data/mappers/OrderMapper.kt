@@ -50,6 +50,9 @@ object OrderMapper {
         parsedMeta.deliveryTime?.let {
             metadataBuilder.appendLine("exwfood_time_deli: $it")
         }
+        parsedMeta.dineInPersonCount?.let {
+            metadataBuilder.appendLine("exwfood_person_dinein: $it")
+        }
 
         // 记录其他与配送相关的元数据，方便排查
         response.metaData.forEach { meta ->
@@ -162,6 +165,7 @@ object OrderMapper {
             orderMethod = parsedMeta.orderMethod,
             deliveryDate = parsedMeta.deliveryDate,
             deliveryTime = parsedMeta.deliveryTime,
+            dineInPersonCount = parsedMeta.dineInPersonCount,
             deliveryAddress = null, // 地址信息依旧由后续逻辑决定
             deliveryFee = deliveryFeeAmount,
             tip = tipAmount,
@@ -289,6 +293,7 @@ object OrderMapper {
                     orderMethod = woofoodInfo.orderMethod,
                     deliveryDate = woofoodInfo.deliveryDate,
                     deliveryTime = woofoodInfo.deliveryTime,
+                    dineInPersonCount = woofoodInfo.dineInPersonCount,
                     deliveryAddress = woofoodInfo.deliveryAddress,
                     deliveryFee = finalDeliveryFee,
                     tip = finalTip,
@@ -307,6 +312,7 @@ object OrderMapper {
                     orderMethod = "delivery",
                     deliveryDate = null,
                     deliveryTime = null,
+                    dineInPersonCount = null,
                     deliveryAddress = null,
                     deliveryFee = deliveryFeeFromFeeLine,
                     tip = tipFromFeeLine,
@@ -336,6 +342,7 @@ object OrderMapper {
                 orderMethod = entity.woofoodInfo.orderMethod,
                 deliveryDate = entity.woofoodInfo.deliveryDate,
                 deliveryTime = entity.woofoodInfo.deliveryTime,
+                dineInPersonCount = entity.woofoodInfo.dineInPersonCount,
                 deliveryAddress = entity.woofoodInfo.deliveryAddress,
                 deliveryFee = entity.woofoodInfo.deliveryFee,
                 tip = entity.woofoodInfo.tip,
@@ -362,6 +369,7 @@ object OrderMapper {
                 orderMethod = "takeaway",
                 deliveryDate = null, // 不猜测日期
                 deliveryTime = extractTimeInfoFromMetadata(entity.customerNote),
+                dineInPersonCount = null,
                 deliveryAddress = null,
                 deliveryFee = null,  // 自取订单没有配送费
                 tip = extractTipAmount(entity.customerNote),
@@ -541,6 +549,7 @@ object OrderMapper {
             orderMethod = orderMethod,
             deliveryDate = null,
             deliveryTime = timeInfo,
+            dineInPersonCount = null,
             deliveryAddress = finalDeliveryAddress,
             deliveryFee = deliveryFee,
             tip = tipAmount,
@@ -854,6 +863,7 @@ object OrderMapper {
                 orderMethod = it.orderMethod,
                 deliveryDate = it.deliveryDate,
                 deliveryTime = it.deliveryTime,
+                dineInPersonCount = it.dineInPersonCount,
                 deliveryAddress = it.deliveryAddress,
                 deliveryFee = it.deliveryFee,
                 tip = it.tip,

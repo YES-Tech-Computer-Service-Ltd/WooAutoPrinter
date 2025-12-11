@@ -68,6 +68,7 @@ data class WooFoodInfoEntity(
     val orderMethod: String?,
     val deliveryDate: String?,
     val deliveryTime: String?,
+    val dineInPersonCount: String?,
     val deliveryAddress: String?,
     val deliveryFee: String?,
     val tip: String?,

@@ -42,6 +42,7 @@ import com.example.wooauto.data.remote.ConnectionResetHandler
 import dagger.hilt.android.qualifiers.ApplicationContext
 import com.example.wooauto.data.remote.ssl.SslUtil
 import com.example.wooauto.data.remote.dns.Ipv4PreferredDns
+import com.example.wooauto.diagnostics.network.NetworkErrorLogger
 
 /**
  * 网络模块
@@ -161,6 +162,8 @@ class NetworkModule {
                 .connectionPool(okhttp3.ConnectionPool(5, 5, TimeUnit.MINUTES))
                 // 启用重试
                 .retryOnConnectionFailure(true)
+                // 启用心跳，防止路由器在连接空闲时静默断开（解决长连接假死问题）
+                .pingInterval(30, TimeUnit.SECONDS)
                 
             // 配置TLS版本支持
             SslUtil.configureTls(builder)
@@ -268,7 +271,8 @@ class NetworkModule {
             config: WooCommerceConfig,
             sslErrorInterceptor: SSLErrorInterceptor,
             connectionResetHandler: ConnectionResetHandler,
-            globalErrorManager: GlobalErrorManager
+            globalErrorManager: GlobalErrorManager,
+            networkErrorLogger: NetworkErrorLogger
         ): WooCommerceApi {
             // 初始化元数据处理器注册表
             MetadataProcessorFactory.createDefaultRegistry()
@@ -287,7 +291,13 @@ class NetworkModule {
             }
             
             UiLog.d("NetworkModule", "创建WooCommerceApi，使用统一配置源")
-            return WooCommerceApiImpl(remoteConfig, sslErrorInterceptor, connectionResetHandler, globalErrorManager)
+            return WooCommerceApiImpl(
+                remoteConfig,
+                sslErrorInterceptor,
+                connectionResetHandler,
+                globalErrorManager,
+                networkErrorLogger
+            )
         }
 
         /**
@@ -308,9 +318,10 @@ class NetworkModule {
         fun provideWooCommerceApiFactory(
             sslErrorInterceptor: SSLErrorInterceptor,
             connectionResetHandler: ConnectionResetHandler,
-            globalErrorManager: GlobalErrorManager
+            globalErrorManager: GlobalErrorManager,
+            networkErrorLogger: NetworkErrorLogger
         ): WooCommerceApiFactory {
-            return WooCommerceApiFactoryImpl(sslErrorInterceptor, connectionResetHandler, globalErrorManager)
+            return WooCommerceApiFactoryImpl(sslErrorInterceptor, connectionResetHandler, globalErrorManager, networkErrorLogger)
         }
     }
 } 

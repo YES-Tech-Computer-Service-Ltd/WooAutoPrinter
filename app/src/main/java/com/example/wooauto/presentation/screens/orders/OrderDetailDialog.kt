@@ -735,19 +735,27 @@ fun TimeAndTypeCard(order: Order, isDelivery: Boolean) {
             Spacer(modifier = Modifier.height(16.dp))
             
             // Order Type
-            val orderMethod = order.woofoodInfo?.orderMethod?.lowercase()
+            val orderMethod = order.woofoodInfo?.orderMethod?.trim()?.lowercase(java.util.Locale.ROOT)
+            val isDineIn = when {
+                !order.woofoodInfo?.dineInPersonCount.isNullOrBlank() -> true
+                orderMethod == "dinein" -> true
+                orderMethod == "dine-in" -> true
+                orderMethod == "dine_in" -> true
+                orderMethod?.contains("堂食") == true -> true
+                else -> false
+            }
             val typeColor = when {
-                orderMethod == "dinein" -> Color(0xFF6A1B9A)
+                isDineIn -> Color(0xFF6A1B9A)
                 isDelivery -> Color(0xFF1976D2)
                 else -> Color(0xFF388E3C)
             }
             val typeIcon = when {
-                orderMethod == "dinein" -> Icons.Default.Restaurant
+                isDineIn -> Icons.Default.Restaurant
                 isDelivery -> Icons.Default.LocalShipping
                 else -> Icons.Default.ShoppingBag
             }
             val typeText = when {
-                orderMethod == "dinein" -> stringResource(R.string.delivery_type_dine_in)
+                isDineIn -> stringResource(R.string.delivery_type_dine_in)
                 isDelivery -> stringResource(R.string.delivery_type_delivery)
                 else -> stringResource(R.string.delivery_type_pickup)
             }
@@ -769,6 +777,23 @@ fun TimeAndTypeCard(order: Order, isDelivery: Boolean) {
                     color = typeColor
                                         )
                                     }
+
+            // Dine-in people count (only for dine-in orders)
+            if (isDineIn) {
+                val rawPeople = order.woofoodInfo?.dineInPersonCount?.trim().orEmpty()
+                val displayPeople = rawPeople.takeIf { it.isNotBlank() }
+                    ?: stringResource(R.string.not_provided_bilingual)
+
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = stringResource(R.string.dine_in_people_value, displayPeople),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
         }
                             }
                         }

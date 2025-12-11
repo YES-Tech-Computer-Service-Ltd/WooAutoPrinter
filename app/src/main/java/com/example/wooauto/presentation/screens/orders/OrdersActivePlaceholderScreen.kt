@@ -314,14 +314,30 @@ private fun ActiveOrderCard(
                 }
                 val printColor = if (isPrinted) Color(0xFF2E7D32) else Color(0xFFC62828)
                 val printBg = if (isPrinted) Color(0xFFE8F5E9) else Color(0xFFFFEBEE)
+
+                // 订单类型：堂食 / 外卖 / 自取
+                val orderMethod = order.woofoodInfo?.orderMethod?.trim()?.lowercase(Locale.ROOT)
+                val isDineIn = when {
+                    !order.woofoodInfo?.dineInPersonCount.isNullOrBlank() -> true
+                    orderMethod == "dinein" -> true
+                    orderMethod == "dine-in" -> true
+                    orderMethod == "dine_in" -> true
+                    // 兼容少量上游可能直接传中文
+                    orderMethod?.contains("堂食") == true -> true
+                    else -> false
+                }
                 val isDelivery = order.woofoodInfo?.isDelivery == true ||
                         order.woofoodInfo?.orderMethod?.equals("delivery", ignoreCase = true) == true
-                val typeText = if (isDelivery) {
-                    stringResource(com.example.wooauto.R.string.delivery_type_delivery)
-                } else {
-                    stringResource(com.example.wooauto.R.string.delivery_type_pickup)
+                val typeText = when {
+                    isDineIn -> stringResource(com.example.wooauto.R.string.delivery_type_dine_in)
+                    isDelivery -> stringResource(com.example.wooauto.R.string.delivery_type_delivery)
+                    else -> stringResource(com.example.wooauto.R.string.delivery_type_pickup)
                 }
-                val typeColor = if (isDelivery) Color(0xFF1976D2) else Color(0xFF388E3C)
+                val typeColor = when {
+                    isDineIn -> Color(0xFF6A1B9A)
+                    isDelivery -> Color(0xFF1976D2)
+                    else -> Color(0xFF388E3C)
+                }
                 val isPaid = order.paymentMethod.contains("cash", ignoreCase = true).not()
                 val paymentText = if (isPaid) {
                     stringResource(com.example.wooauto.R.string.payment_status_paid)

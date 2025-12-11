@@ -671,6 +671,22 @@ fun SettingsScreen(
                                         Spacer(modifier = Modifier.height(8.dp))
                                         HorizontalDivider()
                                         Spacer(modifier = Modifier.height(8.dp))
+                                        SettingItem(
+                                            icon = Icons.Default.Info,
+                                            title = stringResource(id = R.string.network_error_logs),
+                                            subtitle = stringResource(id = R.string.network_error_logs_subtitle),
+                                            onClick = {
+                                                navController.navigate(
+                                                    com.example.wooauto.presentation.navigation.SettingsSubPageRoutes.routeFor(
+                                                        "about",
+                                                        "network_logs"
+                                                    )
+                                                )
+                                            }
+                                        )
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        HorizontalDivider()
+                                        Spacer(modifier = Modifier.height(8.dp))
                         
                         // 手动检查更新按钮（始终显示）
                         val isCheckingUpdate = viewModel.isCheckingUpdate.collectAsState().value

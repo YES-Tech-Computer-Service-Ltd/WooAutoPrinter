@@ -1084,6 +1084,7 @@ class OrderRepositoryImpl @Inject constructor(
             orderMethod = if (isDelivery) "delivery" else "pickup",
             deliveryDate = null,
             deliveryTime = timeInfo,
+            dineInPersonCount = null,
             deliveryAddress = if (isDelivery) entity.shippingAddress else null,
             deliveryFee = deliveryFee,
             tip = tipAmount,

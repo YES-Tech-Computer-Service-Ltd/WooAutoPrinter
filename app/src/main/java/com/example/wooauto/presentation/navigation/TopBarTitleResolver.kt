@@ -39,6 +39,7 @@ fun resolveTopBarTitle(route: String, args: Bundle?): String? {
                 "store" -> R.string.store_settings
                 "sound" -> R.string.sound_settings
                 "templates" -> R.string.printer_templates
+                "network_logs" -> R.string.network_error_logs
                 else -> null
             }
             if (sectionRes != null && subRes != null) {

@@ -67,6 +67,8 @@
     <string name="delivery_type_delivery">Delivery</string>
     <string name="delivery_type_pickup">Pickup</string>
     <string name="delivery_type_dine_in">Dine-in service</string>
+    <string name="dine_in_people_value">People: %1$s</string>
+    <string name="not_provided_bilingual">Not provided / 未填写</string>
     <string name="customer_info_section_title">Customer Info</string>
     <string name="payment_total_label">Paid Amount</string>
     <string name="payment_status_paid">Paid</string>
@@ -491,6 +493,17 @@
     <string name="relative_days_later">%1$d days later</string>
     <string name="status_date_with_relative">%1$s (%2$s)</string>
     <string name="about">About</string>
+    <string name="network_error_logs">Network error logs</string>
+    <string name="network_error_logs_subtitle">View / copy / clear network diagnostics history</string>
+    <string name="network_error_logs_desc">This page keeps de-duplicated network failures (DNS / IPv / TLS / timeout / server errors) to help diagnose issues. Same problems are merged and counted.</string>
+    <string name="network_error_logs_empty">No network error logs yet.</string>
+    <string name="network_error_logs_copy_all">Copy all</string>
+    <string name="network_error_logs_clear">Clear</string>
+    <string name="network_error_logs_copy">Copy</string>
+    <string name="network_error_logs_close">Close</string>
+    <string name="network_error_logs_copied">Copied</string>
+    <string name="network_error_logs_cleared">Cleared</string>
+    <string name="network_error_logs_last_seen">Last seen</string>
     <string name="deactivate_license">Deactivate License</string>
     <string name="deactivate_license_title">Deactivate license?</string>
     <string name="deactivate_license_message">This will remove the current license and reset trial locally. You can activate a new license later.</string>

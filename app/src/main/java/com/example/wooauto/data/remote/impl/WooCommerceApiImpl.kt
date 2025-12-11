@@ -35,12 +35,15 @@ import com.example.wooauto.BuildConfig
 
 import com.example.wooauto.utils.GlobalErrorManager
 import com.example.wooauto.utils.ErrorSource
+import com.example.wooauto.diagnostics.network.DnsTraceThrowable
+import com.example.wooauto.diagnostics.network.NetworkErrorLogger
 
 class WooCommerceApiImpl(
     private val config: WooCommerceConfig,
     private val sslErrorInterceptor: SSLErrorInterceptor? = null,
     private val connectionResetHandler: ConnectionResetHandler? = null,
-    private val globalErrorManager: GlobalErrorManager? = null
+    private val globalErrorManager: GlobalErrorManager? = null,
+    private val networkErrorLogger: NetworkErrorLogger? = null
 ) : WooCommerceApi {
     
     // 创建一个List<OrderDto>的Type，用于注册类型适配器
@@ -105,48 +108,92 @@ class WooCommerceApiImpl(
             // 解决路由器 DNS 不稳定导致的 UnknownHostException 问题
             .dns(object : okhttp3.Dns {
                 override fun lookup(hostname: String): List<java.net.InetAddress> {
+                    val startTime = System.currentTimeMillis()
+
+                    var dohMs: Long? = null
+                    var dohError: String? = null
+                    var dohAddresses: List<java.net.InetAddress> = emptyList()
+
+                    var sysMs: Long? = null
+                    var sysError: String? = null
+                    var sysAddresses: List<java.net.InetAddress> = emptyList()
+
+                    var finalAddresses: List<java.net.InetAddress> = emptyList()
+                    var usedIpv4Only: Boolean? = null
+
                     return try {
-                        val startTime = System.currentTimeMillis()
                         UiLog.d("WooCommerceApiImpl", "DNS解析开始: $hostname, 尝试使用 DoH (Google)")
-                        
-                        // 1. 首先尝试使用 DoH 解析
-                        val dohAddresses = try {
+
+                        // 1) DoH
+                        val dohStart = System.currentTimeMillis()
+                        dohAddresses = try {
                             val result = dnsOverHttps.lookup(hostname)
+                            dohMs = System.currentTimeMillis() - dohStart
                             if (result.isNotEmpty()) {
-                                val dohTime = System.currentTimeMillis() - startTime
-                                UiLog.d("WooCommerceApiImpl", "✅ [DoH-Google] 解析成功: $result, 耗时: ${dohTime}ms")
+                                UiLog.d("WooCommerceApiImpl", "✅ [DoH-Google] 解析成功: $result, 耗时: ${dohMs}ms")
                             }
                             result
                         } catch (e: Exception) {
-                            val errorTime = System.currentTimeMillis() - startTime
-                            UiLog.w("WooCommerceApiImpl", "⚠️ [DoH-Google] 解析失败: ${e.message}, 耗时: ${errorTime}ms, 降级使用系统 DNS")
+                            dohMs = System.currentTimeMillis() - dohStart
+                            dohError = "${e.javaClass.simpleName}: ${e.message}"
+                            UiLog.w("WooCommerceApiImpl", "⚠️ [DoH-Google] 解析失败: ${e.message}, 耗时: ${dohMs}ms, 降级使用系统 DNS")
                             emptyList()
                         }
-                        
-                        // 2. 如果 DoH 失败，回退到系统 DNS
+
+                        // 2) System DNS fallback
                         val allAddresses = if (dohAddresses.isNotEmpty()) {
                             dohAddresses
                         } else {
                             val sysStart = System.currentTimeMillis()
-                            val result = okhttp3.Dns.SYSTEM.lookup(hostname)
-                            val sysTime = System.currentTimeMillis() - sysStart
-                            UiLog.d("WooCommerceApiImpl", "ℹ️ [System-DNS] 解析结果: $result, 耗时: ${sysTime}ms")
-                            result
+                            sysAddresses = try {
+                                val result = okhttp3.Dns.SYSTEM.lookup(hostname)
+                                sysMs = System.currentTimeMillis() - sysStart
+                                UiLog.d("WooCommerceApiImpl", "ℹ️ [System-DNS] 解析结果: $result, 耗时: ${sysMs}ms")
+                                result
+                            } catch (e: Exception) {
+                                sysMs = System.currentTimeMillis() - sysStart
+                                sysError = "${e.javaClass.simpleName}: ${e.message}"
+                                throw e
+                            }
+                            sysAddresses
                         }
 
-                        // 3. 过滤出 IPv4 地址 (Inet4Address) 保持之前的连接稳定性
+                        // 3) Prefer IPv4 when available
                         val ipv4Addresses = allAddresses.filter { it is java.net.Inet4Address }
-
-                        if (ipv4Addresses.isNotEmpty()) {
+                        finalAddresses = if (ipv4Addresses.isNotEmpty()) {
+                            usedIpv4Only = true
                             UiLog.d("WooCommerceApiImpl", "最终使用 IPv4: $ipv4Addresses (过滤了 IPv6)")
                             ipv4Addresses
                         } else {
-                            // 如果没有 IPv4，只能返回所有（通常是 IPv6）
+                            usedIpv4Only = false
                             UiLog.w("WooCommerceApiImpl", "没有找到 IPv4 地址，回退到完整列表: $allAddresses")
                             allAddresses
                         }
+
+                        finalAddresses
                     } catch (e: Exception) {
-                        // 彻底失败
+                        // 彻底失败：把解析过程附加到 suppressed，供上层持久化记录
+                        val totalMs = System.currentTimeMillis() - startTime
+                        val trace = buildString {
+                            appendLine("hostname=$hostname")
+                            appendLine("totalMs=$totalMs")
+                            appendLine("dohProvider=dns.google")
+                            appendLine("dohMs=${dohMs ?: "-"}")
+                            appendLine("dohError=${dohError ?: "-"}")
+                            appendLine("dohAddresses=$dohAddresses")
+                            appendLine("systemMs=${sysMs ?: "-"}")
+                            appendLine("systemError=${sysError ?: "-"}")
+                            appendLine("systemAddresses=$sysAddresses")
+                            appendLine("usedIpv4Only=${usedIpv4Only ?: "-"}")
+                            appendLine("finalAddresses=$finalAddresses")
+                        }.trimEnd()
+
+                        try {
+                            e.addSuppressed(DnsTraceThrowable(trace))
+                        } catch (_: Exception) {
+                            // ignore
+                        }
+
                         UiLog.e("WooCommerceApiImpl", "❌ DNS 解析彻底失败: $hostname, ${e.message}")
                         throw e
                     }
@@ -178,6 +225,8 @@ class WooCommerceApiImpl(
             .retryOnConnectionFailure(true)
             // 配置连接池，提高连接复用效率，增加最大空闲连接数
             .connectionPool(okhttp3.ConnectionPool(10, 5, TimeUnit.MINUTES))
+            // 启用心跳，防止路由器在连接空闲时静默断开
+            .pingInterval(30, TimeUnit.SECONDS)
             
         // 配置TLS版本支持
         SslUtil.configureTls(clientBuilder)
@@ -304,6 +353,13 @@ class WooCommerceApiImpl(
             message = message,
             debugInfo = "Endpoint: $endpoint\nError: ${error.message}"
         )
+
+        // 记录网络报错日志（去重+持久化，用于 Settings->About 查看）
+        networkErrorLogger?.logApiFailure(
+            endpoint = endpoint,
+            siteUrl = config.siteUrl,
+            error = error
+        )
     }
 
     // 辅助方法：请求成功后清除错误
@@ -360,53 +416,55 @@ class WooCommerceApiImpl(
                             .cacheControl(okhttp3.CacheControl.Builder().maxAge(5, TimeUnit.MINUTES).build())
                             .build()
                         
-                        val response = client.newCall(request).execute()
-                        val responseBody = response.body?.string() ?: throw Exception("响应体为空")
-                        
-                        if (!response.isSuccessful) {
-                            Log.e("WooCommerceApiImpl", "【API错误】HTTP错误: ${response.code}")
-                            throw ApiError.fromHttpCode(response.code, responseBody)
-                        }
-                        
-                        val result = try {
-                            // ... (保留原有的解析逻辑)
-                            when {
-                                isCollectionType<T>() -> {
-                                    when {
-                                        isListOfOrderDto<T>() -> {
-                                            UiLog.d("WooCommerceApiImpl", "解析List<OrderDto>类型响应")
-                                            gson.fromJson<T>(responseBody, orderDtoListType)
-                                        }
-                                        else -> {
-                                            gson.fromJson<T>(responseBody, object : TypeToken<T>() {}.type)
+                        // 使用 use 确保连接被正确关闭
+                        client.newCall(request).execute().use { response ->
+                            val responseBody = response.body?.string() ?: throw Exception("响应体为空")
+                            
+                            if (!response.isSuccessful) {
+                                Log.e("WooCommerceApiImpl", "【API错误】HTTP错误: ${response.code}")
+                                throw ApiError.fromHttpCode(response.code, responseBody)
+                            }
+                            
+                            val result = try {
+                                // ... (保留原有的解析逻辑)
+                                when {
+                                    isCollectionType<T>() -> {
+                                        when {
+                                            isListOfOrderDto<T>() -> {
+                                                UiLog.d("WooCommerceApiImpl", "解析List<OrderDto>类型响应")
+                                                gson.fromJson<T>(responseBody, orderDtoListType)
+                                            }
+                                            else -> {
+                                                gson.fromJson<T>(responseBody, object : TypeToken<T>() {}.type)
+                                            }
                                         }
                                     }
+                                    T::class == OrderDto::class -> {
+                                        UiLog.d("WooCommerceApiImpl", "解析OrderDto类型响应")
+                                        gson.fromJson(responseBody, OrderDto::class.java) as T
+                                    }
+                                    T::class == ProductDto::class -> {
+                                        UiLog.d("WooCommerceApiImpl", "解析ProductDto类型响应")
+                                        gson.fromJson(responseBody, ProductDto::class.java) as T
+                                    }
+                                    T::class == CategoryDto::class -> {
+                                        UiLog.d("WooCommerceApiImpl", "解析CategoryDto类型响应")
+                                        gson.fromJson(responseBody, CategoryDto::class.java) as T
+                                    }
+                                    else -> {
+                                        gson.fromJson<T>(responseBody, object : TypeToken<T>() {}.type)
+                                    }
                                 }
-                                T::class == OrderDto::class -> {
-                                    UiLog.d("WooCommerceApiImpl", "解析OrderDto类型响应")
-                                    gson.fromJson(responseBody, OrderDto::class.java) as T
-                                }
-                                T::class == ProductDto::class -> {
-                                    UiLog.d("WooCommerceApiImpl", "解析ProductDto类型响应")
-                                    gson.fromJson(responseBody, ProductDto::class.java) as T
-                                }
-                                T::class == CategoryDto::class -> {
-                                    UiLog.d("WooCommerceApiImpl", "解析CategoryDto类型响应")
-                                    gson.fromJson(responseBody, CategoryDto::class.java) as T
-                                }
-                                else -> {
-                                    gson.fromJson<T>(responseBody, object : TypeToken<T>() {}.type)
-                                }
+                            } catch (e: Exception) {
+                                Log.e("WooCommerceApiImpl", "【解析错误】无法解析JSON响应: ${e.message}")
+                                throw e
                             }
-                        } catch (e: Exception) {
-                            Log.e("WooCommerceApiImpl", "【解析错误】无法解析JSON响应: ${e.message}")
-                            throw e
+                            
+                            // 请求成功，清除相关错误
+                            resolveApiError(endpoint)
+                            
+                            result
                         }
-                        
-                        // 请求成功，清除相关错误
-                        resolveApiError(endpoint)
-                        
-                        result
                     } catch (e: Exception) {
                         Log.e("WooCommerceApiImpl", "【API错误】请求或解析出错: ${e.message}")
                         throw e
@@ -486,36 +544,38 @@ class WooCommerceApiImpl(
                 
                 UiLog.d("API请求", "POST ${urlBuilder.build()} - $jsonBody")
                 
-                val response = client.newCall(request).execute()
-                val responseBody = response.body?.string() ?: throw Exception("响应体为空")
-                
-                if (!response.isSuccessful) {
-                    val errorMsg = "HTTP ${response.code}"
-                    Log.e("API错误", errorMsg)
-                    val apiError = ApiError.fromHttpCode(response.code, "API错误: ${response.code} - $responseBody")
+                // 使用 use 确保连接关闭
+                client.newCall(request).execute().use { response ->
+                    val responseBody = response.body?.string() ?: throw Exception("响应体为空")
                     
-                    // 对于 POST 请求，通常是更改订单状态等关键操作
-                    // 如果失败，应当立即上报
-                    reportApiError(endpoint, apiError)
+                    if (!response.isSuccessful) {
+                        val errorMsg = "HTTP ${response.code}"
+                        Log.e("API错误", errorMsg)
+                        val apiError = ApiError.fromHttpCode(response.code, "API错误: ${response.code} - $responseBody")
+                        
+                        // 对于 POST 请求，通常是更改订单状态等关键操作
+                        // 如果失败，应当立即上报
+                        reportApiError(endpoint, apiError)
+                        
+                        throw apiError
+                    }
                     
-                    throw apiError
+                    // POST 请求成功，也清除相关错误（例如之前可能因为网络不好报错了）
+                    resolveApiError(endpoint)
+                    
+                    // 使用精确的类型解析方式
+                    val result = when {
+                        T::class == OrderDto::class -> gson.fromJson(responseBody, OrderDto::class.java) as T
+                        T::class == ProductDto::class -> gson.fromJson(responseBody, ProductDto::class.java) as T
+                        T::class == CategoryDto::class -> gson.fromJson(responseBody, CategoryDto::class.java) as T
+                        else -> gson.fromJson(responseBody, object : TypeToken<T>() {}.type)
+                    }
+                    
+                    // 请求成功，清除相关错误
+                    resolveApiError(endpoint)
+                    
+                    result
                 }
-                
-                // POST 请求成功，也清除相关错误（例如之前可能因为网络不好报错了）
-                resolveApiError(endpoint)
-                
-                // 使用精确的类型解析方式
-                val result = when {
-                    T::class == OrderDto::class -> gson.fromJson(responseBody, OrderDto::class.java) as T
-                    T::class == ProductDto::class -> gson.fromJson(responseBody, ProductDto::class.java) as T
-                    T::class == CategoryDto::class -> gson.fromJson(responseBody, CategoryDto::class.java) as T
-                    else -> gson.fromJson(responseBody, object : TypeToken<T>() {}.type)
-                }
-                
-                // 请求成功，清除相关错误
-                resolveApiError(endpoint)
-                
-                result
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) {
                     throw e
@@ -845,25 +905,27 @@ class WooCommerceApiImpl(
                 
                 UiLog.d("API请求", "PATCH ${urlBuilder.build()} - 请求体: $jsonBody")
                 
-                val response = client.newCall(request).execute()
-                val responseBody = response.body?.string() ?: throw Exception("响应体为空")
-                
-                UiLog.d("API响应", "PATCH ${urlBuilder.build()} - 状态码: ${response.code} - 响应体: $responseBody")
-                
-                if (!response.isSuccessful) {
-                    Log.e("API错误", "HTTP错误: ${response.code} - 响应体: $responseBody")
-                    throw ApiError.fromHttpCode(response.code, "API错误: ${response.code}")
+                // 使用 use 确保连接关闭
+                client.newCall(request).execute().use { response ->
+                    val responseBody = response.body?.string() ?: throw Exception("响应体为空")
+                    
+                    UiLog.d("API响应", "PATCH ${urlBuilder.build()} - 状态码: ${response.code} - 响应体: $responseBody")
+                    
+                    if (!response.isSuccessful) {
+                        Log.e("API错误", "HTTP错误: ${response.code} - 响应体: $responseBody")
+                        throw ApiError.fromHttpCode(response.code, "API错误: ${response.code}")
+                    }
+                    
+                    // 使用精确的类型解析方式
+                    val result = when {
+                        T::class == OrderDto::class -> gson.fromJson(responseBody, OrderDto::class.java) as T
+                        T::class == ProductDto::class -> gson.fromJson(responseBody, ProductDto::class.java) as T
+                        T::class == CategoryDto::class -> gson.fromJson(responseBody, CategoryDto::class.java) as T
+                        else -> gson.fromJson(responseBody, object : TypeToken<T>() {}.type)
+                    }
+                    
+                    result
                 }
-                
-                // 使用精确的类型解析方式
-                val result = when {
-                    T::class == OrderDto::class -> gson.fromJson(responseBody, OrderDto::class.java) as T
-                    T::class == ProductDto::class -> gson.fromJson(responseBody, ProductDto::class.java) as T
-                    T::class == CategoryDto::class -> gson.fromJson(responseBody, CategoryDto::class.java) as T
-                    else -> gson.fromJson(responseBody, object : TypeToken<T>() {}.type)
-                }
-                
-                result
             } catch (e: Exception) {
                 Log.e("API错误", "PATCH请求失败: ${e.message}", e)
                 

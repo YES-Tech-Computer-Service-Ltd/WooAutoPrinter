@@ -429,6 +429,9 @@ fun AppContent() {
                                             // 打印模板列表与预览，作为设置二级页
                                             PrintTemplatesInnerScreen(navController = navController)
                                         }
+                                        "about/network_logs" -> {
+                                            com.example.wooauto.presentation.screens.settings.NetworkErrorLogsScreen()
+                                        }
                                         else -> {
                                             // 默认回退到该 section 的主屏
                                             SettingsScreen(navController = navController)

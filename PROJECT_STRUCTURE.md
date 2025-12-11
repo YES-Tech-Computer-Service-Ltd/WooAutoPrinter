@@ -34,6 +34,8 @@
         - `OrderDetailDialog.kt` - Detailed view of a single order.
     - `presentation/screens/settings/`
         - `SettingsScreen.kt` - Main settings dashboard.
+        - `NetworkErrorLogsScreen.kt` - Settings -> About subpage: shows de-duplicated network error history (DNS/IPv/TLS/timeout/server) with copy/clear actions.
+        - `NetworkErrorLogsViewModel.kt` - ViewModel for `NetworkErrorLogsScreen` (reads/clears logs from DataStore).
         - `SettingsViewModel.kt` - **Core**: Central configuration hub.
             - **Printer**: `connectPrinter`, `scanPrinters`, `testPrint`, `testKeepAliveFeed`.
             - **API**: `saveSettings` (validates & persists WooCommerce keys), `testConnection`.
@@ -89,6 +91,7 @@
         - **Error Handling**: Translates HTTP 4xx/5xx into `ApiError` exceptions.
         - **Retry Logic**: Implements exponential backoff for failed requests.
         - **JSON Parsing**: Uses Gson with custom `TypeAdapter` for complex WooCommerce DTOs.
+        - **Network error logging**: Reports user-facing errors to `GlobalErrorManager` and also writes de-duplicated diagnostics via `diagnostics/network/NetworkErrorLogger`.
     - `data/remote/dto/OrderDto.kt` - **Data Transfer Object**: Maps raw JSON response to Kotlin objects.
 
 - **Printer Implementation**:
@@ -120,6 +123,13 @@
     - Translates pseudo-HTML tags (`<h>`, `<b>`, `<w>`) into ESC/POS commands.
     - Handles text wrapping, column alignment, and Chinese character width (2 bytes vs 1 byte).
 - `utils/GlobalErrorManager.kt` - Centralized error reporting (triggers UI dialogs for network/printer errors).
+- `diagnostics/network/` - **Network diagnostics & log persistence**:
+    - `NetworkErrorLogger.kt` - Async logger used by network layer to persist failures.
+    - `NetworkErrorLogStore.kt` - DataStore-backed store (deduplicates by fingerprint, counts occurrences, keeps recent samples).
+    - `NetworkDiagnostics.kt` - Error classification (DNS/IPv/TLS/timeout/http) + human-readable suggestions.
+    - `NetworkSnapshotProvider.kt` - Captures ConnectivityManager snapshot (transports, validated, DNS servers, IPs).
+    - `DnsTraceThrowable.kt` - Attached to exceptions as suppressed to carry detailed DNS resolution trace.
+    - `NetworkErrorLogModels.kt` - Data models for events/entries.
 - `utils/SoundManager.kt` - Audio feedback (notification sounds).
 - `utils/LocaleManager.kt` - App language switching logic (restarts Activities).
 - `di/` - Hilt modules (`AppModule.kt`, `PrinterModule.kt`, etc.) providing dependency injection.

@@ -352,6 +352,7 @@ fun OrderDto.processWooFoodInfo(): WooFoodInfo? {
             deliveryDate = null,
             isDelivery = isDelivery,
             deliveryTime = null,
+            dineInPersonCount = null,
             deliveryAddress = null,
             deliveryFee = deliveryFeeFromFee,
             tip = tipFromFee
@@ -372,6 +373,7 @@ fun OrderDto.processWooFoodInfo(): WooFoodInfo? {
     val deliveryAddressKeys = listOf("exwfood_delivery_address", "delivery_address", "_delivery_address", "_woofood_delivery_address")
     val deliveryFeeKeys = listOf("exwfood_delivery_fee", "delivery_fee", "_delivery_fee", "_woofood_delivery_fee")
     val tipKeys = listOf("exwfood_tip", "tip", "_tip", "_woofood_tip")
+    val dineInPersonCountKeys = listOf("exwfood_person_dinein")
     
     // 从元数据中提取WooFood信息
     var orderMethod = parsedMeta.orderMethod
@@ -386,6 +388,11 @@ fun OrderDto.processWooFoodInfo(): WooFoodInfo? {
     }
 //    Log.d("OrderDto", "订单#$number 配送时间: $deliveryTime")
     val deliveryDate = parsedMeta.deliveryDate
+
+    var dineInPersonCount = parsedMeta.dineInPersonCount
+    if (dineInPersonCount == null) {
+        dineInPersonCount = findMetadataValue(dineInPersonCountKeys)?.toString()
+    }
     
     val deliveryAddress = findMetadataValue(deliveryAddressKeys)?.toString()
     
@@ -517,6 +524,7 @@ fun OrderDto.processWooFoodInfo(): WooFoodInfo? {
         orderMethod = orderMethod ?: if (isDelivery) "delivery" else "pickup",
         deliveryDate = deliveryDate,
         deliveryTime = deliveryTime,
+        dineInPersonCount = dineInPersonCount,
         deliveryAddress = deliveryAddress,
         deliveryFee = deliveryFee,
         tip = tip,
