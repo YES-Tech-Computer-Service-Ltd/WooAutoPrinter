@@ -17,6 +17,7 @@ import com.example.wooauto.data.remote.WooCommerceConfig
 import com.example.wooauto.data.local.WooCommerceConfig as LocalWooCommerceConfig
 import com.example.wooauto.domain.models.PrinterConfig
 import com.example.wooauto.domain.models.SoundSettings
+import com.example.wooauto.domain.models.StoreLocationSelection
 import com.example.wooauto.domain.repositories.DomainSettingRepository
 import com.example.wooauto.domain.templates.TemplateType
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -86,6 +87,9 @@ class SettingsRepositoryImpl @Inject constructor(
         val KEEP_ALIVE_FEED_ENABLED = booleanPreferencesKey("keep_alive_feed_enabled")
         val KEEP_ALIVE_FEED_INTERVAL_HOURS = intPreferencesKey("keep_alive_feed_interval_hours")
         val LAST_KEEP_ALIVE_FEED_TIME = longPreferencesKey("last_keep_alive_feed_time")
+
+        // Selected store location (WooCommerce Food / ExFood multi-store)
+        val SELECTED_STORE_LOCATION = stringPreferencesKey("selected_store_location")
     }
 
     // 设置键名常量
@@ -174,6 +178,41 @@ class SettingsRepositoryImpl @Inject constructor(
         // 使用空配置覆盖现有配置
         val emptyConfig = WooCommerceConfig("", "", "", 30, false)
         wooCommerceConfig.saveRemoteConfig(emptyConfig)
+    }
+
+    override fun getSelectedStoreLocationFlow(): Flow<StoreLocationSelection?> {
+        return dataStore.data
+            .catch { exception ->
+                if (exception is IOException) {
+                    Log.e("SettingsRepositoryImpl", "Error reading selected_store_location.", exception)
+                    emit(androidx.datastore.preferences.core.emptyPreferences())
+                } else {
+                    throw exception
+                }
+            }
+            .map { preferences ->
+                val json = preferences[PreferencesKeys.SELECTED_STORE_LOCATION]
+                if (json.isNullOrBlank()) {
+                    null
+                } else {
+                    try {
+                        gson.fromJson(json, StoreLocationSelection::class.java)
+                    } catch (e: Exception) {
+                        Log.w("SettingsRepositoryImpl", "Failed to parse selected_store_location JSON: ${e.message}")
+                        null
+                    }
+                }
+            }
+    }
+
+    override suspend fun setSelectedStoreLocation(selection: StoreLocationSelection?) {
+        dataStore.edit { settings ->
+            if (selection == null) {
+                settings.remove(PreferencesKeys.SELECTED_STORE_LOCATION)
+            } else {
+                settings[PreferencesKeys.SELECTED_STORE_LOCATION] = gson.toJson(selection)
+            }
+        }
     }
 
     // 其他设置相关方法 - 使用 Room 数据库

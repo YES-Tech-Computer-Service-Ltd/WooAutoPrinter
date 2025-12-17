@@ -167,6 +167,26 @@
     <string name="status_disabled">Disabled</string>
     <string name="no_template_selected">No template selected</string>
 
+    <!-- Multi-store (WooCommerce Food / ExFood) -->
+    <string name="apply">Apply</string>
+    <string name="apply_failed_format">Apply failed. %1$s</string>
+    <string name="store_location_selected_title">Selected store</string>
+    <string name="store_location_select_title">Select store</string>
+    <string name="store_location_select_required">Please select a store to continue.</string>
+    <string name="store_location_slug_format">Slug: %1$s</string>
+
+    <!-- Store Status (WooCommerce Food / ExFood) -->
+    <string name="store_status_open">Open</string>
+    <string name="store_status_open_all_day">Open (All day)</string>
+    <string name="store_status_closed">Closed</string>
+    <string name="store_status_confirm_close_title">Switch to Closed?</string>
+    <string name="store_status_confirm_close_message">When closed, new orders usually won\'t come in.</string>
+    <string name="store_status_confirm_open_title">Switch to Open?</string>
+    <string name="store_status_confirm_open_message">The store will follow business hours.</string>
+    <string name="store_status_error_title">Store status error</string>
+    <string name="store_status_error_get_user_message">Unable to fetch store status. Switching is temporarily unavailable. Please contact technical support.</string>
+    <string name="store_status_error_post_user_message">Failed to switch store status. Please contact technical support.</string>
+
     <!-- Website Setup -->
     <string name="website_url">Website URL</string>
     <string name="api_key">API Key</string>

@@ -280,6 +280,18 @@ class OrderRepositoryImpl @Inject constructor(
                 val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
                 params["after"] = dateFormat.format(afterDate)
             }
+
+            // WooCommerce Food 多门店：按选中的门店 slug 过滤订单
+            if (config.useWooCommerceFood) {
+                val slug = try {
+                    settingsRepository.getSelectedStoreLocationFlow().first()?.slug?.trim()
+                } catch (_: Exception) {
+                    null
+                }
+                if (!slug.isNullOrBlank()) {
+                    params["exwoofood_location"] = slug
+                }
+            }
             
             // 计算30天前的时间戳，用于过滤较旧的订单，确保不会将旧订单错误标记为未读
             val calendar = Calendar.getInstance()
@@ -455,7 +467,28 @@ class OrderRepositoryImpl @Inject constructor(
                 
                 // 调用API获取处理中订单
                 // 优化：轮询时只需要最新的订单，减少获取数量到20，大幅降低延迟和超时风险
-                val response = api.getOrders(1, 20, "processing")
+                val locationSlug = if (config.useWooCommerceFood) {
+                    try {
+                        settingsRepository.getSelectedStoreLocationFlow().first()?.slug?.trim()
+                    } catch (_: Exception) {
+                        null
+                    }
+                } else {
+                    null
+                }
+
+                val response = if (!locationSlug.isNullOrBlank()) {
+                    api.getOrdersWithParams(
+                        page = 1,
+                        perPage = 20,
+                        params = mapOf(
+                            "status" to "processing",
+                            "exwoofood_location" to locationSlug
+                        )
+                    )
+                } else {
+                    api.getOrders(1, 20, "processing")
+                }
                 
                 // Log.d("OrderRepositoryImpl", "【轮询刷新】API返回 ${response.size} 个处理中订单")
                 

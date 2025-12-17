@@ -78,6 +78,7 @@ fun WooTopBar(
     titleAlignment: Alignment.Horizontal = Alignment.CenterHorizontally,
     titleStyle: TextStyle? = null,
     showStatusStrip: Boolean = true,
+    hasEligibility: Boolean = false,
     barHeight: Dp? = null
 ) {
     // 定义纯色背景，不使用透明度
@@ -186,7 +187,10 @@ fun WooTopBar(
             }
             
             if (showStatusStrip) {
-                AppStatusStrip(modifier = Modifier.padding(start = 6.dp))
+                AppStatusStrip(
+                    modifier = Modifier.padding(start = 6.dp),
+                    hasEligibility = hasEligibility
+                )
             }
         }
         

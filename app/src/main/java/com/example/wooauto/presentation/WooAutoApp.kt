@@ -281,7 +281,8 @@ fun AppContent() {
                     ) {
                         if (!isSpecialScreen) {
                             WooAppBar(
-                                navController = navController
+                                navController = navController,
+                                hasEligibility = hasEligibility.value
                             )
                         }
 

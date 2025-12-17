@@ -161,6 +161,26 @@
     <string name="status_disabled">已禁用</string>
     <string name="no_template_selected">未选择模板</string>
 
+    <!-- Multi-store (WooCommerce Food / ExFood) -->
+    <string name="apply">应用</string>
+    <string name="apply_failed_format">应用失败：%1$s</string>
+    <string name="store_location_selected_title">当前门店</string>
+    <string name="store_location_select_title">选择应用门店</string>
+    <string name="store_location_select_required">请先选择门店后再关闭</string>
+    <string name="store_location_slug_format">Slug：%1$s</string>
+
+    <!-- Store Status (WooCommerce Food / ExFood) -->
+    <string name="store_status_open">营业中</string>
+    <string name="store_status_open_all_day">营业中（全天）</string>
+    <string name="store_status_closed">休息中</string>
+    <string name="store_status_confirm_close_title">切换为休息中？</string>
+    <string name="store_status_confirm_close_message">休息中后通常不会产生新订单。</string>
+    <string name="store_status_confirm_open_title">切换为营业中？</string>
+    <string name="store_status_confirm_open_message">将按营业时间恢复营业。</string>
+    <string name="store_status_error_title">店铺状态操作失败</string>
+    <string name="store_status_error_get_user_message">无法获取店铺营业状态，暂不可切换，请联系技术人员修复。</string>
+    <string name="store_status_error_post_user_message">店铺状态切换失败，请联系技术人员修复。</string>
+
     <!-- Website Setup -->
     <string name="website_url">网站 URL</string>
     <string name="api_key">API 密钥</string>

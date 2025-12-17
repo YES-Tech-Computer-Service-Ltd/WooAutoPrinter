@@ -3,6 +3,7 @@ package com.example.wooauto.domain.repositories
 import com.example.wooauto.data.remote.WooCommerceConfig
 import com.example.wooauto.domain.models.PrinterConfig
 import com.example.wooauto.domain.templates.TemplateType
+import com.example.wooauto.domain.models.StoreLocationSelection
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -26,6 +27,17 @@ interface DomainSettingRepository {
      * 清除WooCommerce配置信息
      */
     suspend fun clearWooCommerceConfig()
+
+    /**
+     * Selected store location (WooCommerce Food / ExFood multi-store).
+     * If null: no location filter will be applied.
+     */
+    fun getSelectedStoreLocationFlow(): Flow<StoreLocationSelection?>
+
+    /**
+     * Save selected store location (or clear by passing null).
+     */
+    suspend fun setSelectedStoreLocation(selection: StoreLocationSelection?)
 
     /**
      * 获取通知开启状态

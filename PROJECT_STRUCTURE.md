@@ -59,6 +59,9 @@
     - `domain/models/PrinterConfig.kt` - **Configuration Entity**: Stores printer settings.
         - Fields: `address` (MAC/IP), `paperWidth` (58/80mm), `autoCut` (Boolean), `encoding` (GBK/UTF-8).
     - `domain/models/TemplateConfig.kt` - **Layout Configuration**: Defines which sections (Header, Items, Footer) to print.
+    - `domain/models/StoreLocationSelection.kt` - **Multi-store Selection**:
+        - Stores the selected store location (`slug/name/address`) for WooCommerce Food (ExFood).
+        - `slug` is used to filter orders via `exwoofood_location={slug}`.
 
 - **Printer Logic**:
     - `domain/printer/PrinterManager.kt` - **Interface**: The "Bible" for printer operations. Hides Bluetooth/USB details from UI.
@@ -92,6 +95,12 @@
         - **Retry Logic**: Implements exponential backoff for failed requests.
         - **JSON Parsing**: Uses Gson with custom `TypeAdapter` for complex WooCommerce DTOs.
         - **Network error logging**: Reports user-facing errors to `GlobalErrorManager` and also writes de-duplicated diagnostics via `diagnostics/network/NetworkErrorLogger`.
+    - `data/remote/exfood/ExFoodStoreStatusApi.kt` - **WooCommerce Food (ExFood) Store Status API**:
+        - Thin OkHttp+Gson wrapper for `GET/POST /wp-json/exfood-api/v1/store-status`.
+        - Used by the TopBar "Store Status" pill to toggle store open/close (no polling).
+    - `data/remote/exfood/ExFoodLocationsApi.kt` - **WooCommerce Food (ExFood) Locations API**:
+        - Thin OkHttp+Gson wrapper for `GET /wp-json/exfood-api/v1/locations` (multi-store list).
+        - Used by API Settings "Apply" flow to force the user to select a single store when multiple locations exist.
     - `data/remote/dto/OrderDto.kt` - **Data Transfer Object**: Maps raw JSON response to Kotlin objects.
 
 - **Printer Implementation**:
@@ -133,6 +142,7 @@
 - `utils/SoundManager.kt` - Audio feedback (notification sounds).
 - `utils/LocaleManager.kt` - App language switching logic (restarts Activities).
 - `di/` - Hilt modules (`AppModule.kt`, `PrinterModule.kt`, etc.) providing dependency injection.
+    - `di/StoreStatusEntryPoint.kt` - Hilt EntryPoint used by TopBar UI to access singleton `OkHttpClient`/`Gson` without introducing a dedicated ViewModel.
 
 ## 7. Updater & Licensing
 - `updater/WordPressUpdater.kt` - Checks for app updates from WP endpoint.
