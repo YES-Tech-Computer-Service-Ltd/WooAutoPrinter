@@ -27,7 +27,7 @@ import com.example.wooauto.data.printer.BluetoothPrinterManager
 import com.example.wooauto.domain.printer.PrinterStatus
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.util.*
@@ -44,6 +44,7 @@ import com.example.wooauto.utils.SoundManager
 
 import android.provider.Settings
 import com.example.wooauto.utils.GlobalErrorManager
+import com.example.wooauto.domain.models.PrinterConfig
 
 @AndroidEntryPoint
 class BackgroundPollingService : Service() {
@@ -87,6 +88,7 @@ class BackgroundPollingService : Service() {
     private var intervalMonitorJob: Job? = null // 独立的间隔监听任务
     private var latestPolledDate: Date? = null
     private var keepAliveFeedJob: Job? = null
+    private var foregroundStatusJob: Job? = null
     
     // 使用LRU方式管理处理过的订单ID，减少内存占用
     private val processedOrderIds = LinkedHashSet<Long>(MAX_PROCESSED_IDS)
@@ -107,6 +109,7 @@ class BackgroundPollingService : Service() {
     private var connectivityManager: ConnectivityManager? = null
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
     private var isNetworkAvailable = true
+    private val networkAvailableFlow = MutableStateFlow(true)
 
     // 轮询健康监测（PollingHealthMonitor）相关属性
     private var pollingHealthMonitorJob: Job? = null
@@ -146,6 +149,8 @@ class BackgroundPollingService : Service() {
         
         // 初始化网络监听器
         initNetworkListener()
+        // 启动前台通知状态更新（订单数量/网络/打印机）
+        startForegroundStatusUpdates()
 
         // 启动系统轮询（统一网络/轮询健康监测/打印机健康）
         try {
@@ -355,6 +360,7 @@ class BackgroundPollingService : Service() {
         pollingJob?.cancel()
         intervalMonitorJob?.cancel()
         keepAliveFeedJob?.cancel(); keepAliveFeedJob = null
+        foregroundStatusJob?.cancel(); foregroundStatusJob = null
         pollingHealthMonitorJob?.cancel(); pollingHealthMonitorJob = null
         // 系统轮询下线
         stopPollingHealthMonitor()
@@ -465,7 +471,12 @@ class BackgroundPollingService : Service() {
     }
 
     private fun startForeground() {
-        val notification = createNotification(getString(R.string.app_name), getString(R.string.loading))
+        val notification = buildForegroundStatusNotification(
+            processingCount = 0,
+            networkAvailable = isNetworkAvailable,
+            printerConfig = null,
+            printerStatus = null,
+        )
         
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -487,6 +498,109 @@ class BackgroundPollingService : Service() {
         }
     }
 
+    private data class ForegroundStatusSnapshot(
+        val processingCount: Int,
+        val networkAvailable: Boolean,
+        val printerConfig: PrinterConfig?,
+        val printerStatus: PrinterStatus?,
+    )
+
+    /**
+     * 前台通知：实时展示“处理中订单总数（含已读+未读）/网络/打印机状态”。
+     *
+     * - 使用同一个 NOTIFICATION_ID 静默更新（OnlyAlertOnce），避免打扰
+     * - 不做高频轮询：订单数量来自 Room Flow；网络来自 callback；打印机来自 PrinterManager Flow
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private fun startForegroundStatusUpdates() {
+        if (foregroundStatusJob?.isActive == true) return
+
+        val orderCountFlow = runCatching {
+            orderRepository.getOrderDao().getOrderCountByStatus("processing")
+        }.getOrElse { flowOf(0) }
+
+        val defaultPrinterFlow: Flow<PrinterConfig?> = runCatching {
+            settingsRepository.getAllPrinterConfigsFlow()
+                .map { list -> list.firstOrNull { it.isDefault } }
+                .distinctUntilChanged()
+        }.getOrElse { flowOf(null) }
+
+        val printerStateFlow: Flow<Pair<PrinterConfig?, PrinterStatus?>> =
+            defaultPrinterFlow
+                .flatMapLatest { cfg ->
+                    if (cfg == null) {
+                        flowOf(null to null)
+                    } else {
+                        printerManager.getPrinterStatusFlow(cfg)
+                            .map { status -> cfg to status }
+                            .catch { emit(cfg to PrinterStatus.ERROR) }
+                    }
+                }
+                .distinctUntilChanged()
+
+        foregroundStatusJob = serviceScope.launch {
+            combine(
+                orderCountFlow.distinctUntilChanged(),
+                networkAvailableFlow,
+                printerStateFlow,
+            ) { count, networkAvailable, (cfg, status) ->
+                ForegroundStatusSnapshot(
+                    processingCount = count.coerceAtLeast(0),
+                    networkAvailable = networkAvailable,
+                    printerConfig = cfg,
+                    printerStatus = status,
+                )
+            }
+                .distinctUntilChanged()
+                .collect { state ->
+                    updateForegroundNotification(state)
+                }
+        }
+    }
+
+    private fun updateForegroundNotification(state: ForegroundStatusSnapshot) {
+        try {
+            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            val notification = buildForegroundStatusNotification(
+                processingCount = state.processingCount,
+                networkAvailable = state.networkAvailable,
+                printerConfig = state.printerConfig,
+                printerStatus = state.printerStatus,
+            )
+            notificationManager.notify(NOTIFICATION_ID, notification)
+        } catch (e: Exception) {
+            Log.e(TAG, "更新前台通知失败: ${e.message}", e)
+        }
+    }
+
+    private fun buildForegroundStatusNotification(
+        processingCount: Int,
+        networkAvailable: Boolean,
+        printerConfig: PrinterConfig?,
+        printerStatus: PrinterStatus?,
+    ): Notification {
+        val title = getString(R.string.fgs_notification_title_processing_orders, processingCount.coerceAtLeast(0))
+        val networkLabel = if (networkAvailable) {
+            getString(R.string.status_online_short)
+        } else {
+            getString(R.string.status_offline_short)
+        }
+
+        val printerLabel = if (printerConfig == null) {
+            getString(R.string.printer_status_not_set_short)
+        } else {
+            when (printerStatus ?: PrinterStatus.DISCONNECTED) {
+                PrinterStatus.CONNECTED, PrinterStatus.IDLE -> getString(R.string.status_connected_short)
+                PrinterStatus.CONNECTING -> getString(R.string.status_connecting_short)
+                PrinterStatus.DISCONNECTED -> getString(R.string.status_disconnected_short)
+                else -> getString(R.string.status_error_short)
+            }
+        }
+
+        val content = getString(R.string.fgs_notification_content_network_printer, networkLabel, printerLabel)
+        return createNotification(title, content)
+    }
+
     private fun createNotification(title: String, content: String): Notification {
         val pendingIntent = PendingIntent.getActivity(
             this,
@@ -500,6 +614,10 @@ class BackgroundPollingService : Service() {
             .setContentText(content)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentIntent(pendingIntent)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .setPriority(NotificationCompat.PRIORITY_LOW) // 降低通知优先级
             .build()
     }
@@ -1426,6 +1544,7 @@ class BackgroundPollingService : Service() {
                 super.onAvailable(network)
                 val wasOffline = !isNetworkAvailable
                 isNetworkAvailable = true
+                networkAvailableFlow.value = true
                 
                 // 网络恢复，清除网络错误
                 globalErrorManager.resolveError(com.example.wooauto.utils.ErrorSource.NETWORK)
@@ -1459,6 +1578,7 @@ class BackgroundPollingService : Service() {
             override fun onLost(network: Network) {
                 super.onLost(network)
                 isNetworkAvailable = false
+                networkAvailableFlow.value = false
                 Log.d(TAG, "网络连接已断开")
             }
 
@@ -1470,6 +1590,7 @@ class BackgroundPollingService : Service() {
                 if (hasInternet != isNetworkAvailable) {
                     val previousState = isNetworkAvailable
                     isNetworkAvailable = hasInternet
+                    networkAvailableFlow.value = hasInternet
                     Log.d(TAG, "网络状态变化: $previousState -> $isNetworkAvailable")
 
                     // 避免频繁的网络质量变化触发轮询

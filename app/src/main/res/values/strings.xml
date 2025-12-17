@@ -673,6 +673,17 @@
     <string name="install_update">Install Update</string>
     <string name="update_notification_channel_name">App Updates</string>
     <string name="update_notification_channel_desc">Notifications for app updates and download progress.</string>
+
+    <!-- Foreground Service (Polling) Notification -->
+    <string name="fgs_notification_title_processing_orders">Processing orders: %1$d</string>
+    <string name="fgs_notification_content_network_printer">Network: %1$s | Printer: %2$s</string>
+    <string name="status_online_short">Online</string>
+    <string name="status_offline_short">Offline</string>
+    <string name="status_connected_short">Connected</string>
+    <string name="status_disconnected_short">Disconnected</string>
+    <string name="status_connecting_short">Connecting</string>
+    <string name="status_error_short">Error</string>
+    <string name="printer_status_not_set_short">Not set</string>
     <string name="download_pending">Download pending…</string>
     <string name="download_running">Downloading: %1$d%%</string>
     <string name="update_ready_to_install">Update ready to install</string>

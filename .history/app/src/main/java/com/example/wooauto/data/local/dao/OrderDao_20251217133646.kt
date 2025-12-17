@@ -49,6 +49,12 @@ interface OrderDao {
     @Query("SELECT * FROM orders WHERE status = :status ORDER BY dateCreated DESC")
     fun getOrdersByStatus(status: String): Flow<List<OrderEntity>>
 
+    /**
+     * 获取指定状态的订单数量（用于前台通知等轻量展示）
+     */
+    @Query("SELECT COUNT(*) FROM orders WHERE status = :status")
+    fun getOrderCountByStatus(status: String): Flow<Int>
+
     @Query("SELECT * FROM orders WHERE customerName LIKE :query OR number LIKE :query OR contactInfo LIKE :query")
     fun searchOrders(query: String): Flow<List<OrderEntity>>
 

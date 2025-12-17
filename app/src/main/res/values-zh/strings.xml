@@ -651,6 +651,17 @@
     <string name="install_update">安装更新</string>
     <string name="update_notification_channel_name">应用更新</string>
     <string name="update_notification_channel_desc">应用更新和下载进度通知。</string>
+
+    <!-- Foreground Service (Polling) Notification -->
+    <string name="fgs_notification_title_processing_orders">处理中订单：%1$d</string>
+    <string name="fgs_notification_content_network_printer">网络：%1$s｜打印机：%2$s</string>
+    <string name="status_online_short">在线</string>
+    <string name="status_offline_short">离线</string>
+    <string name="status_connected_short">已连接</string>
+    <string name="status_disconnected_short">未连接</string>
+    <string name="status_connecting_short">连接中</string>
+    <string name="status_error_short">异常</string>
+    <string name="printer_status_not_set_short">未设置</string>
     <string name="download_pending">等待下载…</string>
     <string name="download_running">正在下载: %1$d%%</string>
     <string name="update_ready_to_install">更新已准备好安装</string>
