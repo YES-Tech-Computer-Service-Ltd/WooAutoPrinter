@@ -38,7 +38,10 @@ data class WooFoodInfo(
     val deliveryAddress: String?, // 配送地址
     val deliveryFee: String?, // 配送费用
     val tip: String?, // 小费
-    val isDelivery: Boolean // 是否是外卖订单
+    val isDelivery: Boolean, // 是否是外卖订单
+    // WooCommerce Food multi-store (optional)
+    val storeLocationSlug: String? = null,
+    val storeLocationName: String? = null
 ) {
     override fun toString(): String {
         return "WooFoodInfo(orderMethod=$orderMethod, deliveryDate=$deliveryDate, deliveryTime=$deliveryTime, " +

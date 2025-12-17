@@ -90,6 +90,7 @@ class SettingsRepositoryImpl @Inject constructor(
 
         // Selected store location (WooCommerce Food / ExFood multi-store)
         val SELECTED_STORE_LOCATION = stringPreferencesKey("selected_store_location")
+        val SELECTED_STORE_LOCATIONS = stringPreferencesKey("selected_store_locations")
     }
 
     // 设置键名常量
@@ -180,39 +181,67 @@ class SettingsRepositoryImpl @Inject constructor(
         wooCommerceConfig.saveRemoteConfig(emptyConfig)
     }
 
-    override fun getSelectedStoreLocationFlow(): Flow<StoreLocationSelection?> {
+    override fun getSelectedStoreLocationsFlow(): Flow<List<StoreLocationSelection>> {
         return dataStore.data
             .catch { exception ->
                 if (exception is IOException) {
-                    Log.e("SettingsRepositoryImpl", "Error reading selected_store_location.", exception)
+                    Log.e("SettingsRepositoryImpl", "Error reading selected_store_locations.", exception)
                     emit(androidx.datastore.preferences.core.emptyPreferences())
                 } else {
                     throw exception
                 }
             }
             .map { preferences ->
-                val json = preferences[PreferencesKeys.SELECTED_STORE_LOCATION]
-                if (json.isNullOrBlank()) {
-                    null
-                } else {
+                // New (multi-select) storage
+                val jsonList = preferences[PreferencesKeys.SELECTED_STORE_LOCATIONS]
+                if (!jsonList.isNullOrBlank()) {
                     try {
-                        gson.fromJson(json, StoreLocationSelection::class.java)
+                        val type = object : TypeToken<List<StoreLocationSelection>>() {}.type
+                        gson.fromJson<List<StoreLocationSelection>>(jsonList, type) ?: emptyList()
                     } catch (e: Exception) {
-                        Log.w("SettingsRepositoryImpl", "Failed to parse selected_store_location JSON: ${e.message}")
-                        null
+                        Log.w("SettingsRepositoryImpl", "Failed to parse selected_store_locations JSON: ${e.message}")
+                        emptyList()
+                    }
+                } else {
+                    // Backward compatibility: fallback to legacy single selection
+                    val legacyJson = preferences[PreferencesKeys.SELECTED_STORE_LOCATION]
+                    if (legacyJson.isNullOrBlank()) {
+                        emptyList()
+                    } else {
+                        try {
+                            listOf(gson.fromJson(legacyJson, StoreLocationSelection::class.java))
+                        } catch (e: Exception) {
+                            Log.w("SettingsRepositoryImpl", "Failed to parse legacy selected_store_location JSON: ${e.message}")
+                            emptyList()
+                        }
                     }
                 }
             }
     }
 
-    override suspend fun setSelectedStoreLocation(selection: StoreLocationSelection?) {
+    override suspend fun setSelectedStoreLocations(selections: List<StoreLocationSelection>) {
         dataStore.edit { settings ->
-            if (selection == null) {
+            if (selections.isEmpty()) {
+                settings.remove(PreferencesKeys.SELECTED_STORE_LOCATIONS)
                 settings.remove(PreferencesKeys.SELECTED_STORE_LOCATION)
             } else {
-                settings[PreferencesKeys.SELECTED_STORE_LOCATION] = gson.toJson(selection)
+                settings[PreferencesKeys.SELECTED_STORE_LOCATIONS] = gson.toJson(selections)
+                // Keep legacy key only when single selection to avoid older single-store logic silently dropping stores.
+                if (selections.size == 1) {
+                    settings[PreferencesKeys.SELECTED_STORE_LOCATION] = gson.toJson(selections.first())
+                } else {
+                    settings.remove(PreferencesKeys.SELECTED_STORE_LOCATION)
+                }
             }
         }
+    }
+
+    override fun getSelectedStoreLocationFlow(): Flow<StoreLocationSelection?> {
+        return getSelectedStoreLocationsFlow().map { it.firstOrNull() }
+    }
+
+    override suspend fun setSelectedStoreLocation(selection: StoreLocationSelection?) {
+        setSelectedStoreLocations(if (selection == null) emptyList() else listOf(selection))
     }
 
     // 其他设置相关方法 - 使用 Room 数据库

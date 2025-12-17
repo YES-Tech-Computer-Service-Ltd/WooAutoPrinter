@@ -393,6 +393,10 @@ fun OrderDto.processWooFoodInfo(): WooFoodInfo? {
     if (dineInPersonCount == null) {
         dineInPersonCount = findMetadataValue(dineInPersonCountKeys)?.toString()
     }
+
+    // WooCommerce Food multi-store location slug (name is resolved via locations API / user selection)
+    val locationSlugKeys = listOf("exwoofood_location")
+    val locationSlug = parsedMeta.locationSlug ?: findMetadataValue(locationSlugKeys)?.toString()
     
     val deliveryAddress = findMetadataValue(deliveryAddressKeys)?.toString()
     
@@ -528,7 +532,8 @@ fun OrderDto.processWooFoodInfo(): WooFoodInfo? {
         deliveryAddress = deliveryAddress,
         deliveryFee = deliveryFee,
         tip = tip,
-        isDelivery = isDelivery
+        isDelivery = isDelivery,
+        storeLocationSlug = locationSlug
     )
 }
 

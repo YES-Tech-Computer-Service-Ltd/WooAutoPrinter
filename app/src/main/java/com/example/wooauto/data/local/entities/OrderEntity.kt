@@ -72,7 +72,10 @@ data class WooFoodInfoEntity(
     val deliveryAddress: String?,
     val deliveryFee: String?,
     val tip: String?,
-    val isDelivery: Boolean
+    val isDelivery: Boolean,
+    // WooCommerce Food multi-store (optional)
+    val storeLocationSlug: String? = null,
+    val storeLocationName: String? = null
 )
 
 /**

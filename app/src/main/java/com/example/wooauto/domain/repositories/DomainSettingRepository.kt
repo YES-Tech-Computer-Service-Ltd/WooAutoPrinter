@@ -40,6 +40,19 @@ interface DomainSettingRepository {
     suspend fun setSelectedStoreLocation(selection: StoreLocationSelection?)
 
     /**
+     * Selected store locations (WooCommerce Food / ExFood multi-store).
+     *
+     * - Empty list: no location filter will be applied.
+     * - When multiple stores are selected, orders will be fetched/merged per store and UI can display store source.
+     */
+    fun getSelectedStoreLocationsFlow(): Flow<List<StoreLocationSelection>>
+
+    /**
+     * Save selected store locations (or clear by passing an empty list).
+     */
+    suspend fun setSelectedStoreLocations(selections: List<StoreLocationSelection>)
+
+    /**
      * 获取通知开启状态
      * @return 通知开启状态的数据流
      */

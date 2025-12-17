@@ -169,7 +169,8 @@ object OrderMapper {
             deliveryAddress = null, // 地址信息依旧由后续逻辑决定
             deliveryFee = deliveryFeeAmount,
             tip = tipAmount,
-            isDelivery = parsedMeta.isDelivery || isDeliveryByFee
+            isDelivery = parsedMeta.isDelivery || isDeliveryByFee,
+            storeLocationSlug = parsedMeta.locationSlug
         )
 
         val entity = OrderEntity(
@@ -297,7 +298,9 @@ object OrderMapper {
                     deliveryAddress = woofoodInfo.deliveryAddress,
                     deliveryFee = finalDeliveryFee,
                     tip = finalTip,
-                    isDelivery = woofoodInfo.isDelivery
+                    isDelivery = woofoodInfo.isDelivery,
+                    storeLocationSlug = woofoodInfo.storeLocationSlug,
+                    storeLocationName = woofoodInfo.storeLocationName
                 )
             } else {
                 // 无需更新
@@ -346,7 +349,9 @@ object OrderMapper {
                 deliveryAddress = entity.woofoodInfo.deliveryAddress,
                 deliveryFee = entity.woofoodInfo.deliveryFee,
                 tip = entity.woofoodInfo.tip,
-                isDelivery = entity.woofoodInfo.isDelivery
+                isDelivery = entity.woofoodInfo.isDelivery,
+                storeLocationSlug = entity.woofoodInfo.storeLocationSlug,
+                storeLocationName = entity.woofoodInfo.storeLocationName
             )
         }
 
@@ -867,7 +872,9 @@ object OrderMapper {
                 deliveryAddress = it.deliveryAddress,
                 deliveryFee = it.deliveryFee,
                 tip = it.tip,
-                isDelivery = it.isDelivery
+                isDelivery = it.isDelivery,
+                storeLocationSlug = it.storeLocationSlug,
+                storeLocationName = it.storeLocationName
             )
         }
         

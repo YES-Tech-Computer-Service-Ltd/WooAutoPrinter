@@ -26,13 +26,13 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -85,12 +85,12 @@ fun WebsiteSettingsDialogContent(
     val connectionTestResult by viewModel.connectionTestResult.collectAsState()
 
     // Multi-store selection (WooCommerce Food / ExFood)
-    val selectedStoreLocation by viewModel.settingsRepository.getSelectedStoreLocationFlow()
-        .collectAsState(initial = null)
+    val selectedStoreLocations by viewModel.settingsRepository.getSelectedStoreLocationsFlow()
+        .collectAsState(initial = emptyList())
     var isApplying by remember { mutableStateOf(false) }
     var pendingLocations by remember { mutableStateOf<List<ExFoodLocation>>(emptyList()) }
     var requireLocationSelection by remember { mutableStateOf(false) }
-    var tempSelectedSlug by remember { mutableStateOf<String?>(null) }
+    var tempSelectedSlugs by remember { mutableStateOf<Set<String>>(emptySet()) }
 
     rememberScrollState()
     // 移除测试弹窗按钮/状态
@@ -293,7 +293,7 @@ fun WebsiteSettingsDialogContent(
 
                             // 当前已选门店（仅在启用 WooCommerce Food 且已选时展示）
                             if (useWooCommerceFood) {
-                                selectedStoreLocation?.let { sel ->
+                                if (selectedStoreLocations.isNotEmpty()) {
                                     Card(
                                         modifier = Modifier.fillMaxWidth(),
                                         colors = CardDefaults.cardColors(
@@ -308,19 +308,22 @@ fun WebsiteSettingsDialogContent(
                                                 fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
                                             )
                                             Spacer(modifier = Modifier.height(6.dp))
-                                            Text(text = sel.name, style = MaterialTheme.typography.bodyMedium)
-                                            sel.address?.takeIf { it.isNotBlank() }?.let { addr ->
+                                            selectedStoreLocations.forEach { sel ->
+                                                Text(text = sel.name, style = MaterialTheme.typography.bodyMedium)
+                                                sel.address?.takeIf { it.isNotBlank() }?.let { addr ->
+                                                    Text(
+                                                        text = addr,
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                }
                                                 Text(
-                                                    text = addr,
+                                                    text = stringResource(R.string.store_location_slug_format, sel.slug),
                                                     style = MaterialTheme.typography.bodySmall,
                                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                                 )
+                                                Spacer(modifier = Modifier.height(8.dp))
                                             }
-                                            Text(
-                                                text = stringResource(R.string.store_location_slug_format, sel.slug),
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
                                         }
                                     }
                                     Spacer(modifier = Modifier.height(12.dp))
@@ -354,30 +357,33 @@ fun WebsiteSettingsDialogContent(
                                             if (locations != null) {
                                                 if (!useWooCommerceFood) {
                                                     // 插件关闭时清空门店选择，避免残留过滤
-                                                    viewModel.settingsRepository.setSelectedStoreLocation(null)
+                                                    viewModel.settingsRepository.setSelectedStoreLocations(emptyList())
                                                     viewModel.notifyServiceToRestartPolling()
                                                 } else {
                                                     when {
                                                         locations.size > 1 -> {
                                                             // 需要强制重新选择
-                                                            viewModel.settingsRepository.setSelectedStoreLocation(null)
                                                             pendingLocations = locations
-                                                            tempSelectedSlug = null
+                                                            val available = locations.map { it.slug }.toSet()
+                                                            tempSelectedSlugs = selectedStoreLocations.map { it.slug }.toSet().intersect(available)
                                                             requireLocationSelection = true
                                                         }
                                                         locations.size == 1 -> {
                                                             val loc = locations[0]
-                                                            viewModel.settingsRepository.setSelectedStoreLocation(
-                                                                StoreLocationSelection(
-                                                                    slug = loc.slug,
-                                                                    name = loc.name,
-                                                                    address = loc.address
+                                                            viewModel.settingsRepository.setSelectedStoreLocations(
+                                                                listOf(
+                                                                    StoreLocationSelection(
+                                                                        slug = loc.slug,
+                                                                        name = loc.name,
+                                                                        address = loc.address
+                                                                    )
                                                                 )
                                                             )
                                                             viewModel.notifyServiceToRestartPolling()
                                                         }
                                                         else -> {
                                                             // locations == 0：不提示，按正常流程继续
+                                                            viewModel.settingsRepository.setSelectedStoreLocations(emptyList())
                                                             viewModel.notifyServiceToRestartPolling()
                                                         }
                                                     }
@@ -543,13 +549,26 @@ fun WebsiteSettingsDialogContent(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { tempSelectedSlug = loc.slug }
+                                .clickable {
+                                    tempSelectedSlugs = if (tempSelectedSlugs.contains(loc.slug)) {
+                                        tempSelectedSlugs - loc.slug
+                                    } else {
+                                        tempSelectedSlugs + loc.slug
+                                    }
+                                }
                                 .padding(vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            RadioButton(
-                                selected = tempSelectedSlug == loc.slug,
-                                onClick = { tempSelectedSlug = loc.slug }
+                            val checked = tempSelectedSlugs.contains(loc.slug)
+                            Checkbox(
+                                checked = checked,
+                                onCheckedChange = { isChecked ->
+                                    tempSelectedSlugs = if (isChecked) {
+                                        tempSelectedSlugs + loc.slug
+                                    } else {
+                                        tempSelectedSlugs - loc.slug
+                                    }
+                                }
                             )
                             Spacer(modifier = Modifier.size(8.dp))
                             Column(modifier = Modifier.weight(1f)) {
@@ -573,23 +592,25 @@ fun WebsiteSettingsDialogContent(
             },
             confirmButton = {
                 TextButton(
-                    enabled = tempSelectedSlug != null && !isApplying,
+                    enabled = tempSelectedSlugs.isNotEmpty() && !isApplying,
                     onClick = {
-                        val slug = tempSelectedSlug ?: return@TextButton
-                        val chosen = pendingLocations.firstOrNull { it.slug == slug } ?: return@TextButton
+                        val chosen = pendingLocations.filter { tempSelectedSlugs.contains(it.slug) }
+                        if (chosen.isEmpty()) return@TextButton
                         coroutineScope.launch {
                             try {
                                 isApplying = true
-                                viewModel.settingsRepository.setSelectedStoreLocation(
-                                    StoreLocationSelection(
-                                        slug = chosen.slug,
-                                        name = chosen.name,
-                                        address = chosen.address
-                                    )
+                                viewModel.settingsRepository.setSelectedStoreLocations(
+                                    chosen.map { loc ->
+                                        StoreLocationSelection(
+                                            slug = loc.slug,
+                                            name = loc.name,
+                                            address = loc.address
+                                        )
+                                    }
                                 )
                                 requireLocationSelection = false
                                 pendingLocations = emptyList()
-                                tempSelectedSlug = null
+                                tempSelectedSlugs = emptySet()
                                 viewModel.notifyServiceToRestartPolling()
                             } finally {
                                 isApplying = false

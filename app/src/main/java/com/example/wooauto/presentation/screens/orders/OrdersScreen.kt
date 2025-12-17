@@ -1125,6 +1125,19 @@ fun OrderCard(
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                     )
                 }
+
+                // 门店位置（仅在可用时显示）
+                val storeName = order.woofoodInfo?.storeLocationName?.trim().orEmpty()
+                if (storeName.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = storeName,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
             
             Spacer(modifier = Modifier.width(16.dp))

@@ -282,6 +282,31 @@ fun OrderDetailHeader(
                         )
                     }
                 }
+
+                // 门店位置（仅在可用时显示）
+                val storeName = order.woofoodInfo?.storeLocationName?.trim().orEmpty()
+                if (storeName.isNotEmpty()) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier.height(24.dp)
+                    ) {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier.padding(horizontal = 10.dp)
+                        ) {
+                            Text(
+                                text = storeName,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
             }
             
             // 中间：下单时间
