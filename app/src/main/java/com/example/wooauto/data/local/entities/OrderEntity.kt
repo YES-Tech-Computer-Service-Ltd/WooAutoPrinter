@@ -49,7 +49,16 @@ data class OrderLineItemEntity(
     val quantity: Int,
     val price: String,
     val total: String,
-    val sku: String = ""
+    val sku: String = "",
+    val options: List<ItemOptionEntity> = emptyList()
+)
+
+/**
+ * 商品选项实体
+ */
+data class ItemOptionEntity(
+    val name: String,
+    val value: String
 )
 
 /**
@@ -57,11 +66,16 @@ data class OrderLineItemEntity(
  */
 data class WooFoodInfoEntity(
     val orderMethod: String?,
+    val deliveryDate: String?,
     val deliveryTime: String?,
+    val dineInPersonCount: String?,
     val deliveryAddress: String?,
     val deliveryFee: String?,
     val tip: String?,
-    val isDelivery: Boolean
+    val isDelivery: Boolean,
+    // WooCommerce Food multi-store (optional)
+    val storeLocationSlug: String? = null,
+    val storeLocationName: String? = null
 )
 
 /**
@@ -82,4 +96,4 @@ data class TaxLineEntity(
     val label: String,
     val ratePercent: Double,
     val taxTotal: String
-) 
+)

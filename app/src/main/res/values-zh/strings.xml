@@ -57,6 +57,22 @@
     <string name="pickup_location">自取地点</string>
     <string name="product_list">商品列表</string>
     <string name="price_details">价格明细</string>
+    <string name="order_detail_header_title">订单 #%1$s</string>
+    <string name="order_detail_header_time">下单时间：%1$s %2$s</string>
+    <string name="production_card_title">商品清单 • 共 %1$d 件</string>
+    <string name="order_note_section_title">整单备注</string>
+    <string name="expected_time_label">预期时间</string>
+    <string name="delivery_type_delivery">外卖配送</string>
+    <string name="delivery_type_pickup">到店自提</string>
+    <string name="delivery_type_dine_in">堂食服务</string>
+    <string name="dine_in_people_value">用餐人数：%1$s</string>
+    <string name="not_provided_bilingual">Not provided / 未填写</string>
+    <string name="customer_info_section_title">顾客信息</string>
+    <string name="payment_total_label">实付金额</string>
+    <string name="payment_status_paid">已支付</string>
+    <string name="payment_status_cash_due">未付 / 需收现</string>
+    <string name="payment_delivery_fee_label">配送费</string>
+    <string name="expected_time_asap">尽快</string>
     <string name="subtotal">小计</string>
     <string name="discount">折扣</string>
     <string name="tax">税费</string>
@@ -144,6 +160,26 @@
     <string name="status_enabled">已启用</string>
     <string name="status_disabled">已禁用</string>
     <string name="no_template_selected">未选择模板</string>
+
+    <!-- Multi-store (WooCommerce Food / ExFood) -->
+    <string name="apply">应用</string>
+    <string name="apply_failed_format">应用失败：%1$s</string>
+    <string name="store_location_selected_title">当前门店</string>
+    <string name="store_location_select_title">选择应用门店</string>
+    <string name="store_location_select_required">请先选择门店后再关闭</string>
+    <string name="store_location_slug_format">Slug：%1$s</string>
+
+    <!-- Store Status (WooCommerce Food / ExFood) -->
+    <string name="store_status_open">营业中</string>
+    <string name="store_status_open_all_day">营业中（全天）</string>
+    <string name="store_status_closed">休息中</string>
+    <string name="store_status_confirm_close_title">切换为休息中？</string>
+    <string name="store_status_confirm_close_message">休息中后通常不会产生新订单。</string>
+    <string name="store_status_confirm_open_title">切换为营业中？</string>
+    <string name="store_status_confirm_open_message">将按营业时间恢复营业。</string>
+    <string name="store_status_error_title">店铺状态操作失败</string>
+    <string name="store_status_error_get_user_message">无法获取店铺营业状态，暂不可切换，请联系技术人员修复。</string>
+    <string name="store_status_error_post_user_message">店铺状态切换失败，请联系技术人员修复。</string>
 
     <!-- Website Setup -->
     <string name="website_url">网站 URL</string>
@@ -441,6 +477,17 @@
 
     <!-- New additions from the code block -->
     <string name="about">关于</string>
+    <string name="network_error_logs">网络报错日志</string>
+    <string name="network_error_logs_subtitle">查看 / 复制 / 清空网络诊断历史</string>
+    <string name="network_error_logs_desc">此页面会保留“去重后的”网络失败记录（DNS / IPv / TLS / 超时 / 服务器错误等），用于排查问题；同类问题会合并并累计次数。</string>
+    <string name="network_error_logs_empty">暂无网络报错日志。</string>
+    <string name="network_error_logs_copy_all">复制全部</string>
+    <string name="network_error_logs_clear">清空</string>
+    <string name="network_error_logs_copy">复制</string>
+    <string name="network_error_logs_close">关闭</string>
+    <string name="network_error_logs_copied">已复制</string>
+    <string name="network_error_logs_cleared">已清空</string>
+    <string name="network_error_logs_last_seen">最近发生</string>
     <string name="deactivate_license">停用许可证</string>
     <string name="deactivate_license_title">要停用当前许可证吗？</string>
     <string name="deactivate_license_message">这将移除当前许可证并在本地重置试用期。你可以稍后激活新的许可证。</string>
@@ -604,6 +651,17 @@
     <string name="install_update">安装更新</string>
     <string name="update_notification_channel_name">应用更新</string>
     <string name="update_notification_channel_desc">应用更新和下载进度通知。</string>
+
+    <!-- Foreground Service (Polling) Notification -->
+    <string name="fgs_notification_title_processing_orders">处理中订单：%1$d</string>
+    <string name="fgs_notification_content_network_printer">网络：%1$s｜打印机：%2$s</string>
+    <string name="status_online_short">在线</string>
+    <string name="status_offline_short">离线</string>
+    <string name="status_connected_short">已连接</string>
+    <string name="status_disconnected_short">未连接</string>
+    <string name="status_connecting_short">连接中</string>
+    <string name="status_error_short">异常</string>
+    <string name="printer_status_not_set_short">未设置</string>
     <string name="download_pending">等待下载…</string>
     <string name="download_running">正在下载: %1$d%%</string>
     <string name="update_ready_to_install">更新已准备好安装</string>

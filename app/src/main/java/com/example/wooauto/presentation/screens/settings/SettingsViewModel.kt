@@ -58,6 +58,12 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import com.example.wooauto.data.remote.exfood.ExFoodLocation
+import com.example.wooauto.data.remote.exfood.ExFoodLocationsApi
+import com.example.wooauto.domain.models.StoreLocationSelection
+import com.example.wooauto.utils.UrlNormalizer
+import com.google.gson.Gson
+import okhttp3.OkHttpClient
 
 /**
  * 定义模板条目的数据类
@@ -76,6 +82,8 @@ class SettingsViewModel @Inject constructor(
     private val printerManager: PrinterManager,
     private val updater: UpdaterInterface,
     val licenseManager: LicenseManager,
+    private val okHttpClient: OkHttpClient,
+    private val gson: Gson,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -1310,6 +1318,72 @@ class SettingsViewModel @Inject constructor(
             UiLog.d(TAG, "已发送重启轮询请求给服务")
         } catch (e: Exception) {
             Log.e(TAG, "通知服务重启轮询失败: ${e.message}", e)
+        }
+    }
+
+    /**
+     * Apply API config and fetch ExFood locations (multi-store).
+     *
+     * Discussion rules:
+     * - 首次 Apply 后可拉取 locations 供用户选择；不做轮询
+     * - 只有在 useWooCommerceFood==true 时才会拉 locations
+     */
+    suspend fun applyApiConfigAndFetchLocations(
+        rawSiteUrl: String,
+        consumerKey: String,
+        consumerSecret: String,
+        pollingIntervalSeconds: Int,
+        useWooCommerceFood: Boolean
+    ): Result<List<ExFoodLocation>> = withContext(Dispatchers.IO) {
+        try {
+            val sanitizedSiteUrl = UrlNormalizer.sanitizeSiteUrl(rawSiteUrl)
+            val key = consumerKey.trim()
+            val secret = consumerSecret.trim()
+            val interval = pollingIntervalSeconds.coerceAtLeast(5)
+
+            // 基础校验（避免误填 URL 到 key/secret）
+            if (key.contains("http", ignoreCase = true) || secret.contains("http", ignoreCase = true)) {
+                return@withContext Result.failure(Exception("Consumer Key/Secret format error"))
+            }
+
+            // 先保存配置，确保后续 OkHttp 拦截器能读到最新 key/secret
+            settingsRepository.saveWooCommerceConfig(
+                WooCommerceConfig(
+                    siteUrl = sanitizedSiteUrl,
+                    consumerKey = key,
+                    consumerSecret = secret,
+                    pollingInterval = interval,
+                    useWooCommerceFood = useWooCommerceFood
+                )
+            )
+
+            // 同步更新本 ViewModel 内部状态（用于 UI 立即反映）
+            withContext(Dispatchers.Main) {
+                _siteUrl.value = sanitizedSiteUrl
+                _consumerKey.value = key
+                _consumerSecret.value = secret
+                _pollingInterval.value = interval
+                _useWooCommerceFood.value = useWooCommerceFood
+            }
+
+            if (!useWooCommerceFood) {
+                return@withContext Result.success(emptyList())
+            }
+
+            val locations = ExFoodLocationsApi.getLocations(okHttpClient, gson, sanitizedSiteUrl)
+            Result.success(locations)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    fun saveSelectedStoreLocation(selection: StoreLocationSelection?) {
+        viewModelScope.launch {
+            try {
+                settingsRepository.setSelectedStoreLocation(selection)
+            } catch (e: Exception) {
+                Log.e(TAG, "保存门店选择失败: ${e.message}", e)
+            }
         }
     }
 

@@ -1,5 +1,6 @@
 package com.example.wooauto.data.remote.dto
 
+import com.example.wooauto.data.mappers.WooFoodMetadataParser
 import com.example.wooauto.domain.models.Order
 import com.example.wooauto.domain.models.OrderItem
 import com.example.wooauto.domain.models.WooFoodInfo
@@ -348,8 +349,10 @@ fun OrderDto.processWooFoodInfo(): WooFoodInfo? {
         // 明确记录从fee_lines构建WooFoodInfo的过程
         val result = WooFoodInfo(
             orderMethod = if (isDelivery) "delivery" else "pickup",
+            deliveryDate = null,
             isDelivery = isDelivery,
             deliveryTime = null,
+            dineInPersonCount = null,
             deliveryAddress = null,
             deliveryFee = deliveryFeeFromFee,
             tip = tipFromFee
@@ -358,19 +361,42 @@ fun OrderDto.processWooFoodInfo(): WooFoodInfo? {
         return result
     }
     
+    val metaEntries = this.metaData.mapNotNull { meta ->
+        val key = meta.key ?: return@mapNotNull null
+        key to meta.value
+    }
+    val parsedMeta = WooFoodMetadataParser.parse(metaEntries)
+
     // 元数据键名可能的变体
     val orderMethodKeys = listOf("exwfood_order_method", "_order_type", "order_type", "_woofood_order_type")
     val deliveryTimeKeys = listOf("exwfood_time_deli", "exwfood_delivery_time", "delivery_time", "_delivery_time", "_woofood_delivery_time")
     val deliveryAddressKeys = listOf("exwfood_delivery_address", "delivery_address", "_delivery_address", "_woofood_delivery_address")
     val deliveryFeeKeys = listOf("exwfood_delivery_fee", "delivery_fee", "_delivery_fee", "_woofood_delivery_fee")
     val tipKeys = listOf("exwfood_tip", "tip", "_tip", "_woofood_tip")
+    val dineInPersonCountKeys = listOf("exwfood_person_dinein")
     
     // 从元数据中提取WooFood信息
-    val orderMethod = findMetadataValue(orderMethodKeys)?.toString()
+    var orderMethod = parsedMeta.orderMethod
+    if (orderMethod == null) {
+        orderMethod = findMetadataValue(orderMethodKeys)?.toString()
+    }
 //    Log.d("OrderDto", "订单#$number 订单方式: $orderMethod")
     
-    val deliveryTime = findMetadataValue(deliveryTimeKeys)?.toString()
+    var deliveryTime = parsedMeta.deliveryTime
+    if (deliveryTime == null) {
+        deliveryTime = findMetadataValue(deliveryTimeKeys)?.toString()
+    }
 //    Log.d("OrderDto", "订单#$number 配送时间: $deliveryTime")
+    val deliveryDate = parsedMeta.deliveryDate
+
+    var dineInPersonCount = parsedMeta.dineInPersonCount
+    if (dineInPersonCount == null) {
+        dineInPersonCount = findMetadataValue(dineInPersonCountKeys)?.toString()
+    }
+
+    // WooCommerce Food multi-store location slug (name is resolved via locations API / user selection)
+    val locationSlugKeys = listOf("exwoofood_location")
+    val locationSlug = parsedMeta.locationSlug ?: findMetadataValue(locationSlugKeys)?.toString()
     
     val deliveryAddress = findMetadataValue(deliveryAddressKeys)?.toString()
     
@@ -500,11 +526,14 @@ fun OrderDto.processWooFoodInfo(): WooFoodInfo? {
     // 创建并返回WooFoodInfo
     return WooFoodInfo(
         orderMethod = orderMethod ?: if (isDelivery) "delivery" else "pickup",
+        deliveryDate = deliveryDate,
         deliveryTime = deliveryTime,
+        dineInPersonCount = dineInPersonCount,
         deliveryAddress = deliveryAddress,
         deliveryFee = deliveryFee,
         tip = tip,
-        isDelivery = isDelivery
+        isDelivery = isDelivery,
+        storeLocationSlug = locationSlug
     )
 }
 

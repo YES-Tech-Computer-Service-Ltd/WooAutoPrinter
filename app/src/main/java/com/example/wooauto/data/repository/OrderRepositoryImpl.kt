@@ -12,12 +12,17 @@ import com.example.wooauto.data.remote.dto.OrderDto
 import com.example.wooauto.data.remote.dto.toOrder
 import com.example.wooauto.domain.models.Order
 import com.example.wooauto.domain.models.OrderItem
+import com.example.wooauto.domain.models.StoreLocationSelection
 import com.example.wooauto.domain.repositories.DomainOrderRepository
 import com.example.wooauto.domain.repositories.DomainSettingRepository
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
@@ -161,20 +166,40 @@ class OrderRepositoryImpl @Inject constructor(
         return _orderByIdFlow[orderId]!!.asStateFlow()
     }
 
+    private fun filterOrdersBySelectedStores(
+        orders: List<Order>,
+        selections: List<StoreLocationSelection>
+    ): List<Order> {
+        val slugs = selections
+            .mapNotNull { it.slug.trim().takeIf { slug -> slug.isNotBlank() } }
+            .toSet()
+        if (slugs.isEmpty()) return orders
+        return orders.filter { o ->
+            val slug = o.woofoodInfo?.storeLocationSlug?.trim()
+            slug != null && slugs.contains(slug)
+        }
+    }
+
     override fun getNewProcessingOrdersFlow(): Flow<List<Order>> {
-        return orderDao.getNewProcessingOrders().map { entities ->
+        val baseFlow = orderDao.getNewProcessingOrders().map { entities ->
             OrderMapper.mapEntityListToDomainList(entities)
+        }
+        return combine(baseFlow, settingsRepository.getSelectedStoreLocationsFlow()) { orders, selections ->
+            filterOrdersBySelectedStores(orders, selections)
         }
     }
 
     override fun getInProcessingOrdersFlow(): Flow<List<Order>> {
-        return orderDao.getInProcessingOrders().map { entities ->
+        val baseFlow = orderDao.getInProcessingOrders().map { entities ->
             OrderMapper.mapEntityListToDomainList(entities)
+        }
+        return combine(baseFlow, settingsRepository.getSelectedStoreLocationsFlow()) { orders, selections ->
+            filterOrdersBySelectedStores(orders, selections)
         }
     }
 
     override fun getNewProcessingCountFlow(): Flow<Int> {
-        return orderDao.getNewProcessingCount()
+        return getNewProcessingOrdersFlow().map { it.size }
     }
 
     override suspend fun updateOrderStatus(orderId: Long, newStatus: String): Result<Order> = withContext(Dispatchers.IO) {
@@ -280,19 +305,58 @@ class OrderRepositoryImpl @Inject constructor(
                 val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
                 params["after"] = dateFormat.format(afterDate)
             }
+
+            // WooCommerce Food multi-store：按选中的门店 slug 分别拉取订单后合并
+            val selectedStoresBySlug: Map<String, StoreLocationSelection> = if (config.useWooCommerceFood) {
+                try {
+                    settingsRepository.getSelectedStoreLocationsFlow().first()
+                        .mapNotNull { s ->
+                            val slug = s.slug.trim()
+                            if (slug.isBlank()) null else s.copy(slug = slug)
+                        }
+                        .distinctBy { it.slug }
+                        .associateBy { it.slug }
+                } catch (_: Exception) {
+                    emptyMap()
+                }
+            } else {
+                emptyMap()
+            }
             
             // 计算30天前的时间戳，用于过滤较旧的订单，确保不会将旧订单错误标记为未读
             val calendar = Calendar.getInstance()
             calendar.add(Calendar.DAY_OF_YEAR, -30)  // 30天前
             val thirtyDaysAgo = calendar.timeInMillis
 
-            UiLog.d("OrderRepositoryImpl", "【API请求】最终请求参数: $params")
-            val response = if (params.isEmpty()) {
-                // 优化：默认情况下只拉取最近的50个订单，而不是100个，减少单次负载
-                api.getOrders(1, 50)
-            } else {
-                api.getOrdersWithParams(1, 100, params)
-            }
+            val dtoWithStore: List<Pair<OrderDto, StoreLocationSelection?>> =
+                if (selectedStoresBySlug.isNotEmpty()) {
+                    val perPage = if (params.isEmpty()) 50 else 100
+                    coroutineScope {
+                        selectedStoresBySlug.values.map { store ->
+                            async {
+                                val storeParams = params.toMutableMap()
+                                storeParams["exwoofood_location"] = store.slug
+                                UiLog.d("OrderRepositoryImpl", "【API请求】门店=${store.slug} params=$storeParams")
+                                try {
+                                    val resp = api.getOrdersWithParams(1, perPage, storeParams)
+                                    resp.map { it to store }
+                                } catch (e: Exception) {
+                                    Log.e("OrderRepositoryImpl", "门店=${store.slug} 拉取订单失败: ${e.message}", e)
+                                    emptyList()
+                                }
+                            }
+                        }.awaitAll().flatten()
+                    }
+                } else {
+                    UiLog.d("OrderRepositoryImpl", "【API请求】最终请求参数: $params")
+                    val resp = if (params.isEmpty()) {
+                        // 优化：默认情况下只拉取最近的50个订单，而不是100个，减少单次负载
+                        api.getOrders(1, 50)
+                    } else {
+                        api.getOrdersWithParams(1, 100, params)
+                    }
+                    resp.map { it to null }
+                }
             
             // 在处理API订单前，获取现有数据库订单及其状态
             val existingOrders = if (status != null) {
@@ -307,37 +371,58 @@ class OrderRepositoryImpl @Inject constructor(
                 orderDao.getAllOrders().first().filter { it.isPrinted }.map { it.id }.toSet()
             } catch (_: Exception) { emptySet() }
             
-            // 转换为领域模型并保留已读状态
-            val orders = response.map { orderDto -> 
-                val order = orderDto.toOrder()
-                
+            fun attachStoreLocationName(order: Order, store: StoreLocationSelection?): Order {
+                if (store == null) return order
+                val woo = order.woofoodInfo ?: return order
+                val slug = woo.storeLocationSlug?.takeIf { it.isNotBlank() } ?: store.slug
+                val name = woo.storeLocationName?.takeIf { it.isNotBlank() } ?: store.name
+                return order.copy(
+                    woofoodInfo = woo.copy(
+                        storeLocationSlug = slug,
+                        storeLocationName = name
+                    )
+                )
+            }
+
+            // 转换为领域模型并保留已读/打印状态（多门店：同时注入门店名称）
+            val ordersRaw = dtoWithStore.map { (orderDto, store) ->
+                val base = attachStoreLocationName(orderDto.toOrder(), store)
+
                 // 首先检查是否在已读列表中
-                if (order.id in readOrderIds) {
+                if (base.id in readOrderIds) {
                     // 同时检查是否已打印
-                    if (order.id in allPrintedIdsInDb) {
-                        order.copy(isRead = true, isPrinted = true)
+                    if (base.id in allPrintedIdsInDb) {
+                        base.copy(isRead = true, isPrinted = true)
                     } else {
-                        order.copy(isRead = true)
+                        base.copy(isRead = true)
                     }
                 } else {
                     // 然后检查数据库中的现有状态
-                    val existingOrder = existingOrderMap[order.id]
+                    val existingOrder = existingOrderMap[base.id]
                     if (existingOrder != null) {
                         // 同时保留打印状态和已读状态
-                        order.copy(
+                        base.copy(
                             isRead = existingOrder.isRead,
-                            isPrinted = existingOrder.isPrinted || allPrintedIdsInDb.contains(order.id)
+                            isPrinted = existingOrder.isPrinted || allPrintedIdsInDb.contains(base.id)
                         )
                     } else {
                         // 如果是较旧的订单（超过30天），直接标记为已读
-                        if (order.dateCreated.time < thirtyDaysAgo) {
-                            order.copy(isRead = true)
+                        if (base.dateCreated.time < thirtyDaysAgo) {
+                            base.copy(isRead = true)
                         } else {
-                            order
+                            base
                         }
                     }
                 }
             }
+
+            // 去重（按订单ID），优先保留带门店名称的版本
+            val orders = ordersRaw
+                .groupBy { it.id }
+                .values
+                .map { list ->
+                    list.firstOrNull { !it.woofoodInfo?.storeLocationName.isNullOrBlank() } ?: list.first()
+                }
             
             // 生成要保存到数据库的实体对象
             val orderEntities = orders.map { order ->
@@ -409,6 +494,15 @@ class OrderRepositoryImpl @Inject constructor(
                     }
                 }
             }
+
+            // 多门店：只展示当前选中门店的订单（避免 DB 中残留的其他门店订单混入）
+            if (selectedStoresBySlug.isNotEmpty()) {
+                val allowed = selectedStoresBySlug.keys
+                cachedOrders = cachedOrders.filter { o ->
+                    val slug = o.woofoodInfo?.storeLocationSlug?.trim()
+                    slug != null && allowed.contains(slug)
+                }
+            }
             isOrdersCached = true
             _ordersFlow.value = cachedOrders
             updateOrdersByStatus()
@@ -453,9 +547,49 @@ class OrderRepositoryImpl @Inject constructor(
                 // 使用固定的"processing"状态，确保只查询处理中的订单
 //                Log.d("OrderRepositoryImpl", "【轮询刷新】调用API: getOrders(page=1, perPage=100, status=processing)")
                 
-                // 调用API获取处理中订单
+                // 调用API获取处理中订单（多门店：按选中的门店分别拉取后合并）
                 // 优化：轮询时只需要最新的订单，减少获取数量到20，大幅降低延迟和超时风险
-                val response = api.getOrders(1, 20, "processing")
+                val selectedStoresBySlug: Map<String, StoreLocationSelection> = if (config.useWooCommerceFood) {
+                    try {
+                        settingsRepository.getSelectedStoreLocationsFlow().first()
+                            .mapNotNull { s ->
+                                val slug = s.slug.trim()
+                                if (slug.isBlank()) null else s.copy(slug = slug)
+                            }
+                            .distinctBy { it.slug }
+                            .associateBy { it.slug }
+                    } catch (_: Exception) {
+                        emptyMap()
+                    }
+                } else {
+                    emptyMap()
+                }
+
+                val dtoWithStore: List<Pair<OrderDto, StoreLocationSelection?>> =
+                    if (selectedStoresBySlug.isNotEmpty()) {
+                        coroutineScope {
+                            selectedStoresBySlug.values.map { store ->
+                                async {
+                                    try {
+                                        val resp = api.getOrdersWithParams(
+                                            page = 1,
+                                            perPage = 20,
+                                            params = mapOf(
+                                                "status" to "processing",
+                                                "exwoofood_location" to store.slug
+                                            )
+                                        )
+                                        resp.map { it to store }
+                                    } catch (e: Exception) {
+                                        Log.e("OrderRepositoryImpl", "轮询：门店=${store.slug} 拉取 processing 订单失败: ${e.message}", e)
+                                        emptyList()
+                                    }
+                                }
+                            }.awaitAll().flatten()
+                        }
+                    } else {
+                        api.getOrders(1, 20, "processing").map { it to null }
+                    }
                 
                 // Log.d("OrderRepositoryImpl", "【轮询刷新】API返回 ${response.size} 个处理中订单")
                 
@@ -464,16 +598,32 @@ class OrderRepositoryImpl @Inject constructor(
                 // val statusCounts = response.groupBy { order -> order.status }.mapValues { entry -> entry.value.size }
 //                Log.d("OrderRepositoryImpl", "【轮询刷新】状态分布: $statusCounts")
                 
-                // 转换为领域模型，并保留已读状态
-                val orders = response.map { orderDto -> 
-                    val order = orderDto.toOrder()
-                    // 保留已读状态
-                    if (order.id in readOrderIds) {
-                        order.copy(isRead = true)
-                    } else {
-                        order
-                    }
+                fun attachStoreLocationName(order: Order, store: StoreLocationSelection?): Order {
+                    if (store == null) return order
+                    val woo = order.woofoodInfo ?: return order
+                    val slug = woo.storeLocationSlug?.takeIf { it.isNotBlank() } ?: store.slug
+                    val name = woo.storeLocationName?.takeIf { it.isNotBlank() } ?: store.name
+                    return order.copy(
+                        woofoodInfo = woo.copy(
+                            storeLocationSlug = slug,
+                            storeLocationName = name
+                        )
+                    )
                 }
+
+                // 转换为领域模型，并保留已读状态（多门店：同时注入门店名称）
+                val ordersRaw = dtoWithStore.map { (orderDto, store) ->
+                    val base = attachStoreLocationName(orderDto.toOrder(), store)
+                    if (base.id in readOrderIds) base.copy(isRead = true) else base
+                }
+
+                // 去重（按订单ID），优先保留带门店名称的版本
+                val orders = ordersRaw
+                    .groupBy { it.id }
+                    .values
+                    .map { list ->
+                        list.firstOrNull { !it.woofoodInfo?.storeLocationName.isNullOrBlank() } ?: list.first()
+                    }
                 
                 // 获取当前数据库中所有的processing订单
                 val currentProcessingOrders = orderDao.getOrdersByStatus("processing").first()
@@ -973,6 +1123,7 @@ class OrderRepositoryImpl @Inject constructor(
 
     // 添加辅助函数：将OrderEntity转换为Order模型
     private fun mapToOrderModel(entity: com.example.wooauto.data.local.entities.OrderEntity): Order {
+        val mapped = OrderMapper.mapEntityToDomain(entity)
         // 计算小计金额：应该是商品总价，不包含税费和其他费用
         val calculatedSubtotal = try {
             // 尝试从订单行项目计算小计总额
@@ -999,77 +1150,11 @@ class OrderRepositoryImpl @Inject constructor(
         
         // 记录日志用于调试
 //        Log.d("OrderRepositoryImpl", "订单#${entity.number} - 映射实体到模型，feeLines数量: ${entity.feeLines.size}")
-        entity.feeLines.forEach { _ ->
-            // 确保费用行中的配送费信息同步到WooFoodInfo（仅当实体未携带时才尝试同步）
-            // 注意：此处仅用于调试/显示的一致性，不改变业务字段来源
-            // 不在此处写回实体/数据库，避免副作用
-        }
+        entity.feeLines.forEach { _ -> }
         
-        // 将实体中的费用行转换为领域模型费用行
-        val domainFeeLines = entity.feeLines.map { feeLine ->
-            com.example.wooauto.domain.models.FeeLine(
-                id = feeLine.id,
-                name = feeLine.name,
-                total = feeLine.total,
-                totalTax = feeLine.totalTax
-            )
-        }
         
-        // 将实体中的税费行转换为领域模型税费行
-        val domainTaxLines = entity.taxLines.map { taxLine ->
-            com.example.wooauto.domain.models.TaxLine(
-                id = taxLine.id,
-                label = taxLine.label,
-                ratePercent = taxLine.ratePercent,
-                taxTotal = taxLine.taxTotal
-            )
-        }
-        
-        // 从实体中的WooFoodInfo创建领域模型WooFoodInfo
-        val wooFoodInfo = entity.woofoodInfo?.let {
-            com.example.wooauto.domain.models.WooFoodInfo(
-                orderMethod = it.orderMethod,
-                deliveryTime = it.deliveryTime,
-                deliveryAddress = it.deliveryAddress,
-                deliveryFee = it.deliveryFee,
-                tip = it.tip,
-                isDelivery = it.isDelivery
-            )
-        } ?: parseWooFoodInfo(entity) // 如果实体没有WooFoodInfo，尝试从其他字段解析
-
-        return Order(
-            id = entity.id,
-            number = entity.number.toString(),
-            status = entity.status,
-            dateCreated = Date(entity.dateCreated),
-            customerName = entity.customerName,
-            contactInfo = entity.contactInfo,
-            billingInfo = entity.billingAddress,
-            paymentMethod = entity.paymentMethod,
-            total = entity.total,
-            items = entity.lineItems.map { item ->
-                OrderItem(
-                    id = 0, // 行项目ID不可用，使用默认值
-                    productId = item.productId,
-                    name = item.name,
-                    quantity = item.quantity,
-                    price = item.price,
-                    total = item.total,
-                    subtotal = item.price, // 单项价格作为小计
-                    image = "", // 图片URL不可用，使用空字符串
-                    options = emptyList() // 选项不可用，使用空列表
-                )
-            },
-            isPrinted = entity.isPrinted,
-            notificationShown = entity.notificationShown,
-            notes = entity.customerNote,
-            subtotal = entity.subtotal.takeIf { it.isNotEmpty() } ?: calculatedSubtotal,
-            totalTax = entity.totalTax,
-            discountTotal = entity.discountTotal,
-            woofoodInfo = wooFoodInfo,
-            feeLines = domainFeeLines,
-            taxLines = domainTaxLines
-        )
+        val finalSubtotal = mapped.subtotal.takeIf { it.isNotBlank() } ?: calculatedSubtotal
+        return mapped.copy(subtotal = finalSubtotal)
     }
     
     /**
@@ -1147,7 +1232,9 @@ class OrderRepositoryImpl @Inject constructor(
         // 创建WooFood信息对象
         return com.example.wooauto.domain.models.WooFoodInfo(
             orderMethod = if (isDelivery) "delivery" else "pickup",
+            deliveryDate = null,
             deliveryTime = timeInfo,
+            dineInPersonCount = null,
             deliveryAddress = if (isDelivery) entity.shippingAddress else null,
             deliveryFee = deliveryFee,
             tip = tipAmount,

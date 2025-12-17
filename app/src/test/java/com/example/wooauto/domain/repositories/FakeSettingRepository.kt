@@ -3,6 +3,7 @@ package com.example.wooauto.domain.repositories
 import com.example.wooauto.data.remote.WooCommerceConfig
 import com.example.wooauto.domain.models.PrinterConfig
 import com.example.wooauto.domain.models.SoundSettings
+import com.example.wooauto.domain.models.StoreLocationSelection
 import com.example.wooauto.domain.templates.TemplateType
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -75,6 +76,9 @@ class FakeSettingRepository : DomainSettingRepository {
     // 应用内亮度设置（null 表示跟随系统）
     private val _appBrightnessPercent = MutableStateFlow<Int?>(null)
 
+    // Selected store location (WooCommerce Food / ExFood multi-store)
+    private val _selectedStoreLocation = MutableStateFlow<StoreLocationSelection?>(null)
+
     override suspend fun getWooCommerceConfig(): WooCommerceConfig {
         return WooCommerceConfig(
             siteUrl = _apiUrl.value,
@@ -95,6 +99,12 @@ class FakeSettingRepository : DomainSettingRepository {
         _apiUrl.value = ""
         _consumerKey.value = ""
         _consumerSecret.value = ""
+    }
+
+    override fun getSelectedStoreLocationFlow(): Flow<StoreLocationSelection?> = _selectedStoreLocation.asStateFlow()
+
+    override suspend fun setSelectedStoreLocation(selection: StoreLocationSelection?) {
+        _selectedStoreLocation.value = selection
     }
     
     // 自动处理订单设置

@@ -2,6 +2,8 @@ package com.example.wooauto.presentation.screens.orders
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,21 +12,28 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -34,10 +43,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
+import java.util.Locale
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.Color
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -64,10 +77,13 @@ fun OrdersActivePlaceholderScreen(
             snackbarHostState.showSnackbar(msg)
         }
     }
-    val newList = viewModel.newProcessingOrders.collectAsState().value
-    val inProcList = viewModel.inProcessingOrders.collectAsState().value
+    val newList by viewModel.newProcessingOrders.collectAsState()
+    val inProcList by viewModel.inProcessingOrders.collectAsState()
+    val currencySymbol by viewModel.currencySymbol.collectAsState()
     var showStartAllConfirm by remember { mutableStateOf(false) }
     var showCompleteAllConfirm by remember { mutableStateOf(false) }
+
+    val scope = rememberCoroutineScope()
 
     androidx.compose.material3.Scaffold(
         snackbarHost = { androidx.compose.material3.SnackbarHost(hostState = snackbarHostState) }
@@ -98,19 +114,20 @@ fun OrdersActivePlaceholderScreen(
                             ActiveOrderCard(
                                 order = order,
                                 isNew = true,
+                                currencySymbol = currencySymbol,
                                 onStartProcessing = {
                                     viewModel.startProcessingFromCard(order.id)
                                 },
                                 onOpenDetails = {
-                                    viewModel.openOrderDetails(
-                                        order.id,
-                                        OrdersViewModel.OrderDetailMode.NEW
-                                    )
+                                    scope.launch {
+                                        com.example.wooauto.presentation.EventBus.emitOpenOrderDetail(order, DetailMode.NEW)
+                                    }
                                 }
                             )
                         }
                     }
                 }
+
                 Spacer(modifier = Modifier.width(spacing))
                 Box(
                     modifier = Modifier
@@ -136,12 +153,12 @@ fun OrdersActivePlaceholderScreen(
                             ActiveOrderCard(
                                 order = order,
                                 isNew = false,
+                                currencySymbol = currencySymbol,
                                 onStartProcessing = { },
                                 onOpenDetails = {
-                                    viewModel.openOrderDetails(
-                                        order.id,
-                                        OrdersViewModel.OrderDetailMode.PROCESSING
-                                    )
+                                    scope.launch {
+                                        com.example.wooauto.presentation.EventBus.emitOpenOrderDetail(order, DetailMode.PROCESSING)
+                                    }
                                 }
                             )
                         }
@@ -189,67 +206,70 @@ fun OrdersActivePlaceholderScreen(
                 }
             }
 
-            // show order details dialog if selected
-            ActiveOrderDetailsHost(viewModel)
+            // show order details dialog is handled by EventBus in WooAutoApp
         }
-
-	}
-
-	// 关闭 OrdersActivePlaceholderScreen 函数体
+    }
 }
 
-// 结束 OrdersActivePlaceholderScreen 组合函数，以下为文件级别的私有可组合函数
-
-    // 详情弹窗（沿用 History 的组件）
-    @Composable
-    private fun ActiveOrderDetailsHost(viewModel: OrdersViewModel) {
-        val selectedOrder = viewModel.selectedOrder.collectAsState().value
-        val mode = viewModel.selectedDetailMode.collectAsState().value
-        if (selectedOrder != null) {
-            OrderDetailDialog(
-                order = selectedOrder,
-                onDismiss = { viewModel.clearSelectedOrder() },
-                mode = when (mode) {
-                    OrdersViewModel.OrderDetailMode.NEW -> DetailMode.NEW
-                    OrdersViewModel.OrderDetailMode.PROCESSING -> DetailMode.PROCESSING
-                    else -> DetailMode.AUTO
-                },
-                onStatusChange = { id, status ->
-                    viewModel.updateOrderStatus(id, status)
-                    // 由 Active 宿主负责真正关闭（不重置模式，避免在刷新期间再弹回）
-                    viewModel.clearSelectedOrder()
-                },
-                onMarkAsPrinted = { id -> viewModel.markOrderAsPrinted(id) },
-                onMarkAsRead = { id -> viewModel.markOrderAsRead(id) }
-            )
+private fun cleanNotesForDisplay(notes: String): String {
+    if (notes.isBlank()) return notes
+    return notes
+        .lines()
+        .filterNot { line ->
+            val trimmed = line.trim()
+            trimmed.startsWith("--- 元数据") || trimmed.startsWith("exwfood_")
         }
-    }
+        .joinToString("\n")
+        .trim()
+}
 
-    @Composable
-    private fun SectionHeader(title: String, count: Int, actions: (@Composable () -> Unit)? = null) {
-        Row(
-            modifier = Modifier
-				.fillMaxWidth()
-				.padding(bottom = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "$title ($count)",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Spacer(modifier = Modifier.weight(1f))
-            actions?.invoke()
-        }
-    }
-
-    @Composable
-    private fun ActiveOrderCard(
-        order: com.example.wooauto.domain.models.Order,
-        isNew: Boolean,
-        onStartProcessing: () -> Unit,
-        onOpenDetails: () -> Unit
+@Composable
+private fun SectionHeader(title: String, count: Int, actions: (@Composable () -> Unit)? = null) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
+        Text(
+            text = "$title ($count)",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Spacer(modifier = Modifier.weight(1f))
+        actions?.invoke()
+    }
+}
+
+@Composable
+private fun InfoChip(
+    text: String,
+    textColor: Color,
+    backgroundColor: Color,
+    borderColor: Color = Color.Transparent
+) {
+    Surface(
+        color = backgroundColor,
+        shape = RoundedCornerShape(14.dp),
+        border = if (borderColor == Color.Transparent) null else BorderStroke(1.dp, borderColor)
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelSmall,
+            color = textColor,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+        )
+    }
+}
+
+@Composable
+private fun ActiveOrderCard(
+    order: com.example.wooauto.domain.models.Order,
+    isNew: Boolean,
+    currencySymbol: String,
+    onStartProcessing: () -> Unit,
+    onOpenDetails: () -> Unit
+) {
         Card(
             modifier = Modifier
 				.fillMaxWidth()
@@ -274,6 +294,89 @@ fun OrdersActivePlaceholderScreen(
                         )
                     }
                 }
+                
+                val statusText = when (order.status) {
+                    "completed" -> stringResource(com.example.wooauto.R.string.order_status_completed)
+                    "processing" -> stringResource(com.example.wooauto.R.string.order_status_processing)
+                    "pending" -> stringResource(com.example.wooauto.R.string.order_status_pending)
+                    "cancelled" -> stringResource(com.example.wooauto.R.string.order_status_cancelled)
+                    "refunded" -> stringResource(com.example.wooauto.R.string.order_status_refunded)
+                    "failed" -> stringResource(com.example.wooauto.R.string.order_status_failed)
+                    "on-hold" -> stringResource(com.example.wooauto.R.string.order_status_on_hold)
+                    else -> order.status
+                }
+                val statusColor = getStatusColor(order.status)
+                val isPrinted = order.isPrinted
+                val printText = if (isPrinted) {
+                    stringResource(com.example.wooauto.R.string.printed_yes)
+                } else {
+                    stringResource(com.example.wooauto.R.string.printed_no)
+                }
+                val printColor = if (isPrinted) Color(0xFF2E7D32) else Color(0xFFC62828)
+                val printBg = if (isPrinted) Color(0xFFE8F5E9) else Color(0xFFFFEBEE)
+
+                // 订单类型：堂食 / 外卖 / 自取
+                val orderMethod = order.woofoodInfo?.orderMethod?.trim()?.lowercase(Locale.ROOT)
+                val isDineIn = when {
+                    !order.woofoodInfo?.dineInPersonCount.isNullOrBlank() -> true
+                    orderMethod == "dinein" -> true
+                    orderMethod == "dine-in" -> true
+                    orderMethod == "dine_in" -> true
+                    // 兼容少量上游可能直接传中文
+                    orderMethod?.contains("堂食") == true -> true
+                    else -> false
+                }
+                val isDelivery = order.woofoodInfo?.isDelivery == true ||
+                        order.woofoodInfo?.orderMethod?.equals("delivery", ignoreCase = true) == true
+                val typeText = when {
+                    isDineIn -> stringResource(com.example.wooauto.R.string.delivery_type_dine_in)
+                    isDelivery -> stringResource(com.example.wooauto.R.string.delivery_type_delivery)
+                    else -> stringResource(com.example.wooauto.R.string.delivery_type_pickup)
+                }
+                val typeColor = when {
+                    isDineIn -> Color(0xFF6A1B9A)
+                    isDelivery -> Color(0xFF1976D2)
+                    else -> Color(0xFF388E3C)
+                }
+                val isPaid = order.paymentMethod.contains("cash", ignoreCase = true).not()
+                val paymentText = if (isPaid) {
+                    stringResource(com.example.wooauto.R.string.payment_status_paid)
+                } else {
+                    stringResource(com.example.wooauto.R.string.payment_status_cash_due)
+                }
+                val paymentColor = if (isPaid) Color(0xFF2E7D32) else Color(0xFFC62828)
+                val paymentBg = if (isPaid) Color(0xFFE8F5E9) else Color(0xFFFFEBEE)
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp)
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    InfoChip(
+                        text = statusText,
+                        textColor = statusColor,
+                        backgroundColor = statusColor.copy(alpha = 0.12f),
+                        borderColor = statusColor.copy(alpha = 0.4f)
+                    )
+                    InfoChip(
+                        text = typeText,
+                        textColor = typeColor,
+                        backgroundColor = typeColor.copy(alpha = 0.12f),
+                        borderColor = typeColor.copy(alpha = 0.4f)
+                    )
+                    InfoChip(
+                        text = paymentText,
+                        textColor = paymentColor,
+                        backgroundColor = paymentBg
+                    )
+                    InfoChip(
+                        text = printText,
+                        textColor = printColor,
+                        backgroundColor = printBg
+                    )
+                }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
                         imageVector = Icons.Default.Person,
@@ -287,21 +390,47 @@ fun OrdersActivePlaceholderScreen(
                         color = MaterialTheme.colorScheme.onSurface
                     )
                 }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.DateRange,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    val dateText =
-                        java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.getDefault())
-                            .format(order.dateCreated)
-                    Text(
-                        text = dateText,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                val deliveryDisplayInfo = remember(
+                    order.woofoodInfo?.deliveryDate,
+                    order.woofoodInfo?.deliveryTime,
+                    order.dateCreated.time
+                ) {
+                    DeliveryDisplayFormatter.format(order.woofoodInfo, order.dateCreated, Locale.getDefault())
+                }
+                val dateHeadlineColor = when {
+                    !deliveryDisplayInfo.hasDate -> MaterialTheme.colorScheme.onSurfaceVariant
+                    deliveryDisplayInfo.isFutureOrToday -> MaterialTheme.colorScheme.primary
+                    else -> MaterialTheme.colorScheme.onSurface
+                }
+                
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.DateRange,
+                            contentDescription = null,
+                            tint = dateHeadlineColor
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = deliveryDisplayInfo.headline,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = dateHeadlineColor
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Schedule,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = deliveryDisplayInfo.timeLabel,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
                 if (order.total.isNotEmpty()) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -312,12 +441,62 @@ fun OrdersActivePlaceholderScreen(
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = order.total,
+                            text = "$currencySymbol${order.total}",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
+
+                // 门店位置（仅在可用时显示）
+                val storeName = order.woofoodInfo?.storeLocationName?.trim().orEmpty()
+                if (storeName.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = storeName,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                }
+                // 备注信息（仿照 OrderDetailDialog 样式，带过滤和黄色背景）
+                val orderNote = cleanNotesForDisplay(order.notes)
+
+                if (orderNote.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color(0xFFFFF9C4), RoundedCornerShape(4.dp))
+                            .padding(8.dp)
+                    ) {
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.Warning,
+                                    contentDescription = null,
+                                    tint = Color(0xFFF57F17),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = stringResource(com.example.wooauto.R.string.order_note),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                    color = Color(0xFFF57F17)
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = orderNote,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color.Black
+                            )
+                        }
+                    }
+                }
+                
                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),

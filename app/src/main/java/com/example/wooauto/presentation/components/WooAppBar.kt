@@ -41,7 +41,8 @@ import com.example.wooauto.presentation.navigation.resolveTopBarTitle
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WooAppBar(
-    navController: NavController? = null
+    navController: NavController? = null,
+    hasEligibility: Boolean = false
 ) {
     // 获取当前语言环境
     val locale = LocalAppLocale.current
@@ -81,6 +82,7 @@ fun WooAppBar(
                 showTitle = true,
                 titleAlignment = if (spec.alignStart) Alignment.Start else Alignment.CenterHorizontally,
                 showStatusStrip = spec.showStatusStrip,
+                hasEligibility = hasEligibility,
                 leadingContent = null,
                 trailingContent = trailingPill
             )
@@ -110,6 +112,7 @@ fun WooAppBar(
                 showTitle = true,
                 titleAlignment = if (spec.alignStart) Alignment.Start else Alignment.CenterHorizontally,
                 showStatusStrip = spec.showStatusStrip,
+                hasEligibility = hasEligibility,
                 leadingContent = if (showBack) {
                     {
                         IconButton(onClick = { navController?.popBackStack() }) {

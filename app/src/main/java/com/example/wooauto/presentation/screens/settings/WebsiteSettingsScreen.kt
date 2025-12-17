@@ -2,6 +2,7 @@ package com.example.wooauto.presentation.screens.settings
 
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,17 +11,22 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -33,6 +39,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -51,6 +58,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.wooauto.R
+import com.example.wooauto.data.remote.exfood.ExFoodLocation
+import com.example.wooauto.domain.models.StoreLocationSelection
 import com.example.wooauto.presentation.components.ScrollableWithEdgeScrim
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
@@ -74,6 +83,15 @@ fun WebsiteSettingsDialogContent(
     val useWooCommerceFood by viewModel.useWooCommerceFood.collectAsState()
     val isTestingConnection by viewModel.isTestingConnection.collectAsState()
     val connectionTestResult by viewModel.connectionTestResult.collectAsState()
+
+    // Multi-store selection (WooCommerce Food / ExFood)
+    val selectedStoreLocations by viewModel.settingsRepository.getSelectedStoreLocationsFlow()
+        .collectAsState(initial = emptyList())
+    var isApplying by remember { mutableStateOf(false) }
+    var pendingLocations by remember { mutableStateOf<List<ExFoodLocation>>(emptyList()) }
+    var requireLocationSelection by remember { mutableStateOf(false) }
+    var tempSelectedSlugs by remember { mutableStateOf<Set<String>>(emptySet()) }
+
     rememberScrollState()
     // 移除测试弹窗按钮/状态
 
@@ -136,7 +154,20 @@ fun WebsiteSettingsDialogContent(
                 TopAppBar(
                     title = { Text(stringResource(id = R.string.api_configuration)) },
                     navigationIcon = {
-                        IconButton(onClick = onClose) {
+                        IconButton(
+                            enabled = !isApplying,
+                            onClick = {
+                                if (requireLocationSelection) {
+                                    coroutineScope.launch {
+                                        snackbarHostState.showSnackbar(
+                                            context.getString(R.string.store_location_select_required)
+                                        )
+                                    }
+                                } else {
+                                    onClose()
+                                }
+                            }
+                        ) {
                             Icon(
                                 Icons.Default.Close,
                                 contentDescription = stringResource(R.string.close)
@@ -258,6 +289,133 @@ fun WebsiteSettingsDialogContent(
                                 )
                             }
 
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            // 当前已选门店（仅在启用 WooCommerce Food 且已选时展示）
+                            if (useWooCommerceFood) {
+                                if (selectedStoreLocations.isNotEmpty()) {
+                                    Card(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                                        ),
+                                        shape = RoundedCornerShape(12.dp)
+                                    ) {
+                                        Column(modifier = Modifier.padding(14.dp)) {
+                                            Text(
+                                                text = stringResource(R.string.store_location_selected_title),
+                                                style = MaterialTheme.typography.titleSmall,
+                                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                                            )
+                                            Spacer(modifier = Modifier.height(6.dp))
+                                            selectedStoreLocations.forEach { sel ->
+                                                Text(text = sel.name, style = MaterialTheme.typography.bodyMedium)
+                                                sel.address?.takeIf { it.isNotBlank() }?.let { addr ->
+                                                    Text(
+                                                        text = addr,
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                }
+                                                Text(
+                                                    text = stringResource(R.string.store_location_slug_format, sel.slug),
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                                Spacer(modifier = Modifier.height(8.dp))
+                                            }
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                }
+                            }
+
+                            // Apply：保存配置并拉取 locations（多门店时强制选择）
+                            Button(
+                                onClick = {
+                                    if (siteUrlInput.isBlank() || consumerKeyInput.isBlank() || consumerSecretInput.isBlank()) {
+                                        coroutineScope.launch {
+                                            snackbarHostState.showSnackbar(context.getString(R.string.fill_all_fields))
+                                        }
+                                        return@Button
+                                    }
+
+                                    coroutineScope.launch {
+                                        try {
+                                            isApplying = true
+
+                                            val interval = pollingIntervalInput.toIntOrNull() ?: 30
+                                            val result = viewModel.applyApiConfigAndFetchLocations(
+                                                rawSiteUrl = siteUrlInput,
+                                                consumerKey = consumerKeyInput,
+                                                consumerSecret = consumerSecretInput,
+                                                pollingIntervalSeconds = interval,
+                                                useWooCommerceFood = useWooCommerceFood
+                                            )
+
+                                            val locations = result.getOrNull()
+                                            if (locations != null) {
+                                                if (!useWooCommerceFood) {
+                                                    // 插件关闭时清空门店选择，避免残留过滤
+                                                    viewModel.settingsRepository.setSelectedStoreLocations(emptyList())
+                                                    viewModel.notifyServiceToRestartPolling()
+                                                } else {
+                                                    when {
+                                                        locations.size > 1 -> {
+                                                            // 需要强制重新选择
+                                                            pendingLocations = locations
+                                                            val available = locations.map { it.slug }.toSet()
+                                                            tempSelectedSlugs = selectedStoreLocations.map { it.slug }.toSet().intersect(available)
+                                                            requireLocationSelection = true
+                                                        }
+                                                        locations.size == 1 -> {
+                                                            val loc = locations[0]
+                                                            viewModel.settingsRepository.setSelectedStoreLocations(
+                                                                listOf(
+                                                                    StoreLocationSelection(
+                                                                        slug = loc.slug,
+                                                                        name = loc.name,
+                                                                        address = loc.address
+                                                                    )
+                                                                )
+                                                            )
+                                                            viewModel.notifyServiceToRestartPolling()
+                                                        }
+                                                        else -> {
+                                                            // locations == 0：不提示，按正常流程继续
+                                                            viewModel.settingsRepository.setSelectedStoreLocations(emptyList())
+                                                            viewModel.notifyServiceToRestartPolling()
+                                                        }
+                                                    }
+                                                }
+                                            } else {
+                                                val e = result.exceptionOrNull()
+                                                snackbarHostState.showSnackbar(
+                                                    context.getString(
+                                                        R.string.apply_failed_format,
+                                                        (e?.message ?: "")
+                                                    )
+                                                )
+                                            }
+                                        } finally {
+                                            isApplying = false
+                                        }
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                enabled = !isApplying && !isTestingConnection
+                            ) {
+                                if (isApplying) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(22.dp),
+                                        strokeWidth = 2.dp,
+                                        color = MaterialTheme.colorScheme.onPrimary
+                                    )
+                                } else {
+                                    Text(stringResource(R.string.apply))
+                                }
+                            }
+
                             Spacer(modifier = Modifier.height(24.dp))
 
                             // 保存和测试连接按钮
@@ -372,5 +530,97 @@ fun WebsiteSettingsDialogContent(
                 }
             }
         }
+    }
+
+    // 多门店强制选择：不允许 dismiss，必须选中后确认
+    if (requireLocationSelection) {
+        AlertDialog(
+            onDismissRequest = {
+                // 不允许点击外部/返回键关闭，必须选择门店
+            },
+            title = { Text(text = stringResource(R.string.store_location_select_title)) },
+            text = {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 380.dp)
+                ) {
+                    items(pendingLocations, key = { it.slug }) { loc ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    tempSelectedSlugs = if (tempSelectedSlugs.contains(loc.slug)) {
+                                        tempSelectedSlugs - loc.slug
+                                    } else {
+                                        tempSelectedSlugs + loc.slug
+                                    }
+                                }
+                                .padding(vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            val checked = tempSelectedSlugs.contains(loc.slug)
+                            Checkbox(
+                                checked = checked,
+                                onCheckedChange = { isChecked ->
+                                    tempSelectedSlugs = if (isChecked) {
+                                        tempSelectedSlugs + loc.slug
+                                    } else {
+                                        tempSelectedSlugs - loc.slug
+                                    }
+                                }
+                            )
+                            Spacer(modifier = Modifier.size(8.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(text = loc.name, style = MaterialTheme.typography.bodyLarge)
+                                loc.address?.takeIf { it.isNotBlank() }?.let { addr ->
+                                    Text(
+                                        text = addr,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Text(
+                                    text = stringResource(R.string.store_location_slug_format, loc.slug),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = tempSelectedSlugs.isNotEmpty() && !isApplying,
+                    onClick = {
+                        val chosen = pendingLocations.filter { tempSelectedSlugs.contains(it.slug) }
+                        if (chosen.isEmpty()) return@TextButton
+                        coroutineScope.launch {
+                            try {
+                                isApplying = true
+                                viewModel.settingsRepository.setSelectedStoreLocations(
+                                    chosen.map { loc ->
+                                        StoreLocationSelection(
+                                            slug = loc.slug,
+                                            name = loc.name,
+                                            address = loc.address
+                                        )
+                                    }
+                                )
+                                requireLocationSelection = false
+                                pendingLocations = emptyList()
+                                tempSelectedSlugs = emptySet()
+                                viewModel.notifyServiceToRestartPolling()
+                            } finally {
+                                isApplying = false
+                            }
+                        }
+                    }
+                ) {
+                    Text(text = stringResource(R.string.confirm))
+                }
+            }
+        )
     }
 }

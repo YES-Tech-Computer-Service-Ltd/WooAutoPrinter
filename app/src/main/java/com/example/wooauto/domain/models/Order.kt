@@ -32,15 +32,20 @@ data class Order(
  */
 data class WooFoodInfo(
     val orderMethod: String?, // 订单方式，例如"配送"或"自取"
+    val deliveryDate: String?, // 配送日期
     val deliveryTime: String?, // 配送时间
+    val dineInPersonCount: String?, // 堂食人数（dine-in 才有）
     val deliveryAddress: String?, // 配送地址
     val deliveryFee: String?, // 配送费用
     val tip: String?, // 小费
-    val isDelivery: Boolean // 是否是外卖订单
+    val isDelivery: Boolean, // 是否是外卖订单
+    // WooCommerce Food multi-store (optional)
+    val storeLocationSlug: String? = null,
+    val storeLocationName: String? = null
 ) {
     override fun toString(): String {
-        return "WooFoodInfo(orderMethod=$orderMethod, deliveryTime=$deliveryTime, " +
-               "deliveryFee=$deliveryFee, tip=$tip, isDelivery=$isDelivery)"
+        return "WooFoodInfo(orderMethod=$orderMethod, deliveryDate=$deliveryDate, deliveryTime=$deliveryTime, " +
+               "dineInPersonCount=$dineInPersonCount, deliveryFee=$deliveryFee, tip=$tip, isDelivery=$isDelivery)"
     }
 }
 

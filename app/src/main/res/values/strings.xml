@@ -54,10 +54,27 @@
     <string name="order_note">Note</string>
     <string name="delivery_order">Delivery Order</string>
     <string name="pickup_order">Pickup Order</string>
+    <string name="dine_in_order">Dine-in Order</string>
     <string name="delivery_address">Delivery Address</string>
     <string name="pickup_location">Pickup Location</string>
     <string name="product_list">Product List</string>
     <string name="price_details">Price Details</string>
+    <string name="order_detail_header_title">Order #%1$s</string>
+    <string name="order_detail_header_time">Placed at %1$s • %2$s</string>
+    <string name="production_card_title">Items • %1$d pcs</string>
+    <string name="order_note_section_title">Order Notes</string>
+    <string name="expected_time_label">Expected Time</string>
+    <string name="delivery_type_delivery">Delivery</string>
+    <string name="delivery_type_pickup">Pickup</string>
+    <string name="delivery_type_dine_in">Dine-in service</string>
+    <string name="dine_in_people_value">People: %1$s</string>
+    <string name="not_provided_bilingual">Not provided / 未填写</string>
+    <string name="customer_info_section_title">Customer Info</string>
+    <string name="payment_total_label">Paid Amount</string>
+    <string name="payment_status_paid">Paid</string>
+    <string name="payment_status_cash_due">Unpaid / Collect Cash</string>
+    <string name="payment_delivery_fee_label">Delivery Fee</string>
+    <string name="expected_time_asap">ASAP</string>
     <string name="subtotal">Subtotal</string>
     <string name="discount">Discount</string>
     <string name="tax">Tax</string>
@@ -72,6 +89,11 @@
     <string name="filter_last_days">Last days</string>
     <string name="mark_as_printed">Mark as Printed</string>
     <string name="start_processing">Start processing</string>
+    <string name="mark_completed">Mark as completed</string>
+    <string name="item_options_label">Item customizations</string>
+    <string name="item_special_instruction_label">Special instruction</string>
+    <string name="show_delivery_address">Show delivery address</string>
+    <string name="hide_delivery_address">Hide delivery address</string>
     <string name="last_1_day">Last 1 Day</string>
     <string name="start_processing_bilingual">Start processing</string>
     <string name="close_bilingual">Close</string>
@@ -144,6 +166,26 @@
     <string name="status_enabled">Enabled</string>
     <string name="status_disabled">Disabled</string>
     <string name="no_template_selected">No template selected</string>
+
+    <!-- Multi-store (WooCommerce Food / ExFood) -->
+    <string name="apply">Apply</string>
+    <string name="apply_failed_format">Apply failed. %1$s</string>
+    <string name="store_location_selected_title">Selected store</string>
+    <string name="store_location_select_title">Select store</string>
+    <string name="store_location_select_required">Please select a store to continue.</string>
+    <string name="store_location_slug_format">Slug: %1$s</string>
+
+    <!-- Store Status (WooCommerce Food / ExFood) -->
+    <string name="store_status_open">Open</string>
+    <string name="store_status_open_all_day">Open (All day)</string>
+    <string name="store_status_closed">Closed</string>
+    <string name="store_status_confirm_close_title">Switch to Closed?</string>
+    <string name="store_status_confirm_close_message">When closed, new orders usually won\'t come in.</string>
+    <string name="store_status_confirm_open_title">Switch to Open?</string>
+    <string name="store_status_confirm_open_message">The store will follow business hours.</string>
+    <string name="store_status_error_title">Store status error</string>
+    <string name="store_status_error_get_user_message">Unable to fetch store status. Switching is temporarily unavailable. Please contact technical support.</string>
+    <string name="store_status_error_post_user_message">Failed to switch store status. Please contact technical support.</string>
 
     <!-- Website Setup -->
     <string name="website_url">Website URL</string>
@@ -471,6 +513,17 @@
     <string name="relative_days_later">%1$d days later</string>
     <string name="status_date_with_relative">%1$s (%2$s)</string>
     <string name="about">About</string>
+    <string name="network_error_logs">Network error logs</string>
+    <string name="network_error_logs_subtitle">View / copy / clear network diagnostics history</string>
+    <string name="network_error_logs_desc">This page keeps de-duplicated network failures (DNS / IPv / TLS / timeout / server errors) to help diagnose issues. Same problems are merged and counted.</string>
+    <string name="network_error_logs_empty">No network error logs yet.</string>
+    <string name="network_error_logs_copy_all">Copy all</string>
+    <string name="network_error_logs_clear">Clear</string>
+    <string name="network_error_logs_copy">Copy</string>
+    <string name="network_error_logs_close">Close</string>
+    <string name="network_error_logs_copied">Copied</string>
+    <string name="network_error_logs_cleared">Cleared</string>
+    <string name="network_error_logs_last_seen">Last seen</string>
     <string name="deactivate_license">Deactivate License</string>
     <string name="deactivate_license_title">Deactivate license?</string>
     <string name="deactivate_license_message">This will remove the current license and reset trial locally. You can activate a new license later.</string>
@@ -620,6 +673,17 @@
     <string name="install_update">Install Update</string>
     <string name="update_notification_channel_name">App Updates</string>
     <string name="update_notification_channel_desc">Notifications for app updates and download progress.</string>
+
+    <!-- Foreground Service (Polling) Notification -->
+    <string name="fgs_notification_title_processing_orders">Processing orders: %1$d</string>
+    <string name="fgs_notification_content_network_printer">Network: %1$s | Printer: %2$s</string>
+    <string name="status_online_short">Online</string>
+    <string name="status_offline_short">Offline</string>
+    <string name="status_connected_short">Connected</string>
+    <string name="status_disconnected_short">Disconnected</string>
+    <string name="status_connecting_short">Connecting</string>
+    <string name="status_error_short">Error</string>
+    <string name="printer_status_not_set_short">Not set</string>
     <string name="download_pending">Download pending…</string>
     <string name="download_running">Downloading: %1$d%%</string>
     <string name="update_ready_to_install">Update ready to install</string>

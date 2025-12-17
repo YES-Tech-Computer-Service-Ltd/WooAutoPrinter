@@ -347,6 +347,7 @@ dependencies {
     }
     implementation("org.jsoup:jsoup:1.16.2") // 用于解析HTML
     implementation("com.squareup.okhttp3:okhttp:4.12.0") // 网络请求
+    implementation("com.squareup.okhttp3:okhttp-dnsoverhttps:4.12.0") // DNS over HTTPS
 
     // ExoPlayer for controllable audio pipeline
     implementation("com.google.android.exoplayer:exoplayer-core:2.19.1")

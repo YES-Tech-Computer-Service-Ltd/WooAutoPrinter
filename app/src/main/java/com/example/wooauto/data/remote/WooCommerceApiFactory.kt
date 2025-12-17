@@ -5,6 +5,7 @@ import com.example.wooauto.data.remote.impl.WooCommerceApiImpl
 import com.example.wooauto.data.remote.interceptors.SSLErrorInterceptor
 import com.example.wooauto.data.remote.ConnectionResetHandler
 import com.example.wooauto.utils.GlobalErrorManager
+import com.example.wooauto.diagnostics.network.NetworkErrorLogger
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -16,7 +17,8 @@ interface WooCommerceApiFactory {
 class WooCommerceApiFactoryImpl @Inject constructor(
     private val sslErrorInterceptor: SSLErrorInterceptor,
     private val connectionResetHandler: ConnectionResetHandler,
-    private val globalErrorManager: GlobalErrorManager
+    private val globalErrorManager: GlobalErrorManager,
+    private val networkErrorLogger: NetworkErrorLogger
 ) : WooCommerceApiFactory {
     
     private var cachedApi: WooCommerceApi? = null
@@ -30,7 +32,13 @@ class WooCommerceApiFactoryImpl @Inject constructor(
         }
         
         Log.d("WooCommerceApiFactory", "创建新的WooCommerceApi实例，站点URL: ${config.siteUrl}")
-        val newApi = WooCommerceApiImpl(config, sslErrorInterceptor, connectionResetHandler, globalErrorManager)
+        val newApi = WooCommerceApiImpl(
+            config,
+            sslErrorInterceptor,
+            connectionResetHandler,
+            globalErrorManager,
+            networkErrorLogger
+        )
         
         // 缓存新实例和配置
         cachedApi = newApi
