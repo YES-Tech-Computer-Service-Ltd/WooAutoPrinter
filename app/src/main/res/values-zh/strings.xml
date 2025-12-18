@@ -168,6 +168,7 @@
     <string name="store_location_select_title">选择应用门店</string>
     <string name="store_location_select_required">请先选择门店后再关闭</string>
     <string name="store_location_slug_format">Slug：%1$s</string>
+    <string name="enable_multi_location">启用 Multi Location</string>
 
     <!-- Store Status (WooCommerce Food / ExFood) -->
     <string name="store_status_open">营业中</string>

@@ -88,6 +88,7 @@ fun WebsiteSettingsDialogContent(
     val selectedStoreLocations by viewModel.settingsRepository.getSelectedStoreLocationsFlow()
         .collectAsState(initial = emptyList())
     var isApplying by remember { mutableStateOf(false) }
+    var isEnablingMultiLocation by remember { mutableStateOf(false) }
     var pendingLocations by remember { mutableStateOf<List<ExFoodLocation>>(emptyList()) }
     var requireLocationSelection by remember { mutableStateOf(false) }
     var tempSelectedSlugs by remember { mutableStateOf<Set<String>>(emptySet()) }
@@ -158,14 +159,15 @@ fun WebsiteSettingsDialogContent(
                             enabled = !isApplying,
                             onClick = {
                                 if (requireLocationSelection) {
+                                    // 未确认就退出：关闭 multi-location（不保存选择）
                                     coroutineScope.launch {
-                                        snackbarHostState.showSnackbar(
-                                            context.getString(R.string.store_location_select_required)
-                                        )
+                                        try { viewModel.settingsRepository.setSelectedStoreLocations(emptyList()) } catch (_: Exception) {}
                                     }
-                                } else {
-                                    onClose()
+                                    requireLocationSelection = false
+                                    pendingLocations = emptyList()
+                                    tempSelectedSlugs = emptySet()
                                 }
+                                onClose()
                             }
                         ) {
                             Icon(
@@ -285,14 +287,105 @@ fun WebsiteSettingsDialogContent(
                                         )
                                         // 再更新开关（内部会保存）
                                         viewModel.updateUseWooCommerceFood(checked)
+
+                                        // 关闭插件时：同时关闭 multi-location（清空门店选择，避免残留过滤/显示）
+                                        if (!checked) {
+                                            coroutineScope.launch {
+                                                try { viewModel.settingsRepository.setSelectedStoreLocations(emptyList()) } catch (_: Exception) {}
+                                                viewModel.notifyServiceToRestartPolling()
+                                            }
+                                            requireLocationSelection = false
+                                            pendingLocations = emptyList()
+                                            tempSelectedSlugs = emptySet()
+                                        }
                                     }
                                 )
                             }
 
                             Spacer(modifier = Modifier.height(16.dp))
 
-                            // 当前已选门店（仅在启用 WooCommerce Food 且已选时展示）
+                            // Multi location toggle: enabled only after user confirms selection.
                             if (useWooCommerceFood) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = stringResource(R.string.enable_multi_location),
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Switch(
+                                        checked = selectedStoreLocations.isNotEmpty() || requireLocationSelection || isEnablingMultiLocation,
+                                        enabled = !isApplying && !isTestingConnection,
+                                        onCheckedChange = { checked ->
+                                            if (!checked) {
+                                                // Disable: clear confirmed selection
+                                                coroutineScope.launch {
+                                                    try { viewModel.settingsRepository.setSelectedStoreLocations(emptyList()) } catch (_: Exception) {}
+                                                    viewModel.notifyServiceToRestartPolling()
+                                                }
+                                                isEnablingMultiLocation = false
+                                            } else {
+                                                // Enable: fetch locations and open multi-select dialog (confirm required)
+                                                if (siteUrlInput.isBlank() || consumerKeyInput.isBlank() || consumerSecretInput.isBlank()) {
+                                                    coroutineScope.launch {
+                                                        snackbarHostState.showSnackbar(context.getString(R.string.fill_all_fields))
+                                                    }
+                                                    return@Switch
+                                                }
+
+                                                coroutineScope.launch {
+                                                    try {
+                                                        isEnablingMultiLocation = true
+                                                        isApplying = true
+
+                                                        val interval = pollingIntervalInput.toIntOrNull() ?: 30
+                                                        val result = viewModel.applyApiConfigAndFetchLocations(
+                                                            rawSiteUrl = siteUrlInput,
+                                                            consumerKey = consumerKeyInput,
+                                                            consumerSecret = consumerSecretInput,
+                                                            pollingIntervalSeconds = interval,
+                                                            useWooCommerceFood = true
+                                                        )
+
+                                                        val locations = result.getOrNull()
+                                                        if (locations != null) {
+                                                            if (locations.isEmpty()) {
+                                                                // No locations: keep multi-location disabled
+                                                                try { viewModel.settingsRepository.setSelectedStoreLocations(emptyList()) } catch (_: Exception) {}
+                                                                snackbarHostState.showSnackbar(context.getString(R.string.apply_failed_format, "No locations"))
+                                                                isEnablingMultiLocation = false
+                                                            } else {
+                                                                pendingLocations = locations
+                                                                tempSelectedSlugs = emptySet()
+                                                                requireLocationSelection = true
+                                                                // selection dialog is now the "pending" state
+                                                                isEnablingMultiLocation = false
+                                                            }
+                                                        } else {
+                                                            val e = result.exceptionOrNull()
+                                                            snackbarHostState.showSnackbar(
+                                                                context.getString(
+                                                                    R.string.apply_failed_format,
+                                                                    (e?.message ?: "")
+                                                                )
+                                                            )
+                                                            try { viewModel.settingsRepository.setSelectedStoreLocations(emptyList()) } catch (_: Exception) {}
+                                                            isEnablingMultiLocation = false
+                                                        }
+                                                    } finally {
+                                                        isApplying = false
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                // 当前已选门店（仅在确认启用 multi-location 后展示）
                                 if (selectedStoreLocations.isNotEmpty()) {
                                     Card(
                                         modifier = Modifier.fillMaxWidth(),
@@ -329,94 +422,6 @@ fun WebsiteSettingsDialogContent(
                                     Spacer(modifier = Modifier.height(12.dp))
                                 }
                             }
-
-                            // Apply：保存配置并拉取 locations（多门店时强制选择）
-                            Button(
-                                onClick = {
-                                    if (siteUrlInput.isBlank() || consumerKeyInput.isBlank() || consumerSecretInput.isBlank()) {
-                                        coroutineScope.launch {
-                                            snackbarHostState.showSnackbar(context.getString(R.string.fill_all_fields))
-                                        }
-                                        return@Button
-                                    }
-
-                                    coroutineScope.launch {
-                                        try {
-                                            isApplying = true
-
-                                            val interval = pollingIntervalInput.toIntOrNull() ?: 30
-                                            val result = viewModel.applyApiConfigAndFetchLocations(
-                                                rawSiteUrl = siteUrlInput,
-                                                consumerKey = consumerKeyInput,
-                                                consumerSecret = consumerSecretInput,
-                                                pollingIntervalSeconds = interval,
-                                                useWooCommerceFood = useWooCommerceFood
-                                            )
-
-                                            val locations = result.getOrNull()
-                                            if (locations != null) {
-                                                if (!useWooCommerceFood) {
-                                                    // 插件关闭时清空门店选择，避免残留过滤
-                                                    viewModel.settingsRepository.setSelectedStoreLocations(emptyList())
-                                                    viewModel.notifyServiceToRestartPolling()
-                                                } else {
-                                                    when {
-                                                        locations.size > 1 -> {
-                                                            // 需要强制重新选择
-                                                            pendingLocations = locations
-                                                            val available = locations.map { it.slug }.toSet()
-                                                            tempSelectedSlugs = selectedStoreLocations.map { it.slug }.toSet().intersect(available)
-                                                            requireLocationSelection = true
-                                                        }
-                                                        locations.size == 1 -> {
-                                                            val loc = locations[0]
-                                                            viewModel.settingsRepository.setSelectedStoreLocations(
-                                                                listOf(
-                                                                    StoreLocationSelection(
-                                                                        slug = loc.slug,
-                                                                        name = loc.name,
-                                                                        address = loc.address
-                                                                    )
-                                                                )
-                                                            )
-                                                            viewModel.notifyServiceToRestartPolling()
-                                                        }
-                                                        else -> {
-                                                            // locations == 0：不提示，按正常流程继续
-                                                            viewModel.settingsRepository.setSelectedStoreLocations(emptyList())
-                                                            viewModel.notifyServiceToRestartPolling()
-                                                        }
-                                                    }
-                                                }
-                                            } else {
-                                                val e = result.exceptionOrNull()
-                                                snackbarHostState.showSnackbar(
-                                                    context.getString(
-                                                        R.string.apply_failed_format,
-                                                        (e?.message ?: "")
-                                                    )
-                                                )
-                                            }
-                                        } finally {
-                                            isApplying = false
-                                        }
-                                    }
-                                },
-                                modifier = Modifier.fillMaxWidth(),
-                                enabled = !isApplying && !isTestingConnection
-                            ) {
-                                if (isApplying) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(22.dp),
-                                        strokeWidth = 2.dp,
-                                        color = MaterialTheme.colorScheme.onPrimary
-                                    )
-                                } else {
-                                    Text(stringResource(R.string.apply))
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(24.dp))
 
                             // 保存和测试连接按钮
                             Row(
@@ -536,7 +541,13 @@ fun WebsiteSettingsDialogContent(
     if (requireLocationSelection) {
         AlertDialog(
             onDismissRequest = {
-                // 不允许点击外部/返回键关闭，必须选择门店
+                // 未确认就退出：关闭 multi-location（不保存选择）
+                coroutineScope.launch {
+                    try { viewModel.settingsRepository.setSelectedStoreLocations(emptyList()) } catch (_: Exception) {}
+                }
+                requireLocationSelection = false
+                pendingLocations = emptyList()
+                tempSelectedSlugs = emptySet()
             },
             title = { Text(text = stringResource(R.string.store_location_select_title)) },
             text = {
@@ -619,6 +630,22 @@ fun WebsiteSettingsDialogContent(
                     }
                 ) {
                     Text(text = stringResource(R.string.confirm))
+                }
+            }
+            ,
+            dismissButton = {
+                TextButton(
+                    enabled = !isApplying,
+                    onClick = {
+                        coroutineScope.launch {
+                            try { viewModel.settingsRepository.setSelectedStoreLocations(emptyList()) } catch (_: Exception) {}
+                        }
+                        requireLocationSelection = false
+                        pendingLocations = emptyList()
+                        tempSelectedSlugs = emptySet()
+                    }
+                ) {
+                    Text(text = stringResource(R.string.cancel))
                 }
             }
         )
