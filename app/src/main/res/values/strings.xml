@@ -177,16 +177,24 @@
     <string name="enable_multi_location">Enable multi-location</string>
 
     <!-- Store Status (WooCommerce Food / ExFood) -->
-    <string name="store_status_open">Open</string>
-    <string name="store_status_open_all_day">Open (All day)</string>
+    <string name="store_status_open">Orders allowed (Business hours)</string>
+    <string name="store_status_open_all_day">Orders allowed (All day)</string>
     <string name="store_status_closed">Closed</string>
     <string name="store_status_confirm_close_title">Switch to Closed?</string>
     <string name="store_status_confirm_close_message">When closed, new orders usually won\'t come in.</string>
     <string name="store_status_confirm_open_title">Switch to Open?</string>
-    <string name="store_status_confirm_open_message">The store will follow business hours.</string>
+    <string name="store_status_confirm_open_message">Orders will be allowed only during business hours.</string>
+    <string name="store_status_confirm_open_all_day_message">Orders will be allowed all day (ignore business hours).</string>
     <string name="store_status_error_title">Store status error</string>
     <string name="store_status_error_get_user_message">Unable to fetch store status. Switching is temporarily unavailable. Please contact technical support.</string>
     <string name="store_status_error_post_user_message">Failed to switch store status. Please contact technical support.</string>
+
+    <!-- Store Settings: Open restore mode (WooCommerce Food / ExFood) -->
+    <string name="store_open_restore_mode_title">Open restore mode</string>
+    <string name="store_open_restore_mode_desc">When you tap "Open" while the store is Closed, WooFood status will be restored based on this setting. Tapping "Close" always sets it to closed.</string>
+    <string name="store_open_restore_mode_auto">Auto (follow last enable/disable from admin)</string>
+    <string name="store_open_restore_mode_fixed_disable">Fixed: Disable (orders allowed all day)</string>
+    <string name="store_open_restore_mode_fixed_enable">Fixed: Enable (orders allowed during business hours)</string>
 
     <!-- Website Setup -->
     <string name="website_url">Website URL</string>

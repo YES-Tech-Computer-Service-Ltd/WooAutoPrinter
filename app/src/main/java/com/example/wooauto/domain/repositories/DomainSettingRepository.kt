@@ -11,6 +11,17 @@ import kotlinx.coroutines.flow.Flow
  * 定义了与系统设置相关的数据操作
  */
 interface DomainSettingRepository {
+    companion object {
+        /**
+         * Store open restore mode values:
+         * - auto: follow last known open status (enable/disable) from server/admin
+         * - enable: fixed open (follow business hours)
+         * - disable: fixed open (open all day / ignore business hours)
+         */
+        const val STORE_OPEN_RESTORE_MODE_AUTO = "auto"
+        const val STORE_OPEN_RESTORE_MODE_ENABLE = "enable"
+        const val STORE_OPEN_RESTORE_MODE_DISABLE = "disable"
+    }
     /**
      * 获取WooCommerce配置信息
      * @return 配置对象
@@ -263,6 +274,32 @@ interface DomainSettingRepository {
      * @return 货币符号的数据流
      */
     fun getCurrencySymbolFlow(): Flow<String>
+
+    /**
+     * Store open restore mode (when switching from closed -> open).
+     *
+     * Values:
+     * - [STORE_OPEN_RESTORE_MODE_AUTO]
+     * - [STORE_OPEN_RESTORE_MODE_ENABLE]
+     * - [STORE_OPEN_RESTORE_MODE_DISABLE]
+     */
+    fun getStoreOpenRestoreModeFlow(): Flow<String>
+
+    /**
+     * Save store open restore mode (when switching from closed -> open).
+     */
+    suspend fun setStoreOpenRestoreMode(mode: String)
+
+    /**
+     * Preferred open status (enable/disable) remembered locally for auto restore mode.
+     * - null/blank means "unknown" and should not be used to override open behavior.
+     */
+    fun getPreferredOpenStatusFlow(): Flow<String?>
+
+    /**
+     * Save preferred open status (enable/disable). Other values should be ignored by implementations.
+     */
+    suspend fun setPreferredOpenStatus(status: String)
 
     /**
      * 获取默认模板类型

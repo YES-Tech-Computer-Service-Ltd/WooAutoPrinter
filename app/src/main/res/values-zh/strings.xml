@@ -171,16 +171,24 @@
     <string name="enable_multi_location">启用 Multi Location</string>
 
     <!-- Store Status (WooCommerce Food / ExFood) -->
-    <string name="store_status_open">营业中</string>
-    <string name="store_status_open_all_day">营业中（全天）</string>
+    <string name="store_status_open">仅营业时间可下单</string>
+    <string name="store_status_open_all_day">全天可下单</string>
     <string name="store_status_closed">休息中</string>
     <string name="store_status_confirm_close_title">切换为休息中？</string>
     <string name="store_status_confirm_close_message">休息中后通常不会产生新订单。</string>
     <string name="store_status_confirm_open_title">切换为营业中？</string>
-    <string name="store_status_confirm_open_message">将按营业时间恢复营业。</string>
+    <string name="store_status_confirm_open_message">将切换为仅营业时间可下单。</string>
+    <string name="store_status_confirm_open_all_day_message">将切换为全天可下单（忽略营业时间限制）。</string>
     <string name="store_status_error_title">店铺状态操作失败</string>
     <string name="store_status_error_get_user_message">无法获取店铺营业状态，暂不可切换，请联系技术人员修复。</string>
     <string name="store_status_error_post_user_message">店铺状态切换失败，请联系技术人员修复。</string>
+
+    <!-- 店铺设置：开店恢复状态（WooCommerce Food / ExFood） -->
+    <string name="store_open_restore_mode_title">开店恢复状态</string>
+    <string name="store_open_restore_mode_desc">当你在 App 中点击「开始营业」且当前为休息中（closed）时，会把 WooFood 状态恢复为此处选择的值；点击「停止营业」时始终设置为休息中（closed）。</string>
+    <string name="store_open_restore_mode_auto">自动（跟随后台最后一次 enable/disable）</string>
+    <string name="store_open_restore_mode_fixed_disable">固定为 Disable（全天可下单）</string>
+    <string name="store_open_restore_mode_fixed_enable">固定为 Enable（仅营业时间可下单）</string>
 
     <!-- Website Setup -->
     <string name="website_url">网站 URL</string>

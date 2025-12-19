@@ -59,7 +59,9 @@ import com.example.wooauto.WooAutoApplication
 import com.example.wooauto.data.remote.ApiError
 import com.example.wooauto.data.remote.exfood.ExFoodStoreStatusApi
 import com.example.wooauto.di.StoreStatusEntryPoint
+import com.example.wooauto.domain.repositories.DomainSettingRepository
 import dagger.hilt.android.EntryPointAccessors
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -107,6 +109,9 @@ fun AppStatusStrip(
     val gson = remember {
         EntryPointAccessors.fromApplication(app, StoreStatusEntryPoint::class.java).gson()
     }
+    val settingsRepository = remember {
+        EntryPointAccessors.fromApplication(app, StoreStatusEntryPoint::class.java).settingsRepository()
+    }
 
     // First show: try GET once to align status. Failure -> keep default "营业中" and don't alert.
     LaunchedEffect(showStoreStatusEntry, siteUrl) {
@@ -114,7 +119,9 @@ fun AppStatusStrip(
             didInitialStoreStatusFetch = true
             try {
                 val resp = ExFoodStoreStatusApi.getStoreStatus(okHttpClient, gson, siteUrl)
-                storeStatus = StoreStatusUi.fromApi(resp.status ?: resp.rawValue)
+                val raw = resp.status ?: resp.rawValue
+                storeStatus = StoreStatusUi.fromApi(raw)
+                syncPreferredOpenStatusIfOpen(settingsRepository, raw)
             } catch (_: Throwable) {
                 // Keep default "营业中" and stay silent for initial fetch.
             }
@@ -301,10 +308,15 @@ fun AppStatusStrip(
                         try {
                             // Always GET first. If GET fails -> do not allow switching.
                             val resp = ExFoodStoreStatusApi.getStoreStatus(okHttpClient, gson, siteUrl)
-                            storeStatus = StoreStatusUi.fromApi(resp.status ?: resp.rawValue)
+                            val raw = resp.status ?: resp.rawValue
+                            storeStatus = StoreStatusUi.fromApi(raw)
+                            syncPreferredOpenStatusIfOpen(settingsRepository, raw)
 
                             pendingAction = when (storeStatus) {
-                                StoreStatusUi.CLOSED -> StoreStatusAction.SWITCH_TO_OPEN_SCHEDULED
+                                StoreStatusUi.CLOSED -> resolveOpenAction(
+                                    settingsRepository = settingsRepository,
+                                    remoteRawStatus = raw
+                                )
                                 StoreStatusUi.OPEN_SCHEDULED,
                                 StoreStatusUi.OPEN_ALWAYS -> StoreStatusAction.SWITCH_TO_CLOSED
                             }
@@ -391,11 +403,13 @@ fun AppStatusStrip(
     pendingAction?.let { action ->
         val titleRes = when (action) {
             StoreStatusAction.SWITCH_TO_CLOSED -> R.string.store_status_confirm_close_title
-            StoreStatusAction.SWITCH_TO_OPEN_SCHEDULED -> R.string.store_status_confirm_open_title
+            StoreStatusAction.SWITCH_TO_OPEN_SCHEDULED,
+            StoreStatusAction.SWITCH_TO_OPEN_ALWAYS -> R.string.store_status_confirm_open_title
         }
         val messageRes = when (action) {
             StoreStatusAction.SWITCH_TO_CLOSED -> R.string.store_status_confirm_close_message
             StoreStatusAction.SWITCH_TO_OPEN_SCHEDULED -> R.string.store_status_confirm_open_message
+            StoreStatusAction.SWITCH_TO_OPEN_ALWAYS -> R.string.store_status_confirm_open_all_day_message
         }
 
         AlertDialog(
@@ -413,10 +427,13 @@ fun AppStatusStrip(
                                 val target = when (action) {
                                     StoreStatusAction.SWITCH_TO_CLOSED -> ExFoodStoreStatusApi.STATUS_CLOSED
                                     StoreStatusAction.SWITCH_TO_OPEN_SCHEDULED -> ExFoodStoreStatusApi.STATUS_ENABLE
+                                    StoreStatusAction.SWITCH_TO_OPEN_ALWAYS -> ExFoodStoreStatusApi.STATUS_DISABLE
                                 }
 
                                 val resp = ExFoodStoreStatusApi.updateStoreStatus(okHttpClient, gson, siteUrl, target)
-                                storeStatus = StoreStatusUi.fromApi(resp.newStatus ?: resp.internalValue)
+                                val raw = resp.newStatus ?: resp.internalValue ?: target
+                                storeStatus = StoreStatusUi.fromApi(raw)
+                                syncPreferredOpenStatusIfOpen(settingsRepository, raw)
                                 pendingAction = null
                             } catch (t: Throwable) {
                                 // 保持当前状态不变，提示联系技术人员，并在详情中展示报错
@@ -493,7 +510,70 @@ private enum class StoreStatusUi {
 
 private enum class StoreStatusAction {
     SWITCH_TO_CLOSED,
-    SWITCH_TO_OPEN_SCHEDULED
+    SWITCH_TO_OPEN_SCHEDULED,
+    SWITCH_TO_OPEN_ALWAYS
+}
+
+private fun normalizeExFoodStatus(raw: String?): String? {
+    val v = raw?.trim()?.lowercase(Locale.ROOT).orEmpty()
+    return v.takeIf { it.isNotBlank() }
+}
+
+private suspend fun syncPreferredOpenStatusIfOpen(
+    settingsRepository: DomainSettingRepository,
+    remoteRawStatus: String?
+) {
+    val v = normalizeExFoodStatus(remoteRawStatus) ?: return
+    if (v != ExFoodStoreStatusApi.STATUS_ENABLE && v != ExFoodStoreStatusApi.STATUS_DISABLE) return
+    try {
+        settingsRepository.setPreferredOpenStatus(v)
+    } catch (_: Throwable) {
+        // Ignore local persistence failure; should not block UI.
+    }
+}
+
+private suspend fun resolveOpenAction(
+    settingsRepository: DomainSettingRepository,
+    remoteRawStatus: String?
+): StoreStatusAction {
+    val mode = try {
+        settingsRepository.getStoreOpenRestoreModeFlow().first()
+    } catch (_: Throwable) {
+        DomainSettingRepository.STORE_OPEN_RESTORE_MODE_AUTO
+    }
+
+    val normalizedMode = normalizeExFoodStatus(mode) ?: DomainSettingRepository.STORE_OPEN_RESTORE_MODE_AUTO
+
+    val targetStatus: String = when (normalizedMode) {
+        DomainSettingRepository.STORE_OPEN_RESTORE_MODE_ENABLE -> ExFoodStoreStatusApi.STATUS_ENABLE
+        DomainSettingRepository.STORE_OPEN_RESTORE_MODE_DISABLE -> ExFoodStoreStatusApi.STATUS_DISABLE
+        else -> {
+            val preferred = try {
+                settingsRepository.getPreferredOpenStatusFlow().first()
+            } catch (_: Throwable) {
+                null
+            }
+            val normalizedPreferred = normalizeExFoodStatus(preferred)
+            when (normalizedPreferred) {
+                ExFoodStoreStatusApi.STATUS_ENABLE,
+                ExFoodStoreStatusApi.STATUS_DISABLE -> normalizedPreferred
+                else -> {
+                    val normalizedRemote = normalizeExFoodStatus(remoteRawStatus)
+                    when (normalizedRemote) {
+                        ExFoodStoreStatusApi.STATUS_ENABLE,
+                        ExFoodStoreStatusApi.STATUS_DISABLE -> normalizedRemote
+                        else -> ExFoodStoreStatusApi.STATUS_ENABLE // initial closed/empty -> enable
+                    }
+                }
+            }
+        }
+    }
+
+    return if (targetStatus == ExFoodStoreStatusApi.STATUS_DISABLE) {
+        StoreStatusAction.SWITCH_TO_OPEN_ALWAYS
+    } else {
+        StoreStatusAction.SWITCH_TO_OPEN_SCHEDULED
+    }
 }
 
 @Composable

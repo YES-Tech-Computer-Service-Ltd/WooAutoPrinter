@@ -69,6 +69,10 @@ class BackgroundPollingService : Service() {
         // 清理间隔
         private const val CLEANUP_INTERVAL = 10 * 60 * 1000L // 10分钟清理一次
         private const val MAX_PROCESSED_IDS = 500 // 最大保留订单ID数量
+
+        // 订单增量同步水位（用于 modified_after 增量同步）
+        private const val ORDER_SYNC_PREFS_NAME = "wooauto_order_sync"
+        private const val KEY_LAST_MODIFIED_SYNC_AT = "last_modified_sync_at"
     }
 
     @Inject lateinit var orderRepository: DomainOrderRepository
@@ -89,7 +93,10 @@ class BackgroundPollingService : Service() {
     private var latestPolledDate: Date? = null
     private var keepAliveFeedJob: Job? = null
     private var foregroundStatusJob: Job? = null
-    
+
+    // 持久化“上次成功同步时间”，用于后台增量同步（服务重启后也不会丢水位）
+    private val orderSyncPrefs by lazy { getSharedPreferences(ORDER_SYNC_PREFS_NAME, MODE_PRIVATE) }
+
     // 使用LRU方式管理处理过的订单ID，减少内存占用
     private val processedOrderIds = LinkedHashSet<Long>(MAX_PROCESSED_IDS)
     
@@ -968,19 +975,18 @@ class BackgroundPollingService : Service() {
             // 更新轮询活动时间戳
             updatePollingActivity()
             
-            // 记录上次轮询时间，用于日志
-            val lastPollTime = latestPolledDate
-            
-            
-            
-            // 执行轮询
-            val result = orderRepository.refreshProcessingOrdersForPolling(lastPollTime)
-            
-            // 更新最新轮询时间为当前时间
-            latestPolledDate = Date()
+            // 使用“上次成功同步时间”作为增量同步水位（modified_after）
+            val lastModifiedSyncAt = getLastModifiedSyncAt()
+
+            // 执行轮询（内部会做 processing 拉取 + modified_after 增量回写DB）
+            val result = orderRepository.refreshProcessingOrdersForPolling(lastModifiedSyncAt)
             
             // 处理结果
             if (result.isSuccess) {
+                // 仅在成功时推进：内存轮询时间（用于首次轮询过滤/日志）与持久化水位（用于增量同步）
+                latestPolledDate = Date()
+                saveLastModifiedSyncNow()
+
                 val orders = result.getOrDefault(emptyList())
                 
                 // 有新订单时记录日志
@@ -1033,6 +1039,23 @@ class BackgroundPollingService : Service() {
             }
         } catch (e: Exception) {
             Log.e(TAG, "轮询过程中发生异常: ${e.message}", e)
+        }
+    }
+
+    private fun getLastModifiedSyncAt(): Date? {
+        return try {
+            val ms = orderSyncPrefs.getLong(KEY_LAST_MODIFIED_SYNC_AT, 0L)
+            if (ms > 0L) Date(ms) else null
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun saveLastModifiedSyncNow() {
+        try {
+            orderSyncPrefs.edit().putLong(KEY_LAST_MODIFIED_SYNC_AT, System.currentTimeMillis()).apply()
+        } catch (_: Exception) {
+            // ignore
         }
     }
 
@@ -1557,8 +1580,10 @@ class BackgroundPollingService : Service() {
                             // 等待网络完全稳定
                             delay(1000)
                             // 只执行一次轮询，不发送额外广播
-                            val result = orderRepository.refreshProcessingOrdersForPolling(latestPolledDate)
+                            val result = orderRepository.refreshProcessingOrdersForPolling(getLastModifiedSyncAt())
                             if (result.isSuccess) {
+                                // 成功后推进水位，避免漏掉网络断开期间的状态变化
+                                saveLastModifiedSyncNow()
                                 val orders = result.getOrDefault(emptyList())
                                 if (orders.isNotEmpty()) {
                                     Log.d(TAG, "网络恢复轮询成功，获取了 ${orders.size} 个订单")
@@ -1989,8 +2014,10 @@ class BackgroundPollingService : Service() {
                             Log.d(TAG, "【网络心跳】网络恢复后触发立即轮询")
                             delay(1000) // 稍等片刻确保网络完全稳定
                             try {
-                                val result = orderRepository.refreshProcessingOrdersForPolling(latestPolledDate)
+                                val result = orderRepository.refreshProcessingOrdersForPolling(getLastModifiedSyncAt())
                                 if (result.isSuccess) {
+                                    // 成功后推进水位，避免漏掉网络断开期间的状态变化
+                                    saveLastModifiedSyncNow()
                                     val orders = result.getOrDefault(emptyList())
                                     Log.d(TAG, "【网络心跳】网络恢复轮询获取了 ${orders.size} 个订单")
                                     if (orders.isNotEmpty()) {

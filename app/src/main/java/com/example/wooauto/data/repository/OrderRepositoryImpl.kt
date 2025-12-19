@@ -88,12 +88,32 @@ class OrderRepositoryImpl @Inject constructor(
         return cachedApiInstance!!
     }
 
+    /**
+     * 统一将状态（可能是中文/英文/大小写混合）归一化为 API/DB 使用的英文小写状态。
+     * DB 内状态字段以 WooCommerce 英文小写为准。
+     */
+    private fun normalizeStatusToApi(status: String?): String? {
+        if (status.isNullOrBlank()) return null
+        val statusToApi = mapOf(
+            "处理中" to "processing",
+            "待付款" to "pending",
+            "已完成" to "completed",
+            "已取消" to "cancelled",
+            "已退款" to "refunded",
+            "失败" to "failed",
+            "暂挂" to "on-hold"
+        )
+        val raw = status.trim()
+        return (statusToApi[raw] ?: raw).trim().lowercase(Locale.ROOT)
+    }
+
     override suspend fun getOrders(status: String?): List<Order> = withContext(Dispatchers.IO) {
 //        Log.d("OrderRepositoryImpl", "获取订单列表，状态: ${status ?: "全部"}")
         
         // 尝试从数据库获取数据
-        val localOrders = if (status != null) {
-            orderDao.getOrdersByStatus(status).first()
+        val dbStatus = normalizeStatusToApi(status)
+        val localOrders = if (dbStatus != null) {
+            orderDao.getOrdersByStatus(dbStatus).first()
         } else {
             orderDao.getAllOrders().first()
         }
@@ -112,8 +132,8 @@ class OrderRepositoryImpl @Inject constructor(
         
         // 返回本地数据（可能是刚刚刷新的或原有的）
         return@withContext OrderMapper.mapEntityListToDomainList(
-            if (status != null) {
-                orderDao.getOrdersByStatus(status).first()
+            if (dbStatus != null) {
+                orderDao.getOrdersByStatus(dbStatus).first()
             } else {
                 orderDao.getAllOrders().first()
             }
@@ -209,19 +229,42 @@ class OrderRepositoryImpl @Inject constructor(
             val api = getApi()
             val statusMap = mapOf("status" to newStatus)
             val response = api.updateOrder(orderId, statusMap)
-            val updatedOrder = response.toOrder()
-            
-            // 更新缓存
-            val updatedList = cachedOrders.map { 
-                if (it.id == orderId) updatedOrder else it 
+            val updatedFromApi = response.toOrder()
+
+            // 以数据库为真实来源：合并保留本地状态（已读/已打印/通知）
+            val existingEntity = orderDao.getOrderById(orderId)
+            val mergedOrder = if (existingEntity != null) {
+                updatedFromApi.copy(
+                    isRead = existingEntity.isRead,
+                    isPrinted = existingEntity.isPrinted
+                )
+            } else {
+                updatedFromApi
             }
-            cachedOrders = updatedList
-            _ordersFlow.value = updatedList
-            
-            // 更新状态分组
+
+            // 写入数据库，触发 Room Flow 更新（Active/History 均会同步刷新）
+            val baseEntity = OrderMapper.mapDomainToEntity(mergedOrder)
+            val mergedEntity = if (existingEntity != null) {
+                baseEntity.copy(
+                    isRead = existingEntity.isRead,
+                    isPrinted = existingEntity.isPrinted,
+                    notificationShown = existingEntity.notificationShown
+                )
+            } else {
+                baseEntity
+            }
+            orderDao.insertOrder(mergedEntity)
+
+            // 更新内存缓存（用于少量非关键功能，如搜索/占位）
+            val updatedList = cachedOrders.map { if (it.id == orderId) mergedOrder else it }
+            cachedOrders = if (updatedList.any { it.id == orderId }) updatedList else (updatedList + mergedOrder)
+            _ordersFlow.value = cachedOrders
             updateOrdersByStatus()
-            
-            return@withContext Result.success(updatedOrder)
+
+            // 更新单个订单流（如详情页监听）
+            _orderByIdFlow[orderId]?.value = mergedOrder
+
+            return@withContext Result.success(mergedOrder)
         } catch (e: Exception) {
             Log.e("OrderRepositoryImpl", "更新订单状态失败", e)
             return@withContext Result.failure(e)
@@ -358,9 +401,12 @@ class OrderRepositoryImpl @Inject constructor(
                     resp.map { it to null }
                 }
             
+            // DB 侧统一使用归一化后的英文状态
+            val dbStatus = params["status"]?.takeIf { it.isNotBlank() } ?: normalizeStatusToApi(status)
+
             // 在处理API订单前，获取现有数据库订单及其状态
-            val existingOrders = if (status != null) {
-                orderDao.getOrdersByStatus(status).first()
+            val existingOrders = if (dbStatus != null) {
+                orderDao.getOrdersByStatus(dbStatus).first()
             } else {
                 orderDao.getAllOrders().first()
             }
@@ -465,9 +511,9 @@ class OrderRepositoryImpl @Inject constructor(
             // 智能更新数据库：不再删除全部数据，而是合并更新
             if (status == null && afterDate == null) {
                 // 全量更新模式：这里不删除数据，使用insertOrders的REPLACE模式更新
-            } else if (status != null) {
+            } else if (dbStatus != null) {
                 // 按状态更新：只删除指定状态的旧数据
-                orderDao.deleteOrdersByStatus(status)
+                orderDao.deleteOrdersByStatus(dbStatus)
             }
             
             // 插入更新后的订单（REPLACE），以数据库为真实来源
@@ -527,11 +573,12 @@ class OrderRepositoryImpl @Inject constructor(
 //        Log.d("OrderRepositoryImpl", "【轮询刷新】开始查询处理中订单(UI安全)")
         
         try {
-            // 首先获取当前所有已读订单的ID
-            val readOrderIds = orderDao.getAllOrders().first()
-                .filter { it.isRead }
-                .map { it.id }
-                .toSet()
+            // 首先获取当前所有已读订单的ID（更轻量的查询）
+            val readOrderIds: Set<Long> = try {
+                orderDao.getReadOrderIds().toSet()
+            } catch (_: Exception) {
+                emptySet()
+            }
             
 //            Log.d("OrderRepositoryImpl", "【轮询刷新】找到${readOrderIds.size}个已读订单")
             
@@ -542,6 +589,23 @@ class OrderRepositoryImpl @Inject constructor(
             }
             
             val api = getApi(config)
+
+            // 【方案A关键点】同步最近变更的订单（含 completed/cancelled 等状态变化）
+            // - 使用 modified_after 做增量同步
+            // - 始终保留本地字段（isRead/isPrinted/notificationShown）
+            try {
+                val overlapMs = 2 * 60 * 1000L // 2分钟重叠，降低水位推进导致漏更新的风险
+                val fallbackWindowMs = 24 * 60 * 60 * 1000L // 首次（无水位）回填24小时
+                val baseSince = afterDate ?: Date(System.currentTimeMillis() - fallbackWindowMs)
+                val modifiedAfter = Date(baseSince.time - overlapMs)
+                val synced = syncModifiedOrdersForPolling(api, modifiedAfter, readOrderIds)
+                if (synced > 0) {
+                    UiLog.d("OrderRepositoryImpl", "【轮询刷新】增量同步最近变更订单: $synced")
+                }
+            } catch (e: Exception) {
+                // 增量同步失败不应阻断新订单处理/自动打印，但会在下轮继续尝试（有重叠窗口兜底）
+                Log.w("OrderRepositoryImpl", "【轮询刷新】增量同步最近变更订单失败: ${e.message}")
+            }
             
             try {
                 // 使用固定的"processing"状态，确保只查询处理中的订单
@@ -686,24 +750,8 @@ class OrderRepositoryImpl @Inject constructor(
                     }
                 }
                 
-                // 修改为更新策略，而不是删除再插入
-                // 1. 获取API返回的所有订单ID
-                val apiOrderIds = orders.map { it.id }.toSet()
-                
-                // 2. 找出数据库中有但API返回中没有的订单（已经不是processing状态）
-                val idsToDelete = currentProcessingOrders
-                    .filter { !apiOrderIds.contains(it.id) }
-                    .map { it.id }
-                
-                if (idsToDelete.isNotEmpty()) {
-//                    Log.d("OrderRepositoryImpl", "【轮询刷新】删除不再是processing状态的订单: $idsToDelete")
-                    // 处理需要删除的订单
-                    idsToDelete.forEach { id ->
-                        orderDao.deleteOrderById(id)
-                    }
-                }
-                
-                // 3. 使用insertOrders进行批量更新（Room的REPLACE策略）
+                // 使用insertOrders进行批量更新（Room的REPLACE策略）
+                // 注意：轮询时 perPage=20，为避免误删（处理中的订单>20时），这里不再基于“未返回”删除DB记录。
 //                Log.d("OrderRepositoryImpl", "【轮询刷新】更新 ${entitiesWithPrintStatus.size} 个processing订单")
                 orderDao.insertOrders(entitiesWithPrintStatus)
                 
@@ -746,6 +794,70 @@ class OrderRepositoryImpl @Inject constructor(
             Log.e("OrderRepositoryImpl", "【轮询刷新】刷新订单数据失败: ${error.message}", e)
             return@withContext Result.failure(error)
         }
+    }
+
+    /**
+     * 轮询专用：增量同步最近变更的订单（基于 WooCommerce modified_after）
+     * - 只写入DB，不依赖内存缓存
+     * - 保留本地字段：isRead / isPrinted / notificationShown
+     */
+    private suspend fun syncModifiedOrdersForPolling(
+        api: WooCommerceApi,
+        modifiedAfter: Date,
+        readOrderIds: Set<Long>
+    ): Int {
+        val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
+        val params = mutableMapOf<String, String>(
+            "modified_after" to dateFormat.format(modifiedAfter),
+            "orderby" to "modified",
+            "order" to "asc"
+        )
+
+        val perPage = 100
+        var page = 1
+        val maxPages = 20 // 安全上限，避免极端情况下无限翻页
+
+        val allDtos = mutableListOf<OrderDto>()
+        while (page <= maxPages) {
+            val batch = api.getOrdersWithParams(page = page, perPage = perPage, params = params)
+            if (batch.isEmpty()) break
+            allDtos.addAll(batch)
+            if (batch.size < perPage) break
+            page++
+        }
+
+        if (allDtos.isEmpty()) return 0
+
+        val orders = allDtos.map { it.toOrder() }
+        val ids = orders.map { it.id }
+        if (ids.isEmpty()) return 0
+
+        val existingEntities = try {
+            orderDao.getOrdersByIds(ids)
+        } catch (_: Exception) {
+            emptyList<OrderEntity>()
+        }
+        val existingMap = existingEntities.associateBy { it.id }
+
+        val entitiesToUpsert = orders.map { order ->
+            // 保留已读状态（以DB为准）；如果DB标记为已读，则保证同步后仍为已读
+            val baseOrder = if (order.id in readOrderIds) order.copy(isRead = true) else order
+            val baseEntity = OrderMapper.mapDomainToEntity(baseOrder)
+
+            val existing = existingMap[baseEntity.id]
+            if (existing != null) {
+                baseEntity.copy(
+                    isRead = existing.isRead,
+                    isPrinted = existing.isPrinted,
+                    notificationShown = existing.notificationShown
+                )
+            } else {
+                baseEntity
+            }
+        }
+
+        orderDao.insertOrders(entitiesToUpsert)
+        return entitiesToUpsert.size
     }
 
     override suspend fun markOrderAsPrinted(orderId: Long): Boolean = withContext(Dispatchers.IO) {
@@ -974,52 +1086,30 @@ class OrderRepositoryImpl @Inject constructor(
     }
 
     override fun getAllOrdersFlow(): Flow<List<Order>> {
-        return _ordersFlow.asStateFlow()
+        // 【方案A关键点】以 Room 为单一事实来源：后台轮询/手动刷新/外部状态变化最终都落在 DB
+        return orderDao.getAllOrders().map { entities ->
+            OrderMapper.mapEntityListToDomainList(entities)
+        }
     }
 
     override fun getOrdersByStatusFlow(status: String): Flow<List<Order>> {
-//        Log.d("OrderRepositoryImpl", "【状态调试】获取状态为 '$status' 的订单流")
-        
-        // 创建中英文状态映射表
-        val statusMap = mapOf(
+        // 创建中文->英文状态映射（DB中存储为英文）
+        val statusToApi = mapOf(
             "处理中" to "processing",
             "待付款" to "pending",
             "已完成" to "completed",
             "已取消" to "cancelled",
             "已退款" to "refunded",
             "失败" to "failed",
-            "暂挂" to "on-hold",
-            "processing" to "处理中",
-            "pending" to "待付款",
-            "completed" to "已完成",
-            "cancelled" to "已取消",
-            "refunded" to "已退款",
-            "failed" to "失败",
-            "on-hold" to "暂挂"
+            "暂挂" to "on-hold"
         )
-        
-        return _ordersFlow.asStateFlow().map { allOrders ->
-            // 严格过滤，确保状态完全匹配
-            val filteredOrders = allOrders.filter { order ->
-                // 检查订单状态是否与请求的状态匹配
-                // 1. 直接匹配
-                // 2. 订单状态的中文名与请求的状态匹配
-                // 3. 订单状态的英文名与请求的状态匹配
-                val matchesDirect = order.status == status
-                val matchesViaChinese = statusMap[order.status] == status
-                val matchesViaEnglish = statusMap[status] == order.status
-                
-                val matches = matchesDirect || matchesViaChinese || matchesViaEnglish
-                
-                if (!matches) {
-//                    Log.d("OrderRepositoryImpl", "【状态过滤】订单 ${order.id} 状态 '${order.status}' 与请求状态 '$status' 不匹配")
-                }
-                
-                matches
-            }
-            
-//            Log.d("OrderRepositoryImpl", "【状态调试】过滤后找到 ${filteredOrders.size} 个 '$status' 状态的订单")
-            filteredOrders
+
+        val raw = status.trim()
+        if (raw.isEmpty()) return getAllOrdersFlow()
+
+        val apiStatus = (statusToApi[raw] ?: raw).trim().lowercase(Locale.ROOT)
+        return orderDao.getOrdersByStatus(apiStatus).map { entities ->
+            OrderMapper.mapEntityListToDomainList(entities)
         }
     }
 

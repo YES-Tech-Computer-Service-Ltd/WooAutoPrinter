@@ -113,6 +113,10 @@ class SettingsRepositoryImpl @Inject constructor(
         const val KEY_STORE_ADDRESS = "store_address"
         const val KEY_STORE_PHONE = "store_phone"
         const val KEY_CURRENCY_SYMBOL = "currency_symbol"
+
+        // Store status / open restore settings (WooCommerce Food / ExFood)
+        const val KEY_STORE_OPEN_RESTORE_MODE = "store_open_restore_mode"
+        const val KEY_PREFERRED_OPEN_STATUS = "preferred_open_status"
         
         // 自动化任务相关键
         const val KEY_AUTO_PRINT_ENABLED = "auto_print_enabled"
@@ -532,6 +536,52 @@ class SettingsRepositoryImpl @Inject constructor(
     
     override fun getCurrencySymbolFlow(): Flow<String> {
         return getStringSettingFlow(KEY_CURRENCY_SYMBOL, DEFAULT_CURRENCY_SYMBOL)
+    }
+
+    override fun getStoreOpenRestoreModeFlow(): Flow<String> {
+        return getStringSettingFlow(
+            KEY_STORE_OPEN_RESTORE_MODE,
+            DomainSettingRepository.STORE_OPEN_RESTORE_MODE_AUTO
+        )
+    }
+
+    override suspend fun setStoreOpenRestoreMode(mode: String) {
+        val normalized = mode.trim().lowercase(java.util.Locale.ROOT)
+        val safe = when (normalized) {
+            DomainSettingRepository.STORE_OPEN_RESTORE_MODE_AUTO,
+            DomainSettingRepository.STORE_OPEN_RESTORE_MODE_ENABLE,
+            DomainSettingRepository.STORE_OPEN_RESTORE_MODE_DISABLE -> normalized
+            else -> DomainSettingRepository.STORE_OPEN_RESTORE_MODE_AUTO
+        }
+        val entity = SettingMapper.createStringSettingEntity(
+            KEY_STORE_OPEN_RESTORE_MODE,
+            safe,
+            "Store open restore mode (auto/enable/disable)"
+        )
+        settingDao.insertOrUpdateSetting(entity)
+    }
+
+    override fun getPreferredOpenStatusFlow(): Flow<String?> {
+        return settingDao.observeSettingByKey(KEY_PREFERRED_OPEN_STATUS).map { entity ->
+            val v = entity?.value?.trim().orEmpty()
+            if (v.isBlank()) null else v
+        }
+    }
+
+    override suspend fun setPreferredOpenStatus(status: String) {
+        val normalized = status.trim().lowercase(java.util.Locale.ROOT)
+        // Only accept enable/disable; never store closed here.
+        val safe = when (normalized) {
+            DomainSettingRepository.STORE_OPEN_RESTORE_MODE_ENABLE,
+            DomainSettingRepository.STORE_OPEN_RESTORE_MODE_DISABLE -> normalized
+            else -> return
+        }
+        val entity = SettingMapper.createStringSettingEntity(
+            KEY_PREFERRED_OPEN_STATUS,
+            safe,
+            "Preferred open status (enable/disable)"
+        )
+        settingDao.insertOrUpdateSetting(entity)
     }
 
     // 辅助方法

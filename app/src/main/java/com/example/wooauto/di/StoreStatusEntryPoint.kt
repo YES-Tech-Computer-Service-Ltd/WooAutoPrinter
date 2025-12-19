@@ -1,5 +1,6 @@
 package com.example.wooauto.di
 
+import com.example.wooauto.domain.repositories.DomainSettingRepository
 import com.google.gson.Gson
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
@@ -15,6 +16,7 @@ import okhttp3.OkHttpClient
 interface StoreStatusEntryPoint {
     fun okHttpClient(): OkHttpClient
     fun gson(): Gson
+    fun settingsRepository(): DomainSettingRepository
 }
 
 

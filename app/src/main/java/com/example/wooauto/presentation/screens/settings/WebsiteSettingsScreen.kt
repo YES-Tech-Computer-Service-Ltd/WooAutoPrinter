@@ -1,6 +1,7 @@
 package com.example.wooauto.presentation.screens.settings
 
 import android.util.Log
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -93,6 +94,31 @@ fun WebsiteSettingsDialogContent(
     var requireLocationSelection by remember { mutableStateOf(false) }
     var tempSelectedSlugs by remember { mutableStateOf<Set<String>>(emptySet()) }
 
+    val requestClose: () -> Unit = {
+        if (isApplying) {
+            // 正在应用/保存时，禁止退出，避免中途状态不一致
+        } else if (requireLocationSelection) {
+            // 未确认就退出：关闭 multi-location（不保存选择）
+            coroutineScope.launch {
+                try {
+                    viewModel.settingsRepository.setSelectedStoreLocations(emptyList())
+                } catch (_: Exception) {
+                    // ignore
+                }
+                requireLocationSelection = false
+                pendingLocations = emptyList()
+                tempSelectedSlugs = emptySet()
+                onClose()
+            }
+        } else {
+            onClose()
+        }
+    }
+
+    BackHandler {
+        requestClose()
+    }
+
     rememberScrollState()
     // 移除测试弹窗按钮/状态
 
@@ -158,16 +184,7 @@ fun WebsiteSettingsDialogContent(
                         IconButton(
                             enabled = !isApplying,
                             onClick = {
-                                if (requireLocationSelection) {
-                                    // 未确认就退出：关闭 multi-location（不保存选择）
-                                    coroutineScope.launch {
-                                        try { viewModel.settingsRepository.setSelectedStoreLocations(emptyList()) } catch (_: Exception) {}
-                                    }
-                                    requireLocationSelection = false
-                                    pendingLocations = emptyList()
-                                    tempSelectedSlugs = emptySet()
-                                }
-                                onClose()
+                                requestClose()
                             }
                         ) {
                             Icon(

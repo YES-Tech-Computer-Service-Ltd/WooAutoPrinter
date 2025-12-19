@@ -14,6 +14,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import kotlinx.coroutines.launch
 import com.example.wooauto.R
+import com.example.wooauto.domain.repositories.DomainSettingRepository
 import com.example.wooauto.presentation.components.ScrollableWithEdgeScrim
 import com.example.wooauto.presentation.components.SettingsSubPageScaffold
 
@@ -32,18 +33,22 @@ fun StoreSettingsScreen(
     val storeAddress by viewModel.storeAddress.collectAsState()
     val storePhone by viewModel.storePhone.collectAsState()
     val currencySymbol by viewModel.currencySymbol.collectAsState()
+    val storeOpenRestoreMode by viewModel.settingsRepository.getStoreOpenRestoreModeFlow()
+        .collectAsState(initial = DomainSettingRepository.STORE_OPEN_RESTORE_MODE_AUTO)
     
     // 本地状态用于输入字段
     var storeNameInput by remember { mutableStateOf(storeName) }
     var storeAddressInput by remember { mutableStateOf(storeAddress) }
     var storePhoneInput by remember { mutableStateOf(storePhone) }
     var currencySymbolInput by remember { mutableStateOf(currencySymbol) }
+    var storeOpenRestoreModeInput by remember { mutableStateOf(storeOpenRestoreMode) }
     
-    LaunchedEffect(storeName, storeAddress, storePhone, currencySymbol) {
+    LaunchedEffect(storeName, storeAddress, storePhone, currencySymbol, storeOpenRestoreMode) {
         storeNameInput = storeName
         storeAddressInput = storeAddress
         storePhoneInput = storePhone
         currencySymbolInput = currencySymbol
+        storeOpenRestoreModeInput = storeOpenRestoreMode
     }
     
     SettingsSubPageScaffold() { modifier ->
@@ -191,6 +196,68 @@ fun StoreSettingsScreen(
                         }
                         
                         Spacer(modifier = Modifier.height(16.dp))
+
+                        // 开店恢复状态
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            Text(
+                                text = stringResource(R.string.store_open_restore_mode_title),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(bottom = 6.dp)
+                            )
+
+                            Text(
+                                text = stringResource(R.string.store_open_restore_mode_desc),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(bottom = 10.dp)
+                            )
+
+                            var restoreExpanded by remember { mutableStateOf(false) }
+                            val restoreModeOptions = listOf(
+                                DomainSettingRepository.STORE_OPEN_RESTORE_MODE_AUTO to stringResource(R.string.store_open_restore_mode_auto),
+                                DomainSettingRepository.STORE_OPEN_RESTORE_MODE_DISABLE to stringResource(R.string.store_open_restore_mode_fixed_disable),
+                                DomainSettingRepository.STORE_OPEN_RESTORE_MODE_ENABLE to stringResource(R.string.store_open_restore_mode_fixed_enable)
+                            )
+                            val restoreLabel = restoreModeOptions
+                                .firstOrNull { it.first == storeOpenRestoreModeInput }
+                                ?.second
+                                ?: storeOpenRestoreModeInput
+
+                            ExposedDropdownMenuBox(
+                                expanded = restoreExpanded,
+                                onExpandedChange = { restoreExpanded = !restoreExpanded },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                OutlinedTextField(
+                                    value = restoreLabel,
+                                    onValueChange = { },
+                                    readOnly = true,
+                                    label = { Text(stringResource(R.string.store_open_restore_mode_title)) },
+                                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = restoreExpanded) },
+                                    modifier = Modifier
+                                        .menuAnchor()
+                                        .fillMaxWidth()
+                                )
+
+                                ExposedDropdownMenu(
+                                    expanded = restoreExpanded,
+                                    onDismissRequest = { restoreExpanded = false }
+                                ) {
+                                    restoreModeOptions.forEach { (value, label) ->
+                                        DropdownMenuItem(
+                                            text = { Text(label) },
+                                            onClick = {
+                                                storeOpenRestoreModeInput = value
+                                                restoreExpanded = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
                     }
                 }
             }
@@ -206,6 +273,11 @@ fun StoreSettingsScreen(
                         viewModel.updateCurrencySymbol(currencySymbolInput)
                         
                         coroutineScope.launch {
+                            try {
+                                viewModel.settingsRepository.setStoreOpenRestoreMode(storeOpenRestoreModeInput)
+                            } catch (_: Exception) {
+                                // ignore
+                            }
                             snackbarHostState.showSnackbar(settingsSavedText)
                         }
                     },
