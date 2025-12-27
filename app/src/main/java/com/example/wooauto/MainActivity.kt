@@ -61,7 +61,10 @@ import com.example.wooauto.utils.LocaleManager
 import com.example.wooauto.utils.OrderNotificationManager
 import com.example.wooauto.utils.GlobalErrorManager
 import com.example.wooauto.presentation.components.ErrorDetailsDialog
+import com.example.wooauto.presentation.components.UpdateAvailableDialog
 import com.example.wooauto.utils.AppError
+import com.example.wooauto.updater.WordPressUpdater
+import com.example.wooauto.updater.model.UpdateInfo
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -96,6 +99,9 @@ class MainActivity : AppCompatActivity(), OrderNotificationManager.NotificationC
     
     @Inject
     lateinit var globalErrorManager: GlobalErrorManager
+
+    @Inject
+    lateinit var wordPressUpdater: WordPressUpdater
     
     // 用于存储新订单的状态
     private var showNewOrderDialog by mutableStateOf(false)
@@ -108,6 +114,12 @@ class MainActivity : AppCompatActivity(), OrderNotificationManager.NotificationC
     private var globalUserMessage by mutableStateOf("")
     private var globalDebugMessage by mutableStateOf("")
     private var globalErrorSettingsAction: (() -> Unit)? = null
+
+    // App 更新弹窗状态（前台自动检查）
+    private var showUpdateDialog by mutableStateOf(false)
+    private var pendingUpdateInfo by mutableStateOf<UpdateInfo?>(null)
+    private var updateCheckJob: Job? = null
+    private var updateDownloadJob: Job? = null
     
     // 屏幕常亮状态
     private var isKeepScreenOnEnabled by mutableStateOf(false)
@@ -285,6 +297,18 @@ class MainActivity : AppCompatActivity(), OrderNotificationManager.NotificationC
                 }
             }
 
+            // 当“新订单弹窗/系统错误弹窗”关闭后，如存在待提示更新，则尝试弹出更新提示
+            val pendingUpdateVersion = pendingUpdateInfo?.latestVersion?.toVersionString()
+            val currentOrderIdForUpdateGate = currentNewOrder?.id
+            LaunchedEffect(
+                showGlobalErrorDialog,
+                showNewOrderDialog,
+                currentOrderIdForUpdateGate,
+                pendingUpdateVersion
+            ) {
+                tryShowUpdateDialogIfPossible()
+            }
+
             Surface(
                 modifier = Modifier.fillMaxSize(),
                 color = MaterialTheme.colorScheme.background
@@ -356,6 +380,24 @@ class MainActivity : AppCompatActivity(), OrderNotificationManager.NotificationC
                         },
                         onDismissRequest = {
                             // 强制用户点击按钮处理，禁止点击外部关闭
+                        }
+                    )
+                }
+
+                // App 更新提示弹窗（前台自动检查）
+                val updateInfo = pendingUpdateInfo
+                if (
+                    showUpdateDialog &&
+                    updateInfo != null &&
+                    !showGlobalErrorDialog &&
+                    !(showNewOrderDialog || currentNewOrder != null)
+                ) {
+                    UpdateAvailableDialog(
+                        updateInfo = updateInfo,
+                        onUpdateNow = { onUpdateNow(updateInfo) },
+                        onSkipVersion = { onSkipUpdateVersion(updateInfo) },
+                        onDismissRequest = {
+                            // 强制用户选择“立即更新 / 跳过此版本”，不允许点击外部关闭
                         }
                     )
                 }
@@ -517,6 +559,94 @@ class MainActivity : AppCompatActivity(), OrderNotificationManager.NotificationC
             }
         }
     }
+
+    /**
+     * 前台自动检查更新：
+     * - 仅在 App 处于前台（MainActivity onResume）时触发
+     * - 使用 WordPressUpdater 内置的 24h 间隔与 last_check_time 做节流
+     * - 若用户已“跳过此版本”，则不再提示，直到出现更高版本
+     */
+    private fun maybeAutoCheckForUpdatesInForeground() {
+        if (updateCheckJob?.isActive == true) return
+        updateCheckJob = lifecycleScope.launch {
+            try {
+                if (!wordPressUpdater.isAutoCheckEnabled()) return@launch
+
+                val intervalMs = wordPressUpdater.getCheckIntervalHours()
+                    .coerceAtLeast(1)
+                    .toLong() * 60L * 60L * 1000L
+
+                val now = System.currentTimeMillis()
+                val lastCheck = wordPressUpdater.getLastCheckTime()
+                if (lastCheck > 0 && (now - lastCheck) < intervalMs) {
+                    return@launch
+                }
+
+                wordPressUpdater.checkForUpdates().collect { updateInfo ->
+                    handleUpdateCheckResult(updateInfo)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "前台自动检查更新失败: ${e.message}", e)
+            }
+        }
+    }
+
+    private fun handleUpdateCheckResult(updateInfo: UpdateInfo) {
+        // 网络错误/无更新：不打扰用户（避免弹“系统错误”类提示）
+        if (updateInfo.networkError) return
+        if (!updateInfo.needsUpdate()) return
+
+        val latest = updateInfo.latestVersion.toVersionString()
+
+        // 用户已选择跳过该版本：永不再提示该版本
+        val skipped = try { wordPressUpdater.getSkippedVersion() } catch (_: Exception) { null }
+        if (!skipped.isNullOrBlank() && skipped == latest) {
+            UiLog.d(TAG, "更新提示已跳过该版本: $latest")
+            return
+        }
+
+        pendingUpdateInfo = updateInfo
+        tryShowUpdateDialogIfPossible()
+    }
+
+    private fun tryShowUpdateDialogIfPossible() {
+        val info = pendingUpdateInfo ?: return
+
+        // 避免与“新订单弹窗/系统错误弹窗”抢占用户注意力
+        if (showGlobalErrorDialog) return
+        if (showNewOrderDialog || currentNewOrder != null) return
+
+        showUpdateDialog = true
+    }
+
+    private fun onSkipUpdateVersion(updateInfo: UpdateInfo) {
+        val latest = updateInfo.latestVersion.toVersionString()
+        try {
+            wordPressUpdater.setSkippedVersion(latest)
+        } catch (e: Exception) {
+            Log.e(TAG, "设置跳过版本失败: ${e.message}", e)
+        }
+
+        pendingUpdateInfo = null
+        showUpdateDialog = false
+    }
+
+    private fun onUpdateNow(updateInfo: UpdateInfo) {
+        pendingUpdateInfo = null
+        showUpdateDialog = false
+
+        // 触发下载 + 拉起系统安装；下载进度由系统通知显示（DownloadManager）
+        updateDownloadJob?.cancel()
+        updateDownloadJob = lifecycleScope.launch {
+            try {
+                wordPressUpdater.downloadAndInstall(updateInfo).collect { _ ->
+                    // 无需在 UI 内展示进度，保持最小改动；系统通知会显示下载状态
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "下载安装更新失败: ${e.message}", e)
+            }
+        }
+    }
     
     override fun onResume() {
         super.onResume()
@@ -526,6 +656,9 @@ class MainActivity : AppCompatActivity(), OrderNotificationManager.NotificationC
         }
         // 恢复时再次应用状态栏隐藏，防止系统恢复显示
         setStatusBarHidden(true)
+
+        // 前台自动检查更新（节流）
+        maybeAutoCheckForUpdatesInForeground()
     }
     
     override fun onPause() {

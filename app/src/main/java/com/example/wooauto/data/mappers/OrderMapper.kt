@@ -341,12 +341,23 @@ object OrderMapper {
     private fun parseWooFoodInfo(entity: OrderEntity): com.example.wooauto.domain.models.WooFoodInfo? {
         // 1. 如果实体中已经保存了WooFoodInfo，直接使用
         if (entity.woofoodInfo != null) {
+            val shippingCandidate = entity.shippingAddress
+                .takeIf { it.isNotBlank() && it.any { ch -> ch.isLetterOrDigit() } }
+            val metaCandidate = entity.woofoodInfo.deliveryAddress
+                ?.takeIf { it.isNotBlank() && it.any { ch -> ch.isLetterOrDigit() } }
+
+            val finalDeliveryAddress = if (entity.woofoodInfo.isDelivery) {
+                shippingCandidate ?: metaCandidate
+            } else {
+                null
+            }
+
             return com.example.wooauto.domain.models.WooFoodInfo(
                 orderMethod = entity.woofoodInfo.orderMethod,
                 deliveryDate = entity.woofoodInfo.deliveryDate,
                 deliveryTime = entity.woofoodInfo.deliveryTime,
                 dineInPersonCount = entity.woofoodInfo.dineInPersonCount,
-                deliveryAddress = entity.woofoodInfo.deliveryAddress,
+                deliveryAddress = finalDeliveryAddress,
                 deliveryFee = entity.woofoodInfo.deliveryFee,
                 tip = entity.woofoodInfo.tip,
                 isDelivery = entity.woofoodInfo.isDelivery,
@@ -455,15 +466,13 @@ object OrderMapper {
         var deliveryFee: String? = null
         var tipAmount: String? = null
 
-        // 确定配送地址：如果是外卖且 shipping 为空，则回退到 billing
+        // 确定配送地址规则：
+        // 1) 强制优先使用 shippingAddress（若有有效内容）
+        // 2) 不再回退 billingAddress；若缺失由 UI/打印显示“Not provided/未提供”
         val finalDeliveryAddress = if (isDelivery) {
-             if (entity.shippingAddress.isNotBlank() && !entity.shippingAddress.all { !it.isLetterOrDigit() }) {
-                  entity.shippingAddress
-             } else {
-                  entity.billingAddress
-             }
+            entity.shippingAddress.takeIf { it.isNotBlank() && it.any { ch -> ch.isLetterOrDigit() } }
         } else {
-             null
+            null
         }
         
         // 从元数据提取外卖费 - 只有是外卖订单时才提取
@@ -910,7 +919,9 @@ object OrderMapper {
             total = order.total,
             totalTax = order.totalTax,
             lineItems = lineItems,
-            shippingAddress = "", // 从woofoodInfo中获取配送地址
+            // Domain 层没有单独的 shipping 字段；我们让其与最终用于展示/打印的 deliveryAddress 保持一致
+            // （规则已在 API->Domain 与 DB->Domain 统一为 shipping > meta > null）
+            shippingAddress = order.woofoodInfo?.deliveryAddress ?: "",
             billingAddress = order.billingInfo,
             paymentMethod = order.paymentMethod,
             paymentMethodTitle = order.paymentMethod, // 假设paymentMethod和paymentMethodTitle相同

@@ -65,6 +65,7 @@ class WordPressUpdater @Inject constructor(
         private const val KEY_AUTO_CHECK = "auto_check_enabled"
         private const val KEY_CHECK_INTERVAL = "check_interval_hours"
         private const val KEY_LAST_CHECK = "last_check_time"
+        private const val KEY_SKIPPED_VERSION = "skipped_version"
         private const val UPDATE_HOST = "yestech.ca"
     }
     
@@ -650,6 +651,29 @@ class WordPressUpdater @Inject constructor(
      */
     fun getLastCheckTime(): Long {
         return preferences.getLong(KEY_LAST_CHECK, 0L)
+    }
+
+    /**
+     * 获取“跳过版本”标记。若用户选择跳过某个版本，则该版本将不再弹窗提示，
+     * 直到服务器出现更高版本号。
+     */
+    fun getSkippedVersion(): String? {
+        val v = preferences.getString(KEY_SKIPPED_VERSION, null) ?: return null
+        return v.takeIf { it.isNotBlank() }
+    }
+
+    /**
+     * 设置“跳过版本”标记。
+     */
+    fun setSkippedVersion(version: String) {
+        val v = version.trim()
+        preferences.edit {
+            if (v.isBlank()) {
+                remove(KEY_SKIPPED_VERSION)
+            } else {
+                putString(KEY_SKIPPED_VERSION, v)
+            }
+        }
     }
 
     /**

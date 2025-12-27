@@ -312,6 +312,11 @@ fun OrderDto.processWooFoodInfo(): WooFoodInfo? {
 //        Log.d("OrderDto", "处理订单#$number 的WooFood信息和费用信息")
     }
     
+    // shipping address (强制优先) - 仅在确认是外卖订单时作为 deliveryAddress 使用
+    val shippingAddressText = shippingAddress
+        ?.toMultilineAddressString(includeName = true, includePhone = false)
+        ?.takeIf { it.isNotBlank() && it.containsLetterOrDigit() }
+
     if (this.metaData == null) {
         Log.w("OrderDto", "订单#$number 的元数据为null，尝试从fee_lines提取信息")
         
@@ -344,7 +349,9 @@ fun OrderDto.processWooFoodInfo(): WooFoodInfo? {
         }
         
         // 返回从fee_lines提取的信息
-        val isDelivery = deliveryFeeFromFee != null
+        val isDelivery = deliveryFeeFromFee != null ||
+            (shippingAddress?.address_1?.isNotBlank() == true &&
+                shippingAddress.address_1 != billingAddress.address_1)
         
         // 明确记录从fee_lines构建WooFoodInfo的过程
         val result = WooFoodInfo(
@@ -353,7 +360,7 @@ fun OrderDto.processWooFoodInfo(): WooFoodInfo? {
             isDelivery = isDelivery,
             deliveryTime = null,
             dineInPersonCount = null,
-            deliveryAddress = null,
+            deliveryAddress = if (isDelivery) shippingAddressText else null,
             deliveryFee = deliveryFeeFromFee,
             tip = tipFromFee
         )
@@ -398,7 +405,7 @@ fun OrderDto.processWooFoodInfo(): WooFoodInfo? {
     val locationSlugKeys = listOf("exwoofood_location")
     val locationSlug = parsedMeta.locationSlug ?: findMetadataValue(locationSlugKeys)?.toString()
     
-    val deliveryAddress = findMetadataValue(deliveryAddressKeys)?.toString()
+    val deliveryAddressFromMeta = findMetadataValue(deliveryAddressKeys)?.toString()?.trim()
     
     // 直接从元数据提取配送费和小费，明确记录日志
     var deliveryFee = findMetadataValue(deliveryFeeKeys)?.toString()
@@ -483,8 +490,8 @@ fun OrderDto.processWooFoodInfo(): WooFoodInfo? {
         // 通过配送费识别
         deliveryFee != null && deliveryFee != "0.00" -> true
         
-        // 通过配送地址识别
-        !deliveryAddress.isNullOrBlank() -> true
+        // 通过配送地址识别（仅来自 WooFood 元数据）
+        !deliveryAddressFromMeta.isNullOrBlank() -> true
         
         // 通过客户备注识别
         customerNote?.lowercase()?.contains("delivery") == true || 
@@ -524,12 +531,22 @@ fun OrderDto.processWooFoodInfo(): WooFoodInfo? {
 //    Log.d("OrderDto", "【数据传递】创建WooFoodInfo - 配送费:$deliveryFee, 小费:$tip, 是否外卖:$isDelivery")
 
     // 创建并返回WooFoodInfo
+    // Delivery Address 规则：
+    // 1) 强制优先使用 WooCommerce 的 shipping address
+    // 2) 若 shipping 为空，则回退到 WooFood 元数据里的 delivery address
+    // 3) 两者都为空时，保持为 null（由 UI/打印层显示“Not provided/未提供”）
+    val finalDeliveryAddress = if (isDelivery) {
+        shippingAddressText ?: deliveryAddressFromMeta?.takeIf { it.isNotBlank() }
+    } else {
+        null
+    }
+
     return WooFoodInfo(
         orderMethod = orderMethod ?: if (isDelivery) "delivery" else "pickup",
         deliveryDate = deliveryDate,
         deliveryTime = deliveryTime,
         dineInPersonCount = dineInPersonCount,
-        deliveryAddress = deliveryAddress,
+        deliveryAddress = finalDeliveryAddress,
         deliveryFee = deliveryFee,
         tip = tip,
         isDelivery = isDelivery,
@@ -563,3 +580,41 @@ private fun OrderDto.findMetadataValue(possibleKeys: List<String>): String? {
     // 没有找到匹配的键
     return null
 } 
+
+private fun AddressDto.toMultilineAddressString(
+    includeName: Boolean,
+    includePhone: Boolean
+): String {
+    val lines = mutableListOf<String>()
+
+    val name = listOfNotNull(firstName?.trim(), lastName?.trim())
+        .joinToString(" ")
+        .trim()
+    if (includeName && name.isNotBlank()) lines.add(name)
+
+    val phoneText = phone?.trim().orEmpty()
+    if (includePhone && phoneText.isNotBlank()) lines.add(phoneText)
+
+    address_1?.trim()?.takeIf { it.isNotBlank() }?.let { lines.add(it) }
+    address_2?.trim()?.takeIf { it.isNotBlank() }?.let { lines.add(it) }
+
+    val cityText = city?.trim().orEmpty()
+    val stateText = state?.trim().orEmpty()
+    val postcodeText = postcode?.trim().orEmpty()
+
+    val cityState = listOf(cityText, stateText).filter { it.isNotBlank() }.joinToString(", ")
+    val cityStatePostcode = buildString {
+        if (cityState.isNotBlank()) append(cityState)
+        if (postcodeText.isNotBlank()) {
+            if (isNotEmpty()) append(" ")
+            append(postcodeText)
+        }
+    }.trim()
+    if (cityStatePostcode.isNotBlank()) lines.add(cityStatePostcode)
+
+    country?.trim()?.takeIf { it.isNotBlank() }?.let { lines.add(it) }
+
+    return lines.joinToString("\n").trim()
+}
+
+private fun String.containsLetterOrDigit(): Boolean = any { it.isLetterOrDigit() }

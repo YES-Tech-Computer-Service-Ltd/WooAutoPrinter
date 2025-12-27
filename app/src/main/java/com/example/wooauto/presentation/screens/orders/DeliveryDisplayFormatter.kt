@@ -11,7 +11,12 @@ data class DeliveryDisplayInfo(
     val headline: String,
     val timeLabel: String,
     val hasDate: Boolean,
-    val isFutureOrToday: Boolean
+    val isFutureOrToday: Boolean,
+    /**
+     * 是否为“预订单/非当天（未来）订单”
+     * 规则：仅当 WooFood 提供了 deliveryDate 且日期 > 今天 时为 true。
+     */
+    val isPreOrder: Boolean
 )
 
 object DeliveryDisplayFormatter {
@@ -30,14 +35,16 @@ object DeliveryDisplayFormatter {
             headline = dateInfo.headline,
             timeLabel = timeLabel,
             hasDate = dateInfo.hasDate,
-            isFutureOrToday = dateInfo.isFutureOrToday
+            isFutureOrToday = dateInfo.isFutureOrToday,
+            isPreOrder = dateInfo.diffDaysFromToday != null && dateInfo.diffDaysFromToday > 0
         )
     }
 
     private data class DateInfo(
         val headline: String,
         val hasDate: Boolean,
-        val isFutureOrToday: Boolean
+        val isFutureOrToday: Boolean,
+        val diffDaysFromToday: Int?
     )
 
     private fun buildDateHeadline(dateRaw: String?, locale: Locale): DateInfo {
@@ -46,13 +53,19 @@ object DeliveryDisplayFormatter {
             return DateInfo(
                 headline = placeholder,
                 hasDate = false,
-                isFutureOrToday = false
+                isFutureOrToday = false,
+                diffDaysFromToday = null
             )
         }
 
         val parsed = parseIsoDate(dateRaw) ?: run {
             val fallback = if (isChinese(locale)) "— • 日期格式错误" else "— • Invalid date"
-            return DateInfo(fallback, hasDate = false, isFutureOrToday = false)
+            return DateInfo(
+                headline = fallback,
+                hasDate = false,
+                isFutureOrToday = false,
+                diffDaysFromToday = null
+            )
         }
 
         val targetCal = Calendar.getInstance().apply {
@@ -80,7 +93,8 @@ object DeliveryDisplayFormatter {
         return DateInfo(
             headline = headline,
             hasDate = true,
-            isFutureOrToday = diffDays >= 0
+            isFutureOrToday = diffDays >= 0,
+            diffDaysFromToday = diffDays
         )
     }
 

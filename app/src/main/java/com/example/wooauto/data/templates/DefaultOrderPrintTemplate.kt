@@ -2,6 +2,7 @@ package com.example.wooauto.data.templates
 
 import android.content.Context
 import android.util.Log
+import com.example.wooauto.R
 import com.example.wooauto.domain.models.Order
 import com.example.wooauto.domain.models.OrderItem
 import com.example.wooauto.domain.models.ItemOption
@@ -18,6 +19,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import javax.inject.Inject
@@ -31,6 +33,7 @@ class DefaultOrderPrintTemplate @Inject constructor(
 ) : OrderPrintTemplate {
 
     private val TAG = "OrderPrintTemplate"
+    private val DAY_MILLIS = 24 * 60 * 60 * 1000L
     
     override fun generateOrderPrintContent(order: Order, config: PrinterConfig): String {
         Log.d(TAG, "生成订单打印内容: ${order.number}")
@@ -132,6 +135,7 @@ class DefaultOrderPrintTemplate @Inject constructor(
         
         // 组合各个模块 - 使用商店信息生成方法，避免重复
         sb.append(generateStoreInfo(order, config, templateConfig, paperWidth))
+        sb.append(generatePreOrderBannerIfNeeded(order, paperWidth))
         sb.append(generateOrderInfo(order, config, templateConfig, paperWidth))
         sb.append(generateCustomerInfo(order, config, templateConfig, paperWidth))
         sb.append(generateDeliveryInfo(order, config, templateConfig, paperWidth))
@@ -160,6 +164,7 @@ class DefaultOrderPrintTemplate @Inject constructor(
         }
         sb.append(ThermalPrinterFormatter.formatTitle("DELIVERY RECEIPT", paperWidth))
         sb.append(ThermalPrinterFormatter.addEmptyLines(1))
+        sb.append(generatePreOrderBannerIfNeeded(order, paperWidth))
         
         // 组合各个模块
         sb.append(generateOrderInfo(order, config, templateConfig, paperWidth))
@@ -192,6 +197,7 @@ class DefaultOrderPrintTemplate @Inject constructor(
         }
         sb.append(ThermalPrinterFormatter.formatTitle("KITCHEN ORDER", paperWidth))
         sb.append(ThermalPrinterFormatter.formatDivider(paperWidth))
+        sb.append(generatePreOrderBannerIfNeeded(order, paperWidth))
         
         // 组合各个模块
         sb.append(generateOrderInfo(order, config, templateConfig, paperWidth, showPrintTime = false))
@@ -350,6 +356,11 @@ class DefaultOrderPrintTemplate @Inject constructor(
         sb.append(ThermalPrinterFormatter.formatLabelValue("Order Type", 
             if (isDelivery) "Delivery" else "Takeaway", paperWidth))
 
+        // 显示配送/自取日期（WooFood）。如果缺失则打印占位符，便于人工核对。
+        val dateLabel = if (isDelivery) "Delivery Date" else "Pickup Date"
+        val dateValue = order.woofoodInfo?.deliveryDate?.takeIf { it.isNotBlank() } ?: "—"
+        sb.append(ThermalPrinterFormatter.formatLabelValue(dateLabel, dateValue, paperWidth))
+
         // 显示配送时间或自取时间
         order.woofoodInfo?.deliveryTime?.takeIf { it.isNotBlank() }?.let { time ->
             val timeLabel = if (isDelivery) "Delivery Time" else "Pickup Time"
@@ -357,13 +368,12 @@ class DefaultOrderPrintTemplate @Inject constructor(
         }
         
         if (!showOnlyOrderType && isDelivery) {
-            // 优先使用WooFood插件的配送地址，如果为空则使用billing地址作为备选
-            val deliveryAddress = order.woofoodInfo?.deliveryAddress?.takeIf { it.isNotBlank() } 
-                                 ?: order.billingInfo.takeIf { it.isNotBlank() }
-            
-            deliveryAddress?.let { address ->
-                sb.append(ThermalPrinterFormatter.formatLabelValue("Delivery Address", address, paperWidth))
-            }
+            // Delivery Address 规则：shipping > meta > Not provided（不再回退 billing）
+            val deliveryAddress = order.woofoodInfo?.deliveryAddress
+                ?.takeIf { it.isNotBlank() }
+                ?: context.getString(R.string.not_provided)
+
+            sb.append(ThermalPrinterFormatter.formatLabelValue("Delivery Address", deliveryAddress, paperWidth))
             
             order.woofoodInfo?.deliveryFee?.let {
                 sb.append(ThermalPrinterFormatter.formatLabelValue("Delivery Fee", it, paperWidth))
@@ -554,6 +564,55 @@ class DefaultOrderPrintTemplate @Inject constructor(
         
         return sb.toString()
     }
+
+    /**
+     * 预订单（未来日期）打印大字提醒：
+     * - 仅当 WooFood deliveryDate 存在且 > 今天时触发
+     * - 使用放大字体 + 分隔线强化识别
+     */
+    private fun generatePreOrderBannerIfNeeded(order: Order, paperWidth: Int): String {
+        val dateRaw = order.woofoodInfo?.deliveryDate?.trim().orEmpty()
+        if (dateRaw.isEmpty()) return ""
+
+        val diffDays = diffDaysFromToday(dateRaw) ?: return ""
+        if (diffDays <= 0) return ""
+
+        val sb = StringBuilder()
+        sb.append(ThermalPrinterFormatter.formatDivider(paperWidth))
+        sb.append(
+            ThermalPrinterFormatter.formatCenteredText(
+                ThermalPrinterFormatter.formatChineseLargeFont("PRE-ORDER $dateRaw", paperWidth),
+                paperWidth
+            )
+        )
+        sb.append(ThermalPrinterFormatter.formatDivider(paperWidth))
+        return sb.toString()
+    }
+
+    private fun diffDaysFromToday(isoDate: String): Int? {
+        val parsed = parseIsoDate(isoDate) ?: return null
+        val targetCal = Calendar.getInstance().apply {
+            time = parsed
+            clearTime()
+        }
+        val todayCal = Calendar.getInstance().apply { clearTime() }
+        return ((targetCal.timeInMillis - todayCal.timeInMillis) / DAY_MILLIS).toInt()
+    }
+
+    private fun parseIsoDate(raw: String): Date? {
+        return try {
+            SimpleDateFormat("yyyy-MM-dd", Locale.US).apply { isLenient = false }.parse(raw)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun Calendar.clearTime() {
+        set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }
     
     // ==================== 其他方法 ====================
     
@@ -597,6 +656,7 @@ class DefaultOrderPrintTemplate @Inject constructor(
      */
     private fun create58mmTestOrder(): Order {
         val currentTime = Date()
+        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(currentTime)
         return Order(
             id = 999001L,
             number = "TEST-58MM-001",
@@ -650,8 +710,8 @@ class DefaultOrderPrintTemplate @Inject constructor(
             notes = "58MM printer test order - all functions normal",
             woofoodInfo = WooFoodInfo(
                 orderMethod = "Takeaway",
-                deliveryDate = null,
-                deliveryTime = null,
+                deliveryDate = today,
+                deliveryTime = "12:00-12:30",
                 dineInPersonCount = null,
                 deliveryAddress = null,
                 deliveryFee = null,
@@ -672,6 +732,7 @@ class DefaultOrderPrintTemplate @Inject constructor(
      */
     private fun create80mmTestOrder(): Order {
         val currentTime = Date()
+        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(currentTime)
         return Order(
             id = 999002L,
             number = "TEST-80MM-002",
@@ -742,7 +803,7 @@ class DefaultOrderPrintTemplate @Inject constructor(
             notes = "80MM thermal printer comprehensive test order.\nAll printing functions including alignment, formatting, and cutting are being tested.\nIf this prints correctly, your printer is working properly.",
             woofoodInfo = WooFoodInfo(
                 orderMethod = "Delivery",
-                deliveryDate = null,
+                deliveryDate = today,
                 deliveryTime = "45-60 minutes",
                 dineInPersonCount = null,
                 deliveryAddress = "123 Business Avenue, Unit 100, Business District, ST 12345",
@@ -765,6 +826,7 @@ class DefaultOrderPrintTemplate @Inject constructor(
      */
     private fun createDefaultTestOrder(): Order {
         val currentTime = Date()
+        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(currentTime)
         return Order(
             id = 999003L,
             number = "TEST-DEFAULT-003",
@@ -804,8 +866,8 @@ class DefaultOrderPrintTemplate @Inject constructor(
             notes = "Default printer test order for compatibility",
             woofoodInfo = WooFoodInfo(
                 orderMethod = "Takeaway",
-                deliveryDate = null,
-                deliveryTime = null,
+                deliveryDate = today,
+                deliveryTime = "ASAP",
                 dineInPersonCount = null,
                 deliveryAddress = null,
                 deliveryFee = null,
@@ -826,6 +888,7 @@ class DefaultOrderPrintTemplate @Inject constructor(
      */
     private fun create58mmChineseTestOrder(): Order {
         val currentTime = Date()
+        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(currentTime)
         return Order(
             id = 888001L,
             number = "中文测试-58MM-001",
@@ -881,7 +944,7 @@ class DefaultOrderPrintTemplate @Inject constructor(
             notes = "中文测试订单 - 请确保中文字符正确显示",
             woofoodInfo = WooFoodInfo(
                 orderMethod = "外卖",
-                deliveryDate = null,
+                deliveryDate = today,
                 deliveryTime = "60分钟内",
                 dineInPersonCount = null,
                 deliveryAddress = "北京市朝阳区建国路1号",
@@ -903,6 +966,7 @@ class DefaultOrderPrintTemplate @Inject constructor(
      */
     private fun create80mmChineseTestOrder(): Order {
         val currentTime = Date()
+        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(currentTime)
         return Order(
             id = 888002L,
             number = "中文测试-80MM-002",
@@ -963,7 +1027,7 @@ class DefaultOrderPrintTemplate @Inject constructor(
             notes = "中文测试订单 - 包含各种中文字符：简体，繁體，符号￥€$，数字１２３４５６７８９０",
             woofoodInfo = WooFoodInfo(
                 orderMethod = "外卖配送",
-                deliveryDate = null,
+                deliveryDate = today,
                 deliveryTime = "45分钟内送达",
                 dineInPersonCount = null,
                 deliveryAddress = "上海市浦东新区陆家嘴金融贸易区世纪大道100号2楼201室",
@@ -985,6 +1049,7 @@ class DefaultOrderPrintTemplate @Inject constructor(
      */
     private fun createDefaultChineseTestOrder(): Order {
         val currentTime = Date()
+        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(currentTime)
         return Order(
             id = 888003L,
             number = "中文测试-DEFAULT-003",
@@ -1026,8 +1091,8 @@ class DefaultOrderPrintTemplate @Inject constructor(
             notes = "默认中文测试订单 - 测试GB18030编码支持",
             woofoodInfo = WooFoodInfo(
                 orderMethod = "自取",
-                deliveryDate = null,
-                deliveryTime = null,
+                deliveryDate = today,
+                deliveryTime = "ASAP",
                 dineInPersonCount = null,
                 deliveryAddress = null,
                 deliveryFee = null,

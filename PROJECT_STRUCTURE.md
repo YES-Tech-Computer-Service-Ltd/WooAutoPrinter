@@ -16,7 +16,8 @@
     - **Responsibilities**:
         - **UI Container**: Hosts the Compose `NavHost` and sets up the theme (`WooAutoTheme`).
         - **Permission Handler**: Manages critical permissions (Bluetooth, Camera, Notification) using `ActivityResultContracts`.
-        - **Global Dialogs**: Renders overlay dialogs for "New Order" (`NewOrderPopup`) and "System Errors" (`ErrorDetailsDialog`).
+        - **Global Dialogs**: Renders overlay dialogs for "New Order" (`NewOrderPopup`), "System Errors" (`ErrorDetailsDialog`), and "App Updates" (`UpdateAvailableDialog`).
+        - **Foreground Update Check**: Runs a throttled (default 24h) update check on `onResume()` via `WordPressUpdater` and prompts users to either update now or skip that version.
         - **Screen Management**: Handles "Keep Screen On" logic and immersive mode (hiding status bars).
     - **Key Methods**:
         - `onCreate()`: Initializes Splash screen, requests permissions, and sets Compose content.
@@ -25,6 +26,7 @@
 
 ## 2. Presentation Layer (UI & ViewModels)
 - `app/src/main/java/com/example/wooauto/presentation/WooAutoApp.kt` - Root composable with `NavHost` and `BottomNavigation`.
+- `app/src/main/java/com/example/wooauto/presentation/components/UpdateAvailableDialog.kt` - Foreground update prompt dialog (Update now / Skip this version).
 - **Screens**:
     - `presentation/screens/orders/`
         - `OrdersScreen.kt` - Main order list UI with filtering and tabs.

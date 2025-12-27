@@ -994,11 +994,20 @@ fun OrderCard(
     ) {
         DeliveryDisplayFormatter.format(order.woofoodInfo, order.dateCreated, Locale.getDefault())
     }
+    val preOrderColor = Color(0xFFF57F17)
     val dateHeadlineColor = when {
         !deliveryDisplayInfo.hasDate -> MaterialTheme.colorScheme.onSurfaceVariant
+        deliveryDisplayInfo.isPreOrder -> preOrderColor
         deliveryDisplayInfo.isFutureOrToday -> MaterialTheme.colorScheme.primary
         else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
     }
+
+    val cardBorderColor = if (deliveryDisplayInfo.isPreOrder) {
+        preOrderColor.copy(alpha = 0.55f)
+    } else {
+        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+    }
+    val cardBorderWidth = if (deliveryDisplayInfo.isPreOrder) 1.dp else 0.5.dp
 
     Card(
         modifier = Modifier
@@ -1010,8 +1019,8 @@ fun OrderCard(
             containerColor = MaterialTheme.colorScheme.surface
         ),
         border = BorderStroke(
-            width = 0.5.dp,
-            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+            width = cardBorderWidth,
+            color = cardBorderColor
         ),
         onClick = onClick
     ) {
@@ -1088,10 +1097,33 @@ fun OrderCard(
                         tint = dateHeadlineColor
                     )
                     Spacer(modifier = Modifier.width(4.dp))
+                    if (deliveryDisplayInfo.isPreOrder) {
+                        Box(
+                            modifier = Modifier
+                                .background(Color(0xFFFFF3E0), RoundedCornerShape(10.dp))
+                                .border(
+                                    width = 0.5.dp,
+                                    color = preOrderColor.copy(alpha = 0.55f),
+                                    shape = RoundedCornerShape(10.dp)
+                                )
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = stringResource(R.string.pre_order_tag),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = preOrderColor
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(6.dp))
+                    }
                     Text(
                         text = deliveryDisplayInfo.headline,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = dateHeadlineColor
+                        fontWeight = if (deliveryDisplayInfo.isPreOrder) FontWeight.Bold else FontWeight.Normal,
+                        color = dateHeadlineColor,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
 

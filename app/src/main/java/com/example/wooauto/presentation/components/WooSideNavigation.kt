@@ -15,8 +15,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationDrawerItem
-import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
@@ -45,6 +43,7 @@ import com.example.wooauto.presentation.navigation.Badge
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import com.example.wooauto.presentation.navigation.Screen
 
 enum class SideNavMode { Expanded, Rail, MiniRail }
 
@@ -137,8 +136,8 @@ fun WooSideNavigation(
                 // 展开二级菜单
                 if (selected) {
                     val subs = AppNavConfig.subEntriesForRoute(item.route)
-                    subs.sortedBy { it.order }.forEach { sub ->
-                        if (!(sub.visible && (sub.visibleWhen?.invoke() ?: true))) return@forEach
+                    subs.sortedBy { it.order }.forEach subLoop@ { sub ->
+                        if (!(sub.visible && (sub.visibleWhen?.invoke() ?: true))) return@subLoop
                         val currentSection = when {
                             item.route == com.example.wooauto.navigation.NavigationItem.Settings.route -> {
                                 navController.currentBackStackEntry?.arguments?.getString("section")
@@ -244,6 +243,115 @@ fun WooSideNavigation(
             }
             Spacer(modifier = Modifier.height(4.dp))
         }
+    }
+}
+
+/**
+ * 二级侧栏（用于 Rail/MiniRail + Secondary Sidebar 方案）
+ * - 根据当前选中的一级路由（Orders/Settings）展示对应的二级菜单
+ * - 通过 navBackStackEntry.arguments 的 section 来决定当前高亮
+ */
+@Composable
+fun WooSecondaryNavigation(
+    navController: NavController,
+    primaryRoute: String,
+    modifier: Modifier = Modifier,
+    contentPadding: PaddingValues = PaddingValues(0.dp),
+) {
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route
+
+    val subs = remember(primaryRoute) {
+        AppNavConfig.subEntriesForRoute(primaryRoute).sortedBy { it.order }
+    }
+
+    if (subs.isEmpty()) return
+
+    val currentSection: String? = when (primaryRoute) {
+        NavigationItem.Settings.route -> {
+            navBackStackEntry?.arguments?.getString("section")
+                ?: if (currentRoute == NavigationItem.Settings.route) "general" else null
+        }
+        NavigationItem.Orders.route -> {
+            navBackStackEntry?.arguments?.getString("section")
+                ?: if (currentRoute == NavigationItem.Orders.route) "active" else null
+        }
+        else -> null
+    }
+
+    Column(
+        modifier = modifier
+            .background(MaterialTheme.colorScheme.surface)
+            .verticalScroll(rememberScrollState())
+            .padding(top = contentPadding.calculateTopPadding() + 8.dp)
+            .fillMaxHeight()
+            .fillMaxWidth(),
+        horizontalAlignment = Alignment.Start,
+        verticalArrangement = Arrangement.Top
+    ) {
+        Spacer(modifier = Modifier.height(8.dp))
+        subs.forEach { sub ->
+            if (!(sub.visible && (sub.visibleWhen?.invoke() ?: true))) return@forEach
+            val subSelected = currentSection == sub.route
+
+            val rowBg = if (subSelected) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f) else Color.Transparent
+            val textColor = if (subSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+
+            Surface(
+                shape = MaterialTheme.shapes.small,
+                color = rowBg,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 2.dp)
+                    .clickable(
+                        indication = null,
+                        interactionSource = androidx.compose.foundation.interaction.MutableInteractionSource()
+                    ) {
+                        val route = when (primaryRoute) {
+                            NavigationItem.Settings.route -> SettingsSectionRoutes.routeFor(sub.route)
+                            NavigationItem.Orders.route -> Screen.OrdersSection.routeFor(sub.route)
+                            else -> null
+                        }
+                        if (route != null) {
+                            val isAlreadySelected = currentSection == sub.route
+                            if (!isAlreadySelected) {
+                                navController.navigate(route) { launchSingleTop = true }
+                            }
+                        }
+                    }
+            ) {
+                Row(
+                    modifier = Modifier
+                        .padding(horizontal = 10.dp, vertical = 10.dp)
+                        .fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (sub.selectedIcon != null && sub.unselectedIcon != null) {
+                        Icon(
+                            imageVector = if (subSelected) sub.selectedIcon else sub.unselectedIcon,
+                            contentDescription = stringResource(id = sub.titleResId),
+                            tint = textColor
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                    }
+
+                    Text(
+                        text = stringResource(id = sub.titleResId),
+                        color = textColor,
+                        style = if (subSelected) {
+                            MaterialTheme.typography.bodyLarge.copy(
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
+                            )
+                        } else {
+                            MaterialTheme.typography.bodyLarge
+                        },
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
     }
 }
 

@@ -38,6 +38,7 @@ import com.example.wooauto.domain.models.Order
 import com.example.wooauto.licensing.LicenseDataStore
 import com.example.wooauto.presentation.components.WooAppBar
 import com.example.wooauto.presentation.components.WooSideNavigation
+import com.example.wooauto.presentation.components.WooSecondaryNavigation
 import com.example.wooauto.presentation.components.SideNavMode
 import com.example.wooauto.presentation.navigation.AppNavConfig
 import com.example.wooauto.navigation.NavigationItem
@@ -243,19 +244,40 @@ fun AppContent() {
                     totalWidth >= 600.dp -> SideNavMode.Rail
                     else -> SideNavMode.MiniRail
                 }
-                val leftWidth = if (!isSpecialScreen) when (sideMode) {
+                val primaryWidth = if (!isSpecialScreen) when (sideMode) {
                     SideNavMode.Expanded -> 240.dp
                     SideNavMode.Rail -> 80.dp
                     SideNavMode.MiniRail -> 56.dp
                 } else 0.dp
-                val dividerWidth = if (!isSpecialScreen) 1.dp else 0.dp
+
+                // Rail + Secondary Sidebar：为当前一级页面（Orders/Settings）提供一列二级菜单
+                val selectedPrimaryForSecondary = when {
+                    currentRoute == NavigationItem.Settings.route || currentRoute.startsWith("settings/") -> NavigationItem.Settings.route
+                    currentRoute == NavigationItem.Orders.route || currentRoute.startsWith("orders/") -> NavigationItem.Orders.route
+                    else -> null
+                }
+                val showSecondarySidebar = !isSpecialScreen &&
+                    sideMode == SideNavMode.Rail &&
+                    selectedPrimaryForSecondary != null &&
+                    AppNavConfig.secondarySidebarSpecForRoute(selectedPrimaryForSecondary).enabled &&
+                    AppNavConfig.subEntriesForRoute(selectedPrimaryForSecondary).isNotEmpty()
+
+                val secondaryWidth = if (showSecondarySidebar) {
+                    val spec = AppNavConfig.secondarySidebarSpecForRoute(selectedPrimaryForSecondary!!)
+                    (totalWidth * spec.fraction).coerceIn(spec.minDp.dp, spec.maxDp.dp)
+                } else 0.dp
+
+                val dividerPrimarySecondary = if (!isSpecialScreen && showSecondarySidebar) 1.dp else 0.dp
+                val dividerNavContent = if (!isSpecialScreen) 1.dp else 0.dp
+                val contentWidth = (totalWidth - primaryWidth - secondaryWidth - dividerPrimarySecondary - dividerNavContent)
+                    .coerceAtLeast(0.dp)
 
                 Row(modifier = Modifier.fillMaxSize()) {
                     if (!isSpecialScreen) {
                         Column(
                             modifier = Modifier
                                 .fillMaxHeight()
-                                .width(leftWidth)
+                                .width(primaryWidth)
                         ) {
                             val sideItems = remember { AppNavConfig.sideNavEntries() }
                             WooSideNavigation(
@@ -265,10 +287,32 @@ fun AppContent() {
                                 mode = sideMode
                             )
                         }
+
+                        if (showSecondarySidebar) {
+                            // 垂直分隔线（一级侧栏与二级侧栏之间）
+                            Box(
+                                modifier = Modifier
+                                    .width(dividerPrimarySecondary)
+                                    .fillMaxHeight()
+                                    .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                            )
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxHeight()
+                                    .width(secondaryWidth)
+                            ) {
+                                WooSecondaryNavigation(
+                                    navController = navController,
+                                    primaryRoute = selectedPrimaryForSecondary!!,
+                                    contentPadding = WindowInsets.statusBars.asPaddingValues(),
+                                )
+                            }
+                        }
+
                         // 垂直分隔线（侧栏与内容区之间）
                         Box(
                             modifier = Modifier
-                                .width(dividerWidth)
+                                .width(dividerNavContent)
                                 .fillMaxHeight()
                                 .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
                         )
@@ -277,7 +321,7 @@ fun AppContent() {
                     Column(
                         modifier = Modifier
                             .fillMaxHeight()
-                            .width(totalWidth - leftWidth - dividerWidth)
+                            .width(contentWidth)
                     ) {
                         if (!isSpecialScreen) {
                             WooAppBar(

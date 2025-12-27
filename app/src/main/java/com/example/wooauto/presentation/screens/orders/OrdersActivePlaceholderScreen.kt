@@ -347,6 +347,17 @@ private fun ActiveOrderCard(
                 val paymentColor = if (isPaid) Color(0xFF2E7D32) else Color(0xFFC62828)
                 val paymentBg = if (isPaid) Color(0xFFE8F5E9) else Color(0xFFFFEBEE)
 
+                // 预订单（未来日期）统一判断：由 DeliveryDisplayFormatter 输出，供列表 Tag/颜色复用
+                val deliveryDisplayInfo = remember(
+                    order.woofoodInfo?.deliveryDate,
+                    order.woofoodInfo?.deliveryTime,
+                    order.dateCreated.time
+                ) {
+                    DeliveryDisplayFormatter.format(order.woofoodInfo, order.dateCreated, Locale.getDefault())
+                }
+                val preOrderColor = Color(0xFFF57F17)
+                val preOrderBg = Color(0xFFFFF3E0)
+
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -366,6 +377,14 @@ private fun ActiveOrderCard(
                         backgroundColor = typeColor.copy(alpha = 0.12f),
                         borderColor = typeColor.copy(alpha = 0.4f)
                     )
+                    if (deliveryDisplayInfo.isPreOrder) {
+                        InfoChip(
+                            text = stringResource(com.example.wooauto.R.string.pre_order_tag),
+                            textColor = preOrderColor,
+                            backgroundColor = preOrderBg,
+                            borderColor = preOrderColor.copy(alpha = 0.55f)
+                        )
+                    }
                     InfoChip(
                         text = paymentText,
                         textColor = paymentColor,
@@ -390,15 +409,9 @@ private fun ActiveOrderCard(
                         color = MaterialTheme.colorScheme.onSurface
                     )
                 }
-                val deliveryDisplayInfo = remember(
-                    order.woofoodInfo?.deliveryDate,
-                    order.woofoodInfo?.deliveryTime,
-                    order.dateCreated.time
-                ) {
-                    DeliveryDisplayFormatter.format(order.woofoodInfo, order.dateCreated, Locale.getDefault())
-                }
                 val dateHeadlineColor = when {
                     !deliveryDisplayInfo.hasDate -> MaterialTheme.colorScheme.onSurfaceVariant
+                    deliveryDisplayInfo.isPreOrder -> preOrderColor
                     deliveryDisplayInfo.isFutureOrToday -> MaterialTheme.colorScheme.primary
                     else -> MaterialTheme.colorScheme.onSurface
                 }

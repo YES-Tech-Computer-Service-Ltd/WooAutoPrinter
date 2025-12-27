@@ -1,6 +1,7 @@
 package com.example.wooauto.presentation.screens.orders
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -697,8 +698,11 @@ fun TimeAndTypeCard(order: Order, isDelivery: Boolean) {
         DeliveryDisplayFormatter.format(wooInfo, order.dateCreated, Locale.getDefault())
     }
     val expectedTime = deliveryDisplayInfo.timeLabel.takeIf { it.isNotBlank() } ?: asapLabel
+    val preOrderColor = Color(0xFFF57F17)
+    val preOrderBg = Color(0xFFFFF3E0)
     val dateHeadlineColor = when {
         !deliveryDisplayInfo.hasDate -> MaterialTheme.colorScheme.onSurfaceVariant
+        deliveryDisplayInfo.isPreOrder -> preOrderColor
         deliveryDisplayInfo.isFutureOrToday -> MaterialTheme.colorScheme.primary
         else -> MaterialTheme.colorScheme.onSurface
     }
@@ -713,9 +717,51 @@ fun TimeAndTypeCard(order: Order, isDelivery: Boolean) {
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        shape = RoundedCornerShape(8.dp)
+        shape = RoundedCornerShape(8.dp),
+        border = if (deliveryDisplayInfo.isPreOrder) {
+            BorderStroke(1.dp, preOrderColor.copy(alpha = 0.6f))
+        } else {
+            null
+        }
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
+            if (deliveryDisplayInfo.isPreOrder) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(preOrderBg, RoundedCornerShape(8.dp))
+                        .border(
+                            width = 1.dp,
+                            color = preOrderColor.copy(alpha = 0.55f),
+                            shape = RoundedCornerShape(8.dp)
+                        )
+                        .padding(12.dp)
+                ) {
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Warning,
+                                contentDescription = null,
+                                tint = preOrderColor
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = stringResource(R.string.pre_order_banner, deliveryDisplayInfo.headline),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = preOrderColor
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = stringResource(R.string.pre_order_notice),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.Black.copy(alpha = 0.75f)
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+            }
             // Expected Time
             Text(
                 text = stringResource(R.string.expected_time_label),
@@ -878,8 +924,11 @@ fun CustomerInfoCard(order: Order, isDelivery: Boolean) {
             
             // 地址 (仅外卖显示，默认折叠)
             if (isDelivery) {
-                val address = order.woofoodInfo?.deliveryAddress ?: order.billingInfo
-                if (address?.isNotBlank() == true) {
+                val address = order.woofoodInfo?.deliveryAddress
+                    ?.takeIf { it.isNotBlank() }
+                    ?: stringResource(R.string.not_provided)
+
+                if (address.isNotBlank()) {
                     var showAddress by remember { mutableStateOf(false) }
                     Spacer(modifier = Modifier.height(16.dp))
                     HorizontalDivider(color = Color(0xFFEEEEEE))

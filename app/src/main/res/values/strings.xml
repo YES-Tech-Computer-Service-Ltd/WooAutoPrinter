@@ -46,6 +46,11 @@
     <string name="printed_no">Not Printed</string>
     <string name="delivery_fee_text">Delivery Fee</string>
     <string name="tip_amount">Tip</string>
+
+    <!-- Pre-order (future scheduled orders) -->
+    <string name="pre_order_tag">PRE-ORDER</string>
+    <string name="pre_order_banner">PRE-ORDER: %1$s</string>
+    <string name="pre_order_notice">Do not prepare today. Follow the scheduled date.</string>
     
     <!-- Settings: Notification Settings title -->
     <string name="notification_settings">Notification settings</string>
@@ -622,6 +627,10 @@
     <!-- 更新版本相关字符串资源 -->
     <string name="checking_for_updates">Checking for updates…</string>
     <string name="update_available">Update available</string>
+    <string name="update_dialog_title">Update available</string>
+    <string name="update_dialog_message">New version %1$s is available (current: %2$s). Update now?</string>
+    <string name="update_dialog_skip">Skip this version</string>
+    <string name="update_dialog_update_now">Update now</string>
     <string name="latest_version">Latest version: %1$s</string>
     <string name="current_version">Current version: %1$s</string>
     <string name="no_update_available">Your app is up to date</string>
